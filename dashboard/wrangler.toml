@@ -1,0 +1,10 @@
+name = "leo-association-dashboard"
+main = "worker/index.js"
+compatibility_date = "2026-09-11"
+
+[assets]
+directory = "public"
+
+# Production protection is intentionally handled by Cloudflare Access at the
+# hostname level after the dashboard is attached to its final custom domain.
+# Do not put Cloudflare API tokens or application credentials in this file.

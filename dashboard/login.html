@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>تسجيل الدخول | لوحة تحكم الرابطة</title>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/admin.css">
+<script src="config.js"></script>
+<script src="js/theme.js"></script>
+
+<style>
+/* ============================================================
+   LOGIN PREMIUM LAYER
+   لا يغيّر منطق المصادقة — تحسين بصري فقط
+   ============================================================ */
+
+.login-page {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 82% 18%, rgba(46,128,199,.12), transparent 28rem),
+    radial-gradient(circle at 18% 88%, rgba(14,58,99,.06), transparent 25rem),
+    var(--canvas);
+}
+
+.login-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .35;
+  background-image:
+    linear-gradient(rgba(20,85,142,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20,85,142,.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.login-brand-panel {
+  isolation: isolate;
+  padding: clamp(42px, 6vw, 78px);
+  background:
+    radial-gradient(circle at 78% 18%, rgba(76,159,216,.22), transparent 20rem),
+    linear-gradient(145deg, #0B3153, var(--blueprint-900) 58%, #092D4C);
+}
+
+.login-brand-panel::before {
+  content: "";
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  right: -250px;
+  top: -170px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 42px rgba(255,255,255,.025),
+    0 0 0 84px rgba(255,255,255,.018);
+  z-index: -1;
+}
+
+.login-brand-panel::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  bottom: 9%;
+  width: 150px;
+  height: 150px;
+  border: 1px solid rgba(255,255,255,.09);
+  transform: rotate(45deg);
+  z-index: -1;
+}
+
+.login-brand-panel .brand-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  padding: 7px;
+  margin-bottom: 30px;
+  box-shadow:
+    0 14px 35px rgba(0,0,0,.20),
+    0 0 0 1px rgba(255,255,255,.16);
+  animation: loginLogoIn .7s cubic-bezier(.2,.8,.25,1) both;
+}
+
+.login-brand-panel h2 {
+  font-size: clamp(1.65rem, 2.3vw, 2.15rem);
+  line-height: 1.55;
+  letter-spacing: -.035em;
+  margin-bottom: 18px;
+  max-width: 520px;
+  animation: loginTextIn .7s .08s cubic-bezier(.2,.8,.25,1) both;
+}
+
+.login-brand-panel p {
+  max-width: 500px;
+  font-size: .98rem;
+  line-height: 2;
+  color: #B7D1E8;
+  animation: loginTextIn .7s .16s cubic-bezier(.2,.8,.25,1) both;
+}
+
+.login-brand-panel p::before {
+  content: "CONTROL • INSIGHT • SECURITY";
+  display: block;
+  margin-bottom: 13px;
+  color: #78B6E5;
+  font: 600 .66rem/1 var(--font-mono);
+  letter-spacing: .16em;
+  direction: ltr;
+}
+
+.login-form-panel {
+  position: relative;
+  padding: clamp(22px, 5vw, 60px);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(46,128,199,.08), transparent 18rem),
+    var(--canvas);
+}
+
+.login-card {
+  max-width: 430px;
+  padding: 34px;
+  border: 1px solid rgba(20,85,142,.13);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow:
+    0 25px 70px rgba(16,24,38,.10),
+    0 2px 5px rgba(16,24,38,.035);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  animation: loginCardIn .65s cubic-bezier(.2,.8,.25,1) both;
+}
+
+.login-card h1 {
+  font-size: 1.5rem;
+  letter-spacing: -.025em;
+}
+
+.login-card .login-subtitle {
+  line-height: 1.8;
+  margin-bottom: 30px;
+}
+
+.login-card .field label {
+  font-size: .82rem;
+  margin-bottom: 8px;
+}
+
+.login-card .field input {
+  min-height: 48px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface) 92%, var(--surface-sunken));
+}
+
+.login-card .field input:focus {
+  transform: translateY(-1px);
+}
+
+.login-card .btn {
+  min-height: 48px;
+  border-radius: 11px;
+}
+
+.login-card .btn-primary {
+  margin-top: 8px;
+}
+
+.login-card .btn-secondary {
+  border-color: var(--line-strong);
+}
+
+.login-divider {
+  margin: 22px 0;
+}
+
+.login-feedback {
+  border: 1px solid transparent;
+  animation: loginFeedbackIn .25s ease both;
+}
+
+/* ============================================================
+   حالة الزر أثناء/بعد الإرسال — توضّح للمستخدم أن الضغطة "وصلت"
+   فعلاً (خصوصاً على شبكة بطيئة) بدل ترك الزر بلا أي تغيير مرئي،
+   ما كان يدفع لتكرار الضغط دون داعٍ.
+   ============================================================ */
+.login-card .btn.is-loading,
+.login-card .btn.is-success {
+  pointer-events: none;
+}
+.login-card .btn.is-success {
+  background: var(--success);
+  color: #fff;
+  border-color: transparent;
+}
+.login-card .btn i.fa-check {
+  animation: btnCheckPop .35s cubic-bezier(.2, .8, .25, 1) both;
+}
+@keyframes btnCheckPop {
+  from { opacity: 0; transform: scale(.4) rotate(-15deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes loginCardIn {
+  from { opacity: 0; transform: translateY(18px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes loginLogoIn {
+  from { opacity: 0; transform: translateY(-10px) scale(.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes loginTextIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes loginFeedbackIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 960px) {
+  .login-form-panel {
+    min-height: 100vh;
+  }
+
+  .login-card {
+    max-width: 440px;
+  }
+}
+
+@media (max-width: 560px) {
+  .login-form-panel {
+    padding: 16px;
+  }
+
+  .login-card {
+    padding: 25px 18px;
+    border-radius: 19px;
+    box-shadow: 0 15px 40px rgba(16,24,38,.08);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .login-page {
+    background:
+      radial-gradient(circle at 82% 18%, rgba(46,128,199,.13), transparent 25rem),
+      var(--canvas);
+  }
+
+  .login-card {
+    border-color: rgba(148,163,184,.16);
+    background: rgba(30,41,59,.86);
+    box-shadow: 0 25px 70px rgba(0,0,0,.30);
+  }
+}
+</style>
+
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-brand-panel">
+    <img src="../favicon.png" alt="" class="brand-logo">
+    <h2>لوحة تحكم رابطة كلية الهندسة والعمارة</h2>
+    <p>منصة إدارة موحّدة للمحتوى والأكاديمية والبيانات التشغيلية — بواجهة واحدة لفريق الرابطة.</p>
+  </div>
+
+  <div class="login-form-panel">
+    <div class="login-card">
+      <h1>تسجيل الدخول</h1>
+      <p class="login-subtitle">أدخل بيانات حسابك للوصول إلى لوحة التحكم.</p>
+
+      <div class="login-feedback" id="loginFeedback"></div>
+
+      <form id="loginForm">
+        <div class="field">
+          <label for="username">اسم المستخدم</label>
+          <input type="text" id="username" name="username" autocomplete="username" style="direction:ltr" required>
+        </div>
+        <div class="field">
+          <label for="password">كلمة المرور</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="loginBtn">
+          <i class="fa-solid fa-arrow-left"></i>
+          دخول
+        </button>
+      </form>
+</div>
+  </div>
+</div>
+
+<script src="js/api-adapter.js?v=2.8.0"></script>
+<script src="js/utils.js"></script>
+<script src="js/auth-check-redirect.js"></script>
+<script>
+  // لا يوجد مسار دخول بديل عبر GET: كلمات المرور يجب ألا تظهر في عنوان الطلب.
+  if (!window.Adapter || typeof window.Adapter.login !== "function") {
+    console.error("Login Adapter failed to load");
+  }
+
+  // الجلسة المخزَّنة هنا حقيقية عند ضبط api.users.baseUrl في config.js:
+  // token هو رمز جلسة موقَّع HMAC تتحقق منه الخدمات الأربعة محلياً —
+  // راجع تنبيه الأمان في أعلى js/auth.js للتفاصيل.
+  document.getElementById("loginForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const btn = document.getElementById("loginBtn");
+    const feedback = document.getElementById("loginFeedback");
+
+    // ✅ حارس إضافي: يمنع أي إرسال ثانٍ لو كانت العملية جارية/نجحت
+    // فعلاً — بالإضافة إلى btn.disabled، احتياطاً لو تأخّر تطبيقه.
+    if (btn.classList.contains("is-loading") || btn.classList.contains("is-success")) return;
+
+    feedback.className = "login-feedback";
+    const originalHtml = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.classList.add("is-loading");
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جارٍ الدخول...';
+
+    try {
+      const session = await window.Adapter.login(
+        document.getElementById("username").value.trim(),
+        document.getElementById("password").value
+      );
+      localStorage.setItem("assoc_admin_session", JSON.stringify(session));
+
+      // علامة نجاح أنيقة قبل الانتقال — توضّح أن الدخول تمّ فعلاً
+      // بدل قفزة فورية قد تبدو للمستخدم وكأن شيئاً لم يحدث.
+      btn.classList.remove("is-loading");
+      btn.classList.add("is-success");
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> تم تسجيل الدخول';
+      setTimeout(function () { location.href = "index.html"; }, 550);
+    } catch (err) {
+      feedback.className = "login-feedback is-error";
+      feedback.textContent = err.message || "تعذّر تسجيل الدخول";
+      btn.classList.remove("is-loading");
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+    }
+  });
+
+  /* ⚠️ محدَّث — تسجيل الدخول بحساب قوقل (Google Identity Services) أُزيل
+     بالكامل من اللوحة (كان يمنح أي حساب قوقل جديد دور "محرر محتوى"
+     تلقائياً بلا مراجعة بشرية). الدخول الآن باسم المستخدم/كلمة السر فقط. */
+</script>
+</body>
+</html>

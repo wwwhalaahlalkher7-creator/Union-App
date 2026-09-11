@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المواد الدراسية | لوحة تحكم الرابطة</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"><link rel="stylesheet" href="css/admin.css">
+<style>
+body[data-page="materials"] .page-content{padding-top:24px}
+.department-picker{margin-bottom:14px}
+.materials-filter-row{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-top:14px}
+.materials-filter-row .semester-wrap{display:flex;align-items:center;gap:8px;flex:1;max-width:330px}
+.materials-filter-row .semester-wrap .form-control{min-height:46px;border-radius:13px}
+@media(max-width:650px){.materials-filter-row{display:block}.materials-filter-row .semester-wrap{max-width:none}}
+</style>
+<script src="config.js"></script><script src="js/theme.js"></script><script src="js/auth.js"></script>
+<style>
+body[data-page="materials"] .page-content{padding-top:24px}
+.materials-select-card{border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--surface) 94%,var(--blueprint-100)),var(--surface));border:1px solid color-mix(in srgb,var(--blueprint-700) 18%,var(--line));box-shadow:0 12px 34px rgba(10,28,52,.16)}
+.materials-select-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.materials-select-grid .form-control{min-height:50px;border-radius:14px;font-size:1rem}
+.materials-selection-note{margin-top:12px;color:var(--ink-500);font-size:.9rem}
+.materials-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.materials-section-head h2{margin:0;font-size:1.2rem}.materials-section-head p{margin:4px 0 0;color:var(--ink-500)}
+.materials-subject-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.material-folder{padding:18px;border-radius:18px;background:linear-gradient(145deg,var(--surface),color-mix(in srgb,var(--surface-sunken) 72%,var(--surface)));border:1px solid var(--line);box-shadow:0 8px 24px rgba(10,28,52,.10);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.material-folder:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--blueprint-700) 40%,var(--line));box-shadow:0 14px 30px rgba(10,28,52,.15)}
+.material-folder-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.material-folder-icon{font-size:1.9rem;color:var(--blueprint-700)}
+.material-folder h3{margin:0;font-size:1rem}.material-folder-meta{color:var(--ink-500);font-size:.82rem;margin-top:4px}
+.material-folder-actions{display:flex;gap:6px}.material-folder-actions .icon-btn{width:34px;height:34px}
+.material-files{margin-top:14px;border-top:1px solid var(--line);padding-top:10px;display:grid;gap:7px}
+.material-file{display:flex;align-items:center;gap:8px;padding:9px 0}.material-file-icon{color:#c53d3d}.material-file-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.material-file-actions{display:flex;gap:4px}.material-file-actions .icon-btn{width:30px;height:30px}
+.material-empty{padding:26px;border:1px dashed var(--line-strong);border-radius:16px;text-align:center;color:var(--ink-500)}
+.materials-locked{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:color-mix(in srgb,var(--surface-sunken) 75%,transparent);color:var(--ink-500);font-size:.78rem}
+@media(max-width:700px){.materials-select-grid{grid-template-columns:1fr}.materials-subject-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body data-page="materials"><div id="app-shell"></div>
+<template id="pageTemplate">
+  <div class="card materials-select-card">
+    <div class="card-header"><div><h3>مكتبة المواد</h3><span class="card-header-hint">Google Drive — بنية ثابتة للأقسام والسمسترات</span></div><button class="btn btn-secondary" id="refreshBtn" type="button"><i class="fa-solid fa-rotate"></i> تحديث</button></div>
+    <div class="department-picker"><div class="tabs premium-tabs" id="departmentTabs"></div></div>
+    <div class="materials-filter-row">
+      <div class="semester-wrap"><label for="semesterFilter" style="font-weight:600;white-space:nowrap">الفصل</label><select id="semesterFilter" class="form-control" disabled><option value="">اختر السمستر</option></select></div>
+    </div>
+    <div class="materials-selection-note"><i class="fa-solid fa-circle-info"></i> اختر القسم من التبويبات ثم السمستر. الأقسام والسمسترات ثابتة، أما مجلدات المواد وملفات PDF فإدارتها متاحة من هنا.</div>
+  </div>
+  <div id="materialsWorkspace" style="margin-top:18px"></div>
+</template>
+<script src="js/api-adapter.js?v=2.8.0"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/modal.js"></script><script src="js/layout.js"></script>
+<script>
+let materialsIndex={tree:[]}; let selectedSectionId='';
+const M$=id=>document.getElementById(id);
+document.addEventListener('shell:ready',async()=>{M$('pageContent').appendChild(M$('pageTemplate').content.cloneNode(true));M$('refreshBtn').onclick=loadMaterials;M$('semesterFilter').onchange=renderWorkspace;await loadMaterials();});
+async function loadMaterials(){const root=M$('materialsWorkspace');root.innerHTML='<div class="card"><div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> جارٍ تحميل بنية المواد...</div></div>';try{materialsIndex=await Adapter.listMaterialsAdmin();fillSections();renderWorkspace();}catch(e){root.innerHTML='<div class="card"><div class="empty-state is-error">'+Utils.escapeHtml(e.message||'تعذّر تحميل المواد')+'<br><button class="btn btn-secondary" onclick="loadMaterials()">إعادة المحاولة</button></div></div>';}}
+function fillSections(){const tabs=M$('departmentTabs');const allowed=new Set(['electrical-electronics','architecture','civil']);const tree=(materialsIndex.tree||[]).filter(x=>allowed.has(x.id));if(!selectedSectionId||!tree.some(x=>x.id===selectedSectionId))selectedSectionId=tree[0]?.id||'';tabs.innerHTML=tree.map(x=>`<button type="button" class="tab-btn ${x.id===selectedSectionId?'is-active':''}" data-id="${Utils.escapeHtml(x.id)}">${Utils.escapeHtml(x.name)}</button>`).join('');tabs.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{selectedSectionId=b.dataset.id;onSection();}));onSection();}
+function onSection(){const sec=(materialsIndex.tree||[]).find(x=>x.id===selectedSectionId);const sem=M$('semesterFilter');const old=sem.value;sem.disabled=!sec;sem.innerHTML='<option value="">اختر السمستر</option>'+(sec?sec.semesters:[]).map(x=>'<option value="'+Utils.escapeHtml(x.id)+'">'+Utils.escapeHtml(x.name)+'</option>').join('');sem.value=sec&&(sec.semesters||[]).some(x=>x.id===old)?old:'';fillSectionsTabsOnly();renderWorkspace();}
+function fillSectionsTabsOnly(){const tabs=M$('departmentTabs');tabs.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('is-active',b.dataset.id===selectedSectionId));}
+function renderWorkspace(){const root=M$('materialsWorkspace');const sec=(materialsIndex.tree||[]).find(x=>x.id===selectedSectionId);const sem=sec&&(sec.semesters||[]).find(x=>x.id===M$('semesterFilter').value);if(!sec||!sem){root.innerHTML='<div class="card material-empty"><i class="fa-solid fa-folder-tree" style="font-size:2rem"></i><div style="margin-top:10px">اختر القسم والسمستر لعرض المواد.</div></div>';return;}const subjects=sem.subjects||[];root.innerHTML='<div class="card"><div class="materials-section-head"><div><h2>'+Utils.escapeHtml(sec.name)+' — '+Utils.escapeHtml(sem.name)+'</h2><p>'+subjects.length+' مادة</p></div><div style="display:flex;gap:8px;align-items:center"><span class="materials-locked"><i class="fa-solid fa-lock"></i> القسم والسمستر ثابتان</span><button class="btn btn-primary requires-edit" onclick="addSubject()"><i class="fa-solid fa-folder-plus"></i> إضافة مادة</button></div></div>'+(subjects.length?'<div class="materials-subject-grid">'+subjects.map(subjectCard).join('')+'</div>':'<div class="material-empty">لا توجد مواد في هذا السمستر بعد. يمكنك إضافة أول مادة.</div>')+'</div>';bindMaterialActions();}
+function subjectCard(s){const files=s.files||[];return '<div class="material-folder"><div class="material-folder-head"><div><i class="fa-solid fa-folder material-folder-icon"></i><h3 style="margin-top:9px">'+Utils.escapeHtml(s.name)+'</h3><div class="material-folder-meta">'+files.length+' ملف PDF</div></div><div class="material-folder-actions requires-edit"><button class="icon-btn" data-act="rename-subject" data-id="'+Utils.escapeHtml(s.id)+'" data-name="'+Utils.escapeHtml(s.name)+'" title="إعادة تسمية"><i class="fa-solid fa-pen"></i></button><button class="icon-btn is-danger" data-act="delete-subject" data-id="'+Utils.escapeHtml(s.id)+'" title="حذف المادة"><i class="fa-solid fa-trash"></i></button></div></div><div style="margin-top:12px"><button class="btn btn-secondary requires-edit" style="width:100%" data-act="upload" data-id="'+Utils.escapeHtml(s.id)+'"><i class="fa-solid fa-file-arrow-up"></i> إضافة PDF</button></div><div class="material-files">'+(files.length?files.map(fileRow).join(''):'<div class="field-hint">لا توجد ملفات داخل هذه المادة.</div>')+'</div></div>'}
+function fileRow(f){return '<div class="material-file"><i class="fa-regular fa-file-pdf material-file-icon"></i><a class="material-file-name" target="_blank" href="'+Utils.escapeHtml(f.link||'#')+'" title="فتح PDF">'+Utils.escapeHtml(f.name)+'</a><div class="material-file-actions requires-edit"><button class="icon-btn" data-act="rename-file" data-id="'+Utils.escapeHtml(f.id)+'" data-name="'+Utils.escapeHtml(f.name)+'" title="إعادة تسمية"><i class="fa-solid fa-pen"></i></button><button class="icon-btn is-danger" data-act="delete-file" data-id="'+Utils.escapeHtml(f.id)+'" title="حذف الملف"><i class="fa-solid fa-trash"></i></button></div></div>'}
+function bindMaterialActions(){document.querySelectorAll('[data-act]').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.act;if(a==='rename-subject')renameItem(b.dataset.id,b.dataset.name,true);if(a==='delete-subject')deleteItem(b.dataset.id,'المادة');if(a==='rename-file')renameItem(b.dataset.id,b.dataset.name,false);if(a==='delete-file')deleteItem(b.dataset.id,'ملف PDF');if(a==='upload')uploadPdf(b.dataset.id);}));}
+function addSubject(){const sec=selectedSectionId,sem=M$('semesterFilter').value;if(!sem)return;Modal.open({title:'إضافة مادة',bodyHtml:'<form id="materialFolderForm"><div class="field"><label>اسم المادة</label><input name="name" required maxlength="150" placeholder="مثال: الجبر الخطي"></div></form>',buttons:[{label:'إلغاء',className:'btn-secondary',onClick:()=>Modal.close()},{label:'إنشاء المادة',className:'btn-primary',onClick:async(btn)=>{const name=document.querySelector('#materialFolderForm [name="name"]').value.trim();if(!name)return;btn.disabled=true;try{await Adapter.createMaterialFolder(sem,name,sec);Modal.close();await loadMaterials();setTimeout(()=>{selectedSectionId=sec;onSection();M$('semesterFilter').value=sem;renderWorkspace();},0);}catch(e){Feedback.error(e.message||'تعذّر إنشاء المادة')}finally{btn.disabled=false;}}}]});}
+function renameItem(id,current,isFolder){Modal.open({title:isFolder?'إعادة تسمية المادة':'إعادة تسمية ملف PDF',bodyHtml:'<form id="renameForm"><div class="field"><label>الاسم</label><input name="name" required value="'+Utils.escapeHtml(current)+'"></div></form>',buttons:[{label:'إلغاء',className:'btn-secondary',onClick:()=>Modal.close()},{label:'حفظ',className:'btn-primary',onClick:async(btn)=>{const name=document.querySelector('#renameForm [name="name"]').value.trim();if(!name)return;btn.disabled=true;try{await Adapter.renameMaterialItem(id,name);Modal.close();await loadMaterials();}catch(e){Feedback.error(e.message||'تعذّر إعادة التسمية')}finally{btn.disabled=false;}}}]});}
+async function deleteItem(id,label){const ok=await Modal.confirmDialog('سيتم حذف '+Utils.escapeHtml(label)+' نهائيًا من Google Drive. هل أنت متأكد؟','حذف نهائي');if(!ok)return;try{await Adapter.deleteMaterialItem(id);Feedback.success('تم الحذف');await loadMaterials();}catch(e){Feedback.error(e.message||'تعذّر الحذف')}}
+function uploadPdf(parentId){Modal.open({title:'إضافة ملف PDF',bodyHtml:'<form id="uploadForm"><div class="field"><label>ملف PDF</label><input name="file" type="file" accept="application/pdf" required></div></form>',buttons:[{label:'إلغاء',className:'btn-secondary',onClick:()=>Modal.close()},{label:'رفع الملف',className:'btn-primary',onClick:async(btn)=>{const file=document.querySelector('#uploadForm [name="file"]').files[0];if(!file)return;if(file.size>8*1024*1024){Feedback.error('اختر ملف PDF أصغر من 8MB.');return;}btn.disabled=true;try{const b64=await fileToBase64(file);await Adapter.uploadMaterialPdf(parentId,file.name,b64);Modal.close();await loadMaterials();}catch(e){Feedback.error(e.message||'تعذّر رفع الملف')}finally{btn.disabled=false;}}}]});}
+function fileToBase64(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]||'');r.onerror=reject;r.readAsDataURL(file);});}
+</script></body></html>

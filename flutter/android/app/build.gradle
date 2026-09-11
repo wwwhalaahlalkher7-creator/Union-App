@@ -1,0 +1,41 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+android {
+    namespace = "com.leoassociation.app"
+    compileSdk = flutter.compileSdkVersion
+
+    // Keep Java and Kotlin JVM targets aligned for modern Android/Flutter builds.
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    // Sign the CI release APK with Gradle's local debug key so the generated
+    // artifact is installable for testing. Replace this with a real release
+    // keystore before publishing to production/Google Play.
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.debug
+        }
+    }
+
+    defaultConfig {
+        applicationId = "com.leoassociation.app"
+        minSdk = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+}
+
+flutter {
+    source = "../.."
+}

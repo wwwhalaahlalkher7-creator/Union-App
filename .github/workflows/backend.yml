@@ -1,0 +1,100 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate package.json
+        run: node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('backend package.json OK')"
+
+      - name: Check Worker syntax
+        run: node --check src/index.js
+
+      - name: Migration smoke test
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import sqlite3
+
+          con = sqlite3.connect(':memory:')
+          migrations = sorted(Path('migrations').glob('*.sql'))
+          if not migrations:
+              raise SystemExit('No migration files found')
+
+          for path in migrations:
+              print(f'Applying {path.name}')
+              con.executescript(path.read_text(encoding='utf-8'))
+
+          tables = con.execute(
+              "SELECT COUNT(*) FROM sqlite_master WHERE type='table'"
+          ).fetchone()[0]
+
+          if tables < 1:
+              raise SystemExit('Migration smoke test produced no tables')
+
+          print(f'Migration smoke test passed: {tables} tables')
+          PY
+
+  deploy:
+    name: Deploy Backend to Cloudflare
+    needs: validate
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Apply D1 migrations
+        run: npm run migrate:remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy Worker
+        run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -1,0 +1,122 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'flutter/**'
+      - 'ci/**'
+      - '.github/workflows/flutter.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'flutter/**'
+      - 'ci/**'
+      - '.github/workflows/flutter.yml'
+
+concurrency:
+  group: flutter-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-checks:
+    name: Flutter analyze and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Flutter version metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(cat VERSION)"
+          grep -q "version: ${VERSION}" pubspec.yaml
+          SEMVER="${VERSION%%+*}"
+          BUILD="${VERSION##*+}"
+          grep -q "static const name = '${SEMVER}';" lib/core/app_version.dart
+          grep -q "static const build = ${BUILD};" lib/core/app_version.dart
+          echo "Flutter version metadata OK: ${VERSION}"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.0'
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test --reporter expanded
+
+  build-android:
+    name: Android release artifacts
+    needs: flutter-checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.0'
+          channel: stable
+          cache: true
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Ensure Android Gradle Wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          if [ ! -f gradlew ] || [ ! -f gradle/wrapper/gradle-wrapper.properties ] || [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            gradle wrapper --gradle-version 8.13 --distribution-type bin
+          fi
+          test -x gradlew
+          test -f gradle/wrapper/gradle-wrapper.properties
+          test -f gradle/wrapper/gradle-wrapper.jar
+          grep -q 'gradle-8\.13-' gradle/wrapper/gradle-wrapper.properties
+          chmod +x gradlew
+          ./gradlew --version
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Build AAB
+        run: flutter build appbundle --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: leo-association-apk
+          path: flutter/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: leo-association-aab
+          path: flutter/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error

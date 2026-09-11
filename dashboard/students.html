@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>الطلاب | لوحة تحكم الرابطة</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/admin.css">
+<script src="config.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/auth.js"></script>
+<style>
+body[data-page="students"] .page-content{padding-top:28px}
+body[data-page="students"] .card{border-radius:18px;border-color:rgba(20,85,142,.13);box-shadow:0 7px 24px rgba(16,24,38,.045)}
+body[data-page="students"] .data-table tbody tr{transition:background .16s ease}
+body[data-page="students"] .data-table tbody tr:hover{background:color-mix(in srgb,var(--blueprint-100) 34%,transparent)}
+body[data-page="students"] #pageContent > *{animation:studentsReveal .45s cubic-bezier(.2,.75,.3,1) both}
+@keyframes studentsReveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+body[data-page="students"] .page-content{padding-top:28px}
+body[data-page="students"] .card{border-radius:20px;border:1px solid color-mix(in srgb,var(--blueprint-700) 18%,var(--line));box-shadow:0 12px 34px rgba(10,28,52,.18)}
+body[data-page="students"] .data-table tbody tr{transition:background .16s ease,transform .16s ease}
+body[data-page="students"] .data-table tbody tr:hover{background:color-mix(in srgb,var(--blueprint-100) 38%,transparent)}
+body[data-page="students"] #pageContent > *{animation:studentsReveal .45s cubic-bezier(.2,.75,.3,1) both}
+@keyframes studentsReveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.students-controls{display:grid;gap:12px}
+.students-search-row{display:grid;grid-template-columns:minmax(0,1fr);width:100%}
+.students-search{width:100%;min-height:50px!important;font-size:1rem!important;padding:0 16px!important;border-radius:15px!important;background:color-mix(in srgb,var(--surface) 88%,var(--blueprint-100))!important;border:1px solid var(--line-strong)!important;box-shadow:0 4px 16px rgba(10,28,52,.08)}
+.students-filter-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;direction:ltr}
+.students-filter-card{display:flex;align-items:center;gap:10px;min-height:62px;padding:10px 12px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--surface) 92%,var(--blueprint-100));box-shadow:0 5px 18px rgba(10,28,52,.07)}
+.students-filter-card .filter-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:color-mix(in srgb,var(--blueprint-100) 70%,var(--surface));color:var(--blueprint-700);flex:0 0 auto}
+.students-filter-card .form-control{min-height:44px;border:0!important;box-shadow:none!important;background:transparent!important;border-radius:11px;flex:1;min-width:0;direction:rtl}
+.students-sort-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;direction:ltr}
+.students-sort-row .students-filter-card:last-child{direction:rtl}
+.students-sort-row .btn-sort-direction{width:100%;min-height:44px;border:0;background:transparent;color:var(--ink-700);padding:0}
+.students-actions-row{display:flex;justify-content:flex-start;gap:10px;direction:rtl}
+.students-actions-row .btn{min-height:46px;border-radius:13px;padding-inline:18px}
+.students-id{direction:ltr;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media(max-width:700px){.students-filter-row,.students-sort-row{grid-template-columns:1fr 1fr}.students-actions-row{display:grid;grid-template-columns:1fr 1fr}.students-actions-row .btn{width:100%}}
+@media(max-width:480px){body[data-page="students"] .page-content{padding:14px}.students-filter-row,.students-sort-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.students-filter-card{min-width:0;padding:9px 8px}.students-filter-card .form-control{font-size:.9rem}.students-filter-card .filter-icon{width:32px;height:32px;flex-basis:32px}.students-actions-row{grid-template-columns:1fr 1fr}}
+
+/* UI/UX PASS 5 — أزرار الطلاب + وضوح الوضع الداكن */
+.students-actions-row .btn {
+  min-height: 50px; border-radius: 14px; font-weight: 700; letter-spacing: -.01em;
+  box-shadow: 0 6px 16px rgba(0,0,0,.08); transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.students-actions-row .btn i { font-size: 1rem; }
+.students-actions-row .btn-primary { background: linear-gradient(135deg, var(--blueprint-600), var(--blueprint-500)); }
+.students-actions-row .btn-secondary { background: var(--surface-sunken); border: 1px solid var(--line-strong); color: var(--ink-900); }
+.students-actions-row .btn:hover { transform: translateY(-1px); box-shadow: 0 9px 20px rgba(0,0,0,.12); }
+.students-filter-card { border: 1px solid var(--line-strong) !important; background: var(--surface) !important; box-shadow: var(--shadow-sm); }
+.students-filter-card .form-control, .students-filter-card select, .students-filter-card .btn-sort-direction { color: var(--ink-900) !important; }
+.students-filter-card select option { color: #10161F; background: #fff; }
+@media (prefers-color-scheme: dark) {
+  .students-filter-card { background: #243247 !important; border-color: #4B6078 !important; }
+  .students-filter-card .form-control, .students-filter-card select, .students-filter-card .btn-sort-direction { color: #F8FAFC !important; }
+  .students-filter-card select option { color: #F8FAFC; background: #243247; }
+  .students-filter-card .filter-icon { background: rgba(255,255,255,.10); color: #B9D8F4; }
+  .students-actions-row .btn-secondary { color: #F8FAFC; background: #26364C; border-color: #4B6078; }
+}
+@media(max-width:480px){
+  .students-actions-row { gap: 9px; }
+  .students-actions-row .btn { min-height: 52px; padding-inline: 10px; font-size: .9rem; }
+}
+
+</style>
+</head>
+<body data-page="students">
+<div id="app-shell"></div>
+<template id="pageTemplate">
+  <div class="page-intro">
+    <div>
+      <h2>إدارة الطلاب</h2>
+      <p>السجل الداخلي للطلاب المستخدم للتحقق من هوية الطالب وبياناته الأكاديمية.</p>
+    </div>
+  </div>
+
+  <div class="card students-controls-card">
+    <div class="students-controls">
+      <div class="students-search-row">
+        <input id="searchInput" class="form-control students-search" type="search" placeholder="ابحث بالرقم الجامعي أو اسم الطالب">
+      </div>
+      <div class="students-filter-row">
+        <div class="students-filter-card"><span class="filter-icon"><i class="fa-solid fa-building-columns"></i></span><select id="departmentFilter" class="form-control"><option value="">كل الأقسام</option></select></div>
+        <div class="students-filter-card"><span class="filter-icon"><i class="fa-solid fa-layer-group"></i></span><select id="semesterFilter" class="form-control"><option value="">كل الفصول</option></select></div>
+      </div>
+      <div class="students-sort-row">
+        <div class="students-filter-card"><span class="filter-icon"><i class="fa-solid fa-arrows-up-down"></i></span><button class="btn-sort-direction" id="sortDirectionBtn" type="button" title="عكس الترتيب" aria-label="عكس الترتيب"><i class="fa-solid fa-arrow-down-a-z"></i> <span>الاتجاه</span></button></div>
+        <div class="students-filter-card"><span class="filter-icon"><i class="fa-solid fa-arrow-down-a-z"></i></span><select id="sortFilter" class="form-control" aria-label="ترتيب حسب">
+          <option value="name">الاسم — أبجدي</option>
+          <option value="department">القسم — ثم الاسم</option>
+          <option value="studentId">الرقم الجامعي</option>
+        </select></div>
+      </div>
+      <div class="students-actions-row">
+        <button class="btn btn-primary requires-edit" id="addBtn" type="button"><i class="fa-solid fa-user-plus"></i> إضافة طالب</button>
+        <button class="btn btn-secondary" id="refreshBtn" type="button"><i class="fa-solid fa-rotate"></i> تحديث القائمة</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="card-header">
+      <div><h3>سجل الطلاب</h3><span class="card-header-hint" id="resultHint">جارٍ التحميل...</span></div>
+    </div>
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>الرقم الجامعي</th><th>اسم الطالب</th><th>القسم</th><th>الفصل</th><th>الحالة</th><th></th></tr></thead>
+        <tbody id="studentsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="studentModal" class="modal-overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="studentModalTitle">
+      <div class="modal-header"><h3 id="studentModalTitle">إضافة طالب</h3><button class="icon-btn" id="closeModal" type="button"><i class="fa-solid fa-xmark"></i></button></div>
+      <form id="studentForm">
+        <input type="hidden" id="studentRecordId">
+        <div class="schedule-form-grid">
+          <div class="field"><label>الرقم الجامعي</label><input id="studentId" class="students-id" type="text" required maxlength="100" autocomplete="off"></div>
+          <div class="field"><label>اسم الطالب</label><input id="studentName" type="text" required maxlength="150"></div>
+          <div class="field"><label>القسم</label><select id="department" required></select></div>
+          <div class="field"><label>الفصل</label><select id="semester" required></select></div>
+        </div>
+        <div id="formError" class="login-feedback is-error" style="display:none"></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" id="cancelBtn">إلغاء</button><button type="submit" class="btn btn-primary" id="saveBtn">حفظ</button></div>
+      </form>
+    </div>
+  </div>
+</template>
+<script src="js/api-adapter.js?v=2.8.0"></script>
+<script src="js/utils.js"></script>
+<script src="js/feedback.js"></script>
+<script src="js/modal.js"></script>
+<script src="js/layout.js"></script>
+<script>
+let studentData={records:[],departments:[],semesters:[],reverse:false};
+const $=id=>document.getElementById(id);
+
+document.addEventListener("shell:ready",async()=>{
+  $("pageContent").appendChild($("pageTemplate").content.cloneNode(true));
+  $("refreshBtn").addEventListener("click",loadStudents);
+  $("searchInput").addEventListener("input",debounce(loadStudents,300));
+  $("departmentFilter").addEventListener("change",loadStudents);
+  $("semesterFilter").addEventListener("change",loadStudents);
+  $("sortFilter").addEventListener("change",renderStudents);
+  $("sortDirectionBtn").addEventListener("click",()=>{studentData.reverse=!studentData.reverse;updateSortButton();renderStudents();});
+  $("addBtn").addEventListener("click",()=>openForm(null));
+  $("closeModal").addEventListener("click",closeForm);
+  $("cancelBtn").addEventListener("click",closeForm);
+  $("studentForm").addEventListener("submit",saveForm);
+  await loadStudents();
+});
+
+function debounce(fn,ms){let t;return()=>{clearTimeout(t);t=setTimeout(fn,ms)}}
+function fillSelect(id,items,placeholder,labelFn){const el=$(id);el.innerHTML=`<option value="">${placeholder}</option>`+(items||[]).map(x=>`<option value="${Utils.escapeHtml(String(x))}">${Utils.escapeHtml(labelFn?labelFn(x):String(x))}</option>`).join("")}
+function setupOptions(){
+  fillSelect("departmentFilter",studentData.departments,"كل الأقسام");
+  fillSelect("semesterFilter",studentData.semesters,"كل الفصول");
+  fillSelect("department",studentData.departments,"اختر القسم");
+  fillSelect("semester",studentData.semesters,"اختر الفصل");
+}
+async function loadStudents(){
+  const body=$("studentsBody");if(!body)return;
+  body.innerHTML=`<tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> جارٍ تحميل الطلاب...</div></td></tr>`;
+  try{
+    const filters={q:$("searchInput").value.trim(),department:$("departmentFilter").value,semester:$("semesterFilter").value};
+    studentData=await Adapter.listStudentsAdmin(filters);
+    setupOptions();
+    $("departmentFilter").value=filters.department;
+    $("semesterFilter").value=filters.semester;
+    renderStudents();
+  }catch(e){
+    body.innerHTML=`<tr><td colspan="6"><div class="empty-state is-error"><i class="fa-solid fa-triangle-exclamation"></i>${Utils.escapeHtml(e.message||"تعذّر تحميل الطلاب")}<br><button class="btn btn-secondary" type="button" onclick="loadStudents()">إعادة المحاولة</button></div></td></tr>`;
+    $("resultHint").textContent="فشل التحميل";
+  }
+}
+function compareStudents(a,b,mode){
+  const av=mode==='department'?(a.department||''):(mode==='studentId'?(a.studentId||''):(a.name||''));
+  const bv=mode==='department'?(b.department||''):(mode==='studentId'?(b.studentId||''):(b.name||''));
+  const primary=String(av).localeCompare(String(bv),'ar',{numeric:true,sensitivity:'base'});
+  if(primary!==0)return primary;
+  if(mode==='department')return String(a.name||'').localeCompare(String(b.name||''),'ar',{numeric:true,sensitivity:'base'});
+  return String(a.studentId||'').localeCompare(String(b.studentId||''),'ar',{numeric:true,sensitivity:'base'});
+}
+function updateSortButton(){
+  const btn=$("sortDirectionBtn"); if(!btn)return;
+  btn.innerHTML=studentData.reverse?'<i class="fa-solid fa-arrow-up-a-z"></i>':'<i class="fa-solid fa-arrow-down-a-z"></i>';
+  btn.title=studentData.reverse?'الترتيب تصاعدي':'الترتيب تنازلي';
+}
+function renderStudents(){
+  const body=$("studentsBody"),rows=[...(studentData.records||[])];
+  const mode=$("sortFilter")?.value||'name';
+  rows.sort((a,b)=>compareStudents(a,b,mode)*(studentData.reverse?-1:1));
+  $("resultHint").textContent=`${rows.length} طالب`;
+  updateSortButton();
+  if(!rows.length){body.innerHTML=`<tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-user-slash"></i>لا توجد نتائج مطابقة.</div></td></tr>`;return}
+  body.innerHTML=rows.map(r=>`<tr>
+    <td class="students-id">${Utils.escapeHtml(r.studentId||"—")}</td>
+    <td><strong>${Utils.escapeHtml(r.name||"—")}</strong></td>
+    <td>${Utils.escapeHtml(r.department||"—")}</td>
+    <td>${Utils.escapeHtml(String(r.semester||"—"))}</td>
+    <td><span class="badge ${r.active?"badge-success":"badge-neutral"}">${r.active?"نشط":"معطّل"}</span></td>
+    <td><div class="row-actions requires-edit">
+      <button class="icon-btn" type="button" title="تعديل" onclick='openForm(${JSON.stringify(r.id)})'><i class="fa-solid fa-pen"></i></button>
+      <button class="icon-btn" type="button" title="${r.active?"تعطيل":"تفعيل"}" onclick='toggleStudent(${JSON.stringify(r.id)},${!r.active})'><i class="fa-solid ${r.active?"fa-toggle-off":"fa-toggle-on"}"></i></button>
+      <button class="icon-btn is-danger" type="button" title="حذف" onclick='deleteStudent(${JSON.stringify(r.id)})'><i class="fa-solid fa-trash"></i></button>
+    </div></td>
+  </tr>`).join("");
+}
+function getStudent(id){return(studentData.records||[]).find(r=>r.id===id)||null}
+function openForm(id){
+  const r=id?getStudent(id):null;
+  $("studentModalTitle").textContent=r?"تعديل طالب":"إضافة طالب";
+  $("studentRecordId").value=r?.id||"";
+  $("studentId").value=r?.studentId||"";
+  $("studentName").value=r?.name||"";
+  $("department").value=r?.department||"";
+  $("semester").value=r?.semester?String(r.semester):"";
+  $("formError").style.display="none";
+  $("studentModal").classList.add("is-open");
+}
+function closeForm(){$("studentModal").classList.remove("is-open")}
+async function saveForm(ev){
+  ev.preventDefault();const err=$("formError");err.style.display="none";
+  const payload={studentId:$("studentId").value.trim(),name:$("studentName").value.trim(),department:$("department").value,semester:$("semester").value};
+  if(!payload.studentId||!payload.name||!payload.department||!payload.semester){err.textContent="جميع الحقول مطلوبة.";err.style.display="block";return}
+  const id=$("studentRecordId").value,btn=$("saveBtn");btn.disabled=true;
+  try{if(id)await Adapter.updateStudentAdmin(id,payload);else await Adapter.createStudentAdmin(payload);closeForm();await loadStudents()}
+  catch(e){err.textContent=e.message||"تعذّرت العملية";err.style.display="block"}
+  finally{btn.disabled=false}
+}
+async function toggleStudent(id,active){
+  const ok=await Modal.confirmDialog(active?"هل تريد تفعيل هذا الطالب؟":"هل تريد تعطيل هذا الطالب؟",active?"تفعيل الطالب":"تعطيل الطالب");
+  if(!ok)return;
+  try{await Adapter.toggleStudentAdmin(id,active);Feedback.success(active?"تم تفعيل الطالب":"تم تعطيل الطالب");await loadStudents()}
+  catch(e){Feedback.error(e.message||"تعذّرت العملية")}
+}
+async function deleteStudent(id){
+  const ok=await Modal.confirmDialog("سيتم حذف الطالب نهائيًا من السجل. هل أنت متأكد؟","حذف نهائي");
+  if(!ok)return;
+  try{await Adapter.deleteStudentAdmin(id);Feedback.success("تم حذف الطالب");await loadStudents()}
+  catch(e){Feedback.error(e.message||"تعذّر حذف الطالب")}
+}
+</script>
+</body>
+</html>

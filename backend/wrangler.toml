@@ -1,0 +1,21 @@
+name = "leo-association-api"
+main = "src/index.js"
+compatibility_date = "2026-09-10"
+
+[vars]
+APP_VERSION = "2.6.0"
+MINIMUM_APP_VERSION = "2.0.0"
+APP_UPDATE_URL = ""
+APP_RELEASE_NOTES = ""
+API_VERSION = "v1"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "leo-association-db"
+database_id = "60081adf-6694-4254-9cca-6d6b5fe0022b"
+migrations_dir = "migrations"
+
+# Secrets are intentionally not stored in this file.
+# Configure them with `wrangler secret put` when the corresponding stage is enabled.
+
+# Comma-separated production origins. Configure as a secret/var in deployment.

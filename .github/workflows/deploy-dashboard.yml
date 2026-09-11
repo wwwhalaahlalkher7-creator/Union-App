@@ -1,0 +1,78 @@
+name: Deploy Dashboard to Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/deploy-dashboard.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: dashboard-cloudflare
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check dashboard Worker syntax
+        run: node --check dashboard/worker/index.js
+
+      - name: Check dashboard JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --check "$file"
+          done < <(find dashboard/js -type f -name '*.js' -print0)
+
+      - name: Validate required dashboard files
+        run: |
+          test -f dashboard/login.html
+          test -f dashboard/index.html
+          test -f dashboard/config.js
+          test -f dashboard/wrangler.toml
+          test -f dashboard/worker/index.js
+
+  deploy:
+    name: Deploy Dashboard to Cloudflare Workers
+    needs: validate
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare static assets
+        run: |
+          rm -rf dashboard/public
+          mkdir -p dashboard/public
+          rsync -a \
+            --exclude 'public/' \
+            --exclude 'worker/' \
+            --exclude 'wrangler.toml' \
+            --exclude 'README*' \
+            dashboard/ dashboard/public/
+
+      - name: Deploy Dashboard Worker
+        working-directory: dashboard
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

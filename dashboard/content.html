@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>المحتوى | لوحة تحكم الرابطة</title>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/admin.css">
+<script src="config.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/auth.js"></script>
+
+<style>
+/* ============================================================
+   CONTENT PREMIUM LAYER
+   يحافظ على جميع IDs والـfunctions الحالية
+   ============================================================ */
+
+body[data-page="news"] {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(46,128,199,.07), transparent 27rem),
+    radial-gradient(circle at 5% 95%, rgba(14,58,99,.045), transparent 24rem),
+    var(--canvas);
+}
+
+body[data-page="news"] .page-content {
+  position: relative;
+  padding-top: 30px;
+}
+
+body[data-page="news"] .page-content::before {
+  content: "";
+  position: fixed;
+  inset: var(--topbar-h) 0 0;
+  pointer-events: none;
+  opacity: .3;
+  background-image:
+    linear-gradient(rgba(20,85,142,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20,85,142,.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+  z-index: -1;
+}
+
+/* كل البطاقات */
+body[data-page="news"] .card {
+  border-radius: 18px;
+  border-color: rgba(20,85,142,.13);
+  box-shadow: 0 7px 24px rgba(16,24,38,.045);
+}
+
+body[data-page="news"] .card-header {
+  min-height: 34px;
+}
+
+body[data-page="news"] .card-header h3 {
+  font-size: .98rem;
+  letter-spacing: -.01em;
+}
+
+/* الجداول */
+body[data-page="news"] .data-table th {
+  background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
+}
+
+body[data-page="news"] .data-table tbody tr {
+  transition: background .16s ease;
+}
+
+body[data-page="news"] .data-table tbody tr:hover {
+  background: color-mix(in srgb, var(--blueprint-100) 34%, transparent);
+}
+
+/* حالة عدم وجود بيانات */
+body[data-page="news"] .empty-state {
+  border: 1px dashed var(--line-strong);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-sunken) 30%, transparent);
+}
+
+/* دخول الصفحة */
+body[data-page="news"] #pageContent > * {
+  animation: newsReveal .48s cubic-bezier(.2,.75,.3,1) both;
+}
+
+@keyframes newsReveal {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* الوضع الليلي */
+@media (prefers-color-scheme: dark) {
+  body[data-page="news"] {
+    background:
+      radial-gradient(circle at 92% 0%, rgba(46,128,199,.11), transparent 27rem),
+      var(--canvas);
+  }
+
+  body[data-page="news"] .card,
+  body[data-page="news"] .stat-card {
+    border-color: rgba(148,163,184,.13);
+    box-shadow: 0 9px 28px rgba(0,0,0,.20);
+  }
+}
+
+@media (max-width: 960px) {
+  body[data-page="news"] .page-content {
+    padding-top: 22px;
+  }
+}
+
+@media (max-width: 560px) {
+  body[data-page="news"] .page-content {
+    padding: 14px;
+  }
+
+  body[data-page="news"] .stats-grid {
+    gap: 10px;
+  }
+
+  body[data-page="news"] .card {
+    border-radius: 15px;
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-page="news"] #pageContent > * {
+    animation: none;
+  }
+}
+
+
+</style>
+
+</head>
+<body data-page="news">
+
+<div id="app-shell"></div>
+
+<template id="pageTemplate">
+  <div class="tabs premium-tabs" id="typeTabs"></div>
+  <div class="card">
+    <div class="toolbar">
+      <div class="field"><input type="text" id="searchInput" placeholder="ابحث بالعنوان..."></div>
+      <button class="btn btn-primary requires-edit" id="addBtn" type="button"><i class="fa-solid fa-plus"></i> إضافة <span id="addBtnLabel"></span></button>
+    </div>
+    <div class="table-scroll"><table class="data-table"><thead><tr><th>العنوان</th><th>تاريخ النشر</th><th>الحالة</th><th>المشاهدات</th><th></th></tr></thead><tbody id="contentTableBody"></tbody></table></div>
+  </div>
+</template>
+
+<script src="js/api-adapter.js?v=2.8.0"></script>
+<script src="js/utils.js"></script>
+<script src="js/feedback.js"></script>
+<script src="js/modal.js"></script>
+<script src="js/layout.js"></script>
+<script>
+  let currentType = "news";
+  let currentItems = [];
+  let _pendingImages = {}; // ✅ جديد — ملفات الصور المتعددة المختارة (قبل الحفظ)، مفتاحها اسم الحقل
+
+  document.addEventListener("shell:ready", () => {
+    const tpl = document.getElementById("pageTemplate");
+    document.getElementById("pageContent").appendChild(tpl.content.cloneNode(true));
+
+    renderTabs();
+    loadAndRenderList();
+
+    document.getElementById("addBtn").addEventListener("click", () => openForm(null));
+    document.getElementById("searchInput").addEventListener("input", applyFilterAndRender);
+  });
+
+  function renderTabs() {
+    const tabsEl = document.getElementById("typeTabs");
+    tabsEl.innerHTML = Object.keys(Adapter.CONTENT_TYPES).map(key => {
+      const schema = Adapter.CONTENT_TYPES[key];
+      return `<button type="button" class="tab-btn ${key === currentType ? "is-active" : ""}" data-type="${key}">${schema.labelPlural}</button>`;
+    }).join("");
+
+    tabsEl.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        currentType = btn.dataset.type;
+        renderTabs();
+        loadAndRenderList();
+      });
+    });
+
+    document.getElementById("addBtnLabel").textContent = Adapter.CONTENT_TYPES[currentType].label;
+  }
+
+  async function loadAndRenderList() {
+    const tbody = document.getElementById("contentTableBody");
+    await Feedback.loadIntoTable(
+      tbody, 5,
+      () => Adapter.listContent(currentType),
+      (items) => { currentItems = items; applyFilterAndRender(); },
+      { errorPrefix: "تعذّر تحميل القائمة" }
+    );
+  }
+
+  function applyFilterAndRender() {
+    const q = document.getElementById("searchInput").value.trim();
+    const filtered = q
+      ? currentItems.filter(r => (r.fields.Title || "").includes(q))
+      : currentItems;
+    renderTable(filtered);
+  }
+
+  function renderTable(items) {
+    const schema = Adapter.CONTENT_TYPES[currentType];
+    const tbody = document.getElementById("contentTableBody");
+
+    if (!items.length) {
+      tbody.innerHTML = `
+        <tr><td colspan="5">
+          <div class="empty-state"><i class="fa-solid fa-inbox"></i>لا يوجد ${schema.labelPlural} بعد</div>
+        </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = items.map(r => {
+      const dateVal = r.fields[schema.dateField];
+      const isScheduled = !!dateVal && new Date(dateVal) > new Date();
+      return `
+        <tr>
+          <td>${Utils.escapeHtml(r.fields.Title)}</td>
+          <td>${dateVal ? Utils.formatDate(dateVal) : "—"}</td>
+          <td><span class="badge ${isScheduled ? "badge-warning" : "badge-success"}">${isScheduled ? "مجدول" : "منشور"}</span></td>
+          <td style="font-family:var(--font-mono);direction:ltr">${Utils.formatNumber(r.fields.Views || 0)}</td>
+          <td>
+            <div class="row-actions requires-edit">
+              <button class="icon-btn" type="button" data-action="edit" data-id="${r.id}" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+              <button class="icon-btn is-danger" type="button" data-action="delete" data-id="${r.id}" title="حذف"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>`;
+    }).join("");
+
+    tbody.querySelectorAll('[data-action="edit"]').forEach(btn =>
+      btn.addEventListener("click", () => openForm(btn.dataset.id)));
+    tbody.querySelectorAll('[data-action="delete"]').forEach(btn =>
+      btn.addEventListener("click", () => handleDelete(btn.dataset.id, btn)));
+  }
+
+  function fieldHtml(f, record) {
+    const val = record ? (record.fields[f.key] ?? "") : (f.default ?? "");
+    const req = f.required ? "required" : "";
+
+    if (f.type === "textarea") {
+      return `<div class="field"><label>${f.label}</label>
+        <textarea name="${f.key}" ${req}>${Utils.escapeHtml(val)}</textarea></div>`;
+    }
+    if (f.type === "date") {
+      return `<div class="field"><label>${f.label}</label>
+        <input type="date" name="${f.key}" value="${Utils.escapeHtml(val)}" ${req}></div>`;
+    }
+    if (f.type === "image") {
+      // ✅ جديد — رفع فعلي: مدخل ملف حقيقي + معاينة فورية بالمتصفح، بلا
+      // أي رفع للخادم إلا عند الضغط على "نشر/حفظ" (submitForm يقرأ
+      // الملف كـ base64 عندها فقط). عند التعديل: تُعرض الصورة الحالية
+      // (البيانات القادمة من Association API تحتوي على رابط الصورة مباشرة) إن
+      // وُجدت، ولا تُستبدل إلا باختيار ملف جديد صراحةً.
+      const existingUrl = (record && Array.isArray(record.fields.Image) && record.fields.Image[0])
+        ? record.fields.Image[0].url : "";
+      return `<div class="field">
+        <label>${f.label}</label>
+        <div class="file-drop" id="imgDrop-${f.key}" style="cursor:pointer">
+          <img id="imgPreview-${f.key}" src="${Utils.escapeHtml(existingUrl)}" style="max-width:120px;max-height:120px;border-radius:6px;display:${existingUrl ? "block" : "none"};margin-bottom:8px">
+          <span id="imgHint-${f.key}"><i class="fa-solid fa-image"></i> ${existingUrl ? "اضغط لاختيار صورة أخرى (اتركه كما هو للإبقاء على الصورة الحالية)" : "اضغط لاختيار صورة"}</span>
+        </div>
+        <input type="file" accept="image/*" name="${f.key}" id="imgInput-${f.key}" style="display:none">
+      </div>`;
+    }
+    if (f.type === "images") {
+      // ✅ جديد — رفع أكثر من صورة واحدة (يُستخدم حالياً للإنجازات فقط).
+      // الصور الحالية (عند التعديل) تُعرض للمعاينة فقط؛ اختيار صور جديدة
+      // من الحقل أدناه يستبدلها بالكامل عند الحفظ (نفس مبدأ حقل "صورة"
+      // المفردة القديم: لا تغيير إن لم يُختر شيء جديد).
+      const existingUrls = (record && Array.isArray(record.fields.Image)) ? record.fields.Image.map(i => i.url).filter(Boolean) : [];
+      const existingPreview = existingUrls.length
+        ? `<div class="field-hint" style="margin-bottom:8px">الصور الحالية (${existingUrls.length}) — اختيار صور جديدة أدناه يستبدلها كلها:</div>
+           <div id="imgExisting-${f.key}" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+             ${existingUrls.map(u => `<img src="${Utils.escapeHtml(u)}" style="width:70px;height:70px;object-fit:cover;border-radius:6px">`).join("")}
+           </div>`
+        : "";
+      return `<div class="field">
+        <label>${f.label}</label>
+        ${existingPreview}
+        <div class="file-drop" id="imgDrop-${f.key}" style="cursor:pointer">
+          <span id="imgHint-${f.key}"><i class="fa-solid fa-images"></i> اضغط لاختيار صورة أو أكثر</span>
+        </div>
+        <div id="imgGrid-${f.key}" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
+        <input type="file" accept="image/*" name="${f.key}" id="imgInput-${f.key}" multiple style="display:none">
+      </div>`;
+    }
+    if (f.type === "highlights") {
+      // ✅ جديد — صفوف منفصلة (عنوان محور + تفاصيل) بدل نص حر، فتُبنى
+      // الصيغة الصحيحة "عنوان: تفاصيل || عنوان: تفاصيل" آلياً عند الحفظ
+      // (buildHighlightsString أدناه) بدل الاعتماد على كتابة المستخدم
+      // لها يدوياً بصيغة قد لا يعرفها.
+      return `<div class="field">
+        <label>${f.label}</label>
+        <div id="highlightsList-${f.key}"></div>
+        <button type="button" class="add-highlight-btn" id="highlightsAdd-${f.key}">+ إضافة محور</button>
+      </div>`;
+    }
+    if (f.type === "select") {
+      return `<div class="field"><label>${f.label}</label>
+        <select name="${f.key}" ${req}>
+          ${f.options.map(opt => `<option value="${Utils.escapeHtml(opt)}" ${opt === val ? "selected" : ""}>${Utils.escapeHtml(opt)}</option>`).join("")}
+        </select></div>`;
+    }
+    return `<div class="field"><label>${f.label}</label>
+      <input type="text" name="${f.key}" value="${Utils.escapeHtml(val)}" ${req}></div>`;
+  }
+
+  function openForm(id) {
+    const schema = Adapter.CONTENT_TYPES[currentType];
+    const record = id ? currentItems.find(r => r.id === id) : null;
+    const bodyHtml = `<form id="contentForm" novalidate>${schema.fields.map(f => fieldHtml(f, record)).join("")}</form>`;
+
+    Modal.open({
+      title: record ? `تعديل ${schema.label}` : `إضافة ${schema.label}`,
+      bodyHtml,
+      buttons: [
+        { label: "إلغاء", className: "btn-secondary", onClick: () => Modal.close() },
+        { label: record ? "حفظ التعديلات" : "نشر", className: "btn-primary", onClick: (btn) => submitForm(schema, record, btn) }
+      ]
+    });
+
+    // ✅ جديد — يربط كل حقل صورة بمدخل الملف المخفي + معاينة فورية
+    schema.fields.filter(f => f.type === "image").forEach(f => {
+      const drop = document.getElementById("imgDrop-" + f.key);
+      const input = document.getElementById("imgInput-" + f.key);
+      const preview = document.getElementById("imgPreview-" + f.key);
+      const hint = document.getElementById("imgHint-" + f.key);
+      if (!drop || !input) return;
+
+      drop.addEventListener("click", () => input.click());
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          preview.src = reader.result;
+          preview.style.display = "block";
+          hint.innerHTML = `<i class="fa-solid fa-image"></i> ${Utils.escapeHtml(file.name)}`;
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    // ✅ جديد — يربط كل حقل صور متعددة بمدخل الملف (multiple) + شبكة
+    // معاينة مصغّرات، كل واحدة بزر حذف (×) يزيلها من الاختيار قبل الحفظ
+    schema.fields.filter(f => f.type === "images").forEach(f => {
+      const drop = document.getElementById("imgDrop-" + f.key);
+      const input = document.getElementById("imgInput-" + f.key);
+      const grid = document.getElementById("imgGrid-" + f.key);
+      const hint = document.getElementById("imgHint-" + f.key);
+      if (!drop || !input || !grid) return;
+
+      _pendingImages[f.key] = [];
+
+      function renderGrid() {
+        grid.innerHTML = _pendingImages[f.key].map((file, idx) => `
+          <div style="position:relative;width:70px;height:70px">
+            <img src="${file._previewUrl}" style="width:70px;height:70px;object-fit:cover;border-radius:6px">
+            <button type="button" data-idx="${idx}" class="pending-img-remove"
+              style="position:absolute;top:-6px;left:-6px;width:20px;height:20px;border-radius:50%;border:none;background:#e5484d;color:#fff;cursor:pointer;font-size:11px;line-height:1">×</button>
+          </div>`).join("");
+        hint.innerHTML = _pendingImages[f.key].length
+          ? `<i class="fa-solid fa-images"></i> ${_pendingImages[f.key].length} صورة مختارة — اضغط لإضافة المزيد`
+          : `<i class="fa-solid fa-images"></i> اضغط لاختيار صورة أو أكثر`;
+        grid.querySelectorAll(".pending-img-remove").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            _pendingImages[f.key].splice(Number(btn.dataset.idx), 1);
+            renderGrid();
+          });
+        });
+      }
+
+      drop.addEventListener("click", () => input.click());
+      input.addEventListener("change", () => {
+        Array.from(input.files || []).forEach(file => {
+          file._previewUrl = URL.createObjectURL(file);
+          _pendingImages[f.key].push(file);
+        });
+        input.value = ""; // يسمح باختيار نفس الملف مجدداً لاحقاً إن حُذف
+        renderGrid();
+      });
+    });
+
+    // ✅ جديد — يربط كل حقل "highlights" بصفوف قابلة للإضافة/الحذف،
+    // ويعبّئها من قيمة السجل الحالي عند التعديل (نفس صيغة التفكيك
+    // المستخدمة في Injazat.html: تقسيم على || ثم على أول :).
+    schema.fields.filter(f => f.type === "highlights").forEach(f => {
+      const list = document.getElementById("highlightsList-" + f.key);
+      const addBtn = document.getElementById("highlightsAdd-" + f.key);
+      if (!list || !addBtn) return;
+
+      function addHighlightRow(subValue, detailValue) {
+        const row = document.createElement("div");
+        row.className = "highlight-row";
+        row.innerHTML =
+          '<input type="text" class="h-sub" placeholder="عنوان المحور">' +
+          '<input type="text" class="h-detail" placeholder="تفاصيل المحور">' +
+          '<button type="button" class="h-remove" title="حذف المحور">×</button>';
+        row.querySelector(".h-sub").value = subValue || "";
+        row.querySelector(".h-detail").value = detailValue || "";
+        row.querySelector(".h-remove").addEventListener("click", () => row.remove());
+        list.appendChild(row);
+      }
+
+      const existingRaw = record ? (record.fields[f.key] || "") : "";
+      const existingRows = existingRaw
+        .split("||")
+        .map(seg => seg.trim())
+        .filter(Boolean)
+        .map(seg => {
+          const parts = seg.split(":");
+          return { sub: (parts.shift() || "").trim(), detail: parts.join(":").trim() };
+        });
+
+      if (existingRows.length) {
+        existingRows.forEach(r => addHighlightRow(r.sub, r.detail));
+      } else {
+        addHighlightRow(); // صف واحد فارغ افتراضياً، كما في publish.html
+      }
+
+      addBtn.addEventListener("click", () => addHighlightRow());
+    });
+  }
+
+  async function submitForm(schema, record, btn) {
+    const form = document.getElementById("contentForm");
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const fields = {};
+    schema.fields.forEach(f => {
+      if (f.type === "image" || f.type === "images") return; // تُقرأ لاحقاً كملفات منفصلة أدناه، لا كمدخل نصي عادي
+      if (f.type === "highlights") {
+        // ✅ جديد — نفس منطق buildHighlightsString في publish.html:
+        // يجمع صفوف (عنوان/تفاصيل) إلى "عنوان: تفاصيل || عنوان: تفاصيل"
+        const rows = Array.from(document.querySelectorAll(`#highlightsList-${f.key} .highlight-row`));
+        fields[f.key] = rows
+          .map(row => {
+            const sub = row.querySelector(".h-sub").value.trim();
+            const detail = row.querySelector(".h-detail").value.trim();
+            if (!sub && !detail) return "";
+            return sub + ": " + detail;
+          })
+          .filter(Boolean)
+          .join(" || ");
+        return;
+      }
+      const input = form.querySelector(`[name="${f.key}"]`);
+      fields[f.key] = input ? input.value.trim() : "";
+    });
+
+    // ✅ جديد — إن اختار المستخدم صورة جديدة، اقرأها كـ base64 وأرسلها
+    // ضمن fields.ImageBase64 (يقرأها Adapter.createContent/updateContent
+    // ويرسلها عبر Association API). لم يختر صورة؟ يبقى الحقل فارغاً
+    // فلا يتغيّر شيء في الصورة الحالية عند التعديل.
+    const imageField = schema.fields.find(f => f.type === "image");
+    if (imageField) {
+      const fileInput = document.getElementById("imgInput-" + imageField.key);
+      const file = fileInput && fileInput.files && fileInput.files[0];
+      if (file) {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        fields.ImageBase64 = dataUrl.split(",")[1] || ""; // إسقاط بادئة data:image/...;base64,
+      }
+    }
+
+    // ✅ جديد — نفس فكرة الصورة المفردة أعلاه، لكن لصور متعددة: يقرأ كل
+    // ملف مختار في _pendingImages[key] كـ base64 ويبنيها في مصفوفة
+    // واحدة fields.ImagesBase64. لم يختر المستخدم أي صورة جديدة؟ تبقى
+    // المصفوفة فارغة فلا يتغيّر شيء في الصور الحالية عند التعديل.
+    const imagesField = schema.fields.find(f => f.type === "images");
+    if (imagesField) {
+      const pending = _pendingImages[imagesField.key] || [];
+      if (pending.length) {
+        fields.ImagesBase64 = await Promise.all(pending.map(file => new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result.split(",")[1]) || "");
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        })));
+      }
+    }
+
+    // ⚠️ لا نغلق النافذة ولا نحدّث القائمة إلا بعد تأكيد نجاح الخادم
+    // فعلياً — لا تحديث تفاؤلي. Feedback.busy يُظهر مؤشر "قيد التنفيذ"
+    // فوراً على الزر، ويرمي الخطأ للمستدعي عند الفشل (فتبقى النافذة
+    // مفتوحة والبيانات كما أدخلها المستخدم كي يحاول مجدداً) بعد أن
+    // يكون قد أظهر Toast خطأ صريح — لا فشل صامت أبداً.
+    try {
+      await Feedback.busy(btn, async () => {
+        if (record) await Adapter.updateContent(currentType, record.id, fields);
+        else await Adapter.createContent(currentType, fields);
+      }, {
+        busyLabel: record ? "جارٍ الحفظ..." : "جارٍ النشر...",
+        successMessage: record ? "تم حفظ التعديلات بنجاح" : "تم النشر بنجاح",
+        errorPrefix: "تعذّر الحفظ"
+      });
+    } catch (e) {
+      return; // Toast الخطأ ظهر أصلاً داخل busy() — نُبقي النافذة مفتوحة فقط
+    }
+
+    Modal.close();
+    loadAndRenderList();
+    if (currentType === 'announcements') {
+      const latest = (await Adapter.listContent('announcements'))[0];
+      if (latest?.id) {
+        const send = await Modal.confirmDialog('هل تريد إرسال هذا الإشعار الآن إلى الطلاب المستهدفين؟', 'إرسال الإشعار');
+        if (send) {
+          try {
+            await Feedback.busy(btn, () => Adapter.sendNotification(latest.id), {successMessage:'تم تجهيز الإشعار للتسليم', errorPrefix:'تعذّر إرسال الإشعار'});
+          } catch (_) {}
+        }
+      }
+    }
+  }
+
+  async function handleDelete(id, btn) {
+    const ok = await Modal.confirmDialog(
+      "هل أنت متأكد من حذف هذا العنصر؟ لا يمكن التراجع عن هذا الإجراء.",
+      "حذف نهائي"
+    );
+    if (!ok) return;
+
+    try {
+      await Feedback.busy(btn, () => Adapter.deleteContent(currentType, id), {
+        successMessage: "تم الحذف بنجاح",
+        errorPrefix: "تعذّر الحذف"
+      });
+    } catch (e) {
+      return; // Toast الخطأ ظهر أصلاً — العنصر يبقى في القائمة كما هو لأن الحذف لم يتم فعلياً
+    }
+
+    loadAndRenderList();
+  }
+</script>
+</body>
+</html>

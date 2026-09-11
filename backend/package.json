@@ -1,0 +1,15 @@
+{
+  "name": "leo-association-api",
+  "private": true,
+  "version": "3.0.0",
+  "description": "Association API v1 for the Faculty of Engineering and Architecture Association",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply leo-association-db --local",
+    "migrate:remote": "wrangler d1 migrations apply leo-association-db --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.34.0"
+  }
+}

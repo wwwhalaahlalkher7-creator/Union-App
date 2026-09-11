@@ -1,0 +1,29 @@
+name: leo_association
+description: Leo Association official Flutter application.
+publish_to: "none"
+version: 2.6.0+17
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.32.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.4.0
+  shared_preferences: ^2.5.3
+  flutter_localizations:
+    sdk: flutter
+  go_router: ^16.0.0
+  url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/

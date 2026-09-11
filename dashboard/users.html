@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>المستخدمون | لوحة تحكم الرابطة</title>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/admin.css">
+<script src="config.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/auth.js"></script>
+
+<style>
+/* ============================================================
+   USERS PREMIUM LAYER
+   يحافظ على جميع IDs والـfunctions الحالية
+   ============================================================ */
+
+body[data-page="users"] {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(46,128,199,.07), transparent 27rem),
+    radial-gradient(circle at 5% 95%, rgba(14,58,99,.045), transparent 24rem),
+    var(--canvas);
+}
+
+body[data-page="users"] .page-content {
+  position: relative;
+  padding-top: 30px;
+}
+
+body[data-page="users"] .page-content::before {
+  content: "";
+  position: fixed;
+  inset: var(--topbar-h) 0 0;
+  pointer-events: none;
+  opacity: .3;
+  background-image:
+    linear-gradient(rgba(20,85,142,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20,85,142,.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+  z-index: -1;
+}
+
+/* كل البطاقات */
+body[data-page="users"] .card {
+  border-radius: 18px;
+  border-color: rgba(20,85,142,.13);
+  box-shadow: 0 7px 24px rgba(16,24,38,.045);
+}
+
+body[data-page="users"] .card-header {
+  min-height: 34px;
+}
+
+body[data-page="users"] .card-header h3 {
+  font-size: .98rem;
+  letter-spacing: -.01em;
+}
+
+/* الجداول */
+body[data-page="users"] .data-table th {
+  background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
+}
+
+body[data-page="users"] .data-table tbody tr {
+  transition: background .16s ease;
+}
+
+body[data-page="users"] .data-table tbody tr:hover {
+  background: color-mix(in srgb, var(--blueprint-100) 34%, transparent);
+}
+
+/* دخول الصفحة */
+body[data-page="users"] #pageContent > * {
+  animation: usersReveal .48s cubic-bezier(.2,.75,.3,1) both;
+}
+
+@keyframes usersReveal {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* الوضع الليلي */
+@media (prefers-color-scheme: dark) {
+  body[data-page="users"] {
+    background:
+      radial-gradient(circle at 92% 0%, rgba(46,128,199,.11), transparent 27rem),
+      var(--canvas);
+  }
+
+  body[data-page="users"] .card,
+  body[data-page="users"] .stat-card {
+    border-color: rgba(148,163,184,.13);
+    box-shadow: 0 9px 28px rgba(0,0,0,.20);
+  }
+}
+
+@media (max-width: 960px) {
+  body[data-page="users"] .page-content {
+    padding-top: 22px;
+  }
+}
+
+@media (max-width: 560px) {
+  body[data-page="users"] .page-content {
+    padding: 14px;
+  }
+
+  body[data-page="users"] .stats-grid {
+    gap: 10px;
+  }
+
+  body[data-page="users"] .card {
+    border-radius: 15px;
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-page="users"] #pageContent > * {
+    animation: none;
+  }
+}
+</style>
+
+</head>
+<body data-page="users">
+
+<div id="app-shell"></div>
+
+<template id="pageTemplate">
+  <div class="tabs" id="pageTabs">
+    <button type="button" class="tab-btn is-active" data-tab="users">المستخدمون</button>
+    <button type="button" class="tab-btn" data-tab="log">سجل العمليات</button>
+  </div>
+
+  <div id="usersPane" class="card">
+    <div class="toolbar">
+      <button class="btn btn-primary requires-edit" id="addUserBtn" type="button">
+        <i class="fa-solid fa-user-plus"></i> إضافة مستخدم
+      </button>
+    </div>
+    <div class="table-scroll">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>الاسم</th>
+          <th>اسم المستخدم</th>
+          <th>البريد الإلكتروني</th>
+          <th>الدور</th>
+          <th>آخر دخول</th>
+          <th>مفعّل</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="usersTableBody"></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div id="logPane" class="card" style="display:none">
+    <div class="card-header">
+      <h3>سجل العمليات</h3>
+      <!-- ✅ جديد — حذف يدوي لكامل السجل، مقصور على "مدير عام" -->
+      <button type="button" id="clearLogBtn" class="btn btn-secondary requires-admin">
+        <i class="fa-solid fa-trash-can"></i> مسح الكل
+      </button>
+    </div>
+    <div class="table-scroll">
+    <table class="data-table">
+      <thead>
+        <tr><th>الوقت</th><th>المستخدم</th><th>الدور</th><th>العملية</th><th>التفاصيل</th><th class="requires-admin"></th></tr>
+      </thead>
+      <tbody id="logTableBody"></tbody>
+    </table>
+    </div>
+  </div>
+</template>
+
+<script src="js/api-adapter.js?v=2.8.0"></script>
+<script src="js/utils.js"></script>
+<script src="js/feedback.js"></script>
+<script src="js/modal.js"></script>
+<script src="js/layout.js"></script>
+<script>
+  let allUsers = [];
+
+  document.addEventListener("shell:ready", async () => {
+    const tpl = document.getElementById("pageTemplate");
+    document.getElementById("pageContent").appendChild(tpl.content.cloneNode(true));
+
+    document.getElementById("pageTabs").querySelectorAll(".tab-btn").forEach(btn =>
+      btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
+
+    document.getElementById("addUserBtn").addEventListener("click", () => openUserForm(null));
+    document.getElementById("clearLogBtn").addEventListener("click", handleClearLog);
+
+    await loadUsers();
+    await loadLog();
+  });
+
+  function switchTab(tab) {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("is-active", b.dataset.tab === tab));
+    document.getElementById("usersPane").style.display = tab === "users" ? "" : "none";
+    document.getElementById("logPane").style.display = tab === "log" ? "" : "none";
+  }
+
+  async function loadUsers() {
+    const tbody = document.getElementById("usersTableBody");
+    await Feedback.loadIntoTable(
+      tbody, 7,
+      () => Adapter.listUsers(),
+      (items) => { allUsers = items; renderUsers(); },
+      { errorPrefix: "تعذّر تحميل المستخدمين" }
+    );
+  }
+
+  function renderUsers() {
+    const tbody = document.getElementById("usersTableBody");
+    tbody.innerHTML = allUsers.map(r => {
+      const f = r.fields;
+      return `
+        <tr>
+          <td><strong>${Utils.escapeHtml(f.Names)}</strong></td>
+          <td style="direction:ltr;text-align:right">${Utils.escapeHtml(f.Username)}</td>
+          <td style="direction:ltr;text-align:right;font-size:.82rem;color:var(--ink-500)">${Utils.escapeHtml(f.Email || "—")}</td>
+          <td><span class="badge ${Adapter.ROLE_BADGE[f.Role] || "badge-neutral"}">${f.Role}</span></td>
+          <td style="font-size:.82rem;color:var(--ink-500)">${f.LastLogin ? Utils.formatDate(f.LastLogin) : "لم يسجّل دخول بعد"}</td>
+          <td>
+            <label class="switch requires-edit">
+              <input type="checkbox" data-action="toggle" data-id="${r.id}" ${f.Active ? "checked" : ""}>
+              <span class="switch-slider"></span>
+            </label>
+          </td>
+          <td>
+            <div class="row-actions requires-edit">
+              <button class="icon-btn" type="button" data-action="edit" data-id="${r.id}" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+              <button class="icon-btn is-danger" type="button" data-action="delete" data-id="${r.id}" title="حذف"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>`;
+    }).join("");
+
+    tbody.querySelectorAll('[data-action="toggle"]').forEach(el =>
+      el.addEventListener("change", () => handleToggleActive(el.dataset.id, el)));
+    tbody.querySelectorAll('[data-action="edit"]').forEach(btn =>
+      btn.addEventListener("click", () => openUserForm(btn.dataset.id)));
+    tbody.querySelectorAll('[data-action="delete"]').forEach(btn =>
+      btn.addEventListener("click", () => handleDeleteUser(btn.dataset.id, btn)));
+  }
+
+  async function handleToggleActive(id, checkboxEl) {
+    // راجع نفس الملاحظة في ads.html: checkbox يتغيّر بصريًا فور النقر
+    // بفعل المتصفح، فنُعيد الحالة السابقة صراحة عند فشل الطلب.
+    const previousChecked = !checkboxEl.checked;
+    try {
+      await Feedback.busy(checkboxEl, () => Adapter.toggleUserActive(id), {
+        successMessage: "تم تحديث حالة التفعيل بنجاح",
+        errorPrefix: "تعذّر تحديث حالة التفعيل"
+      });
+    } catch (e) {
+      checkboxEl.checked = previousChecked;
+      return;
+    }
+    await loadUsers();
+  }
+
+  function openUserForm(id) {
+    const record = id ? allUsers.find(r => r.id === id) : null;
+    const f = record ? record.fields : {};
+    // ✅ لم تعد "مشاهد فقط" ضمن الأدوار القابلة للإضافة هنا: صلاحيات
+    // المشاهدة فقط أصبحت متاحة عبر زر "الدخول كزائر" في صفحة تسجيل
+    // الدخول (بلا حاجة لحساب مسمّى)، بدل إنشاء حسابات مشاهد فردية.
+    const roles = ["مدير عام", "محرر محتوى", "مسؤول أكاديمي"];
+
+    const bodyHtml = `
+      <form id="userForm" novalidate>
+        <div class="field"><label>الاسم</label>
+          <input type="text" name="Names" value="${Utils.escapeHtml(f.Names || "")}" required>
+        </div>
+        <div class="field"><label>اسم المستخدم</label>
+          <input type="text" name="Username" value="${Utils.escapeHtml(f.Username || "")}" required style="direction:ltr">
+        </div>
+        <div class="field"><label>الدور</label>
+          <select name="Role" required>
+            ${roles.map(r => `<option value="${r}" ${f.Role === r ? "selected" : ""}>${r}</option>`).join("")}
+          </select>
+        </div>
+        ${record
+          ? `<div class="field"><label>كلمة المرور الجديدة</label><input type="password" name="Password" autocomplete="new-password" minlength="8"><span class="field-hint">اتركه فارغًا للإبقاء على كلمة المرور الحالية — أو ٨ أحرف على الأقل</span></div>`
+          : `<div class="field"><label>كلمة المرور المبدئية</label><input type="password" name="Password" required></div>`
+        }
+      </form>
+    `;
+
+    Modal.open({
+      title: record ? "تعديل مستخدم" : "إضافة مستخدم",
+      bodyHtml,
+      buttons: [
+        { label: "إلغاء", className: "btn-secondary", onClick: () => Modal.close() },
+        { label: record ? "حفظ التعديلات" : "إضافة", className: "btn-primary", onClick: (btn) => submitUserForm(record, btn) }
+      ]
+    });
+  }
+
+  async function submitUserForm(record, btn) {
+    const form = document.getElementById("userForm");
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const fields = {
+      Names: form.Names.value.trim(),
+      Username: form.Username.value.trim(),
+      Role: form.Role.value
+    };
+    // حقل كلمة المرور يظهر فقط عند الإضافة (راجع openUserForm أعلاه)
+    if (form.Password) fields.Password = form.Password.value;
+
+    // ⚠️ لا إغلاق للنافذة ولا تحديث للجدول إلا بعد نجاح الخادم فعليًا
+    try {
+      await Feedback.busy(btn, async () => {
+        if (record) await Adapter.updateUser(record.id, fields);
+        else await Adapter.createUser(fields);
+      }, {
+        busyLabel: record ? "جارٍ الحفظ..." : "جارٍ الإضافة...",
+        successMessage: record ? "تم حفظ التعديلات بنجاح" : "تمت إضافة المستخدم بنجاح",
+        errorPrefix: "تعذّر الحفظ"
+      });
+    } catch (e) {
+      return;
+    }
+
+    Modal.close();
+    await loadUsers();
+  }
+
+  async function handleDeleteUser(id, btn) {
+    const ok = await Modal.confirmDialog("هل أنت متأكد من حذف هذا المستخدم؟ لن يتمكن بعدها من الدخول للوحة.", "حذف نهائي");
+    if (!ok) return;
+
+    try {
+      await Feedback.busy(btn, () => Adapter.deleteUser(id), {
+        successMessage: "تم حذف المستخدم بنجاح",
+        errorPrefix: "تعذّر الحذف"
+      });
+    } catch (e) {
+      return;
+    }
+    await loadUsers();
+  }
+
+  async function loadLog() {
+    const tbody = document.getElementById("logTableBody");
+    await Feedback.loadIntoTable(
+      tbody, 6,
+      () => Adapter.listAuditLog(),
+      (log) => {
+        tbody.innerHTML = log.map(r => {
+          const f = r.fields;
+          return `
+            <tr>
+              <td style="font-family:var(--font-mono);font-size:.8rem;color:var(--ink-500);direction:ltr;text-align:right">${Utils.formatDate(f.Timestamp)}</td>
+              <td>${Utils.escapeHtml(f.User)}</td>
+              <td>${Utils.escapeHtml(f.Role || "—")}</td>
+              <td>${Utils.escapeHtml(f.Action)}</td>
+              <td style="color:var(--ink-500)">${Utils.escapeHtml(f.Details || "—")}</td>
+              <td class="requires-admin">
+                <button type="button" class="icon-btn is-danger" data-action="delete-one" data-timestamp="${Utils.escapeHtml(f.Timestamp)}" title="حذف هذا السجل">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </td>
+            </tr>`;
+        }).join("");
+
+        tbody.querySelectorAll('[data-action="delete-one"]').forEach(btn =>
+          btn.addEventListener("click", () => handleDeleteOneLogEntry(btn.dataset.timestamp, btn)));
+      },
+      { errorPrefix: "تعذّر تحميل سجل العمليات" }
+    );
+  }
+
+  /** ✅ جديد — حذف سجل واحد من كامل سجل العمليات (scope=all، مدير عام فقط) */
+  async function handleDeleteOneLogEntry(timestamp, btn) {
+    const ok = await Modal.confirmDialog("هل تريد حذف هذا السجل؟ لا يمكن التراجع عن هذا الإجراء.", "حذف السجل");
+    if (!ok) return;
+    try {
+      await Feedback.busy(btn, () => Adapter.deleteFailedLogins(timestamp, "all"), {
+        successMessage: "تم حذف السجل بنجاح",
+        errorPrefix: "تعذّر الحذف"
+      });
+    } catch (e) {
+      return;
+    }
+    loadLog();
+  }
+
+  /** ✅ جديد — مسح كامل سجل العمليات دفعة واحدة (scope=all، مدير عام فقط) */
+  async function handleClearLog() {
+    const btn = document.getElementById("clearLogBtn");
+    const ok = await Modal.confirmDialog("هل تريد مسح كامل سجل العمليات؟ لا يمكن التراجع عن هذا الإجراء.", "مسح الكل");
+    if (!ok) return;
+    try {
+      await Feedback.busy(btn, () => Adapter.deleteFailedLogins(null, "all"), {
+        successMessage: "تم مسح السجل بنجاح",
+        errorPrefix: "تعذّر المسح"
+      });
+    } catch (e) {
+      return;
+    }
+    loadLog();
+  }
+</script>
+</body>
+</html>

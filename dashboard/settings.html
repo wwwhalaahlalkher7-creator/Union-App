@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>إعدادات الموقع | لوحة تحكم الرابطة</title>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/admin.css">
+<script src="config.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/auth.js"></script>
+
+<style>
+/* ============================================================
+   SETTINGS PREMIUM LAYER
+   يحافظ على جميع IDs والـfunctions الحالية
+   ============================================================ */
+
+body[data-page="settings"] {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(46,128,199,.07), transparent 27rem),
+    radial-gradient(circle at 5% 95%, rgba(14,58,99,.045), transparent 24rem),
+    var(--canvas);
+}
+
+body[data-page="settings"] .page-content {
+  position: relative;
+  padding-top: 30px;
+}
+
+body[data-page="settings"] .page-content::before {
+  content: "";
+  position: fixed;
+  inset: var(--topbar-h) 0 0;
+  pointer-events: none;
+  opacity: .3;
+  background-image:
+    linear-gradient(rgba(20,85,142,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20,85,142,.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+  z-index: -1;
+}
+
+/* كل البطاقات */
+body[data-page="settings"] .card {
+  border-radius: 18px;
+  border-color: rgba(20,85,142,.13);
+  box-shadow: 0 7px 24px rgba(16,24,38,.045);
+}
+
+body[data-page="settings"] .card-header {
+  min-height: 34px;
+}
+
+body[data-page="settings"] .card-header h3 {
+  font-size: .98rem;
+  letter-spacing: -.01em;
+}
+
+/* دخول الصفحة */
+body[data-page="settings"] #pageContent > * {
+  animation: settingsReveal .48s cubic-bezier(.2,.75,.3,1) both;
+}
+
+@keyframes settingsReveal {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* الوضع الليلي */
+@media (prefers-color-scheme: dark) {
+  body[data-page="settings"] {
+    background:
+      radial-gradient(circle at 92% 0%, rgba(46,128,199,.11), transparent 27rem),
+      var(--canvas);
+  }
+
+  body[data-page="settings"] .card,
+  body[data-page="settings"] .stat-card {
+    border-color: rgba(148,163,184,.13);
+    box-shadow: 0 9px 28px rgba(0,0,0,.20);
+  }
+}
+
+@media (max-width: 960px) {
+  body[data-page="settings"] .page-content {
+    padding-top: 22px;
+  }
+}
+
+@media (max-width: 560px) {
+  body[data-page="settings"] .page-content {
+    padding: 14px;
+  }
+
+  body[data-page="settings"] .stats-grid {
+    gap: 10px;
+  }
+
+  body[data-page="settings"] .card {
+    border-radius: 15px;
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-page="settings"] #pageContent > * {
+    animation: none;
+  }
+}
+</style>
+
+</head>
+<body data-page="settings">
+
+<div id="app-shell"></div>
+
+<template id="pageTemplate">
+  <form id="settingsForm">
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-header"><h3>معلومات الموقع العامة</h3></div>
+      <div class="grid-2">
+        <div class="field"><label>اسم الموقع</label><input type="text" name="SiteName" required></div>
+        <div class="field"><label>الاسم المختصر</label><input type="text" name="ShortName" required></div>
+      </div>
+      <div class="field"><label>الجامعة / الجهة</label><input type="text" name="University"></div>
+      <div class="field"><label>شعار الموقع</label>
+        <div class="file-drop" id="imgDrop-Logo" style="cursor:pointer">
+          <img id="imgPreview-Logo" src="" style="max-width:120px;max-height:120px;border-radius:6px;display:none;margin-bottom:8px">
+          <span id="imgHint-Logo"><i class="fa-solid fa-image"></i> اضغط لاختيار صورة</span>
+        </div>
+        <input type="file" accept="image/*" id="imgInput-Logo" style="display:none">
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-header"><h3>معلومات التواصل</h3></div>
+      <div class="grid-2">
+        <div class="field"><label>البريد الإلكتروني</label><input type="email" name="ContactEmail" style="direction:ltr"></div>
+        <div class="field"><label>الهاتف / واتساب</label><input type="text" name="ContactPhone" style="direction:ltr"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>فيسبوك</label><input type="url" name="Facebook" placeholder="https://" style="direction:ltr"></div>
+        <div class="field"><label>تويتر / X</label><input type="url" name="Twitter" placeholder="https://" style="direction:ltr"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>انستغرام</label><input type="url" name="Instagram" placeholder="https://" style="direction:ltr"></div>
+        <div class="field"><label>تيليجرام</label><input type="url" name="Telegram" placeholder="https://" style="direction:ltr"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-header"><h3>إعدادات الصفحة الرئيسية</h3></div>
+      <div class="field"><label>العنوان الرئيسي</label><input type="text" name="HeroTitle"></div>
+      <div class="field" style="margin-bottom:0"><label>النص الفرعي</label><input type="text" name="HeroSubtitle"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3>ألوان الهوية</h3></div>
+      <p style="color:var(--ink-500);font-size:13px;margin:-6px 0 16px">
+        تغيير هذين اللونين يُحدَّث فوراً في كل مكان — الموقع العام يقرأ
+        اللون الأول، ولوحة التحكم نفسها (لكل من يفتحها بأي دور) تقرأ الثاني —
+        بلا حاجة لإعادة نشر أو رفع أي ملف جديد.
+      </p>
+      <div class="grid-2">
+        <div class="field">
+          <label>لون الموقع العام</label>
+          <div class="color-field">
+            <input type="color" name="SiteThemeColor" id="siteThemeColorPicker" value="#FF9100">
+            <input type="text" id="siteThemeColorText" style="direction:ltr" maxlength="7" value="#FF9100" placeholder="#FF9100">
+          </div>
+        </div>
+        <div class="field">
+          <label>لون لوحة التحكم</label>
+          <div class="color-field">
+            <input type="color" name="AdminThemeColor" id="adminThemeColorPicker" value="#1A66A8">
+            <input type="text" id="adminThemeColorText" style="direction:ltr" maxlength="7" value="#1A66A8" placeholder="#1A66A8">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;display:flex;align-items:center;gap:12px">
+      <button type="submit" class="btn btn-primary requires-edit" id="saveBtn">
+        <i class="fa-solid fa-floppy-disk"></i> حفظ جميع التغييرات
+      </button>
+    </div>
+  </form>
+</template>
+
+<script src="js/api-adapter.js?v=2.8.0"></script>
+<script src="js/utils.js"></script>
+<script src="js/feedback.js"></script>
+<script src="js/layout.js"></script>
+<script>
+  document.addEventListener("shell:ready", async () => {
+    const container = document.getElementById("pageContent");
+    // ⚠️ يُبنى النموذج فقط بعد نجاح جلب الإعدادات الحالية — عند الفشل
+    // تظهر حالة خطأ واضحة + زر "إعادة المحاولة" بدل نموذج فارغ مضلِّل.
+    await Feedback.loadInto(
+      container,
+      () => Adapter.getSiteSettings(),
+      (settings) => {
+        const tpl = document.getElementById("pageTemplate");
+        container.innerHTML = "";
+        container.appendChild(tpl.content.cloneNode(true));
+
+        const form = document.getElementById("settingsForm");
+        Object.keys(settings).forEach(key => {
+          const input = form.querySelector(`[name="${key}"]`);
+          if (input) input.value = settings[key] || "";
+        });
+
+        // ✅ جديد — معاينة الشعار الحالي (إن وُجد) + ربط الرفع الفعلي
+        if (settings.Logo) {
+          const preview = document.getElementById("imgPreview-Logo");
+          preview.src = settings.Logo;
+          preview.style.display = "block";
+          document.getElementById("imgHint-Logo").innerHTML = '<i class="fa-solid fa-image"></i> اضغط لاختيار شعار آخر (اتركه كما هو للإبقاء على الشعار الحالي)';
+        }
+        wireLogoUpload();
+
+        syncColorField("siteThemeColorPicker", "siteThemeColorText", (hex) => {
+          if (window.AdminTheme) window.AdminTheme.previewSite(hex);
+        });
+        syncColorField("adminThemeColorPicker", "adminThemeColorText", (hex) => {
+          if (window.AdminTheme) window.AdminTheme.apply(hex);
+        });
+
+        form.addEventListener("submit", handleSave);
+      },
+      { errorPrefix: "تعذّر تحميل الإعدادات" }
+    );
+  });
+
+  /** يربط حقل type=color بحقل نصي (لكتابة/لصق كود Hex مباشرة) + معاينة حيّة فورية */
+  function syncColorField(colorId, textId, onChange) {
+    const colorEl = document.getElementById(colorId);
+    const textEl = document.getElementById(textId);
+    if (!colorEl || !textEl) return;
+    textEl.value = colorEl.value;
+    colorEl.addEventListener("input", () => { textEl.value = colorEl.value; onChange(colorEl.value); });
+    textEl.addEventListener("input", () => {
+      if (/^#[0-9a-fA-F]{6}$/.test(textEl.value)) { colorEl.value = textEl.value; onChange(textEl.value); }
+    });
+  }
+
+  /** ✅ جديد — نفس نمط ربط رفع الصور في content.html: ضغط يفتح مربع اختيار الملف + معاينة فورية بالمتصفح */
+  function wireLogoUpload() {
+    const drop = document.getElementById("imgDrop-Logo");
+    const input = document.getElementById("imgInput-Logo");
+    const preview = document.getElementById("imgPreview-Logo");
+    const hint = document.getElementById("imgHint-Logo");
+    if (!drop || !input) return;
+
+    drop.addEventListener("click", () => input.click());
+    input.addEventListener("change", () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        preview.src = reader.result;
+        preview.style.display = "block";
+        hint.innerHTML = `<i class="fa-solid fa-image"></i> ${file.name}`;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const fields = {};
+    new FormData(form).forEach((value, key) => { fields[key] = value.trim(); });
+
+    // ✅ جديد — إن اختار المستخدم شعاراً جديداً، اقرأه كـ base64 وأرسله
+    // منفصلاً (logoBase64) بدل fields.Logo — نفس فكرة ImageBase64 في
+    // content.html. لم يختر شعاراً جديداً؟ يبقى الشعار الحالي كما هو.
+    let logoBase64 = "";
+    const logoInput = document.getElementById("imgInput-Logo");
+    const logoFile = logoInput && logoInput.files && logoInput.files[0];
+    if (logoFile) {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(logoFile);
+      });
+      logoBase64 = dataUrl.split(",")[1] || "";
+    }
+
+    const btn = document.getElementById("saveBtn");
+    try {
+      await Feedback.busy(btn, () => Adapter.updateSiteSettings(fields, logoBase64), {
+        busyLabel: "جارٍ الحفظ...",
+        successMessage: "تم حفظ الإعدادات بنجاح",
+        errorPrefix: "تعذّر حفظ الإعدادات"
+      });
+    } catch (err) {
+      return;
+    }
+  }
+</script>
+</body>
+</html>

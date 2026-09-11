@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الرئيسية | لوحة تحكم الرابطة</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"><link rel="stylesheet" href="css/admin.css">
+<script src="config.js"></script><script src="js/theme.js"></script><script src="js/auth.js"></script>
+</head>
+<body data-page="dashboard"><div id="app-shell"></div>
+<template id="pageTemplate">
+<section class="dashboard-hero">
+  <div class="dashboard-hero-copy">
+    <h2>مركز التحكم</h2>
+    <p>كل ما يحتاجه المشرف في مكان واحد. ابدأ بالإجراء المهم ثم تابع حالة المنصة من هاتفك.</p>
+  </div>
+  <div class="dashboard-hero-actions">
+    <a href="content.html" class="btn btn-primary" data-role-key="news"><i class="fa-solid fa-pen-to-square"></i> إدارة المحتوى</a>
+    <a href="schedule.html" class="btn btn-secondary" data-role-key="schedule"><i class="fa-solid fa-calendar-days"></i> الجداول</a>
+  </div>
+</section>
+
+<div class="stats-grid" id="statsGrid">
+  <div class="stat-card"><div class="stat-card-icon"><i class="fa-solid fa-user-graduate"></i></div><div class="stat-card-label">إجمالي الطلاب</div><div class="stat-card-value" id="students">—</div></div>
+  <div class="stat-card"><div class="stat-card-icon"><i class="fa-solid fa-user-check"></i></div><div class="stat-card-label">الطلاب النشطون</div><div class="stat-card-value" id="activeStudents">—</div></div>
+  <div class="stat-card"><div class="stat-card-icon"><i class="fa-solid fa-book-open"></i></div><div class="stat-card-label">المواد الدراسية</div><div class="stat-card-value" id="materials">—</div></div>
+  <div class="stat-card"><div class="stat-card-icon"><i class="fa-solid fa-newspaper"></i></div><div class="stat-card-label">المحتوى المنشور</div><div class="stat-card-value" id="news">—</div></div>
+</div>
+
+<section class="card dashboard-quick-card">
+  <div class="card-header"><div><h3>إجراءات سريعة</h3><span class="card-header-hint">اختصارات للمهام المتكررة</span></div></div>
+  <div class="quick-actions">
+    <a class="quick-action" href="students.html" data-role-key="students"><i class="fa-solid fa-user-graduate"></i><div><strong>الطلاب</strong><span>السجلات الأكاديمية</span></div></a>
+    <a class="quick-action" href="materials.html" data-role-key="materials"><i class="fa-solid fa-folder-open"></i><div><strong>المواد الدراسية</strong><span>الملفات والمجلدات</span></div></a>
+  </div>
+</section>
+
+<div class="dashboard-section-grid">
+  <div class="card">
+    <div class="card-header"><div><h3>حالة النظام</h3><span class="card-header-hint">آخر حالة معروفة للخدمات</span></div></div>
+    <div id="healthList"><div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> جارٍ الفحص...</div></div>
+  </div>
+  <div class="card content-only">
+    <div class="card-header"><div><h3>آخر الأخبار</h3><span class="card-header-hint">أحدث المحتوى</span></div><a href="content.html" class="card-header-hint">عرض الكل</a></div>
+    <div id="newsList"><div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> جارٍ التحميل...</div></div>
+  </div>
+</div>
+</template>
+<script src="js/api-adapter.js?v=2.8.0"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/layout.js"></script>
+<script>
+document.addEventListener('shell:ready',async()=>{document.getElementById('pageContent').appendChild(document.getElementById('pageTemplate').content.cloneNode(true));bindQuickRoleGuards();await Promise.all([loadStats(),loadHealth(),loadNews()]);});
+function bindQuickRoleGuards(){
+  const session=Auth.get();
+  document.querySelectorAll('a[data-role-key]').forEach(a=>a.addEventListener('click',e=>{
+    const key=a.getAttribute('data-role-key');
+    if(window.RoleGuard && !RoleGuard.canAccess(key,session&&session.role)){
+      e.preventDefault();
+      e.stopPropagation();
+      RoleGuard.friendlyDenied(key,session&&session.role);
+    }
+  }));
+}
+async function loadStats(){try{const s=await Adapter.getOverviewStats();[['students',s.students],['activeStudents',s.activeStudents],['materials',s.materials],['news',s.news]].forEach(([id,v])=>document.getElementById(id).textContent=Utils.formatNumber(v||0));}catch(e){['students','activeStudents','materials','news'].forEach(id=>document.getElementById(id).textContent='—');}}
+async function loadHealth(){const el=document.getElementById('healthList');try{const arr=await Adapter.getSystemHealth();el.innerHTML=arr.length?arr.map(s=>`<div class="v2-status"><span class="v2-dot"></span><div><strong>${Utils.escapeHtml(s.name)}</strong><div class="field-hint">${s.lastSuccess?'آخر نجاح: '+Utils.formatDate(s.lastSuccess):'لم يتم التحقق بعد'}</div></div></div>`).join(''):'<div class="empty-state">لا توجد خدمات مراقبة.</div>';}catch(e){el.innerHTML='<div class="empty-state is-error">تعذّر فحص حالة النظام.</div>';}}
+async function loadNews(){const el=document.getElementById('newsList');try{const items=await Adapter.getRecentNews(5);el.innerHTML=items.length?items.map(n=>`<div class="list-row"><div style="flex:1"><strong>${Utils.escapeHtml(n.title||'بدون عنوان')}</strong><div class="field-hint">${n.date?Utils.formatDate(n.date):'—'}</div></div><span class="badge badge-neutral">${Utils.formatNumber(n.views||0)} مشاهدة</span></div>`).join(''):'<div class="empty-state">لا توجد أخبار حالياً.</div>';}catch(e){el.innerHTML='<div class="empty-state is-error">تعذّر تحميل الأخبار.</div>';}}
+</script></body></html>
