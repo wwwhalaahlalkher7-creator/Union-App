@@ -763,7 +763,32 @@ async function deleteComment(ctx,id) { const a=await auth(ctx); if(a.response) r
 async function adminModerationComments(ctx) { const a=await auth(ctx); if(a.response) return a.response; if(!a.session.staff_user_id||a.session.staff_active!==1||!['super_admin','moderator'].includes(a.session.staff_role_id)) return error('FORBIDDEN','لا تملك صلاحية الإشراف.',403,ctx.requestId,ctx.cors); const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env.DB,'SELECT c.*,s.full_name,s.student_number FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?',status,limit); return ok(ctx,rows,{count:rows.length}); }
 async function adminModerationComment(ctx,id) { const a=await auth(ctx); if(a.response) return a.response; if(!a.session.staff_user_id||a.session.staff_active!==1||!['super_admin','moderator'].includes(a.session.staff_role_id)) return error('FORBIDDEN','لا تملك صلاحية الإشراف.',403,ctx.requestId,ctx.cors); const body=await parseJson(ctx.request); const status=String(body?.status||'').trim(); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const r=await ctx.env.DB.prepare('UPDATE comments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run(); if(!r.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,a.session.staff_user_id,'status_update','comment',id,{status}); return ok(ctx,{id,status}); }
 
-async function adminDashboardOverview(ctx) {\n  const a = await adminRouteAuthOnly(ctx, 'dashboard.read');\n  if (a.response) return a.response;\n\n  const [students, activeStudents, staff, activeStaff, news, materials, comments, announcements] = await Promise.all([\n    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM students'),\n    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM students WHERE active = 1'),\n    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM staff_users'),\n    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM staff_users WHERE active = 1'),\n    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM news'),\n    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM materials WHERE active = 1'),\n    queryOne(ctx.env.DB, "SELECT COUNT(*) AS count FROM comments WHERE status = 'visible'"),\n    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM announcements'),\n  ]);\n\n  return ok(ctx, {\n    students: Number(students?.count || 0),\n    activeStudents: Number(activeStudents?.count || 0),\n    staff: Number(staff?.count || 0),\n    activeStaff: Number(activeStaff?.count || 0),\n    news: Number(news?.count || 0),\n    materials: Number(materials?.count || 0),\n    visibleComments: Number(comments?.count || 0),\n    announcements: Number(announcements?.count || 0),\n  });\n}\n\nasync function adminRoute(ctx) {
+async function adminDashboardOverview(ctx) {
+  const a = await adminRouteAuthOnly(ctx, 'dashboard.read');
+  if (a.response) return a.response;
+
+  const [students, activeStudents, staff, activeStaff, news, materials, comments, announcements] = await Promise.all([
+    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM students'),
+    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM students WHERE active = 1'),
+    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM staff_users'),
+    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM staff_users WHERE active = 1'),
+    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM news'),
+    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM materials WHERE active = 1'),
+    queryOne(ctx.env.DB, "SELECT COUNT(*) AS count FROM comments WHERE status = 'visible'"),
+    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM announcements'),
+  ]);
+
+  return ok(ctx, {
+    students: Number(students?.count || 0),
+    activeStudents: Number(activeStudents?.count || 0),
+    staff: Number(staff?.count || 0),
+    activeStaff: Number(activeStaff?.count || 0),
+    news: Number(news?.count || 0),
+    materials: Number(materials?.count || 0),
+    visibleComments: Number(comments?.count || 0),
+    announcements: Number(announcements?.count || 0),
+  });
+}\n\nasync function adminRoute(ctx) {
   const a = await auth(ctx); if (a.response) return a.response;
   if (!a.session.staff_user_id || a.session.staff_active !== 1) return error('STAFF_AUTH_REQUIRED', 'جلسة موظف الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors);
   const role = a.session.staff_role_id;
