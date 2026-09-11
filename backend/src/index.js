@@ -316,7 +316,54 @@ async function staffMe(ctx) {
   if (!row) return error('STAFF_NOT_FOUND', 'حساب الإدارة غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors);
   return ok(ctx, row);
 }
-\nasync function staffChangePassword(ctx) {\n  const a = await auth(ctx);\n  if (a.response) return a.response;\n  if (!a.session.staff_user_id || a.session.staff_active !== 1) {\n    return error('STAFF_AUTH_REQUIRED', 'جلسة موظف الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors);\n  }\n\n  const body = await parseJson(ctx.request);\n  const currentPassword = String(body?.currentPassword || '');\n  const newPassword = String(body?.newPassword || '');\n  if (!currentPassword || !newPassword || newPassword.length < 10 || newPassword.length > 256) {\n    return error('STAFF_PASSWORD_INVALID', 'كلمة المرور الجديدة يجب أن تكون بين 10 و256 حرفًا.', 400, ctx.requestId, ctx.cors);\n  }\n  if (currentPassword === newPassword) {\n    return error('STAFF_PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);\n  }\n\n  const staff = await queryOne(ctx.env.DB, 'SELECT id, email, password_hash, password_salt, password_algo, failed_login_attempts, locked_until, active FROM staff_users WHERE id = ? LIMIT 1', a.session.staff_user_id);\n  if (!staff || staff.active !== 1) {\n    return error('STAFF_NOT_FOUND', 'حساب الإدارة غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors);\n  }\n  if (staff.locked_until && new Date(staff.locked_until).getTime() > Date.now()) return lockedResponse(ctx);\n\n  const valid = await verifySecret(currentPassword, staff.password_hash, staff.password_salt, staff.password_algo);\n  if (!valid) {\n    const failed = (staff.failed_login_attempts || 0) + 1;\n    const locked = failed >= AUTH_MAX_FAILED ? new Date(Date.now() + AUTH_LOCK_SECONDS * 1000).toISOString() : null;\n    await ctx.env.DB.prepare('UPDATE staff_users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?').bind(failed, locked, staff.id).run();\n    await recordAuthEvent(ctx, 'staff', staff.id, locked ? 'password_change_locked' : 'password_change_failed');\n    return locked ? lockedResponse(ctx) : error('STAFF_PASSWORD_CURRENT_INVALID', 'كلمة المرور الحالية غير صحيحة.', 401, ctx.requestId, ctx.cors);\n  }\n\n  const salt = token(16);\n  const hash = await pbkdf2Hash(newPassword, salt);\n  await ctx.env.DB.prepare('UPDATE staff_users SET password_hash = ?, password_salt = ?, password_algo = \'pbkdf2-sha256\', failed_login_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?')\n    .bind(hash, salt, staff.id).run();\n\n  // Revoke every other active session. The current session remains usable so the admin\n  // can continue working without an unexpected logout after a successful change.\n  await ctx.env.DB.prepare('UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE staff_user_id = ? AND id <> ? AND revoked_at IS NULL')\n    .bind(staff.id, a.session.id).run();\n\n  await recordAuthEvent(ctx, 'staff', staff.id, 'password_changed');\n  await writeAudit(ctx, staff.id, 'change_password', 'staff_users', staff.id);\n  return ok(ctx, { changed: true, otherSessionsRevoked: true });\n}\n
+
+async function staffChangePassword(ctx) {
+  const a = await auth(ctx);
+  if (a.response) return a.response;
+  if (!a.session.staff_user_id || a.session.staff_active !== 1) {
+    return error('STAFF_AUTH_REQUIRED', 'جلسة موظف الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors);
+  }
+
+  const body = await parseJson(ctx.request);
+  const currentPassword = String(body?.currentPassword || '');
+  const newPassword = String(body?.newPassword || '');
+  if (!currentPassword || !newPassword || newPassword.length < 10 || newPassword.length > 256) {
+    return error('STAFF_PASSWORD_INVALID', 'كلمة المرور الجديدة يجب أن تكون بين 10 و256 حرفًا.', 400, ctx.requestId, ctx.cors);
+  }
+  if (currentPassword === newPassword) {
+    return error('STAFF_PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);
+  }
+
+  const staff = await queryOne(ctx.env.DB, 'SELECT id, email, password_hash, password_salt, password_algo, failed_login_attempts, locked_until, active FROM staff_users WHERE id = ? LIMIT 1', a.session.staff_user_id);
+  if (!staff || staff.active !== 1) {
+    return error('STAFF_NOT_FOUND', 'حساب الإدارة غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors);
+  }
+  if (staff.locked_until && new Date(staff.locked_until).getTime() > Date.now()) return lockedResponse(ctx);
+
+  const valid = await verifySecret(currentPassword, staff.password_hash, staff.password_salt, staff.password_algo);
+  if (!valid) {
+    const failed = (staff.failed_login_attempts || 0) + 1;
+    const locked = failed >= AUTH_MAX_FAILED ? new Date(Date.now() + AUTH_LOCK_SECONDS * 1000).toISOString() : null;
+    await ctx.env.DB.prepare('UPDATE staff_users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?').bind(failed, locked, staff.id).run();
+    await recordAuthEvent(ctx, 'staff', staff.id, locked ? 'password_change_locked' : 'password_change_failed');
+    return locked ? lockedResponse(ctx) : error('STAFF_PASSWORD_CURRENT_INVALID', 'كلمة المرور الحالية غير صحيحة.', 401, ctx.requestId, ctx.cors);
+  }
+
+  const salt = token(16);
+  const hash = await pbkdf2Hash(newPassword, salt);
+  await ctx.env.DB.prepare('UPDATE staff_users SET password_hash = ?, password_salt = ?, password_algo = \'pbkdf2-sha256\', failed_login_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .bind(hash, salt, staff.id).run();
+
+  // Revoke every other active session. The current session remains usable so the admin
+  // can continue working without an unexpected logout after a successful change.
+  await ctx.env.DB.prepare('UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE staff_user_id = ? AND id <> ? AND revoked_at IS NULL')
+    .bind(staff.id, a.session.id).run();
+
+  await recordAuthEvent(ctx, 'staff', staff.id, 'password_changed');
+  await writeAudit(ctx, staff.id, 'change_password', 'staff_users', staff.id);
+  return ok(ctx, { changed: true, otherSessionsRevoked: true });
+}
+
 async function refresh(ctx) {
   const body = await parseJson(ctx.request); const raw = String(body?.refreshToken || '');
   if (!raw) return error('AUTH_REFRESH_REQUIRED', 'رمز التحديث مطلوب.', 400, ctx.requestId, ctx.cors);
