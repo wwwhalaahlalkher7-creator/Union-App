@@ -1,0 +1,12 @@
+name = "leo-association-website"
+main = "worker/index.js"
+compatibility_date = "2026-09-11"
+
+[assets]
+directory = "dist"
+binding = "ASSETS"
+run_worker_first = true
+
+# The Worker serves the complete website, including /admin/.
+# Attach the final public domain/route to this Worker in Cloudflare.
+# Do not put Cloudflare API tokens or application credentials in this file.

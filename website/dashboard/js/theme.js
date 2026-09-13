@@ -63,14 +63,14 @@ window.AdminTheme = (function () {
     } catch (e) { /* تجاهل */ }
 
     const cfg = window.APP_CONFIG;
+    const base = cfg && cfg.api && cfg.api.baseUrl;
     if (!base) return; // لا خدمة مضبوطة بعد — يبقى اللون الافتراضي في admin.css
 
-    fetch(base + "?action=getPublicSettings")
+    fetch(base.replace(/\/$/, '') + "/public/settings")
       .then(r => r.json())
-      .then(data => {
-        if (data && data.success && data.settings && data.settings.AdminThemeColor) {
-          apply(data.settings.AdminThemeColor);
-        }
+      .then(payload => {
+        const data = payload && payload.data;
+        if (data && data.AdminThemeColor) apply(data.AdminThemeColor);
       })
       .catch(() => { /* تجاهل — يبقى اللون المحفوظ محلياً أو الافتراضي */ });
   }
