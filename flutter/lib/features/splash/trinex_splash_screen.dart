@@ -113,7 +113,7 @@ class _TrinexSplashScreenState extends State<TrinexSplashScreen>
                       child: const _LoadingBar(),
                     ),
                     const SizedBox(height: 18),
-                    Text(
+                    const Text(
                       'TRINEX  •  ${AppVersion.full}',
                       style: const TextStyle(
                         color: Color(0xFF8EA7BA),
