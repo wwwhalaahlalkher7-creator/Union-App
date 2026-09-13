@@ -8,7 +8,7 @@ void main() {
   testWidgets('TRINEX app starts on home', (tester) async {
     await tester.pumpWidget(
       MediaQuery(
-        data: MediaQueryData(disableAnimations: true),
+        data: const MediaQueryData(disableAnimations: true),
         child: LeoAssociationApp(
           enableStartupUpdateCheck: false,
           startupFutureOverride: Future<void>.value(),
