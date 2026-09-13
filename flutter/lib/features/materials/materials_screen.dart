@@ -121,13 +121,18 @@ Future<void> _openMaterial(BuildContext context, MaterialItem material, Progress
   }
   if (!context.mounted) return;
   final url = Uri.tryParse(material.url ?? '');
-  if (url == null || !await canLaunchUrl(url)) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).t('cannotOpenMaterial'))));
-    }
+  if (url == null) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).t('cannotOpenMaterial'))));
+    return;
+  }
+  final canOpen = await canLaunchUrl(url);
+  if (!context.mounted) return;
+  if (!canOpen) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).t('cannotOpenMaterial'))));
     return;
   }
   await launchUrl(url, mode: LaunchMode.externalApplication);
+  if (!context.mounted) return;
   _showProgressSheet(context, material, progress);
 }
 

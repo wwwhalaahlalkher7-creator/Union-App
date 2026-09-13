@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
+import '../../core/theme/design_tokens.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
 import '../../data/models/schedule_item.dart';
@@ -110,7 +111,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       items: semesters.map((semester) {
                         final id = semester['id']?.toString();
                         final name = _localizedName(locale, semester['name_fr'], semester['name_en'], semester['name_ar']);
-                        return DropdownMenuItem(value: id, child: Text(name?.toString() ?? id ?? ''));
+                        return DropdownMenuItem(value: id, child: Text(name.isNotEmpty ? name : (id ?? '')));
                       }).toList(),
                       onChanged: (value) { _semesterId = value; _selectedDay = null; _reload(); },
                     );
@@ -165,9 +166,9 @@ class _HeaderCard extends StatelessWidget {
           Container(width: 48, height: 48, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(15)), child: Icon(Icons.calendar_month_rounded, color: Theme.of(context).colorScheme.onPrimaryContainer)),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(departmentName?.toString() ?? '—', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            Text(departmentName, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 3),
-            Text(semesterName?.toString() ?? '—', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            Text(semesterName, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ])),
         ]),
       ),

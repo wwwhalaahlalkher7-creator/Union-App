@@ -69,15 +69,16 @@ class _StudentScreenState extends State<StudentScreen> {
       if (mounted) setState(() => _error = AppLocalizations.of(context).t('loginFieldsRequired'));
       return;
     }
+    final l10n = AppLocalizations.of(context);
     setState(() { _loading = true; _error = null; });
     try {
       final json = await client.postJson('/api/v1/auth/login', body: {'studentNumber': _id.text.trim(), 'password': _password.text});
       final data = json['data'];
-      if (data is! Map) throw ApiException(AppLocalizations.of(context).t('loginFailed'));
+      if (data is! Map) throw ApiException(l10n.t('loginFailed'));
       await storage.saveSession(Map<String, dynamic>.from(data));
       await _loadProfile();
     } catch (e) {
-      if (mounted) setState(() => _error = e is ApiException ? e.message : AppLocalizations.of(context).t('loginFailed'));
+      if (mounted) setState(() => _error = e is ApiException ? e.message : l10n.t('loginFailed'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

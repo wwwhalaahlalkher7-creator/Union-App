@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
+import '../../core/theme/design_tokens.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/responsive_content.dart';
 

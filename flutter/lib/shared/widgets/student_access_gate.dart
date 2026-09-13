@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/localization/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../core/localization/app_localizations.dart';
+import '../../core/storage/auth_storage.dart';
 import 'app_card.dart';
 
 /// Keeps student-only features explicit instead of waiting for a 401 response.
@@ -22,7 +23,7 @@ class _StudentAccessGateState extends State<StudentAccessGate> {
 
   Future<bool> _readAccess() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_access_token')?.isNotEmpty == true;
+    return AuthStorage(prefs).isLoggedIn;
   }
 
   @override

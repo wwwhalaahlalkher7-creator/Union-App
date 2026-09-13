@@ -58,7 +58,17 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       body: Stack(
         fit: StackFit.expand,
         children: [
-          CustomPaint(painter: _CircuitPainter(progress: reduceMotion ? 1 : _controller.value, accent: cs.primary)),
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (_, __) => CustomPaint(
+                painter: _CircuitPainter(
+                  progress: reduceMotion ? 1 : _controller.value,
+                  accent: cs.primary,
+                ),
+              ),
+            ),
+          ),
           Center(
             child: AnimatedBuilder(
               animation: _controller,
@@ -84,7 +94,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                           child: Image.asset('assets/icons/trinex_icon.png', fit: BoxFit.contain, filterQuality: FilterQuality.high),
                         ),
                         const SizedBox(height: 24),
-                        Text(l10n.t('appName'), style: TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: 4)),
+                        Text(l10n.t('appName'), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: 4)),
                         const SizedBox(height: 8),
                         Text(l10n.t('splashTagline'), style: TextStyle(color: Colors.white.withValues(alpha: .72), fontSize: 13, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 26),
@@ -134,10 +144,14 @@ class _CircuitPainter extends CustomPainter {
     ];
     for (final points in paths) {
       final path = Path()..moveTo(points.first.dx, points.first.dy);
-      for (var i = 1; i < points.length; i++) path.lineTo(points[i].dx, points[i].dy);
+      for (var i = 1; i < points.length; i++) {
+        path.lineTo(points[i].dx, points[i].dy);
+      }
       final metric = path.computeMetrics().first;
       canvas.drawPath(metric.extractPath(0, metric.length * progress), p);
-      for (final point in points) canvas.drawCircle(point, 3.2, dot);
+      for (final point in points) {
+        canvas.drawCircle(point, 3.2, dot);
+      }
     }
     final glow = Paint()..shader = RadialGradient(colors: [accent.withValues(alpha: .08), Colors.transparent]).createShader(Rect.fromCircle(center: size.center(Offset.zero), radius: math.min(size.width, size.height) * .55));
     canvas.drawCircle(size.center(Offset.zero), math.min(size.width, size.height) * .55, glow);

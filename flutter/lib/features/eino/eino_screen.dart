@@ -36,9 +36,13 @@ class _EinoScreenState extends State<EinoScreen> {
 
   Future<void> _init() async {
     final client = await AuthenticatedClient.create();
+    if (!mounted) {
+      client.dispose();
+      return;
+    }
     _client = client;
     _repository = EinoRepository(client);
-    if (mounted) setState(() => _ready = true);
+    setState(() => _ready = true);
   }
 
   @override
@@ -90,7 +94,7 @@ class _EinoScreenState extends State<EinoScreen> {
     }
   }
 
-  Future<void> _send([String? preset]) async {
+  Future<void> _send(BuildContext context, [String? preset]) async {
     if (!_ready || _sending) return;
     final prompt = (preset ?? _controller.text).trim();
     if (prompt.isEmpty) return;
@@ -106,11 +110,12 @@ class _EinoScreenState extends State<EinoScreen> {
           ? _messages.sublist(_messages.length - 10, _messages.length - 1)
           : _messages.sublist(0, _messages.length - 1);
       final historyText = history.map((m) => '${m.user ? 'المستخدم' : 'إينو'}: ${m.text}').join('\n');
-      final context = [
-        'صفحة المستخدم الحالية: ${_sourceLabel(AppLocalizations.of(context))}.',
+      final l10n = AppLocalizations.of(context);
+      final contextPayload = [
+        'صفحة المستخدم الحالية: ${_sourceLabel(l10n)}.',
         if (historyText.isNotEmpty) 'سياق المحادثة السابق:\n$historyText',
       ].join('\n');
-      final answer = await _repository.chat(prompt: prompt, context: context);
+      final answer = await _repository.chat(prompt: prompt, context: contextPayload);
       if (mounted) setState(() => _messages.add(_Message(false, answer)));
     } catch (e) {
       if (mounted) setState(() => _messages.add(_Message(false, e.toString().replaceFirst('ApiException(null): ', ''))));
@@ -192,7 +197,7 @@ class _EinoScreenState extends State<EinoScreen> {
 
   Widget _prompt(String text, ColorScheme cs) => ActionChip(
         label: Text(text),
-        onPressed: _sending ? null : () => _send(text),
+        onPressed: _sending ? null : () => _send(context, text),
         side: BorderSide.none,
         backgroundColor: cs.surfaceContainerHighest,
       );
@@ -255,7 +260,7 @@ class _EinoScreenState extends State<EinoScreen> {
           ),
           const SizedBox(width: 4),
           IconButton.filled(
-            onPressed: _sending ? null : () => _send(),
+            onPressed: _sending ? null : () => _send(context),
             icon: AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
