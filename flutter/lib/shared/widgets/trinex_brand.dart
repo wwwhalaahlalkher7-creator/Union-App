@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/localization/app_localizations.dart';
 
 class TrinexLogo extends StatelessWidget {
   const TrinexLogo({super.key, this.width = 190});
@@ -15,7 +16,7 @@ class TrinexLogo extends StatelessWidget {
         children: [
           const TrinexMark(size: 38, radius: 12),
           const SizedBox(width: 9),
-          Text('TRINEX', style: TextStyle(fontSize: width * .105, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: Theme.of(context).colorScheme.onSurface)),
+          Text(AppLocalizations.of(context).t('appName'), style: TextStyle(fontSize: width * .105, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: Theme.of(context).colorScheme.onSurface)),
         ],
       );
     }

@@ -61,32 +61,32 @@ class _EinoScreenState extends State<EinoScreen> {
     });
   }
 
-  String get _sourceLabel {
+  String _sourceLabel(AppLocalizations l10n) {
     switch (widget.source) {
-      case 'materials': return 'المواد الدراسية';
-      case 'schedule': return 'الجدول';
-      case 'progress': return 'التقدم الدراسي';
-      case 'xp': return 'نقاط XP';
-      case 'badges': return 'الشارات';
-      case 'student': return 'حساب الطالب';
-      default: return 'الرئيسية';
+      case 'materials': return l10n.t('sourceMaterials');
+      case 'schedule': return l10n.t('sourceSchedule');
+      case 'progress': return l10n.t('sourceProgress');
+      case 'xp': return l10n.t('sourceXp');
+      case 'badges': return l10n.t('sourceBadges');
+      case 'student': return l10n.t('sourceStudent');
+      default: return l10n.t('sourceHome');
     }
   }
 
-  List<String> get _suggestions {
+  List<String> _suggestions(AppLocalizations l10n) {
     switch (widget.source) {
       case 'materials':
-        return ['ساعديني أرتب مذاكرتي', 'اشرحي لي مفهوم من المادة', 'كيف أبدأ بهذا الملف؟'];
+        return [l10n.t('suggestStudyPlan'), l10n.t('suggestExplainMaterial'), l10n.t('suggestStartFile')];
       case 'schedule':
-        return ['رتبي لي يومي الدراسي', 'كيف أستعد للحصة القادمة؟', 'اقترحي لي وقتًا للمراجعة'];
+        return [l10n.t('suggestOrganizeDay'), l10n.t('suggestPrepareClass'), l10n.t('suggestReviewTime')];
       case 'progress':
-        return ['كيف أحسن تقدمي؟', 'ساعديني بخطة مراجعة', 'كيف أستمر بدون ضغط؟'];
+        return [l10n.t('suggestImproveProgress'), l10n.t('suggestReviewPlan'), l10n.t('suggestKeepGoing')];
       case 'xp':
-        return ['كيف أكسب XP من الدراسة؟', 'ما أفضل طريقة للتقدم؟', 'ساعديني أضع هدفًا دراسيًا'];
+        return [l10n.t('suggestEarnXp'), l10n.t('suggestProgressMethod'), l10n.t('suggestStudyGoal')];
       case 'badges':
-        return ['كيف أحقق الشارات؟', 'اقترحي لي هدفًا قريبًا', 'كيف أحافظ على تقدمي؟'];
+        return [l10n.t('suggestBadges'), l10n.t('suggestNearbyGoal'), l10n.t('suggestKeepProgress')];
       default:
-        return ['📚 ساعديني في الدراسة', '🗓️ ساعديني في يومي', '💡 اشرحي لي مفهومًا', '🔎 ساعديني في التطبيق'];
+        return [l10n.t('suggestStudy'), l10n.t('suggestDay'), l10n.t('suggestConcept'), l10n.t('suggestApp')];
     }
   }
 
@@ -107,7 +107,7 @@ class _EinoScreenState extends State<EinoScreen> {
           : _messages.sublist(0, _messages.length - 1);
       final historyText = history.map((m) => '${m.user ? 'المستخدم' : 'إينو'}: ${m.text}').join('\n');
       final context = [
-        'صفحة المستخدم الحالية: $_sourceLabel.',
+        'صفحة المستخدم الحالية: ${_sourceLabel(AppLocalizations.of(context))}.',
         if (historyText.isNotEmpty) 'سياق المحادثة السابق:\n$historyText',
       ].join('\n');
       final answer = await _repository.chat(prompt: prompt, context: context);
@@ -128,10 +128,10 @@ class _EinoScreenState extends State<EinoScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('إينو'),
+        title: Text(l10n.t('einoTitle')),
         actions: [
           IconButton(
-            tooltip: 'محادثة جديدة',
+            tooltip: l10n.t('newChat'),
             onPressed: _messages.isEmpty || _sending ? null : () => setState(() => _messages.clear()),
             icon: const Icon(Icons.refresh_rounded),
           ),
@@ -169,23 +169,23 @@ class _EinoScreenState extends State<EinoScreen> {
         children: [
           Center(child: EinoFace(size: 128, mood: _mood)),
           const SizedBox(height: 8),
-          const Center(child: Text('أنا إينو ✨', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800))),
+          Center(child: Text(l10n.t('einoGreeting'), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800))),
           const SizedBox(height: 6),
           Center(
             child: Text(
-              'موجودة معك في $_sourceLabel',
+              l10n.t('withYou', {'section': _sourceLabel(l10n)}),
               style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700),
             ),
           ),
           const SizedBox(height: 8),
           Text(l10n.t('einoWelcome'), textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant, height: 1.5)),
           const SizedBox(height: 22),
-          Text('اقتراحات مناسبة لك', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          Text(l10n.t('suggestions'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
           Wrap(
             spacing: 9,
             runSpacing: 9,
-            children: _suggestions.map((text) => _prompt(text, cs)).toList(),
+            children: _suggestions(l10n).map((text) => _prompt(text, cs)).toList(),
           ),
         ],
       );

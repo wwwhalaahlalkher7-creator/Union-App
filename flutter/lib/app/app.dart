@@ -10,7 +10,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'router.dart';
 
 class TrinexApp extends StatefulWidget {
-  const TrinexApp({super.key});
+  const TrinexApp({super.key, this.enableStartupUpdateCheck = true});
+
+  final bool enableStartupUpdateCheck;
 
   @override
   State<TrinexApp> createState() => _TrinexAppState();
@@ -23,12 +25,12 @@ class _TrinexAppState extends State<TrinexApp> {
   final AppPreferences _preferences = AppPreferences();
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
+  late final Future<void> _preferencesFuture = _loadPreferences();
 
   @override
   void initState() {
     super.initState();
-    _loadPreferences();
-    _checkForUpdate();
+    if (widget.enableStartupUpdateCheck) _checkForUpdate();
   }
 
   Future<void> _loadPreferences() async {
@@ -42,6 +44,7 @@ class _TrinexAppState extends State<TrinexApp> {
 
 
   Future<void> _checkForUpdate() async {
+    await _preferencesFuture;
     final info = await const UpdateService().check();
     if (!mounted || info == null) return;
     const service = UpdateService();
@@ -52,7 +55,8 @@ class _TrinexAppState extends State<TrinexApp> {
   }
 
   Future<void> _showUpdateDialog(UpdateInfo info, {required bool force}) async {
-    final title = force ? 'تحديث مطلوب' : 'تحديث جديد متاح';
+    final l10n = AppLocalizations.of(context);
+    final title = force ? l10n.t('updateRequired') : l10n.t('updateAvailable');
     await showDialog<void>(
       context: context,
       barrierDismissible: !force,
@@ -63,12 +67,12 @@ class _TrinexAppState extends State<TrinexApp> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('الإصدار المثبت: ${AppVersion.full}'),
+              Text(l10n.t('installedVersion', {'version': AppVersion.full})),
               const SizedBox(height: 4),
-              Text('الإصدار المتاح: ${info.currentVersion}'),
+              Text(l10n.t('availableVersion', {'version': info.currentVersion})),
               if (force) ...[
                 const SizedBox(height: 12),
-                const Text('يجب تحديث التطبيق للمتابعة لأن هذه النسخة لم تعد مدعومة.'),
+                Text(l10n.t('forceUpdateMessage')),
               ],
               if ((info.releaseNotes ?? '').trim().isNotEmpty) ...[
                 const SizedBox(height: 12),
@@ -78,7 +82,7 @@ class _TrinexAppState extends State<TrinexApp> {
           ),
         ),
         actions: [
-          if (!force) TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('لاحقًا')),
+          if (!force) TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.t('later'))),
           FilledButton.icon(
             onPressed: info.updateUrl == null || info.updateUrl!.trim().isEmpty ? null : () async {
               final uri = Uri.tryParse(info.updateUrl!);
@@ -86,7 +90,7 @@ class _TrinexAppState extends State<TrinexApp> {
               await launchUrl(uri, mode: LaunchMode.externalApplication);
             },
             icon: const Icon(Icons.system_update_rounded),
-            label: const Text('تحديث الآن'),
+            label: Text(l10n.t('updateNow')),
           ),
         ],
       ),
@@ -119,6 +123,7 @@ class _TrinexAppState extends State<TrinexApp> {
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       routerConfig: buildRouter(
+        startupFuture: _preferencesFuture,
         onThemeModeChanged: setThemeMode,
         onLocaleChanged: setLocale,
         themeMode: _themeMode,

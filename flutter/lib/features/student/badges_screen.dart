@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
 import '../../data/models/badge_item.dart';
 import '../../data/repositories/badges_repository.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_section.dart';
+import '../../shared/widgets/list_skeleton.dart';
 
 class BadgesScreen extends StatefulWidget {
   const BadgesScreen({super.key});
-
-  @override
-  State<BadgesScreen> createState() => _BadgesScreenState();
+  @override State<BadgesScreen> createState() => _BadgesScreenState();
 }
 
 class _BadgesScreenState extends State<BadgesScreen> {
@@ -21,136 +21,102 @@ class _BadgesScreenState extends State<BadgesScreen> {
   bool _loading = true;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       _client ??= await AuthenticatedClient.create();
       final snapshot = await BadgesRepository(_client!).getBadges();
       if (mounted) setState(() { _snapshot = snapshot; _error = null; });
     } catch (e) {
-      if (mounted) setState(() => _error = e is ApiException ? e.message : 'تعذر تحميل الشارات.');
+      if (mounted) setState(() => _error = e is ApiException ? e.message : AppLocalizations.of(context).t('badgesLoadError'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
+  void dispose() { _client?.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final snapshot = _snapshot;
     Widget body;
-
     if (_loading && snapshot == null) {
-      body = const Center(child: CircularProgressIndicator());
+      body = const ListSkeleton(count: 6);
     } else if (_error != null && snapshot == null) {
-      body = Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error!, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh_rounded), label: const Text('إعادة المحاولة')),
-          ],
-        ),
-      );
+      body = _BadgeError(message: _error!, retry: _load);
     } else {
+      final ratio = snapshot!.totalCount == 0 ? 0.0 : (snapshot.earnedCount / snapshot.totalCount).clamp(0.0, 1.0).toDouble();
       body = RefreshIndicator(
         onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 36),
           children: [
             AppCard(
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 27,
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(Icons.emoji_events_rounded, color: Theme.of(context).colorScheme.onPrimaryContainer),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('إنجازاتك', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
-                        const SizedBox(height: 4),
-                        Text('${snapshot!.earnedCount} من ${snapshot.totalCount} شارة مكتسبة'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(children: [
+                Container(width: 68, height: 68, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, shape: BoxShape.circle), child: Icon(Icons.emoji_events_rounded, size: 36, color: Theme.of(context).colorScheme.onPrimaryContainer)),
+                const SizedBox(height: 12),
+                Text(l10n.t('achievementsTitle'), style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 4),
+                Text(l10n.t('badgesEarned', {'earned': '${snapshot.earnedCount}', 'total': '${snapshot.totalCount}'})),
+                const SizedBox(height: 15),
+                LinearProgressIndicator(value: ratio, minHeight: 8, borderRadius: BorderRadius.circular(8)),
+              ]),
             ),
             const SizedBox(height: 22),
             AppSection(
-              title: 'مجموعة الشارات',
-              child: Column(
-                children: [
-                  for (final badge in snapshot.badges)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: AppCard(
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: badge.earned ? Theme.of(context).colorScheme.primaryContainer : null,
-                              child: Icon(
-                                badge.earned ? Icons.emoji_events_rounded : Icons.lock_outline_rounded,
-                                color: badge.earned ? Theme.of(context).colorScheme.onPrimaryContainer : null,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    badge.name,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: badge.earned ? null : Theme.of(context).disabledColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    badge.description.isEmpty ? _rule(badge) : badge.description,
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (badge.earned) const Icon(Icons.check_circle_rounded),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              title: l10n.t('badgeCollection'),
+              child: LayoutBuilder(builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 620 ? 3 : 2;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: snapshot.badges.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: columns, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .92),
+                  itemBuilder: (context, index) => _BadgeCard(badge: snapshot.badges[index]),
+                );
+              }),
             ),
           ],
         ),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('الشارات'),
-        actions: [IconButton(tooltip: 'تحديث', onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh_rounded))],
-      ),
-      body: body,
+    return Scaffold(appBar: AppBar(title: Text(l10n.t('badgesTitle')), actions: [IconButton(tooltip: l10n.t('refresh'), onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh_rounded))]), body: body);
+  }
+}
+
+class _BadgeCard extends StatelessWidget {
+  const _BadgeCard({required this.badge});
+  final BadgeItem badge;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final languageCode = Localizations.localeOf(context).languageCode;
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(width: 52, height: 52, decoration: BoxDecoration(color: badge.earned ? cs.primaryContainer : cs.surfaceContainerHighest, shape: BoxShape.circle), child: Icon(badge.earned ? Icons.emoji_events_rounded : Icons.lock_outline_rounded, color: badge.earned ? cs.onPrimaryContainer : cs.onSurfaceVariant)),
+        const SizedBox(height: 9),
+        Text(badge.localizedName(languageCode), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: badge.earned ? cs.onSurface : cs.onSurfaceVariant)),
+        const SizedBox(height: 4),
+        Text(badge.localizedDescription(languageCode).isEmpty ? _rule(badge) : badge.localizedDescription(languageCode), textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+        if (badge.earned) ...[const SizedBox(height: 6), Icon(Icons.check_circle_rounded, size: 18, color: cs.primary)],
+      ]),
     );
   }
-
   String _rule(BadgeItem badge) => '${badge.ruleType}: ${badge.ruleValue}';
+}
+
+class _BadgeError extends StatelessWidget {
+  const _BadgeError({required this.message, required this.retry});
+  final String message;
+  final VoidCallback retry;
+  @override
+  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.emoji_events_outlined, size: 58, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 12), Text(message, textAlign: TextAlign.center), const SizedBox(height: 14), FilledButton.icon(onPressed: retry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))])));
 }

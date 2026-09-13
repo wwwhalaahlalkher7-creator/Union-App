@@ -2,9 +2,9 @@
 
 ## الإصدار الحالي
 
-`2.6.0+17` — Release Candidate
+`2.0.0+1` — TRINEX V2 Foundation
 
-المصدر الوحيد للنسخة هو `flutter/VERSION`. استخدم `python3 flutter/tool/sync_version.py` عند تغييرها، ثم شغّل فحوص CI.
+المصدر الوحيد للنسخة هو `flutter/VERSION`. في V2 لا تُعدّل رقم الإصدار داخل Dart أو pubspec يدويًا. بعد تغيير VERSION، يتولى CI مزامنة الحقول وتشغيل الفحوص.
 
 ## الهوية
 

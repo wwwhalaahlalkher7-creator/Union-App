@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
 import '../../data/models/xp_snapshot.dart';
 import '../../data/repositories/xp_repository.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_section.dart';
+import '../../shared/widgets/list_skeleton.dart';
 
 class XpScreen extends StatefulWidget {
   const XpScreen({super.key});
@@ -28,14 +30,14 @@ class _XpScreenState extends State<XpScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       _client ??= await AuthenticatedClient.create();
       _repo ??= XpRepository(_client!);
       final snapshot = await _repo!.getXp();
       if (mounted) setState(() { _snapshot = snapshot; _error = null; });
     } catch (e) {
-      if (mounted) setState(() => _error = e is ApiException ? e.message : 'تعذر تحميل نقاط XP.');
+      if (mounted) setState(() => _error = e is ApiException ? e.message : AppLocalizations.of(context).t('xpLoadError'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -49,6 +51,7 @@ class _XpScreenState extends State<XpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final snapshot = _snapshot;
     final progress = snapshot == null || snapshot.nextLevelXp <= 0
         ? 0.0
@@ -56,74 +59,47 @@ class _XpScreenState extends State<XpScreen> {
 
     Widget body;
     if (_loading && snapshot == null) {
-      body = const Center(child: CircularProgressIndicator());
+      body = const ListSkeleton(count: 5);
     } else if (_error != null && snapshot == null) {
-      body = Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error!, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh_rounded), label: const Text('إعادة المحاولة')),
-          ],
-        ),
-      );
+      body = _XpError(message: _error!, retry: _load);
     } else {
       body = RefreshIndicator(
         onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 36),
           children: [
             AppCard(
+              padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(Icons.bolt_rounded, size: 32, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, shape: BoxShape.circle),
+                    child: Icon(Icons.bolt_rounded, size: 36, color: Theme.of(context).colorScheme.onPrimaryContainer),
                   ),
-                  const SizedBox(height: 10),
-                  Text('${snapshot!.totalXp} XP', style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
-                  Text('المستوى ${snapshot.level}', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 16),
-                  LinearProgressIndicator(value: progress, minHeight: 8, borderRadius: BorderRadius.circular(8)),
+                  const SizedBox(height: 12),
+                  Text(l10n.t('xpValue', {'value': '${snapshot!.totalXp}'}), style: Theme.of(context).textTheme.headlineMedium),
+                  const SizedBox(height: 3),
+                  Text(l10n.t('levelValue', {'level': '${snapshot.level}'}), style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 18),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: LinearProgressIndicator(value: progress, minHeight: 10),
+                  ),
                   const SizedBox(height: 8),
-                  Text('${snapshot.levelXp} / ${snapshot.nextLevelXp} XP للمستوى التالي', style: Theme.of(context).textTheme.bodySmall),
+                  Text(l10n.t('xpNextLevel', {'current': '${snapshot.levelXp}', 'next': '${snapshot.nextLevelXp}'}), style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),
             ),
             const SizedBox(height: 22),
             AppSection(
-              title: 'سجل XP',
-              subtitle: 'تُمنح النقاط من تقدم دراسي موثّق',
+              title: l10n.t('xpLog'),
+              subtitle: l10n.t('xpSubtitle'),
               child: snapshot.events.isEmpty
-                  ? const AppCard(child: Text('لم تحصل على XP بعد. ابدأ التقدم في ملفاتك الدراسية.'))
-                  : Column(
-                      children: [
-                        for (final event in snapshot.events)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: AppCard(
-                              child: Row(
-                                children: [
-                                  Icon(Icons.add_circle_rounded, color: Theme.of(context).colorScheme.primary),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text('+${event.xp} XP', style: const TextStyle(fontWeight: FontWeight.w900)),
-                                        Text(_label(event.type), style: Theme.of(context).textTheme.bodySmall),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
+                  ? AppCard(child: Text(l10n.t('noXp')))
+                  : Column(children: [for (var i = 0; i < snapshot.events.length; i++) _EventTile(event: snapshot.events[i], last: i == snapshot.events.length - 1)]),
             ),
           ],
         ),
@@ -132,25 +108,87 @@ class _XpScreenState extends State<XpScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('XP والمستوى'),
-        actions: [IconButton(tooltip: 'تحديث', onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh_rounded))],
+        title: Text(l10n.t('xpLevel')),
+        actions: [IconButton(tooltip: l10n.t('refresh'), onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh_rounded))],
       ),
       body: body,
     );
   }
+}
 
-  String _label(String type) {
+class _EventTile extends StatelessWidget {
+  const _EventTile({required this.event, required this.last});
+  final XpEvent event;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 28,
+            child: Column(
+              children: [
+                Container(width: 12, height: 12, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle)),
+                if (!last) Expanded(child: Container(width: 2, color: cs.outline.withValues(alpha: .35))),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: AppCard(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Icon(Icons.add_circle_rounded, color: cs.primary),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(_label(l10n, event.type), style: const TextStyle(fontWeight: FontWeight.w800))),
+                    Text('+${event.xp}', style: TextStyle(fontWeight: FontWeight.w900, color: cs.primary)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _label(AppLocalizations l10n, String type) {
     switch (type) {
-      case 'material_progress_25':
-        return 'إكمال 25٪ من ملف دراسي';
-      case 'material_progress_50':
-        return 'إكمال 50٪ من ملف دراسي';
-      case 'material_progress_75':
-        return 'إكمال 75٪ من ملف دراسي';
-      case 'material_complete':
-        return 'إكمال ملف دراسي';
-      default:
-        return 'نشاط دراسي';
+      case 'material_progress_25': return l10n.t('xpEvent25');
+      case 'material_progress_50': return l10n.t('xpEvent50');
+      case 'material_progress_75': return l10n.t('xpEvent75');
+      case 'material_complete': return l10n.t('xpEventComplete');
+      default: return l10n.t('xpEventOther');
     }
   }
+}
+
+class _XpError extends StatelessWidget {
+  const _XpError({required this.message, required this.retry});
+  final String message;
+  final VoidCallback retry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.bolt_outlined, size: 58, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 12),
+              Text(message, textAlign: TextAlign.center),
+              const SizedBox(height: 14),
+              FilledButton.icon(onPressed: retry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry'))),
+            ],
+          ),
+        ),
+      );
 }

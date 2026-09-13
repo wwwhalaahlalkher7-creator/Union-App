@@ -72,7 +72,8 @@ class SettingsScreen extends StatelessWidget {
       };
 
   String _languageLabel(AppLocalizations l10n, Locale? value) {
-    final code = value?.languageCode ?? 'ar';
+    if (value == null) return l10n.t('automatic');
+    final code = value.languageCode;
     return switch (code) {
       'en' => l10n.t('english'),
       'fr' => l10n.t('french'),
@@ -103,27 +104,29 @@ class SettingsScreen extends StatelessWidget {
     BuildContext context,
     AppLocalizations l10n,
   ) async {
-    final selected = await showModalBottomSheet<Locale?>(
+    final selected = await showModalBottomSheet<_LanguageChoice>(
       context: context,
       showDragHandle: true,
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _Option(title: l10n.t('arabic'), selected: locale?.languageCode == 'ar' || locale == null, onTap: () => Navigator.pop(context, const Locale('ar'))),
-          _Option(title: l10n.t('english'), selected: locale?.languageCode == 'en', onTap: () => Navigator.pop(context, const Locale('en'))),
-          _Option(title: l10n.t('french'), selected: locale?.languageCode == 'fr', onTap: () => Navigator.pop(context, const Locale('fr'))),
-          _Option(title: 'تلقائي / Auto', selected: locale == null, onTap: () => Navigator.pop(context, null)),
+          _Option(title: l10n.t('arabic'), selected: locale?.languageCode == 'ar', onTap: () => Navigator.pop(context, const _LanguageChoice.locale(Locale('ar')))),
+          _Option(title: l10n.t('english'), selected: locale?.languageCode == 'en', onTap: () => Navigator.pop(context, const _LanguageChoice.locale(Locale('en')))),
+          _Option(title: l10n.t('french'), selected: locale?.languageCode == 'fr', onTap: () => Navigator.pop(context, const _LanguageChoice.locale(Locale('fr')))),
+          _Option(title: l10n.t('automatic'), selected: locale == null, onTap: () => Navigator.pop(context, const _LanguageChoice.automatic())),
         ],
       ),
     );
-    // null also represents automatic mode, so the explicit Arabic selection
-    // above is distinguishable by the current locale after rebuild.
-    if (selected != null) {
-      onLocaleChanged(selected);
-    } else if (locale != null) {
-      onLocaleChanged(null);
-    }
+    if (selected == null) return;
+    onLocaleChanged(selected.locale);
   }
+}
+
+class _LanguageChoice {
+  const _LanguageChoice.locale(this.locale);
+  const _LanguageChoice.automatic() : locale = null;
+
+  final Locale? locale;
 }
 
 class _Option extends StatelessWidget {

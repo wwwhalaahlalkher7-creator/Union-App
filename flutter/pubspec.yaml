@@ -1,7 +1,7 @@
 name: leo_association
 description: TRINEX — Engineering, Architecture & Technology student platform.
 publish_to: "none"
-version: 2.6.0+17
+version: 2.0.0+1
 
 environment:
   sdk: ">=3.8.0 <4.0.0"

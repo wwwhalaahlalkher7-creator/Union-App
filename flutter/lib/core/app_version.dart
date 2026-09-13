@@ -3,7 +3,8 @@
 class AppVersion {
   const AppVersion._();
 
-  static const name = '2.6.0';
-  static const build = 17;
+  static const name = '2.0.0';
+  static const build = 1;
   static const full = '$name+$build';
+  static const version = name;
 }

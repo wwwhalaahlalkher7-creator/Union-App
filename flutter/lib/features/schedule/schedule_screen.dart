@@ -5,6 +5,8 @@ import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
 import '../../data/models/schedule_item.dart';
 import '../../data/repositories/schedule_repository.dart';
+import '../../shared/widgets/list_skeleton.dart';
+import '../../shared/widgets/responsive_content.dart';
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
@@ -17,6 +19,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   ApiClient? _client;
   ScheduleRepository? _repository;
   Future<ScheduleData>? _future;
+  Future<List<Map<String, dynamic>>>? _semestersFuture;
   String? _semesterId;
   int? _selectedDay;
 
@@ -30,6 +33,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     try {
       _client = await AuthenticatedClient.create();
       _repository = ScheduleRepository(_client!);
+      _semestersFuture = _repository!.semesters();
       final future = _repository!.getSchedule(semesterId: _semesterId);
       if (mounted) setState(() => _future = future);
     } catch (_) {}
@@ -38,7 +42,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Future<ScheduleData> _load() {
     final repository = _repository;
     if (repository == null) {
-      return Future.error(const ApiException('جارٍ تهيئة جلسة الطالب.'));
+      return Future.error(ApiException(AppLocalizations.of(context).t('sessionInitializing')));
     }
     return repository.getSchedule(semesterId: _semesterId);
   }
@@ -49,7 +53,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     super.dispose();
   }
 
-  void _reload() => setState(() => _future = _load());
+  Future<void> _reload() async {
+    final future = _load();
+    if (mounted) setState(() => _future = future);
+    await future;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,11 +65,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     final locale = Localizations.localeOf(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('schedule'))),
-      body: FutureBuilder<ScheduleData>(
-        future: _future ?? Future.error(const ApiException('جارٍ تهيئة جلسة الطالب.')),
+      body: ResponsiveContent(
+        padding: EdgeInsets.zero,
+        child: FutureBuilder<ScheduleData>(
+        future: _future ?? Future.error(ApiException(AppLocalizations.of(context).t('sessionInitializing'))),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const ListSkeleton();
           }
           if (snapshot.hasError) {
             return _ScheduleMessage(
@@ -82,7 +92,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           }
           final items = selected == null ? const <ScheduleItem>[] : data.items.where((e) => e.dayOfWeek == selected).toList();
           return RefreshIndicator(
-            onRefresh: () async { _reload(); await _future; },
+            onRefresh: _reload,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
@@ -90,7 +100,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 _HeaderCard(data: data, locale: locale),
                 const SizedBox(height: 14),
                 FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _repository?.semesters() ?? Future.value(const <Map<String, dynamic>>[]),
+                  future: _semestersFuture ??= _repository?.semesters() ?? Future.value(const <Map<String, dynamic>>[]),
                   builder: (context, semestersSnapshot) {
                     final semesters = semestersSnapshot.data ?? const <Map<String, dynamic>>[];
                     if (semesters.isEmpty) return const SizedBox.shrink();
@@ -99,7 +109,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       decoration: InputDecoration(labelText: l10n.t('semester'), border: const OutlineInputBorder()),
                       items: semesters.map((semester) {
                         final id = semester['id']?.toString();
-                        final name = locale.languageCode == 'en' ? (semester['name_en'] ?? semester['name_ar']) : semester['name_ar'];
+                        final name = _localizedName(locale, semester['name_fr'], semester['name_en'], semester['name_ar']);
                         return DropdownMenuItem(value: id, child: Text(name?.toString() ?? id ?? ''));
                       }).toList(),
                       onChanged: (value) { _semesterId = value; _selectedDay = null; _reload(); },
@@ -107,7 +117,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   },
                 ),
                 const SizedBox(height: 14),
-                if (days.isNotEmpty) _DayPicker(days: days, selected: selected, locale: locale, onChanged: (day) => setState(() => _selectedDay = day)),
+                if (days.isNotEmpty) _DayPicker(days: days, selected: selected, onChanged: (day) => setState(() => _selectedDay = day)),
                 const SizedBox(height: 16),
                 if (items.isEmpty)
                   _ScheduleMessage(icon: Icons.event_busy_outlined, text: l10n.t('scheduleEmpty'))
@@ -117,6 +127,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ),
           );
         },
+      ),
       ),
     );
   }
@@ -130,6 +141,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 }
 
+String _localizedName(Locale locale, dynamic fr, dynamic en, dynamic ar) {
+  final candidates = locale.languageCode == 'fr' ? [fr, en, ar] : locale.languageCode == 'en' ? [en, ar, fr] : [ar, en, fr];
+  for (final value in candidates) {
+    if (value != null && value.toString().trim().isNotEmpty) return value.toString();
+  }
+  return '—';
+}
+
 class _HeaderCard extends StatelessWidget {
   const _HeaderCard({required this.data, required this.locale});
   final ScheduleData data;
@@ -137,12 +156,8 @@ class _HeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final semesterName = locale.languageCode == 'en'
-        ? (data.semester?['name_en'] ?? data.semester?['name_ar'])
-        : data.semester?['name_ar'];
-    final departmentName = locale.languageCode == 'en'
-        ? (data.department?['name_en'] ?? data.department?['name_ar'])
-        : data.department?['name_ar'];
+    final semesterName = _localizedName(locale, data.semester?['name_fr'], data.semester?['name_en'], data.semester?['name_ar']);
+    final departmentName = _localizedName(locale, data.department?['name_fr'], data.department?['name_en'], data.department?['name_ar']);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -161,10 +176,9 @@ class _HeaderCard extends StatelessWidget {
 }
 
 class _DayPicker extends StatelessWidget {
-  const _DayPicker({required this.days, required this.selected, required this.locale, required this.onChanged});
+  const _DayPicker({required this.days, required this.selected, required this.onChanged});
   final List<int> days;
   final int? selected;
-  final Locale locale;
   final ValueChanged<int> onChanged;
 
   @override
@@ -176,17 +190,15 @@ class _DayPicker extends StatelessWidget {
           separatorBuilder: (_, _) => const SizedBox(width: 8),
           itemBuilder: (_, index) {
             final day = days[index];
-            return ChoiceChip(label: Text(_dayName(day, locale)), selected: day == selected, onSelected: (_) => onChanged(day));
+            return ChoiceChip(label: Text(_dayName(context, day)), selected: day == selected, onSelected: (_) => onChanged(day));
           },
         ),
       );
 
-  String _dayName(int day, Locale locale) {
-    const ar = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-    const en = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const fr = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-    final values = switch (locale.languageCode) { 'en' => en, 'fr' => fr, _ => ar };
-    return day >= 0 && day < values.length ? values[day] : 'Day $day';
+  String _dayName(BuildContext context, int day) {
+    final keys = ['daySunday', 'dayMonday', 'dayTuesday', 'dayWednesday', 'dayThursday', 'dayFriday', 'daySaturday'];
+    if (day < 0 || day >= keys.length) return AppLocalizations.of(context).t('dayUnknown', {'day': '$day'});
+    return AppLocalizations.of(context).t(keys[day]);
   }
 }
 
@@ -204,14 +216,23 @@ class _ClassCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(width: 4, height: 64, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(4))),
+            Container(
+              width: 76,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .10), borderRadius: BorderRadius.circular(14)),
+              child: Column(children: [
+                Icon(Icons.schedule_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(height: 5),
+                Text(item.startTime, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900)),
+                Text(item.endTime, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall),
+              ]),
+            ),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(subject.isEmpty ? '—' : subject, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
               if (item.subjectCode?.isNotEmpty == true) ...[const SizedBox(height: 3), Text(item.subjectCode!, style: Theme.of(context).textTheme.labelMedium)],
               const SizedBox(height: 9),
               Wrap(spacing: 10, runSpacing: 6, children: [
-                _Meta(icon: Icons.schedule_rounded, text: '${item.startTime} – ${item.endTime}'),
                 if (item.room?.isNotEmpty == true) _Meta(icon: Icons.location_on_outlined, text: item.room!),
                 if (item.lecturer?.isNotEmpty == true) _Meta(icon: Icons.person_outline_rounded, text: item.lecturer!),
               ]),
@@ -237,5 +258,5 @@ class _ScheduleMessage extends StatelessWidget {
   final String text;
   final VoidCallback? retry;
   @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 56), const SizedBox(height: 14), Text(text, textAlign: TextAlign.center), if (retry != null) ...[const SizedBox(height: 14), OutlinedButton(onPressed: retry, child: const Text('إعادة المحاولة'))]])));
+  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 56), const SizedBox(height: 14), Text(text, textAlign: TextAlign.center), if (retry != null) ...[const SizedBox(height: 14), OutlinedButton(onPressed: retry, child: Text(AppLocalizations.of(context).t('retry')))]])));
 }

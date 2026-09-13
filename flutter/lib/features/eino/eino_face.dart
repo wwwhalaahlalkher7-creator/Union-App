@@ -28,16 +28,29 @@ class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     final active = widget.talking || widget.mood == EinoMood.thinking;
-    return AnimatedBuilder(
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    return TickerMode(
+      enabled: !reduceMotion,
+      child: AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         final t = _controller.value * 2 * math.pi;
         final wave = math.sin(t * (active ? 2.4 : 1));
         final scale = 1 + wave * (active ? .035 : .018);
         final bob = math.sin(t) * (widget.size * .025);
-        return Transform.translate(offset: Offset(0, bob), child: Transform.scale(scale: scale, child: child));
+        return Transform.translate(
+          offset: Offset(0, bob),
+          child: Transform.scale(
+            scale: scale,
+            child: SizedBox(
+              width: widget.size,
+              height: widget.size,
+              child: CustomPaint(painter: _EinoFacePainter(widget.mood, widget.talking, _controller.value)),
+            ),
+          ),
+        );
       },
-      child: SizedBox(width: widget.size, height: widget.size, child: CustomPaint(painter: _EinoFacePainter(widget.mood, widget.talking, _controller.value))),
+    ),
     );
   }
 }
@@ -52,7 +65,7 @@ class _EinoFacePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2 + size.height * .06);
     final r = size.width * .31;
-    final orange = mood == EinoMood.error ? Colors.redAccent : AppColors.primary;
+    final orange = mood == EinoMood.error ? AppColors.danger : AppColors.primary;
     const navy = AppColors.navy;
 
     final glow = Paint()..shader = RadialGradient(colors: [orange.withValues(alpha: .24), orange.withValues(alpha: 0)]).createShader(Rect.fromCircle(center: c, radius: size.width * .5));
