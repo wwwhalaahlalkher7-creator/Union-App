@@ -1,4 +1,4 @@
-# رابطة كلية الهندسة والعمارة — Flutter App
+# TRINEX — Flutter App
 
 ## Release 1.1
 
@@ -9,7 +9,9 @@ agreed product plan.
 
 - Guest-first usage.
 - Optional student account deferred for a later release.
-- Home / Schedule / Materials / More navigation.
+- TRINEX home / Materials / Schedule / Notifications / Student navigation.
+- Unified navy / orange visual system inspired by the TRINEX brand board.
+- Branded Android launcher icon and navy native splash.
 - Arabic / English / French localization.
 - Theme persistence.
 - API client with GET/POST support.

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Central visual language for the Association app.
-/// Keep spacing, radii and semantic colors here so screens do not invent
-/// their own values.
+/// TRINEX visual language. Keep shared spacing, radii and brand colors here.
 class DesignTokens {
   DesignTokens._();
 
@@ -35,19 +33,24 @@ class DesignTokens {
 class AppColors {
   AppColors._();
 
-  // Association identity orange: warm, energetic and readable on both themes.
+  // TRINEX brand palette from the approved visual direction.
   static const Color primary = Color(0xFFF47B20);
   static const Color primaryDark = Color(0xFFFF9848);
+  static const Color navy = Color(0xFF0D2B45);
+  static const Color blue = Color(0xFF4E6B8A);
+  static const Color background = Color(0xFFF5F7FA);
+  static const Color text = Color(0xFF1F2937);
+  static const Color border = Color(0xFFDDE4EA);
 
-  static const Color lightBackground = Color(0xFFF8F7F5);
-  static const Color darkBackground = Color(0xFF11100F);
-  static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color darkSurface = Color(0xFF1B1917);
+  static const Color lightBackground = background;
+  static const Color darkBackground = Color(0xFF081D2F);
+  static const Color lightSurface = Colors.white;
+  static const Color darkSurface = Color(0xFF102E46);
 
   static const Color success = Color(0xFF2E9B68);
   static const Color warning = Color(0xFFE3A52F);
   static const Color danger = Color(0xFFD95757);
-  static const Color info = Color(0xFF4F7CAC);
+  static const Color info = blue;
 }
 
 extension DesignThemeX on BuildContext {

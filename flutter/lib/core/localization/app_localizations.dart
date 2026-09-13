@@ -26,7 +26,7 @@ class AppLocalizations {
 
   static const _values = <String, Map<String, String>>{
     'ar': {
-      'appName': 'رابطة كلية الهندسة والعمارة',
+      'appName': 'TRINEX',
       'welcome': 'مرحبًا بك 👋',
       'homeSubtitle': 'كل ما يخص الكلية والرابطة في مكان واحد.',
       'home': 'الرئيسية',
@@ -77,7 +77,7 @@ class AppLocalizations {
       'lockedMaterials': 'المواد والجدول متاحان بعد تسجيل الطالب.',
     },
     'en': {
-      'appName': 'Faculty of Engineering & Architecture Association',
+      'appName': 'TRINEX',
       'welcome': 'Welcome 👋',
       'homeSubtitle': 'Everything you need from the faculty and association in one place.',
       'home': 'Home',
@@ -128,7 +128,7 @@ class AppLocalizations {
       'lockedMaterials': 'Materials and schedule are available after student sign-in.',
     },
     'fr': {
-      'appName': 'Association de la Faculté d’Ingénierie et d’Architecture',
+      'appName': 'TRINEX',
       'welcome': 'Bienvenue 👋',
       'homeSubtitle': 'Tout ce qui concerne la faculté et l’association au même endroit.',
       'home': 'Accueil',

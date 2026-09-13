@@ -1,8 +1,8 @@
 class AppConstants {
   AppConstants._();
 
-  static const appName = 'رابطة كلية الهندسة والعمارة';
-  static const appNameEnglish = 'Faculty of Engineering & Architecture Association';
+  static const appName = 'TRINEX';
+  static const appNameEnglish = 'TRINEX — Engineering, Architecture & Technology';
 
   // Unified API gateway. Flutter never talks to legacy providers directly.
   static const apiBaseUrl = String.fromEnvironment(

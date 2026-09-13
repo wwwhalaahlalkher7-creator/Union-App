@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/localization/app_localizations.dart';
+import '../core/theme/design_tokens.dart';
 import '../shared/widgets/pressable.dart';
 import '../shared/widgets/staggered_fade_in.dart';
 import '../features/about/about_screen.dart';
@@ -40,11 +41,11 @@ GoRouter buildRouter({
         ),
         routes: [
           GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
-          GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
           GoRoute(path: '/materials', builder: (_, _) => const MaterialsScreen()),
-          GoRoute(path: '/market', builder: (_, _) => const MarketScreen()),
-          GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),
-        ],
+          GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
+          GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
+          GoRoute(path: '/student', builder: (_, _) => const StudentScreen()),
+                ],
       ),
       GoRoute(path: '/news', builder: (_, _) => const NewsScreen()),
       GoRoute(path: '/announcements', builder: (_, _) => const AnnouncementsScreen()),
@@ -52,8 +53,6 @@ GoRouter buildRouter({
       GoRoute(path: '/achievements', builder: (_, _) => const AchievementsScreen()),
       GoRoute(path: '/favorites', builder: (_, _) => const FavoritesScreen()),
       GoRoute(path: '/recent', builder: (_, _) => const RecentScreen()),
-      GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
-      GoRoute(path: '/student', builder: (_, _) => const StudentScreen()),
       GoRoute(path: '/progress', builder: (_, _) => const ProgressScreen()),
       GoRoute(path: '/xp', builder: (_, _) => const XpScreen()),
       GoRoute(path: '/badges', builder: (_, _) => const BadgesScreen()),
@@ -72,21 +71,28 @@ GoRouter buildRouter({
   );
 }
 
+
+
 class AppShell extends StatelessWidget {
-  const AppShell({
-    required this.location,
-    required this.child,
-    super.key,
-  });
+  const AppShell({required this.location, required this.child, super.key});
 
   final String location;
   final Widget child;
 
   int get currentIndex {
-    if (location.startsWith('/schedule')) return 1;
-    if (location.startsWith('/materials')) return 2;
-    if (location.startsWith('/more')) return 3;
+    if (location.startsWith('/materials')) return 1;
+    if (location.startsWith('/schedule')) return 2;
+    if (location.startsWith('/notifications')) return 3;
+    if (location.startsWith('/student')) return 4;
     return 0;
+  }
+
+  String get _einoSource {
+    if (location.startsWith('/materials')) return 'materials';
+    if (location.startsWith('/schedule')) return 'schedule';
+    if (location.startsWith('/student')) return 'student';
+    if (location.startsWith('/notifications')) return 'notifications';
+    return 'home';
   }
 
   @override
@@ -94,36 +100,50 @@ class AppShell extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final destinations = [
       NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded), label: l10n.t('home')),
-      NavigationDestination(icon: const Icon(Icons.calendar_month_outlined), selectedIcon: const Icon(Icons.calendar_month_rounded), label: l10n.t('schedule')),
       NavigationDestination(icon: const Icon(Icons.menu_book_outlined), selectedIcon: const Icon(Icons.menu_book_rounded), label: l10n.t('materials')),
-      NavigationDestination(icon: const Icon(Icons.more_horiz_rounded), selectedIcon: const Icon(Icons.more_horiz_rounded), label: l10n.t('more')),
+      NavigationDestination(icon: const Icon(Icons.calendar_month_outlined), selectedIcon: const Icon(Icons.calendar_month_rounded), label: l10n.t('schedule')),
+      NavigationDestination(icon: const Icon(Icons.notifications_none_rounded), selectedIcon: const Icon(Icons.notifications_rounded), label: l10n.t('notifications')),
+      NavigationDestination(icon: const Icon(Icons.person_outline_rounded), selectedIcon: const Icon(Icons.person_rounded), label: l10n.t('student')),
     ];
+
     return Scaffold(
+      extendBody: true,
       body: SafeArea(
+        bottom: false,
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
           switchInCurve: Curves.easeOut,
           switchOutCurve: Curves.easeIn,
-          transitionBuilder: (widgetChild, animation) => FadeTransition(
-            opacity: animation,
-            child: widgetChild,
-          ),
-          child: KeyedSubtree(key: ValueKey(currentIndex), child: child),
+          transitionBuilder: (widgetChild, animation) => FadeTransition(opacity: animation, child: widgetChild),
+          child: KeyedSubtree(key: ValueKey(location), child: child),
         ),
       ),
-      bottomNavigationBar: SizedBox(
-        height: 100,
-        child: Stack(clipBehavior: Clip.none, children: [
-          Align(alignment: Alignment.bottomCenter, child: NavigationBar(
-            selectedIndex: currentIndex,
-            destinations: destinations,
-            onDestinationSelected: (index) {
-              HapticFeedback.selectionClick();
-              context.go(['/home', '/schedule', '/materials', '/more'][index]);
-            },
-          )),
-          Positioned(top: -8, right: Directionality.of(context) == TextDirection.rtl ? 18 : null, left: Directionality.of(context) == TextDirection.ltr ? 18 : null, child: _EinoFab(onTap: () => context.push('/eino?from=${Uri.encodeComponent(location.startsWith('/materials') ? 'materials' : location.startsWith('/schedule') ? 'schedule' : location.startsWith('/student') ? 'student' : location.startsWith('/progress') ? 'progress' : location.startsWith('/xp') ? 'xp' : location.startsWith('/badges') ? 'badges' : 'home')}'))),
-        ]),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 88,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: NavigationBar(
+                  selectedIndex: currentIndex,
+                  destinations: destinations,
+                  onDestinationSelected: (index) {
+                    HapticFeedback.selectionClick();
+                    context.go(['/home', '/materials', '/schedule', '/notifications', '/student'][index]);
+                  },
+                ),
+              ),
+              PositionedDirectional(
+                end: 16,
+                bottom: 70,
+                child: _EinoFab(onTap: () => context.push('/eino?from=$_einoSource')),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -131,7 +151,6 @@ class AppShell extends StatelessWidget {
 
 class _EinoFab extends StatefulWidget {
   const _EinoFab({required this.onTap});
-
   final VoidCallback onTap;
 
   @override
@@ -139,10 +158,7 @@ class _EinoFab extends StatefulWidget {
 }
 
 class _EinoFabState extends State<_EinoFab> with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 2),
-  )..repeat();
+  late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
 
   @override
   void dispose() {
@@ -155,51 +171,58 @@ class _EinoFabState extends State<_EinoFab> with SingleTickerProviderStateMixin 
     final primary = Theme.of(context).colorScheme.primary;
     return Pressable(
       onTap: widget.onTap,
-      scaleDown: 0.9,
+      scaleDown: .9,
       child: AnimatedBuilder(
         animation: _pulse,
         builder: (context, child) {
           final ring = _pulse.value;
-          return Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              // Expanding, fading pulse ring behind the FAB.
-              Opacity(
-                opacity: (1 - ring) * .35,
-                child: Transform.scale(
-                  scale: 1 + ring * .6,
-                  child: Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: primary),
-                  ),
-                ),
+          return Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
+            Opacity(opacity: (1 - ring) * .28, child: Transform.scale(scale: 1 + ring * .55, child: Container(width: 56, height: 56, decoration: BoxDecoration(shape: BoxShape.circle, color: primary)))),
+            Material(
+              elevation: 7,
+              shadowColor: AppColors.navy.withValues(alpha: .28),
+              shape: const CircleBorder(),
+              color: primary,
+              child: Container(
+                width: 56,
+                height: 56,
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(shape: BoxShape.circle),
+                child: const _EinoMiniFace(),
               ),
-              child!,
-            ],
-          );
+            ),
+          ]);
         },
-        child: Material(
-          elevation: 5,
-          shape: const CircleBorder(),
-          color: primary,
-          child: const Padding(
-            padding: EdgeInsets.all(11),
-            child: _EinoMiniFace(),
-          ),
-        ),
       ),
     );
   }
 }
-class _EinoMiniFace extends StatelessWidget { const _EinoMiniFace(); @override Widget build(BuildContext context) => const SizedBox(width: 36, height: 36, child: CustomPaint(painter: _MiniPainter())); }
-class _MiniPainter extends CustomPainter {
-  const _MiniPainter();
-  @override void paint(Canvas c, Size s) { final p=Paint()..color=Colors.white..style=PaintingStyle.stroke..strokeWidth=2; final o=Offset(s.width/2,s.height/2); final r=s.width*.34; c.drawCircle(o,r,p); c.drawCircle(Offset(o.dx-r*.4,o.dy-r*.1),r*.08,p); c.drawCircle(Offset(o.dx+r*.4,o.dy-r*.1),r*.08,p); final m=Path()..moveTo(o.dx-r*.22,o.dy+r*.22)..quadraticBezierTo(o.dx,o.dy+r*.4,o.dx+r*.22,o.dy+r*.22); c.drawPath(m,p); }
-  @override bool shouldRepaint(covariant CustomPainter oldDelegate)=>false;
+
+class _EinoMiniFace extends StatelessWidget {
+  const _EinoMiniFace();
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(width: 40, height: 40, child: CustomPaint(painter: _MiniPainter()));
 }
 
+class _MiniPainter extends CustomPainter {
+  const _MiniPainter();
+
+  @override
+  void paint(Canvas c, Size s) {
+    final p = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2;
+    final o = Offset(s.width / 2, s.height / 2);
+    final r = s.width * .34;
+    c.drawCircle(o, r, p);
+    c.drawCircle(Offset(o.dx - r * .4, o.dy - r * .1), r * .08, p);
+    c.drawCircle(Offset(o.dx + r * .4, o.dy - r * .1), r * .08, p);
+    final m = Path()..moveTo(o.dx - r * .22, o.dy + r * .22)..quadraticBezierTo(o.dx, o.dy + r * .4, o.dx + r * .22, o.dy + r * .22);
+    c.drawPath(m, p);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniPainter oldDelegate) => false;
+}
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 

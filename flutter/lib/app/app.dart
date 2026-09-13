@@ -9,14 +9,17 @@ import '../core/update/update_info.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'router.dart';
 
-class LeoAssociationApp extends StatefulWidget {
-  const LeoAssociationApp({super.key});
+class TrinexApp extends StatefulWidget {
+  const TrinexApp({super.key});
 
   @override
-  State<LeoAssociationApp> createState() => _LeoAssociationAppState();
+  State<TrinexApp> createState() => _TrinexAppState();
 }
 
-class _LeoAssociationAppState extends State<LeoAssociationApp> {
+/// Backwards-compatible name for existing tests and integrations.
+typedef LeoAssociationApp = TrinexApp;
+
+class _TrinexAppState extends State<TrinexApp> {
   final AppPreferences _preferences = AppPreferences();
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
@@ -106,8 +109,8 @@ class _LeoAssociationAppState extends State<LeoAssociationApp> {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: AppLocalizations.supportedLocales.first.languageCode == 'ar'
-          ? 'رابطة كلية الهندسة والعمارة'
-          : 'Leo Association',
+          ? 'TRINEX'
+          : 'TRINEX',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
