@@ -14,7 +14,6 @@ import '../features/favorites/favorites_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/eino/eino_screen.dart';
 import '../features/materials/materials_screen.dart';
-import '../features/market/market_screen.dart';
 import '../features/news/news_screen.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/recent/recent_screen.dart';

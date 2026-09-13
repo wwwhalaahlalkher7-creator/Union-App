@@ -53,7 +53,7 @@ class _EinoFacePainter extends CustomPainter {
     final c = Offset(size.width / 2, size.height / 2 + size.height * .06);
     final r = size.width * .31;
     final orange = mood == EinoMood.error ? Colors.redAccent : AppColors.primary;
-    final navy = AppColors.navy;
+    const navy = AppColors.navy;
 
     final glow = Paint()..shader = RadialGradient(colors: [orange.withValues(alpha: .24), orange.withValues(alpha: 0)]).createShader(Rect.fromCircle(center: c, radius: size.width * .5));
     canvas.drawCircle(c, size.width * .48, glow);

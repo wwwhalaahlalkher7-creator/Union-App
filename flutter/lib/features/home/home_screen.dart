@@ -151,7 +151,7 @@ class _HeroHeader extends StatelessWidget {
                     style: TextStyle(color: Colors.white.withValues(alpha: .78), fontSize: 14, height: 1.45),
                   ),
                   const SizedBox(height: 22),
-                  Row(
+                  const Row(
                     children: [
                       _HeroStat(icon: Icons.menu_book_rounded, label: 'المواد'),
                       const SizedBox(width: 8),
@@ -287,11 +287,11 @@ class _UpdatesRow extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
           children: [
-            _UpdateCard(icon: Icons.campaign_rounded, title: 'الإعلانات', subtitle: 'تنبيهات مهمة من الرابطة', route: '/announcements'),
+            const _UpdateCard(icon: Icons.campaign_rounded, title: 'الإعلانات', subtitle: 'تنبيهات مهمة من الرابطة', route: '/announcements'),
             const SizedBox(width: 10),
-            _UpdateCard(icon: Icons.article_rounded, title: 'الأخبار', subtitle: 'آخر أخبار الكلية والرابطة', route: '/news'),
+            const _UpdateCard(icon: Icons.article_rounded, title: 'الأخبار', subtitle: 'آخر أخبار الكلية والرابطة', route: '/news'),
             const SizedBox(width: 10),
-            _UpdateCard(icon: Icons.event_available_rounded, title: 'الأنشطة', subtitle: 'فعاليات ومبادرات جديدة', route: '/activities'),
+            const _UpdateCard(icon: Icons.event_available_rounded, title: 'الأنشطة', subtitle: 'فعاليات ومبادرات جديدة', route: '/activities'),
           ],
         ),
       );
@@ -345,11 +345,11 @@ class _EinoHeroState extends State<_EinoHero> with SingleTickerProviderStateMixi
         decoration: const BoxDecoration(gradient: LinearGradient(begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd, colors: [Color(0xFF0D2B45), Color(0xFF173E5C)])),
         child: Stack(children: [
           const PositionedDirectional(top: -45, end: -25, child: CircuitDecoration(opacity: .45)),
-          PositionedDirectional(end: 0, bottom: -6, child: EinoFace(size: 155, mood: EinoMood.happy)),
+          const PositionedDirectional(end: 0, bottom: -6, child: EinoFace(size: 155, mood: EinoMood.happy)),
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 18, 135, 16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [Container(width: 34, height: 34, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(11)), child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 19)), const SizedBox(width: 9), const Text('إينو', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900))]),
+              const Row(children: [Container(width: 34, height: 34, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.all(Radius.circular(11))), child: Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 19)), SizedBox(width: 9), Text('إينو', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900))]),
               const SizedBox(height: 10),
               Text('مساعدك الذكي داخل TRINEX', style: TextStyle(color: Colors.white.withValues(alpha: .82), height: 1.35)),
               const Spacer(),
@@ -366,12 +366,12 @@ class _EinoHeroState extends State<_EinoHero> with SingleTickerProviderStateMixi
 
 class _ServicesCard extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => AppCard(
-        padding: const EdgeInsets.all(18),
+  Widget build(BuildContext context) => const AppCard(
+        padding: EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('كل ما تحتاجه', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: [
+          const Wrap(spacing: 8, runSpacing: 8, children: [
             _ServiceChip(icon: Icons.emoji_events_rounded, text: 'الإنجازات', route: '/achievements'),
             _ServiceChip(icon: Icons.favorite_rounded, text: 'المفضلة', route: '/favorites'),
             _ServiceChip(icon: Icons.history_rounded, text: 'الأخيرة', route: '/recent'),
