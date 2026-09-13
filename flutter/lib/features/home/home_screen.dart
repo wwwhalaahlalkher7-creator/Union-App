@@ -154,9 +154,9 @@ class _HeroHeader extends StatelessWidget {
                   const Row(
                     children: [
                       _HeroStat(icon: Icons.menu_book_rounded, label: 'المواد'),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       _HeroStat(icon: Icons.calendar_month_rounded, label: 'الجدول'),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       _HeroStat(icon: Icons.auto_awesome_rounded, label: 'إينو'),
                     ],
                   ),
@@ -349,7 +349,7 @@ class _EinoHeroState extends State<_EinoHero> with SingleTickerProviderStateMixi
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 18, 135, 16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Row(children: [Container(width: 34, height: 34, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.all(Radius.circular(11))), child: Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 19)), SizedBox(width: 9), Text('إينو', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900))]),
+              Row(children: [Container(width: 34, height: 34, decoration: const BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.all(Radius.circular(11))), child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 19)), const SizedBox(width: 9), const Text('إينو', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900))]),
               const SizedBox(height: 10),
               Text('مساعدك الذكي داخل TRINEX', style: TextStyle(color: Colors.white.withValues(alpha: .82), height: 1.35)),
               const Spacer(),
@@ -369,9 +369,9 @@ class _ServicesCard extends StatelessWidget {
   Widget build(BuildContext context) => const AppCard(
         padding: EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('كل ما تحتاجه', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 12),
-          const Wrap(spacing: 8, runSpacing: 8, children: [
+          Text('كل ما تحتاجه', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          SizedBox(height: 12),
+          Wrap(spacing: 8, runSpacing: 8, children: [
             _ServiceChip(icon: Icons.emoji_events_rounded, text: 'الإنجازات', route: '/achievements'),
             _ServiceChip(icon: Icons.favorite_rounded, text: 'المفضلة', route: '/favorites'),
             _ServiceChip(icon: Icons.history_rounded, text: 'الأخيرة', route: '/recent'),
