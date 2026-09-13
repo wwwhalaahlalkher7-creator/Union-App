@@ -43,6 +43,17 @@ export default {
 
       if (request.method === 'GET' && path === '/health') return health(ctx);
       if (request.method === 'GET' && path === '/version') return publicVersion(ctx);
+      if (request.method === 'GET' && path === '/app/update') return appUpdate(ctx);
+      if (request.method === 'GET' && (path === '/' || path === '/news' || path === '/announcements' || path === '/activities' || path === '/achievements')) {
+        const actionMap = {
+          '/news': 'news',
+          '/announcements': 'announcements',
+          '/activities': 'activities',
+          '/achievements': 'achievements',
+        };
+        const action = actionMap[path] || String(url.searchParams.get('action') || '').trim().toLowerCase();
+        if (['news', 'announcements', 'activities', 'achievements'].includes(action)) return publicList(ctx, action);
+      }
       if (request.method === 'GET' && path === '/public/news') return publicList(ctx, 'news');
       if (request.method === 'GET' && path === '/public/announcements') return publicList(ctx, 'announcements');
       if (request.method === 'GET' && path === '/public/activities') return publicList(ctx, 'activities');
@@ -150,10 +161,25 @@ function publicVersion(ctx) {
   const appVersion = ctx.env.APP_VERSION || 'unknown';
   const minimumAppVersion = ctx.env.MINIMUM_APP_VERSION || null;
   return ok(ctx, {
-    name: 'leo_association',
+    name: 'TRINEX',
     appVersion,
     minimumAppVersion,
     updateUrl: ctx.env.APP_UPDATE_URL || null,
+    releaseNotes: ctx.env.APP_RELEASE_NOTES || null,
+    apiVersion: ctx.env.API_VERSION || 'v1',
+  });
+}
+
+function appUpdate(ctx) {
+  const latestVersion = String(ctx.env.APP_VERSION || '').trim();
+  if (!latestVersion || latestVersion === 'unknown') {
+    return error('UPDATE_MANIFEST_UNAVAILABLE', 'بيانات التحديث غير مهيأة حاليًا.', 503, ctx.requestId, ctx.cors);
+  }
+
+  return ok(ctx, {
+    latestVersion,
+    minimumVersion: ctx.env.MINIMUM_APP_VERSION || null,
+    downloadUrl: ctx.env.APP_UPDATE_URL || null,
     releaseNotes: ctx.env.APP_RELEASE_NOTES || null,
     apiVersion: ctx.env.API_VERSION || 'v1',
   });
@@ -334,7 +360,7 @@ async function staffChangePassword(ctx) {
     return error('STAFF_PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);
   }
 
-  const staff = await queryOne(ctx.env.DB, 'SELECT id, email, password_hash, password_salt, password_algo, failed_login_attempts, locked_until, active FROM staff_users WHERE id = ? LIMIT 1', a.session.staff_user_id);
+  const staff = await queryOne(ctx.env, 'SELECT id, email, password_hash, password_salt, password_algo, failed_login_attempts, locked_until, active FROM staff_users WHERE id = ? LIMIT 1', a.session.staff_user_id);
   if (!staff || staff.active !== 1) {
     return error('STAFF_NOT_FOUND', 'حساب الإدارة غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors);
   }
@@ -760,7 +786,7 @@ async function reaction(ctx) {
   await ctx.env.DB.prepare('INSERT INTO reactions (id,student_id,content_type,content_id,reaction) VALUES (?,?,?,?,?) ON CONFLICT(student_id,content_type,content_id) DO UPDATE SET reaction=excluded.reaction').bind(crypto.randomUUID(),a.session.student_id,parts[2],parts[3],value).run(); return ok(ctx,{reaction:value});
 }
 async function deleteComment(ctx,id) { const a=await auth(ctx); if(a.response) return a.response; const result=await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=? AND status='visible'").bind(id,a.session.student_id).run(); if(!result.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود أو لا يمكنك حذفه.',404,ctx.requestId,ctx.cors); return ok(ctx,{deleted:true}); }
-async function adminModerationComments(ctx) { const a=await auth(ctx); if(a.response) return a.response; if(!a.session.staff_user_id||a.session.staff_active!==1||!['super_admin','moderator'].includes(a.session.staff_role_id)) return error('FORBIDDEN','لا تملك صلاحية الإشراف.',403,ctx.requestId,ctx.cors); const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env.DB,'SELECT c.*,s.full_name,s.student_number FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?',status,limit); return ok(ctx,rows,{count:rows.length}); }
+async function adminModerationComments(ctx) { const a=await auth(ctx); if(a.response) return a.response; if(!a.session.staff_user_id||a.session.staff_active!==1||!['super_admin','moderator'].includes(a.session.staff_role_id)) return error('FORBIDDEN','لا تملك صلاحية الإشراف.',403,ctx.requestId,ctx.cors); const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,'SELECT c.*,s.full_name,s.student_number FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?',status,limit); return ok(ctx,rows,{count:rows.length}); }
 async function adminModerationComment(ctx,id) { const a=await auth(ctx); if(a.response) return a.response; if(!a.session.staff_user_id||a.session.staff_active!==1||!['super_admin','moderator'].includes(a.session.staff_role_id)) return error('FORBIDDEN','لا تملك صلاحية الإشراف.',403,ctx.requestId,ctx.cors); const body=await parseJson(ctx.request); const status=String(body?.status||'').trim(); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const r=await ctx.env.DB.prepare('UPDATE comments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run(); if(!r.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,a.session.staff_user_id,'status_update','comment',id,{status}); return ok(ctx,{id,status}); }
 
 async function adminDashboardOverview(ctx) {
@@ -768,14 +794,14 @@ async function adminDashboardOverview(ctx) {
   if (a.response) return a.response;
 
   const [students, activeStudents, staff, activeStaff, news, materials, comments, announcements] = await Promise.all([
-    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM students'),
-    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM students WHERE active = 1'),
-    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM staff_users'),
-    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM staff_users WHERE active = 1'),
-    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM news'),
-    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM materials WHERE active = 1'),
-    queryOne(ctx.env.DB, "SELECT COUNT(*) AS count FROM comments WHERE status = 'visible'"),
-    queryOne(ctx.env.DB, 'SELECT COUNT(*) AS count FROM announcements'),
+    queryOne(ctx.env, 'SELECT COUNT(*) AS count FROM students'),
+    queryOne(ctx.env, 'SELECT COUNT(*) AS count FROM students WHERE active = 1'),
+    queryOne(ctx.env, 'SELECT COUNT(*) AS count FROM staff_users'),
+    queryOne(ctx.env, 'SELECT COUNT(*) AS count FROM staff_users WHERE active = 1'),
+    queryOne(ctx.env, 'SELECT COUNT(*) AS count FROM news'),
+    queryOne(ctx.env, 'SELECT COUNT(*) AS count FROM materials WHERE active = 1'),
+    queryOne(ctx.env, "SELECT COUNT(*) AS count FROM comments WHERE status = 'visible'"),
+    queryOne(ctx.env, 'SELECT COUNT(*) AS count FROM announcements'),
   ]);
 
   return ok(ctx, {
@@ -912,7 +938,7 @@ async function adminCrud(ctx, table, id, actorId) {
   return error('METHOD_NOT_ALLOWED','الطريقة غير مدعومة.',405,ctx.requestId,ctx.cors);
 }
 
-async function adminAuthEvents(ctx) {\n  const a = await adminRouteAuthOnly(ctx, 'superadmin.read');\n  if (a.response) return a.response;\n  const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);\n  const rows = await queryAll(ctx.env.DB, `SELECT e.id, e.actor_type, e.actor_id, e.event_type, e.created_at, su.email AS actor_email, su.display_name AS actor_name, r.name AS role_name\n    FROM auth_audit_events e\n    LEFT JOIN staff_users su ON su.id = e.actor_id\n    LEFT JOIN roles r ON r.id = su.role_id\n    WHERE e.event_type IN ('login_failed','login_locked','password_change_failed','password_change_locked')\n    ORDER BY e.created_at DESC LIMIT ?`, limit);\n  return ok(ctx, rows, {limit});\n}\n\nasync function adminAuditLogs(ctx) {
+async function adminAuthEvents(ctx) {\n  const a = await adminRouteAuthOnly(ctx, 'superadmin.read');\n  if (a.response) return a.response;\n  const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);\n  const rows = await queryAll(ctx.env, `SELECT e.id, e.actor_type, e.actor_id, e.event_type, e.created_at, su.email AS actor_email, su.display_name AS actor_name, r.name AS role_name\n    FROM auth_audit_events e\n    LEFT JOIN staff_users su ON su.id = e.actor_id\n    LEFT JOIN roles r ON r.id = su.role_id\n    WHERE e.event_type IN ('login_failed','login_locked','password_change_failed','password_change_locked')\n    ORDER BY e.created_at DESC LIMIT ?`, limit);\n  return ok(ctx, rows, {limit});\n}\n\nasync function adminAuditLogs(ctx) {
   const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
   const rows = await queryAll(ctx.env, `SELECT al.*, su.display_name AS actor_name, r.name AS role_name FROM audit_logs al LEFT JOIN staff_users su ON su.id=al.actor_id LEFT JOIN roles r ON r.id=su.role_id ORDER BY al.created_at DESC LIMIT ?`, limit);
   return ok(ctx, rows, {limit});

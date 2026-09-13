@@ -3,7 +3,7 @@ main = "src/index.js"
 compatibility_date = "2026-09-10"
 
 [vars]
-APP_VERSION = "2.6.0"
+APP_VERSION = "2.0.0"
 MINIMUM_APP_VERSION = "2.0.0"
 APP_UPDATE_URL = ""
 APP_RELEASE_NOTES = ""
