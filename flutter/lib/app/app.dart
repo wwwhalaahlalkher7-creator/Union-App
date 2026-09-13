@@ -11,9 +11,14 @@ import 'package:url_launcher/url_launcher.dart';
 import 'router.dart';
 
 class TrinexApp extends StatefulWidget {
-  const TrinexApp({super.key, this.enableStartupUpdateCheck = true});
+  const TrinexApp({
+    super.key,
+    this.enableStartupUpdateCheck = true,
+    this.startupFutureOverride,
+  });
 
   final bool enableStartupUpdateCheck;
+  final Future<void>? startupFutureOverride;
 
   @override
   State<TrinexApp> createState() => _TrinexAppState();
@@ -26,7 +31,8 @@ class _TrinexAppState extends State<TrinexApp> {
   final AppPreferences _preferences = AppPreferences();
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
-  late final Future<void> _preferencesFuture = _loadPreferences();
+  late final Future<void> _preferencesFuture =
+      widget.startupFutureOverride ?? _loadPreferences();
   late final GoRouter _router;
 
   @override

@@ -7,9 +7,12 @@ import 'package:leo_association/features/home/home_screen.dart';
 void main() {
   testWidgets('TRINEX app starts on home', (tester) async {
     await tester.pumpWidget(
-      const MediaQuery(
+      MediaQuery(
         data: MediaQueryData(disableAnimations: true),
-        child: LeoAssociationApp(enableStartupUpdateCheck: false),
+        child: LeoAssociationApp(
+          enableStartupUpdateCheck: false,
+          startupFutureOverride: Future<void>.value(),
+        ),
       ),
     );
 
@@ -19,10 +22,10 @@ void main() {
     // fixed frames instead — enough for the splash bootstrap transition and
     // async preference loading to finish, without waiting for looping animations.
     // Reduced-motion mode skips the splash's visual-only minimum delay.
-    // Pump enough frames for preferences, routing, and the first home build.
-    for (var i = 0; i < 10; i++) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
+    // Startup is injected as an already-completed future so this test
+    // verifies routing/rendering rather than platform preference I/O.
+    await tester.pump();
+    await tester.pump();
 
     expect(find.byType(HomeScreen), findsOneWidget);
   });
