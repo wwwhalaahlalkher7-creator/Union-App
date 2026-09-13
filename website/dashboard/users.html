@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>المستخدمون | لوحة تحكم الرابطة</title>
+<title>المستخدمون | لوحة تحكم TRINEX</title>
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 <link rel="stylesheet" href="css/admin.css">
@@ -280,7 +280,7 @@ body[data-page="users"] #pageContent > * {
     // ✅ لم تعد "مشاهد فقط" ضمن الأدوار القابلة للإضافة هنا: صلاحيات
     // المشاهدة فقط أصبحت متاحة عبر زر "الدخول كزائر" في صفحة تسجيل
     // الدخول (بلا حاجة لحساب مسمّى)، بدل إنشاء حسابات مشاهد فردية.
-    const roles = ["مدير عام", "محرر محتوى", "مسؤول أكاديمي"];
+    const roles = ["مدير عام", "محرر محتوى", "مسؤول أكاديمي", "مشرف"];
 
     const bodyHtml = `
       <form id="userForm" novalidate>
@@ -372,51 +372,16 @@ body[data-page="users"] #pageContent > * {
               <td>${Utils.escapeHtml(f.Role || "—")}</td>
               <td>${Utils.escapeHtml(f.Action)}</td>
               <td style="color:var(--ink-500)">${Utils.escapeHtml(f.Details || "—")}</td>
-              <td class="requires-admin">
-                <button type="button" class="icon-btn is-danger" data-action="delete-one" data-timestamp="${Utils.escapeHtml(f.Timestamp)}" title="حذف هذا السجل">
-                  <i class="fa-solid fa-trash"></i>
-                </button>
-              </td>
+
             </tr>`;
         }).join("");
 
-        tbody.querySelectorAll('[data-action="delete-one"]').forEach(btn =>
-          btn.addEventListener("click", () => handleDeleteOneLogEntry(btn.dataset.timestamp, btn)));
       },
       { errorPrefix: "تعذّر تحميل سجل العمليات" }
     );
   }
 
-  /** ✅ جديد — حذف سجل واحد من كامل سجل العمليات (scope=all، مدير عام فقط) */
-  async function handleDeleteOneLogEntry(timestamp, btn) {
-    const ok = await Modal.confirmDialog("هل تريد حذف هذا السجل؟ لا يمكن التراجع عن هذا الإجراء.", "حذف السجل");
-    if (!ok) return;
-    try {
-      await Feedback.busy(btn, () => Adapter.deleteFailedLogins(timestamp, "all"), {
-        successMessage: "تم حذف السجل بنجاح",
-        errorPrefix: "تعذّر الحذف"
-      });
-    } catch (e) {
-      return;
-    }
-    loadLog();
-  }
 
-  /** ✅ جديد — مسح كامل سجل العمليات دفعة واحدة (scope=all، مدير عام فقط) */
-  async function handleClearLog() {
-    const btn = document.getElementById("clearLogBtn");
-    const ok = await Modal.confirmDialog("هل تريد مسح كامل سجل العمليات؟ لا يمكن التراجع عن هذا الإجراء.", "مسح الكل");
-    if (!ok) return;
-    try {
-      await Feedback.busy(btn, () => Adapter.deleteFailedLogins(null, "all"), {
-        successMessage: "تم مسح السجل بنجاح",
-        errorPrefix: "تعذّر المسح"
-      });
-    } catch (e) {
-      return;
-    }
-    loadLog();
-  }
 </script>
 </body>
 </html>

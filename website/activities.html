@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<link rel="icon" type="image/png" href="favicon.png">
+
+<title>النشاطات | أمانة الإعلام ورابطة كلية الهندسة والعمارة</title>
+
+<!-- SEO: وصف الصفحة والرابط الأساسي -->
+<meta name="description" content="نشاطات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي، بالصور والتفاصيل.">
+<link rel="canonical" href="https://ush-eng.great-site.net/activities.html">
+
+<!-- Open Graph / مشاركة على وسائل التواصل -->
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ar_AR">
+<meta property="og:title" content="النشاطات | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
+<meta property="og:description" content="نشاطات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي، بالصور والتفاصيل.">
+<meta property="og:url" content="https://ush-eng.great-site.net/activities.html">
+<meta property="og:image" content="https://ush-eng.great-site.net/favicon.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="النشاطات | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
+<meta name="twitter:description" content="نشاطات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي.">
+<meta name="twitter:image" content="https://ush-eng.great-site.net/favicon.png">
+
+<!-- تجهيز الاتصال مسبقاً بخادم البيانات (Apps Script) لتقليل زمن أول طلب -->
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
+
+<!-- مكتبة الأيقونات FontAwesome -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<!-- خط كايرو المحدث -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+    :root {
+        color-scheme: dark;
+        --bg-main: #0a0f14;
+        --bg-surface: #121b24;
+        --bg-surface-glow: #1a2734;
+        --primary: #ff9100;
+        --primary-glow: #ffb45c;
+        --primary-rgb: 255, 145, 0;
+        --accent: #005f73;
+        --text-main: #f4f6f8;
+        --text-muted: #94a3b8;
+        --transition-smooth: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: 'Cairo', sans-serif;
+        scroll-behavior: smooth;
+    }
+
+    body {
+        background-color: var(--bg-main);
+        color: var(--text-main);
+        line-height: 1.6;
+        overflow-x: hidden;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body::before {
+        content: '';
+        position: fixed;
+        top: -10%;
+        left: -10%;
+        width: 120%;
+        height: 120%;
+        background: radial-gradient(circle at 15% 15%, rgba(255, 145, 0, 0.05) 0%, transparent 45%),
+                    radial-gradient(circle at 85% 85%, rgba(0, 95, 115, 0.07) 0%, transparent 50%);
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    header {
+        background-color: rgba(18, 27, 36, 0.75);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 100%;
+        z-index: 1000;
+        border-bottom: 1px solid rgba(255, 145, 0, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 8%;
+        transition: var(--transition-smooth);
+    }
+
+    header.scrolled {
+        padding: 12px 8%;
+        background-color: rgba(10, 15, 20, 0.92);
+        border-bottom: 1px solid rgba(255, 145, 0, 0.25);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .logo h2 {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: #fff;
+        background: linear-gradient(45deg, #fff, var(--primary-glow));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .logo p {
+        font-size: 0.8rem;
+        color: var(--primary);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        margin-top: -2px;
+    }
+
+    .menu-toggle {
+        display: none;
+        color: var(--text-main);
+        font-size: 1.4rem;
+        cursor: pointer;
+        transition: var(--transition-smooth);
+    }
+
+    .menu-toggle:hover {
+        color: var(--primary-glow);
+    }
+
+    nav ul {
+        display: flex;
+        list-style: none;
+        gap: 28px;
+        align-items: center;
+    }
+
+    nav ul li a {
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.95rem;
+        font-weight: 600;
+        transition: var(--transition-smooth);
+        padding: 6px 0;
+        position: relative;
+    }
+
+    nav ul li a:hover, nav ul li a.active {
+        color: var(--primary-glow);
+    }
+
+    nav ul li a::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 0;
+        height: 2px;
+        background-color: var(--primary);
+        transition: var(--transition-smooth);
+    }
+
+    nav ul li a:hover::after, nav ul li a.active::after {
+        width: 100%;
+    }
+
+    .page-header {
+        text-align: center;
+        padding: 160px 8% 45px 8%;
+    }
+
+    .page-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        background: linear-gradient(45deg, #fff, var(--primary-glow));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 14px;
+    }
+
+    .page-header p {
+        color: var(--text-muted);
+        font-size: 1.05rem;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .content-container {
+        max-width: 1000px;
+        margin: 0 auto 60px auto;
+        padding: 0 24px;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 40px;
+    }
+
+    /* بطاقة النشاط */
+    .activity-card {
+        background-color: var(--bg-surface);
+        border: 1px solid rgba(255, 145, 0, 0.08);
+        border-radius: 24px;
+        padding: 40px;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+        position: relative;
+        overflow: hidden;
+        transition: var(--transition-smooth);
+    }
+
+    .activity-card:hover {
+        border-color: rgba(255, 145, 0, 0.25);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 145, 0, 0.05);
+    }
+
+    .activity-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 6px;
+        height: 100%;
+        background: linear-gradient(to bottom, var(--primary), var(--accent));
+    }
+
+    .activity-card h2 {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #fff;
+        margin-bottom: 25px;
+        line-height: 1.4;
+    }
+
+    .intro-text-container {
+        position: relative;
+        padding: 15px 20px;
+        margin-bottom: 10px;
+        background: linear-gradient(to left, rgba(255, 145, 0, 0.06), transparent);
+        border-radius: 12px;
+        border: none;
+    }
+
+    .intro-text-container p {
+        font-size: 1.05rem;
+        color: var(--text-main);
+        margin-bottom: 15px;
+        text-align: justify;
+        line-height: 1.8;
+    }
+
+    .intro-text-container p:last-child {
+        margin-bottom: 0;
+    }
+
+    /* ==========================================================
+       معرض صور النشاط (Gallery)
+       ========================================================== */
+    .gallery-grid {
+        display: grid;
+        gap: 8px;
+        border-radius: 16px;
+        overflow: hidden;
+        margin-bottom: 28px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .gallery-grid.single { grid-template-columns: 1fr; }
+    .gallery-grid.single .gallery-item { aspect-ratio: 16 / 9; }
+
+    .gallery-grid.multi {
+        grid-template-columns: repeat(2, 1fr);
+        grid-auto-rows: 150px;
+    }
+
+    .gallery-grid.multi .gallery-item:first-child {
+        grid-row: span 2;
+        grid-column: span 1;
+    }
+
+    @media (min-width: 560px) {
+        .gallery-grid.multi { grid-auto-rows: 180px; }
+    }
+
+    .gallery-item {
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+        background-color: rgba(0, 0, 0, 0.25);
+    }
+
+    .gallery-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: var(--transition-smooth);
+    }
+
+    .gallery-item:hover img { transform: scale(1.08); }
+
+    .gallery-item::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to top, rgba(0, 0, 0, 0.45), transparent 45%);
+        opacity: 0;
+        transition: var(--transition-smooth);
+    }
+
+    .gallery-item:hover::after { opacity: 1; }
+
+    .gallery-item .zoom-icon {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: rgba(10, 15, 20, 0.55);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 0.8rem;
+        opacity: 0;
+        transition: var(--transition-smooth);
+    }
+
+    .gallery-item:hover .zoom-icon { opacity: 1; }
+
+    .gallery-item .more-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(10, 15, 20, 0.65);
+        backdrop-filter: blur(3px);
+        -webkit-backdrop-filter: blur(3px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 1.6rem;
+        font-weight: 800;
+    }
+
+    /* ==========================================================
+       الصندوق الضوئي (Lightbox)
+       ========================================================== */
+    .lightbox-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(5, 8, 11, 0.92);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 3000;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .lightbox-overlay.active { display: flex; opacity: 1; }
+
+    .lightbox-overlay img {
+        max-width: 88%;
+        max-height: 85vh;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    }
+
+    .lightbox-close, .lightbox-nav {
+        position: absolute;
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: rgba(18, 27, 36, 0.8);
+        border: 1px solid rgba(255, 145, 0, 0.2);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1.1rem;
+        transition: var(--transition-smooth);
+    }
+
+    .lightbox-close:hover, .lightbox-nav:hover {
+        background: rgba(255, 145, 0, 0.25);
+        border-color: rgba(255, 145, 0, 0.5);
+    }
+
+    .lightbox-close { top: 24px; left: 24px; }
+    .lightbox-nav.lightbox-prev { right: 24px; top: 50%; transform: translateY(-50%); }
+    .lightbox-nav.lightbox-next { left: 24px; top: 50%; transform: translateY(-50%); }
+
+    .lightbox-counter {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        font-weight: 600;
+        background: rgba(18, 27, 36, 0.7);
+        padding: 6px 16px;
+        border-radius: 30px;
+    }
+
+    /* ==========================================================
+       تذييل بطاقة النشاط (الناشر / المكان / التاريخ / زر الإعجاب)
+       ========================================================== */
+    .activity-footer {
+        margin-top: 30px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    .activity-footer .meta-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+    }
+
+    .activity-footer .act-publisher,
+    .activity-footer .act-location,
+    .activity-footer .act-date {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* ✅ معدَّل — شارة حالة زمنية للنشاط (لم يبدأ / جارٍ الآن / انتهى)
+       بدل شارة التصنيف اليدوية القديمة (Category) — تُحسب تلقائياً من
+       تاريخي البداية والنهاية، لا إدخال يدوي لها. */
+    /* ✅ معدَّل — الحجم والمكان والخط الآن مطابقون لشارة التصنيف في
+       صفحة الأخبار (.news-tag): توضع في صف علوي قبل العنوان بدل صف
+       أسفله، بنفس الحشو ومقاس الخط، بدل الشارة الأكبر التي كانت تلي
+       العنوان مباشرة. */
+    .activity-meta {
+        margin-bottom: 18px;
+    }
+    .act-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 30px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        width: fit-content;
+    }
+    .act-status-badge.is-upcoming {
+        background: rgba(46, 128, 199, 0.15);
+        color: #6ab6f5;
+    }
+    .act-status-badge.is-ongoing {
+        background: rgba(46, 199, 110, 0.15);
+        color: #4ad991;
+    }
+    .act-status-badge.is-ended {
+        background: rgba(199, 90, 46, 0.15);
+        color: #ff8a5c;
+    }
+
+    .heart-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 20px;
+        transition: var(--transition-smooth);
+        margin-right: auto;
+    }
+
+    .heart-btn:hover { background: rgba(255, 61, 0, 0.08); color: #ff7043; }
+    .heart-btn i { transition: var(--transition-smooth); }
+    .heart-btn.liked { color: #ff3d00; }
+    .heart-btn.liked i { transform: scale(1.15); }
+    .heart-btn:disabled { cursor: default; opacity: 0.5; }
+    .heart-btn.pop i { animation: heartPop 0.35s ease; }
+
+    @keyframes heartPop {
+        0% { transform: scale(1); }
+        40% { transform: scale(1.4); }
+        100% { transform: scale(1.15); }
+    }
+
+    .loading-status {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-muted);
+        font-size: 1.05rem;
+        background-color: var(--bg-surface);
+        border: 1px solid rgba(255, 145, 0, 0.08);
+        border-radius: 24px;
+    }
+
+    footer {
+        background-color: #05080b;
+        padding: 35px 8%;
+        text-align: center;
+        border-top: 1px solid rgba(255, 145, 0, 0.08);
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        margin-top: auto;
+    }
+
+    .developer-credit {
+        margin-top: 10px;
+        font-size: 0.85rem;
+        color: var(--primary-glow);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+
+    @media (max-width: 992px) {
+        header { padding: 15px 5%; }
+        header.scrolled { padding: 10px 5%; }
+    }
+
+    @media (max-width: 768px) {
+        .menu-toggle { display: block; }
+
+        nav {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background-color: rgba(18, 27, 36, 0.98);
+            backdrop-filter: blur(10px);
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-14px);
+            transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.35s ease,
+                        transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                        visibility 0.45s;
+            border-bottom: 0 solid rgba(255, 145, 0, 0.2);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.4);
+            transform-origin: top center;
+        }
+
+        nav.active {
+            max-height: 500px;
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            border-bottom: 1px solid rgba(255, 145, 0, 0.2);
+        }
+
+        nav ul { flex-direction: column; gap: 0; padding: 15px 0; }
+        nav ul li { width: 100%; text-align: center; }
+        nav ul li a { display: block; padding: 12px 0; width: 100%; }
+        nav ul li a::after { display: none; }
+
+        .page-header h1 { font-size: 2rem; }
+        .activity-card { padding: 25px; }
+    }
+</style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="ui-pro.css?v=3">
+</head>
+
+<body>
+
+<header id="header">
+    <div class="logo">
+        <h2 id="siteLogoName">رابطة كلية الهندسة والعمارة</h2>
+        <p>جامعة شندي</p>
+    </div>
+
+    <div class="menu-toggle" id="menuToggle" aria-label="قائمة التنقل" aria-expanded="false">
+        <i class="fas fa-bars"></i>
+    </div>
+
+    <nav id="navMenu">
+        <ul>
+            <li><a href="index.html">الرئيسية</a></li>
+            <li><a href="Injazat.html">الإنجازات</a></li>
+            <li><a href="courses.html">المواد الدراسية</a></li>
+            <li><a href="activities.html" class="active">النشاطات</a></li>
+            <li><a href="committees.html">الأمانات الأخرى</a></li>
+            <li><a href="news.html">آخر الأخبار</a></li>
+        </ul>
+    </nav>
+</header>
+
+<div class="page-header">
+    <h1>النشاطات</h1>
+    <p>كل ما تنظمه الرابطة من ورش وفعاليات وبرامج، بالترتيب الزمني</p>
+</div>
+
+<div class="content-container">
+    <div id="page-cards-container" style="display: flex; flex-direction: column; gap: 40px; width: 100%;"></div>
+</div>
+
+<!-- الصندوق الضوئي لتكبير صور معرض النشاط -->
+<div class="lightbox-overlay" id="lightbox">
+    <span class="lightbox-close" id="lightboxClose" aria-label="إغلاق"><i class="fas fa-times"></i></span>
+    <span class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="الصورة السابقة"><i class="fas fa-chevron-right"></i></span>
+    <img id="lightboxImg" src="" alt="عرض موسّع لصورة النشاط">
+    <span class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="الصورة التالية"><i class="fas fa-chevron-left"></i></span>
+    <div class="lightbox-counter" id="lightboxCounter"></div>
+</div>
+
+<footer>
+    <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
+    <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
+</footer>
+
+<script>
+    // 1. تغيير مظهر وتأثير الهيدر عند التمرير
+    window.addEventListener('scroll', () => {
+        const header = document.getElementById('header');
+        if (window.scrollY > 40) header.classList.add('scrolled');
+        else header.classList.remove('scrolled');
+    });
+
+    // 2. قائمة الهاتف (الهامبرغر) الموحدة
+    const menuToggle = document.getElementById('menuToggle');
+    const navMenu = document.getElementById('navMenu');
+
+    menuToggle.addEventListener('click', () => {
+        navMenu.classList.toggle('active');
+        const expanded = navMenu.classList.contains('active');
+        menuToggle.setAttribute('aria-expanded', expanded);
+        const icon = menuToggle.querySelector('i');
+        icon.classList.toggle('fa-bars');
+        icon.classList.toggle('fa-times');
+    });
+
+    window.addEventListener('click', (e) => {
+        if (navMenu && !navMenu.contains(e.target) && !menuToggle.contains(e.target)) {
+            if (navMenu.classList.contains('active')) {
+                menuToggle.click();
+            }
+        }
+    });
+
+    // إغلاق القائمة تلقائياً عند العودة لهذه الصفحة (زر رجوع المتصفح / bfcache)
+    // حتى لا تبقى القائمة مفتوحة كما كانت عليه الحال قبل مغادرة الصفحة
+    window.addEventListener('pageshow', () => {
+        navMenu.classList.remove('active');
+        menuToggle.setAttribute('aria-expanded', 'false');
+        const menuIcon = menuToggle.querySelector('i');
+        if (menuIcon) {
+            menuIcon.classList.add('fa-bars');
+            menuIcon.classList.remove('fa-times');
+        }
+    });
+
+    // ----------------------------------------------------
+    // نفس رابط الـ Web App المستخدم في باقي صفحات الموقع
+    // ----------------------------------------------------
+    const NEWS_API_URL = "https://script.google.com/macros/s/AKfycbwIZBuPEaZ8TD08HoaSPIC_WfP8hhhkGkKtHk4bwZAkG7x_cxABToy8zdw9Kc4CH6yOUw/exec";
+
+    // ----------------------------------------------------
+    // معرض الصور (Gallery) والصندوق الضوئي (Lightbox)
+    // ----------------------------------------------------
+    let lbImages = [];
+    let lbIndex = 0;
+
+    function buildGallery(images) {
+        const wrap = document.createElement("div");
+        const isSingle = images.length === 1;
+        wrap.className = "gallery-grid " + (isSingle ? "single" : "multi");
+
+        const maxShow = isSingle ? 1 : Math.min(images.length, 4);
+        for (let i = 0; i < maxShow; i++) {
+            const item = document.createElement("div");
+            item.className = "gallery-item";
+
+            const img = document.createElement("img");
+            img.src = images[i];
+            img.alt = "صورة من النشاط";
+            img.loading = "lazy";
+            item.appendChild(img);
+
+            const zoomIcon = document.createElement("div");
+            zoomIcon.className = "zoom-icon";
+            zoomIcon.innerHTML = '<i class="fas fa-expand"></i>';
+            item.appendChild(zoomIcon);
+
+            if (!isSingle && i === 3 && images.length > 4) {
+                const overlay = document.createElement("div");
+                overlay.className = "more-overlay";
+                overlay.textContent = "+" + (images.length - 4);
+                item.appendChild(overlay);
+            }
+
+            item.addEventListener("click", () => openLightbox(images, i));
+            wrap.appendChild(item);
+        }
+        return wrap;
+    }
+
+    function updateLightboxImage() {
+        document.getElementById("lightboxImg").src = lbImages[lbIndex];
+        document.getElementById("lightboxCounter").textContent = (lbIndex + 1) + " / " + lbImages.length;
+        const showNav = lbImages.length > 1;
+        document.getElementById("lightboxPrev").style.display = showNav ? "flex" : "none";
+        document.getElementById("lightboxNext").style.display = showNav ? "flex" : "none";
+    }
+
+    function openLightbox(images, index) {
+        lbImages = images;
+        lbIndex = index;
+        updateLightboxImage();
+        document.getElementById("lightbox").classList.add("active");
+        document.body.style.overflow = "hidden";
+    }
+
+    function closeLightbox() {
+        document.getElementById("lightbox").classList.remove("active");
+        document.body.style.overflow = "";
+    }
+
+    function lbNext() { lbIndex = (lbIndex + 1) % lbImages.length; updateLightboxImage(); }
+    function lbPrev() { lbIndex = (lbIndex - 1 + lbImages.length) % lbImages.length; updateLightboxImage(); }
+
+    document.getElementById("lightboxClose").addEventListener("click", closeLightbox);
+    document.getElementById("lightboxNext").addEventListener("click", lbNext);
+    document.getElementById("lightboxPrev").addEventListener("click", lbPrev);
+    document.getElementById("lightbox").addEventListener("click", (e) => {
+        if (e.target.id === "lightbox") closeLightbox();
+    });
+    document.addEventListener("keydown", (e) => {
+        if (!document.getElementById("lightbox").classList.contains("active")) return;
+        if (e.key === "Escape") closeLightbox();
+        if (e.key === "ArrowLeft") lbNext();
+        if (e.key === "ArrowRight") lbPrev();
+    });
+
+    // ----------------------------------------------------
+    // منطق التفاعل بالقلوب (الإعجاب بالنشاط)
+    // ----------------------------------------------------
+    function getLikedActivityIds() {
+        return JSON.parse(localStorage.getItem("liked_activities_ids")) || [];
+    }
+
+    function setHeartUI(button, hearts, isLiked) {
+        button.classList.toggle("liked", isLiked);
+        const iconStyle = isLiked ? "fas" : "far";
+        button.innerHTML = `
+            <i class="${iconStyle} fa-heart"></i>
+            <span>${hearts}</span>
+        `;
+    }
+
+    // ✅ جديد — تسجيل مشاهدة للنشاط (fire-and-forget، بلا انتظار للرد ولا
+    // إظهار أي خطأ للزائر إن فشل الاتصال)
+    function logActivityView(recordId) {
+        fetch(NEWS_API_URL + "?action=view&id=" + encodeURIComponent(recordId)).catch(function () {});
+    }
+
+    async function toggleActivityHeart(recordId, button) {
+        if (button.disabled) return;
+        button.disabled = true;
+
+        const likedIds = getLikedActivityIds();
+        const alreadyLiked = likedIds.includes(recordId);
+        const action = alreadyLiked ? "unlike" : "like";
+
+        try {
+            const response = await fetch(NEWS_API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action, id: recordId, type: "activities" })
+            });
+            const data = await response.json();
+
+            if (data && data.success) {
+                setHeartUI(button, data.hearts, !alreadyLiked);
+                button.classList.add("pop");
+                setTimeout(() => button.classList.remove("pop"), 350);
+
+                if (alreadyLiked) {
+                    const updated = likedIds.filter(id => id !== recordId);
+                    localStorage.setItem("liked_activities_ids", JSON.stringify(updated));
+                } else {
+                    likedIds.push(recordId);
+                    localStorage.setItem("liked_activities_ids", JSON.stringify(likedIds));
+                }
+            }
+        } catch (err) {
+            console.warn("تعذر تحديث الإعجاب، يرجى المحاولة لاحقاً.", err);
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    // ----------------------------------------------------
+    // ✅ معدَّل — منطق زمني يحل محل تصنيف النشاط اليدوي القديم (Category).
+    // يقرأ حقلَي Date (بداية) وEndDate (نهاية، اختياري) من Airtable
+    // ويحسب حالة النشاط تلقائياً بمقارنتهما بالوقت الحالي:
+    //   - لم يحن تاريخ البداية بعد          → "لم يبدأ بعد"   (is-upcoming)
+    //   - بدأ ولم ينتهِ بعد (أو بلا EndDate) → "جارٍ الآن"      (is-ongoing)
+    //   - تجاوز EndDate                      → "انتهى"          (is-ended)
+    // الأنشطة المنتهية (التي لها EndDate فقط) تبقى ظاهرة يومين إضافيين
+    // بعد الانتهاء مع شارة "انتهى"، ثم تُخفى تلقائياً من القائمة بعدها
+    // (دون حذف السجل من Airtable نفسه — إخفاء عرض فقط، راجع fetchActivities).
+    // ----------------------------------------------------
+    const ENDED_GRACE_DAYS = 2;
+
+    function computeActivityStatus(fields) {
+        const now = new Date();
+        const start = fields.Date ? new Date(fields.Date) : null;
+        const end = fields.EndDate ? new Date(fields.EndDate) : null;
+
+        if (start && !isNaN(start) && now < start) {
+            return { state: "upcoming", icon: "fa-hourglass-half", label: "لم يبدأ بعد", hideAfter: null };
+        }
+        if (end && !isNaN(end)) {
+            if (now <= end) {
+                return { state: "ongoing", icon: "fa-circle-play", label: "جارٍ الآن", hideAfter: null };
+            }
+            const hideAt = new Date(end.getTime() + ENDED_GRACE_DAYS * 24 * 60 * 60 * 1000);
+            return { state: "ended", icon: "fa-flag-checkered", label: "انتهى", hideAfter: hideAt };
+        }
+        // بلا تاريخ انتهاء محدد: يبقى "جارٍ الآن" (أو بلا شارة إن لم يوجد تاريخ بداية أصلاً)
+        return start && !isNaN(start)
+            ? { state: "ongoing", icon: "fa-circle-play", label: "جارٍ الآن", hideAfter: null }
+            : null;
+    }
+
+    // ----------------------------------------------------
+    // بناء بطاقة نشاط واحدة من سجل Airtable
+    // ----------------------------------------------------
+    function buildActivityCard(record) {
+        const fields = record.fields || {};
+
+        const title     = fields.Title || "";
+        const contentRaw = fields.Content || "";
+        const location  = fields.Location || "";
+        const publisher = fields.Publisher || "أمانة الإعلام";
+        const hearts    = typeof fields.Hearts === "number" ? fields.Hearts : 0;
+        const statusEntry = computeActivityStatus(fields);
+
+        const images = Array.isArray(fields.Image)
+            ? fields.Image.map(img => img.url).filter(Boolean)
+            : [];
+
+        // حقل Date الموحّد: يُستخدم للعرض والترتيب الزمني معاً (فارغ = تاريخ إنشاء السجل)
+        const dateSource = fields.Date || record.createdTime;
+        const parsedDate = new Date(dateSource);
+        const dateString = isNaN(parsedDate) ? "" : parsedDate.toLocaleDateString("ar-EG", {
+            year: "numeric",
+            month: "long",
+            day: "numeric"
+        });
+
+        const contentParagraphs = contentRaw
+            .split(/\n+/)
+            .map(p => p.trim())
+            .filter(Boolean);
+
+        const card = document.createElement("div");
+        card.className = "activity-card";
+
+        card.innerHTML = `
+            ${statusEntry ? `<div class="activity-meta"><span class="act-status-badge is-${statusEntry.state}"><i class="fas ${statusEntry.icon}"></i> ${statusEntry.label}</span></div>` : ''}
+            <h2 class="act-title"></h2>
+            <div class="gallery-slot"></div>
+            <div class="intro-text-container"></div>
+            <div class="activity-footer">
+                <div class="meta-group">
+                    <span class="act-publisher"><i class="far fa-user"></i></span>
+                    ${location ? '<span class="act-location"><i class="fas fa-location-dot"></i></span>' : ''}
+                    <span class="act-date"><i class="far fa-calendar"></i> ${dateString}</span>
+                </div>
+            </div>
+        `;
+
+        card.querySelector(".act-title").textContent = title;
+        card.querySelector(".act-publisher").appendChild(document.createTextNode(" الناشر: " + publisher));
+        if (location) {
+            card.querySelector(".act-location").appendChild(document.createTextNode(" " + location));
+        }
+
+        const gallerySlot = card.querySelector(".gallery-slot");
+        if (images.length > 0) {
+            gallerySlot.appendChild(buildGallery(images));
+        } else {
+            gallerySlot.remove();
+        }
+
+        const introBox = card.querySelector(".intro-text-container");
+        if (contentParagraphs.length > 0) {
+            contentParagraphs.forEach(p => {
+                const pEl = document.createElement("p");
+                pEl.textContent = p;
+                introBox.appendChild(pEl);
+            });
+        } else {
+            introBox.remove();
+        }
+
+        const footer = card.querySelector(".activity-footer");
+        const heartBtn = document.createElement("button");
+        heartBtn.className = "heart-btn";
+        heartBtn.setAttribute("aria-label", "أعجبني هذا النشاط");
+
+        if (record.id) {
+            const likedIds = getLikedActivityIds();
+            const isLiked = likedIds.includes(record.id);
+            setHeartUI(heartBtn, hearts, isLiked);
+            heartBtn.addEventListener("click", () => toggleActivityHeart(record.id, heartBtn));
+            logActivityView(record.id); // ✅ جديد — كل ظهور للبطاقة = مشاهدة
+        } else {
+            heartBtn.disabled = true;
+            setHeartUI(heartBtn, hearts, false);
+        }
+
+        footer.appendChild(heartBtn);
+
+        return card;
+    }
+
+    // ----------------------------------------------------
+    // جلب النشاطات من Airtable وعرضها في الصفحة — قائمة واحدة مرتبة
+    // زمنياً (الأحدث أولاً)، مع إخفاء المنتهية بعد فترة السماح (راجع
+    // computeActivityStatus أعلاه)
+    // ----------------------------------------------------
+    async function fetchActivities() {
+        const container = document.getElementById("page-cards-container");
+        container.innerHTML = `
+            <div class="loading-status">
+                <i class="fas fa-circle-notch fa-spin" style="margin-left: 8px;"></i> جاري تحميل النشاطات من خادم مجالس الرابطة...
+            </div>`;
+
+        try {
+            const response = await fetch(NEWS_API_URL + "?type=activities");
+            if (!response.ok) throw new Error("network_error");
+
+            const data = await response.json();
+            let records = (data && Array.isArray(data.records)) ? data.records : [];
+
+            // ✅ جديد — إخفاء الأنشطة المنتهية بعد فترة سماح يومين من
+            // EndDate (راجع computeActivityStatus/ENDED_GRACE_DAYS أعلاه).
+            // إخفاء عرض فقط، لا حذف من Airtable.
+            const now = new Date();
+            records = records.filter(record => {
+                const status = computeActivityStatus(record.fields || {});
+                if (status && status.hideAfter && now > status.hideAfter) return false;
+                return true;
+            });
+
+            records.sort((a, b) => {
+                const da = new Date((a.fields && a.fields.Date) || a.createdTime);
+                const db = new Date((b.fields && b.fields.Date) || b.createdTime);
+                return db - da;
+            });
+
+            if (records.length === 0) {
+                container.innerHTML = `
+                <div class="loading-status">
+                    <i class="fas fa-hourglass-start" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
+                    لا توجد نشاطات حالياً
+                </div>`;
+                return;
+            }
+
+            container.innerHTML = "";
+            records.forEach(record => {
+                container.appendChild(buildActivityCard(record));
+            });
+
+        } catch (error) {
+            console.error(error);
+            container.innerHTML = `
+            <div class="loading-status" style="color:#ff4a4a">
+                <i class="fas fa-triangle-exclamation" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
+                تعذر تحميل النشاطات، يرجى مراجعة اتصال الشبكة والمحاولة لاحقاً.
+            </div>`;
+        }
+    }
+
+    window.addEventListener("DOMContentLoaded", fetchActivities);
+</script>
+
+<script src="analytics-tracker.js?v=5"></script>
+
+<script src="site-settings.js"></script>
+    <script src="ui-pro.js?v=5"></script>
+</body>
+</html>

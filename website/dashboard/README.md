@@ -70,7 +70,7 @@
 4. تأكد أن الروابط الأربعة داخل `admin/config.js` هي أحدث روابط
    Deploy → Web App من Google Apps Script (تُنسخ من "New deployment"
    أو "Manage deployments" بعد أي إعادة نشر).
-5. افتح `https://<دومينك>/admin/login.html` وجرّب الدخول بحساب حقيقي
+5. افتح `https://ush-eng.great-site.net/admin/login.html` وجرّب الدخول بحساب حقيقي
    من جدول Users في Airtable.
 
 ## نقطة مهمة عند إعادة النشر لاحقاً

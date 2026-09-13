@@ -323,7 +323,7 @@ async function staffBootstrap(ctx) {
   const email = String(body?.email || '').trim().toLowerCase();
   const displayName = String(body?.displayName || '').trim();
   const password = String(body?.password || '');
-  if (!email || !displayName || password.length < 10 || password.length > 256) return error('BOOTSTRAP_INPUT_INVALID', 'بيانات حساب الإدارة غير صالحة. كلمة المرور يجب ألا تقل عن 10 أحرف.', 400, ctx.requestId, ctx.cors);
+  if (!email || !displayName || password.length < 8 || password.length > 256) return error('BOOTSTRAP_INPUT_INVALID', 'بيانات حساب الإدارة غير صالحة. كلمة المرور يجب ألا تقل عن 8 أحرف.', 400, ctx.requestId, ctx.cors);
   const role = await queryOne(ctx.env, "SELECT id FROM roles WHERE id = 'super_admin' LIMIT 1");
   if (!role) return error('BOOTSTRAP_ROLE_MISSING', 'دور المدير العام غير موجود. طبّق migrations أولًا.', 503, ctx.requestId, ctx.cors);
   const salt = token(16);
@@ -353,8 +353,8 @@ async function staffChangePassword(ctx) {
   const body = await parseJson(ctx.request);
   const currentPassword = String(body?.currentPassword || '');
   const newPassword = String(body?.newPassword || '');
-  if (!currentPassword || !newPassword || newPassword.length < 10 || newPassword.length > 256) {
-    return error('STAFF_PASSWORD_INVALID', 'كلمة المرور الجديدة يجب أن تكون بين 10 و256 حرفًا.', 400, ctx.requestId, ctx.cors);
+  if (!currentPassword || !newPassword || newPassword.length < 8 || newPassword.length > 256) {
+    return error('STAFF_PASSWORD_INVALID', 'كلمة المرور الجديدة يجب أن تكون بين 8 و256 حرفًا.', 400, ctx.requestId, ctx.cors);
   }
   if (currentPassword === newPassword) {
     return error('STAFF_PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);
@@ -980,7 +980,7 @@ async function adminStaff(ctx, id, actorId) {
   const body = await parseJson(ctx.request);
   if (ctx.request.method === 'POST') {
     const email=String(body?.email||'').trim().toLowerCase(), name=String(body?.displayName||body?.display_name||'').trim(), password=String(body?.password||''), role=String(body?.roleId||body?.role_id||'content_manager');
-    if(!email||!name||password.length<10) return error('STAFF_INPUT_INVALID','البريد والاسم وكلمة مرور من 10 أحرف مطلوبة.',400,ctx.requestId,ctx.cors);
+    if(!email||!name||password.length<8) return error('STAFF_INPUT_INVALID','البريد والاسم وكلمة مرور من 8 أحرف مطلوبة.',400,ctx.requestId,ctx.cors);
     const salt=token(16), hash=await pbkdf2Hash(password,salt), sid=crypto.randomUUID();
     await ctx.env.DB.prepare('INSERT INTO staff_users(id,email,display_name,role_id,password_hash,password_salt,password_algo) VALUES(?,?,?,?,?,?,?)').bind(sid,email,name,role,hash,salt,'pbkdf2-sha256').run();
     await writeAudit(ctx,actorId,'create','staff_users',sid,{email,role}); return ok(ctx,{id:sid,email,display_name:name,role_id:role},null,201);
@@ -992,7 +992,7 @@ async function adminStaff(ctx, id, actorId) {
     if(body?.displayName||body?.display_name){sets.push('display_name=?');vals.push(String(body.displayName||body.display_name).trim());}
     if(body?.roleId||body?.role_id){sets.push('role_id=?');vals.push(String(body.roleId||body.role_id));}
     if(body?.active!==undefined){sets.push('active=?');vals.push(body.active?1:0);}
-    if(body?.password){if(String(body.password).length<10)return error('STAFF_PASSWORD_INVALID','كلمة المرور يجب ألا تقل عن 10 أحرف.',400,ctx.requestId,ctx.cors);const salt=token(16);sets.push('password_hash=?','password_salt=?','password_algo=?');vals.push(await pbkdf2Hash(String(body.password),salt),salt,'pbkdf2-sha256');}
+    if(body?.password){if(String(body.password).length<8)return error('STAFF_PASSWORD_INVALID','كلمة المرور يجب ألا تقل عن 8 أحرف.',400,ctx.requestId,ctx.cors);const salt=token(16);sets.push('password_hash=?','password_salt=?','password_algo=?');vals.push(await pbkdf2Hash(String(body.password),salt),salt,'pbkdf2-sha256');}
     if(!sets.length)return error('ADMIN_NO_FIELDS','لم يتم إرسال أي تغييرات.',400,ctx.requestId,ctx.cors);
     vals.push(id); const result=await ctx.env.DB.prepare(`UPDATE staff_users SET ${sets.join(',')},updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(...vals).run();
     if(!result.meta?.changes)return error('ADMIN_NOT_FOUND','المستخدم غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,actorId,'update','staff_users',id,{fields:sets.map(x=>x.split('=')[0])}); return ok(ctx,{updated:true});

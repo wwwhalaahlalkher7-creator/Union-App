@@ -1,0 +1,22 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Flutter
+app/.dart_tool/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+
+# Node / Cloudflare
+backend/node_modules/
+website/dashboard/node_modules/
+.wrangler/
+website/dashboard/public/
+
+# Secrets / local env
+.env
+.env.*
+!.env.example

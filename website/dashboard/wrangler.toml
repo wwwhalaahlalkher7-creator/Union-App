@@ -1,0 +1,14 @@
+name = "leo-association-dashboard"
+main = "worker/index.js"
+compatibility_date = "2026-09-11"
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true
+
+# The public website is the root site; this Worker is intended to be mounted
+# only at /admin/* on the final public domain.
+# Do not put Cloudflare API tokens or application credentials in this file.
+# The /admin route is NOT security by obscurity: dashboard authentication and
+# backend authorization remain mandatory.

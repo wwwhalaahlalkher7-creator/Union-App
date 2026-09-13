@@ -1,19 +1,26 @@
-# رابطة كلية الهندسة والعمارة — المرحلة 4
+# TRINEX
 
-تم تنفيذ مرحلة **D1 + Data Foundation** فوق أساس المرحلة 3.
+Monorepo structure for the TRINEX ecosystem.
 
-## أهم ما تغير
-- ترقية قاعدة D1 وربط الطالب بفصله الحالي عبر `current_semester_id`.
-- إضافة فهارس للطلبات المتكررة لتقليل قراءات D1.
-- إضافة أدوار لوحة التحكم: Super Admin / Content Manager / Academic Manager / Moderator.
-- تثبيت أقسام الرابطة الثلاثة الحالية: كهرباء إلكترونية، معمار، مدنية.
-- إنشاء خانات الفصول 1–10 دون افتراض سنة أكاديمية حقيقية.
-- إضافة أدوات استيراد JSON → SQL مع تحقق مسبق.
-- منع استيراد نظام Ads التجاري.
-- تشديد CORS ليعتمد على `ALLOWED_ORIGINS` عند ضبطه.
+```text
+TRINEX/
+├── app/                 # Flutter mobile application
+├── website/             # Public website source
+│   └── dashboard/       # TRINEX administration dashboard
+├── backend/             # Cloudflare Worker + D1 API
+└── .github/workflows/   # Automated deployment workflows
+```
 
-## التحقق
-تم اختبار JavaScript syntax، وتم تشغيل أدوات الاستيراد على مجلد إدخال فارغ، وتم تطبيق migration 0001 + 0002 على SQLite تجريبي بنجاح.
+## Production endpoints
 
-## ملاحظة
-لم يتم تنفيذ أي نشر أو كتابة إلى Cloudflare D1 الإنتاجية؛ يلزم ربط قاعدة D1 الفعلية أولاً.
+- Public website: https://ush-eng.great-site.net
+- API: https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1
+- Dashboard: Cloudflare Worker `leo-association-dashboard` (workers.dev until a controlled custom domain/route is configured)
+
+## Important
+
+The current public website still uses its existing HTML/CSS/JS + Apps Script stack. Its migration to the TRINEX API is intentionally deferred until the current website files are available.
+
+When the website files are added under `website/`, they become the source of truth for the public site. The dashboard remains isolated under `website/dashboard/`.
+
+The dashboard workflow deploys only `website/dashboard/**`; public website files do not get copied into the dashboard deployment.

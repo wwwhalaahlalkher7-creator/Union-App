@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="favicon.png">
+
+    <title>آخر الأخبار | أمانة الإعلام ورابطة كلية الهندسة والعمارة</title>
+
+    <!-- SEO: وصف الصفحة والرابط الأساسي -->
+    <meta name="description" content="آخر الأخبار والتغطيات الإخبارية لرابطة كلية الهندسة والعمارة بجامعة شندي، مع بحث وفلترة حسب التصنيف.">
+    <link rel="canonical" href="https://ush-eng.great-site.net/news.html">
+
+    <!-- Open Graph / مشاركة على وسائل التواصل -->
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="ar_AR">
+    <meta property="og:title" content="آخر الأخبار | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
+    <meta property="og:description" content="آخر الأخبار والتغطيات الإخبارية لرابطة كلية الهندسة والعمارة بجامعة شندي.">
+    <meta property="og:url" content="https://ush-eng.great-site.net/news.html">
+    <meta property="og:image" content="https://ush-eng.great-site.net/favicon.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="آخر الأخبار | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
+    <meta name="twitter:description" content="آخر الأخبار والتغطيات الإخبارية لرابطة كلية الهندسة والعمارة بجامعة شندي.">
+    <meta name="twitter:image" content="https://ush-eng.great-site.net/favicon.png">
+
+    <!-- تجهيز الاتصال مسبقاً بخادم البيانات (Apps Script) لتقليل زمن أول طلب -->
+    <link rel="preconnect" href="https://script.google.com">
+    <link rel="preconnect" href="https://script.googleusercontent.com">
+
+    <!-- مكتبة الأيقونات FontAwesome -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <!-- خط كايرو المحدث -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-main: #0a0f14;         
+            --bg-surface: #121b24;      
+            --bg-surface-glow: #1a2734; 
+            --primary: #ff9100;         
+            --primary-glow: #ffb45c;
+        --primary-rgb: 255, 145, 0;    
+            --accent: #005f73;          
+            --text-main: #f4f6f8;       
+            --text-muted: #94a3b8;      
+            --transition-smooth: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Cairo', sans-serif;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* الخلفية المضيئة الموزعة */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -10%;
+            left: -10%;
+            width: 120%;
+            height: 120%;
+            background: radial-gradient(circle at 15% 15%, rgba(255, 145, 0, 0.05) 0%, transparent 45%),
+                        radial-gradient(circle at 85% 85%, rgba(0, 95, 115, 0.07) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* الهيدر المطور الموحد */
+        header {
+            background-color: rgba(18, 27, 36, 0.75);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 100%;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 145, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 8%;
+            transition: var(--transition-smooth);
+        }
+
+        header.scrolled {
+            padding: 12px 8%;
+            background-color: rgba(10, 15, 20, 0.92);
+            border-bottom: 1px solid rgba(255, 145, 0, 0.25);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo h2 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #fff;
+            background: linear-gradient(45deg, #fff, var(--primary-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo p {
+            font-size: 0.8rem;
+            color: var(--primary);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-top: -2px;
+        }
+
+        .menu-toggle {
+            display: none;
+            color: var(--text-main);
+            font-size: 1.4rem;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .menu-toggle:hover {
+            color: var(--primary-glow);
+        }
+
+        nav ul {
+            display: flex;
+            list-style: none;
+            gap: 28px;
+            align-items: center;
+        }
+
+        nav ul li a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: var(--transition-smooth);
+            padding: 6px 0;
+            position: relative;
+        }
+
+        nav ul li a:hover, nav ul li a.active {
+            color: var(--primary-glow);
+        }
+
+        nav ul li a::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 0;
+            height: 2px;
+            background-color: var(--primary);
+            transition: var(--transition-smooth);
+        }
+
+        nav ul li a:hover::after, nav ul li a.active::after {
+            width: 100%;
+        }
+
+        /* عنوان الصفحة */
+        .page-header {
+            text-align: center;
+            padding: 160px 8% 45px 8%;
+        }
+
+        .page-header h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(45deg, #fff, var(--primary-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 14px;
+        }
+
+        .page-header p {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* حاوية الأخبار */
+        .news-container {
+            max-width: 1200px;
+            margin: 0 auto 80px auto;
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 30px;
+            width: 100%;
+        }
+
+        /* كرت الخبر المطور */
+        .news-card {
+            background-color: var(--bg-surface);
+            border: 1px solid rgba(255, 145, 0, 0.05);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition-smooth);
+        }
+
+        .news-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(255, 145, 0, 0.3);
+            box-shadow: 0 20px 38px rgba(255, 145, 0, 0.06);
+        }
+
+        /* حاوية صورة الخبر المضافة */
+        .news-image-wrap {
+            width: 100%;
+            height: 210px;
+            overflow: hidden;
+            position: relative;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .news-image-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: var(--transition-smooth);
+        }
+
+        .news-card:hover .news-image-wrap img {
+            transform: scale(1.05);
+        }
+
+        .news-meta {
+            padding: 22px 22px 5px 22px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        /* شارات التصنيفات الملونة والمخصصة */
+        .news-tag {
+            padding: 5px 12px;
+            border-radius: 30px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+        }
+
+        /* تصنيف: إعلان هام (أحمر برتقالي نابض للفت الانتباه) */
+        .badge-urgent {
+            background: rgba(255, 61, 0, 0.15);
+            color: #ff7043;
+            border: 1px solid rgba(255, 61, 0, 0.4);
+            animation: pulseUrgent 1.8s infinite;
+        }
+
+        @keyframes pulseUrgent {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 61, 0, 0.35); }
+            50% { box-shadow: 0 0 0 5px rgba(255, 61, 0, 0); }
+        }
+
+        /* تصنيف: بيان رسمي (أحمر معدني حاد) */
+        .badge-statement {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+
+        /* تصنيف: تغطية إعلامية (أزرق بترولي عميق) */
+        .badge-coverage {
+            background: rgba(0, 95, 115, 0.15);
+            color: #4ade80;
+            border: 1px solid rgba(0, 95, 115, 0.3);
+        }
+
+        /* تصنيف: نشاط أكاديمي (أزرق سماوي تخصصي) */
+        .badge-academic {
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+        }
+
+        .news-date {
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 400;
+        }
+
+        .news-body {
+            padding: 15px 22px 25px 22px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .news-body h2 {
+            font-size: 1.25rem;
+            color: #fff;
+            margin-bottom: 12px;
+            font-weight: 700;
+            line-height: 1.5;
+            transition: var(--transition-smooth);
+        }
+        
+        .news-card:hover .news-body h2 {
+            color: var(--primary-glow);
+        }
+
+        .news-body p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.7;
+            text-align: justify;
+            margin-bottom: 25px;
+            white-space: pre-wrap;
+        }
+
+        .news-footer {
+            margin-top: auto;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .verified-badge {
+            color: #10b981; 
+            font-weight: 700; 
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* زر ومؤشر التفاعل بالقلوب */
+        .heart-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 20px;
+            transition: var(--transition-smooth);
+        }
+
+        .heart-btn:hover {
+            background: rgba(255, 61, 0, 0.08);
+            color: #ff7043;
+        }
+
+        .heart-btn i {
+            transition: var(--transition-smooth);
+        }
+
+        .heart-btn.liked {
+            color: #ff3d00;
+        }
+
+        .heart-btn.liked i {
+            transform: scale(1.15);
+        }
+
+        .heart-btn:disabled {
+            cursor: default;
+            opacity: 0.5;
+        }
+
+        .heart-btn.pop i {
+            animation: heartPop 0.35s ease;
+        }
+
+        @keyframes heartPop {
+            0% { transform: scale(1); }
+            40% { transform: scale(1.4); }
+            100% { transform: scale(1.15); }
+        }
+
+        .loading-status {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+            font-size: 1.05rem;
+        }
+
+        /* ✅ شريط البحث والفلترة والترتيب — Phase 1 */
+        .news-toolbar {
+            max-width: 1200px;
+            margin: 0 auto 26px auto;
+            padding: 0 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .news-search-box {
+            position: relative;
+            width: 100%;
+        }
+
+        .news-search-box i {
+            position: absolute;
+            top: 50%;
+            right: 18px;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            pointer-events: none;
+        }
+
+        .news-search-box input {
+            width: 100%;
+            background-color: var(--bg-surface);
+            border: 1px solid rgba(255, 145, 0, 0.12);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-family: 'Cairo', sans-serif;
+            font-size: 0.95rem;
+            padding: 13px 46px 13px 16px;
+            transition: var(--transition-smooth);
+        }
+
+        .news-search-box input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .news-search-box input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 145, 0, 0.1);
+        }
+
+        /* صف الأدوات: مربع البحث + زر التصنيف + زر الترتيب، بنفس الصف كما في المثال */
+        .toolbar-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toolbar-row .news-search-box { flex: 1; min-width: 0; }
+
+        .toolbar-filter-wrap { position: relative; flex: 0 0 auto; }
+
+        .toolbar-icon-btn {
+            position: relative;
+            flex: 0 0 auto;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-surface);
+            border: 1px solid rgba(255, 145, 0, 0.12);
+            border-radius: 12px;
+            color: var(--text-muted);
+            font-size: 1rem;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .toolbar-icon-btn:hover { color: var(--text-main); border-color: rgba(255, 145, 0, 0.3); }
+
+        .toolbar-icon-btn:focus-visible {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 145, 0, 0.1);
+        }
+
+        .toolbar-icon-btn.active,
+        .toolbar-icon-btn[aria-expanded="true"] {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            color: #1a1200;
+        }
+
+        .toolbar-icon-btn i { transition: transform 0.45s cubic-bezier(0.65, -0.15, 0.35, 1.15); }
+
+        /* زر الترتيب: سهم لأعلى = تصاعدي (الأقدم أولاً)، يلف 180° ليصبح لأسفل = تنازلي (الأحدث أولاً) */
+        .toolbar-icon-btn.sort-desc i { transform: rotate(180deg); }
+
+        .toolbar-badge-dot {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--bg-surface);
+            display: none;
+        }
+
+        .toolbar-icon-btn.active .toolbar-badge-dot { box-shadow: 0 0 0 2px var(--primary); background-color: #1a1200; }
+
+        .toolbar-badge-dot.show { display: block; }
+
+        /* القائمة المنسدلة لاختيار التصنيف — تنزلق وتتلاشى بأناقة عند الفتح/الإغلاق */
+        .toolbar-dropdown {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            min-width: 210px;
+            max-width: 80vw;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-8px);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            background-color: var(--bg-surface-glow);
+            border: 1px solid rgba(255, 145, 0, 0.15);
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+            padding: 0;
+            z-index: 1200;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.25s ease,
+                        transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                        visibility 0.35s,
+                        padding 0.35s ease;
+        }
+
+        .toolbar-dropdown.open {
+            max-height: 320px;
+            overflow-y: auto;
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            padding: 8px;
+        }
+
+        .toolbar-dropdown-item {
+            flex: 0 0 auto;
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            text-align: right;
+            font-family: 'Cairo', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 11px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition-smooth);
+        }
+
+        .toolbar-dropdown-item:hover { background-color: rgba(255, 145, 0, 0.08); color: var(--text-main); }
+
+        .toolbar-dropdown-item.active { background-color: var(--primary); color: #1a1200; }
+
+        @media (max-width: 480px) {
+            .toolbar-dropdown { right: auto; left: 0; }
+        }
+
+        .news-empty-state {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .news-empty-state i {
+            font-size: 2.2rem;
+            display: block;
+            margin-bottom: 14px;
+            color: var(--primary);
+            opacity: 0.7;
+        }
+
+        .news-empty-state p:first-of-type {
+            color: var(--text-main);
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+
+
+        /* ✅ Phase 4 — نافذة تفاصيل الخبر (بدون إنشاء صفحة HTML جديدة) */
+        .news-card { cursor: pointer; }
+
+        .news-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 8, 11, 0.82);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            z-index: 2000;
+            padding: 24px 16px;
+            overflow-y: auto;
+        }
+
+        .news-modal-overlay.open { display: flex; align-items: flex-start; justify-content: center; }
+
+        .news-modal {
+            background-color: var(--bg-surface);
+            border: 1px solid rgba(255, 145, 0, 0.15);
+            border-radius: 18px;
+            max-width: 720px;
+            width: 100%;
+            margin: 30px auto;
+            overflow: hidden;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+        }
+
+        .news-modal-close {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            background: rgba(10, 15, 20, 0.6);
+            border: none;
+            color: var(--text-main);
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            font-size: 1.1rem;
+            cursor: pointer;
+            z-index: 2;
+            transition: var(--transition-smooth);
+        }
+
+        .news-modal-close:hover { background-color: var(--primary); color: #1a1200; }
+
+        .news-modal-image-wrap {
+            width: 100%;
+            max-height: 360px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .news-modal-image-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        .news-modal-body { padding: 26px; position: relative; }
+
+        .news-modal-body h2 {
+            font-size: 1.5rem;
+            color: #fff;
+            line-height: 1.5;
+            margin: 4px 0 16px 0;
+        }
+
+        .news-modal-body p {
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1.85;
+            text-align: justify;
+            white-space: pre-wrap;
+        }
+
+        .news-modal-share {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-surface-glow);
+            border: 1px solid rgba(255, 145, 0, 0.15);
+            color: var(--text-main);
+            font-family: 'Cairo', sans-serif;
+            font-weight: 700;
+            font-size: 0.85rem;
+            padding: 9px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .news-modal-share:hover { border-color: var(--primary); color: var(--primary-glow); }
+
+        .news-modal-notfound { text-align: center; padding: 50px 26px; color: var(--text-muted); }
+        .news-modal-notfound i { font-size: 2.2rem; display: block; margin-bottom: 14px; color: var(--primary); opacity: 0.7; }
+
+        @media (max-width: 600px) {
+            .news-modal-overlay { padding: 0; }
+            .news-modal { margin: 0; min-height: 100vh; border-radius: 0; }
+        }
+
+        /* الفوتر المتناسق الموحد */
+        footer {
+            background-color: #05080b;
+            padding: 35px 8%;
+            text-align: center;
+            border-top: 1px solid rgba(255, 145, 0, 0.08);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: auto;
+        }
+
+        .developer-credit {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: var(--primary-glow);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        /* التجاوب مع مختلف الشاشات والأجهزة */
+        @media (max-width: 992px) {
+            header { padding: 15px 5%; }
+            header.scrolled { padding: 10px 5%; }
+            .news-container { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+        }
+
+        @media (max-width: 768px) {
+            .menu-toggle { display: block; }
+            
+            nav {
+                position: absolute; 
+                top: 100%; 
+                left: 0; 
+                width: 100%;
+                background-color: rgba(18, 27, 36, 0.98); 
+                backdrop-filter: blur(10px);
+                max-height: 0;
+                overflow: hidden;
+                opacity: 0;
+                visibility: hidden;
+                transform: translateY(-14px);
+                transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                            opacity 0.35s ease,
+                            transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                            visibility 0.45s;
+                border-bottom: 0 solid rgba(255, 145, 0, 0.2);
+                box-shadow: 0 15px 30px rgba(0,0,0,0.4);
+                transform-origin: top center;
+            }
+            
+            nav.active { 
+                max-height: 500px; 
+                opacity: 1;
+                visibility: visible;
+                transform: translateY(0);
+                border-bottom: 1px solid rgba(255, 145, 0, 0.2);
+            }
+            
+            nav ul { 
+                flex-direction: column; 
+                gap: 0; 
+                padding: 15px 0;
+            }
+            
+            nav ul li { width: 100%; text-align: center; }
+            
+            nav ul li a { 
+                display: block; 
+                padding: 12px 0; 
+                width: 100%;
+            }
+            
+            nav ul li a::after { display: none; }
+            
+            .page-header h1 { font-size: 2rem; }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="ui-pro.css?v=3">
+</head>
+
+<body>
+
+<header id="header">
+    <div class="logo">
+        <h2 id="siteLogoName">رابطة كلية الهندسة والعمارة</h2>
+        <p>جامعة شندي</p>
+    </div>
+    
+    <div class="menu-toggle" id="menuToggle" aria-label="قائمة التنقل" aria-expanded="false">
+        <i class="fas fa-bars"></i>
+    </div>
+
+    <nav id="navMenu">
+        <ul>
+            <li><a href="index.html">الرئيسية</a></li>
+            <li><a href="Injazat.html">الإنجازات</a></li>
+            <li><a href="courses.html">المواد الدراسية</a></li>
+            <li><a href="activities.html">النشاطات</a></li>
+            <li><a href="committees.html">الأمانات الأخرى</a></li>
+            <li><a href="news.html" class="active">آخر الأخبار</a></li>
+        </ul>
+    </nav>
+</header>
+
+<div class="page-header">
+    <h1>التغطيات الإخبارية العاجلة</h1>
+    <p>متابعة حية وشاملة للمستجدات الأكاديمية والقرارات الرسمية والفعاليات داخل الكلية</p>
+</div>
+
+<!-- ✅ شريط البحث والفلترة والترتيب — Phase 1 (Client-side بالكامل) -->
+<div class="news-toolbar">
+    <div class="toolbar-row">
+        <div class="news-search-box">
+            <input type="text" id="newsSearchInput" placeholder="ابحث في الأخبار..." aria-label="ابحث في الأخبار">
+            <i class="fas fa-search"></i>
+        </div>
+
+        <div class="toolbar-filter-wrap">
+            <button type="button" class="toolbar-icon-btn" id="newsFilterBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="تصنيف الأخبار">
+                <i class="fas fa-filter"></i>
+                <span class="toolbar-badge-dot" id="newsFilterDot"></span>
+            </button>
+            <div class="toolbar-dropdown" id="newsCategoryChips" role="listbox" aria-label="اختر تصنيف الأخبار">
+                <button type="button" class="toolbar-dropdown-item active" data-category="all" role="option" aria-selected="true">الكل</button>
+            </div>
+        </div>
+
+        <button type="button" class="toolbar-icon-btn sort-desc" id="newsSortBtn" aria-label="الترتيب: الأحدث أولاً (اضغط لعكس الترتيب)">
+            <i class="fas fa-arrow-up" id="newsSortIcon"></i>
+        </button>
+    </div>
+</div>
+
+<!-- موضع إعلان: news_top -->
+<div data-ad-placement="news_top" style="max-width:900px;margin:0 auto 18px;padding:0 16px;"></div>
+
+<div class="news-container" id="news-container">
+    <div class="loading-status">
+        <i class="fas fa-circle-notch fa-spin" style="margin-left: 8px;"></i> جاري مزامنة وجلب الأخبار من خادم مجالس الرابطة...
+    </div>
+</div>
+
+<!-- موضع إعلان: news_bottom -->
+<div data-ad-placement="news_bottom" style="max-width:900px;margin:18px auto;padding:0 16px;"></div>
+
+<footer>
+    <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
+    <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
+</footer>
+
+<!-- ✅ Phase 4 — نافذة تفاصيل الخبر (صفحة واحدة news.html تخدم كل الأخبار، رابط قابل للمشاركة عبر ?id=) -->
+<div class="news-modal-overlay" id="newsModalOverlay" role="dialog" aria-modal="true" aria-labelledby="newsModalTitle">
+    <div class="news-modal" id="newsModalContent"></div>
+</div>
+
+<script>
+    // تغيير سلوك الهيدر عند التمرير
+    window.addEventListener('scroll', () => {
+        const header = document.getElementById('header');
+        if (window.scrollY > 40) header.classList.add('scrolled');
+        else header.classList.remove('scrolled');
+    });
+
+    // قائمة الهاتف الهامبرغر
+    const menuToggle = document.getElementById('menuToggle');
+    const navMenu = document.getElementById('navMenu');
+    menuToggle.addEventListener('click', () => {
+        navMenu.classList.toggle('active');
+        const expanded = navMenu.classList.contains('active');
+        menuToggle.setAttribute('aria-expanded', expanded);
+        const icon = menuToggle.querySelector('i');
+        icon.classList.toggle('fa-bars');
+        icon.classList.toggle('fa-times');
+    });
+
+    // إغلاق القائمة عند الضغط خارجها (للهاتف)
+    window.addEventListener('click', (e) => {
+        if (navMenu && !navMenu.contains(e.target) && !menuToggle.contains(e.target)) {
+            if(navMenu.classList.contains('active')) {
+                menuToggle.click();
+            }
+        }
+    });
+
+    // إغلاق القائمة تلقائياً عند العودة لهذه الصفحة (زر رجوع المتصفح / bfcache)
+    // حتى لا تبقى القائمة مفتوحة كما كانت عليه الحال قبل مغادرة الصفحة
+    window.addEventListener('pageshow', () => {
+        navMenu.classList.remove('active');
+        menuToggle.setAttribute('aria-expanded', 'false');
+        const menuIcon = menuToggle.querySelector('i');
+        if (menuIcon) {
+            menuIcon.classList.add('fa-bars');
+            menuIcon.classList.remove('fa-times');
+        }
+    });
+
+    // ----------------------------------------------------
+    // إعدادات جلب الأخبار الحية من Airtable عبر Google Apps Script
+    // ----------------------------------------------------
+    // ضع هنا الرابط (Web App URL) الذي حصلت عليه بعد عمل Deploy لـ Google Script
+    const NEWS_API_URL = "https://script.google.com/macros/s/AKfycbwIZBuPEaZ8TD08HoaSPIC_WfP8hhhkGkKtHk4bwZAkG7x_cxABToy8zdw9Kc4CH6yOUw/exec";
+
+    // ----------------------------------------------------
+    // ✅ Phase 1 — حالة البحث/الفلترة/الترتيب (Client-side بالكامل، بدون أي Request إضافي)
+    // ----------------------------------------------------
+    let allNewsData = [];      // كل الأخبار المحمّلة فعليًا (من fetchNews)
+    let activeCategory = "all";
+    let activeSort = "newest";
+
+    // دالة تحليل التصنيف وإرجاع التنسيقات والأيقونات المقابلة
+    function parseCategory(category) {
+        const cat = (category || "").toString().trim().toLowerCase();
+        
+        if (cat === "statement" || cat === "بيان" || cat === "بيان رسمي") {
+            return {
+                badgeClass: "badge-statement",
+                label: "بيان رسمي",
+                icon: "fa-envelope-open-text"
+            };
+        } else if (cat === "coverage" || cat === "تغطية" || cat === "تغطية إعلامية" || cat === "تغطية اعلامية") {
+            return {
+                badgeClass: "badge-coverage",
+                label: "تغطية إعلامية",
+                icon: "fa-camera"
+            };
+        } else if (cat === "academic" || cat === "أكاديمي" || cat === "نشاط أكاديمي" || cat === "نشاط اكاديمي") {
+            return {
+                badgeClass: "badge-academic",
+                label: "نشاط أكاديمي",
+                icon: "fa-graduation-cap"
+            };
+        }
+        
+        // الافتراضي: إعلان هام (لأي خبر لم يُحدَّد له تصنيف من التصنيفات الثلاثة أعلاه)
+        return {
+            badgeClass: "badge-urgent",
+            label: "إعلان هام",
+            icon: "fa-bullhorn"
+        };
+    }
+
+    // ----------------------------------------------------
+    // منطق التفاعل بالقلوب (الإعجاب بالخبر)
+    // ----------------------------------------------------
+
+    // جلب قائمة معرّفات الأخبار التي أعجب بها هذا الزائر من هذا المتصفح
+    function getLikedIds() {
+        return JSON.parse(localStorage.getItem("liked_news_ids")) || [];
+    }
+
+    // ✅ جديد — تسجيل مشاهدة للخبر (fire-and-forget، بلا انتظار للرد ولا
+    // إظهار أي خطأ للزائر إن فشل الاتصال، بنفس روح analytics-tracker.js)
+    function logNewsView(recordId) {
+        fetch(NEWS_API_URL + "?action=view&id=" + encodeURIComponent(recordId)).catch(function () {});
+    }
+
+    // تحديث شكل زر القلب وعدد الإعجابات المعروض
+    function setHeartUI(button, hearts, isLiked) {
+        button.classList.toggle("liked", isLiked);
+        const iconStyle = isLiked ? "fas" : "far";
+        button.innerHTML = `
+            <i class="${iconStyle} fa-heart"></i>
+            <span>${hearts}</span>
+        `;
+    }
+
+    // إرسال طلب إعجاب/إلغاء إعجاب إلى Google Apps Script وتحديث العدّاد في Airtable
+    async function toggleHeart(recordId, button) {
+        if (button.disabled) return;
+        button.disabled = true;
+
+        const likedIds = getLikedIds();
+        const alreadyLiked = likedIds.includes(recordId);
+        const action = alreadyLiked ? "unlike" : "like";
+
+        try {
+            const response = await fetch(NEWS_API_URL, {
+                method: "POST",
+                // نستخدم text/plain لتفادي طلب Preflight الذي لا يدعمه Apps Script بسهولة
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action, id: recordId })
+            });
+            const data = await response.json();
+
+            if (data && data.success) {
+                setHeartUI(button, data.hearts, !alreadyLiked);
+                button.classList.add("pop");
+                setTimeout(() => button.classList.remove("pop"), 350);
+
+                if (alreadyLiked) {
+                    const updated = likedIds.filter(id => id !== recordId);
+                    localStorage.setItem("liked_news_ids", JSON.stringify(updated));
+                } else {
+                    likedIds.push(recordId);
+                    localStorage.setItem("liked_news_ids", JSON.stringify(likedIds));
+                }
+            }
+        } catch (err) {
+            console.warn("تعذر تحديث الإعجاب، يرجى المحاولة لاحقاً.", err);
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function fetchNews() {
+        const container = document.getElementById("news-container");
+
+        try {
+            // 1. جلب الأخبار السحابية ومعالجتها من Airtable
+            let cloudNews = [];
+            try {
+                const response = await fetch(NEWS_API_URL);
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // تحويل وتجهيز مخرجات Airtable لتتطابق مع هيكلة موقعك بسلاسة
+                    if (data && data.records) {
+                        cloudNews = data.records.map(record => {
+                            const fields = record.fields || {};
+                            
+                            // استخلاص رابط الصورة من حقل الـ Attachment الخاص بـ Airtable
+                            let imageUrl = "";
+                            if (fields.Image && Array.isArray(fields.Image) && fields.Image.length > 0) {
+                                imageUrl = fields.Image[0].url;
+                            }
+
+                            return {
+                                id: record.id,
+                                title: fields.Title || "",
+                                content: fields.Content || "",
+                                image: imageUrl,
+                                category: fields.Category || "",
+                                publisher: fields.Publisher || "أمانة الإعلام",
+                                // حقل Date الموحّد: يُستخدم للعرض وللترتيب الزمني ولتحديد وقت النشر معاً.
+                                // فارغ ← يُنشر فوراً بتاريخ الآن (تاريخ إنشاء السجل)
+                                // تاريخ ماضٍ ← يُنشر بهذا التاريخ ويترتّب في موضعه الزمني بين باقي الأخبار
+                                // تاريخ مستقبلي ← يبقى الخبر محفوظاً في Airtable ومخفياً عن الموقع حتى يحين هذا التاريخ فيُنشر تلقائياً
+                                date: fields.Date || record.createdTime,
+                                hearts: typeof fields.Hearts === "number" ? fields.Hearts : 0
+                            };
+                        });
+                    }
+                }
+            } catch (cloudErr) {
+                console.warn("تنبيه: فشل جلب الأخبار من السحاب، سيتم عرض الأخبار المحلية فقط.", cloudErr);
+            }
+
+            // 2. جلب الأخبار المحلية المخزنة في الجهاز
+            const localNews = JSON.parse(localStorage.getItem('local_university_news')) || [];
+
+            // 3. استبعاد الأخبار المجدولة لتاريخ مستقبلي (لم يحن وقت نشرها بعد)
+            const now = new Date();
+            const visibleCloudNews = cloudNews.filter(item => {
+                const scheduled = new Date(item.date);
+                return isNaN(scheduled) || scheduled <= now;
+            });
+
+            // 4. دمج المجموعتين وفرزهم بحيث يظهر الأحدث أولاً
+            const allNews = [...localNews, ...visibleCloudNews];
+            allNews.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            // حفظ إجمالي عدد الأخبار في الذاكرة لعداد الصفحة الرئيسية
+            localStorage.setItem('total_news_count', allNews.length.toString());
+
+            if (allNews.length === 0) {
+                container.innerHTML = `
+                <div class="loading-status">
+                    <i class="far fa-folder-open" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
+                    لا توجد أخبار منشورة حالياً
+                </div>`;
+                return;
+            }
+
+            // ✅ Phase 1 — نخزّن البيانات الكاملة محليًا، ثم نبني الفلاتر ونعرض النتيجة
+            // عبر applyFiltersAndRender() بدل عرض allNews مباشرة. لا يوجد أي Request إضافي هنا.
+            allNewsData = allNews;
+            buildCategoryChips(allNewsData);
+            applyFiltersAndRender();
+
+            // ✅ Phase 4 — إذا فُتحت الصفحة برابط مباشر يحتوي ?id=، اعرض الخبر تلقائيًا (مرة واحدة عند أول تحميل)
+            if (!window.__newsInitialIdChecked) {
+                window.__newsInitialIdChecked = true;
+                const idParam = new URLSearchParams(window.location.search).get("id");
+                if (idParam) openNewsModal(idParam, { skipHistory: true });
+            }
+
+        } catch (error) {
+            console.error(error);
+            container.innerHTML = `
+            <div class="loading-status" style="color:#ff4a4a">
+                <i class="fas fa-triangle-exclamation" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
+                تعذر تحميل وتحديث شريط الأخبار، يرجى مراجعة اتصال الشبكة.
+            </div>`;
+        }
+    }
+
+    // ----------------------------------------------------
+    // ✅ Phase 1 — بناء شرائح (Chips) التصنيفات من البيانات الفعلية فقط
+    // ----------------------------------------------------
+    function buildCategoryChips(list) {
+        const chipsContainer = document.getElementById("newsCategoryChips");
+        if (!chipsContainer) return;
+
+        // نجمع التصنيفات الفعلية الموجودة في البيانات (بعد تمريرها على parseCategory لتوحيد التسميات)
+        const seen = new Map(); // key: badgeClass, value: {label, icon}
+        list.forEach(item => {
+            const details = parseCategory(item.category);
+            if (!seen.has(details.badgeClass)) seen.set(details.badgeClass, details);
+        });
+
+        // إذا كانت الفلاتر مبنية مسبقًا بنفس عدد التصنيفات، لا داعي لإعادة البناء (يحافظ على الحالة النشطة عند إعادة الجلب)
+        if (chipsContainer.dataset.built === String(seen.size)) return;
+
+        chipsContainer.innerHTML = '<button type="button" class="toolbar-dropdown-item active" data-category="all" role="option" aria-selected="true">الكل</button>';
+        seen.forEach((details, badgeClass) => {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "toolbar-dropdown-item";
+            chip.dataset.category = badgeClass;
+            chip.setAttribute("role", "option");
+            chip.setAttribute("aria-selected", "false");
+            chip.textContent = details.label;
+            chipsContainer.appendChild(chip);
+        });
+        chipsContainer.dataset.built = String(seen.size);
+        activeCategory = "all";
+        updateNewsFilterIndicator();
+
+        chipsContainer.querySelectorAll(".toolbar-dropdown-item").forEach(chip => {
+            chip.addEventListener("click", () => {
+                chipsContainer.querySelectorAll(".toolbar-dropdown-item").forEach(c => {
+                    c.classList.remove("active");
+                    c.setAttribute("aria-selected", "false");
+                });
+                chip.classList.add("active");
+                chip.setAttribute("aria-selected", "true");
+                activeCategory = chip.dataset.category;
+                updateNewsFilterIndicator();
+                closeNewsFilterDropdown();
+                applyFiltersAndRender();
+            });
+        });
+    }
+
+    // ----------------------------------------------------
+    // ✅ زر ولوحة فلترة التصنيف — فتح/إغلاق منسدل بدلاً من صف شرائح أفقي
+    // ----------------------------------------------------
+    const newsFilterBtn = document.getElementById("newsFilterBtn");
+    const newsFilterDropdown = document.getElementById("newsCategoryChips");
+    const newsFilterDot = document.getElementById("newsFilterDot");
+
+    function updateNewsFilterIndicator() {
+        const isFiltered = activeCategory !== "all";
+        if (newsFilterDot) newsFilterDot.classList.toggle("show", isFiltered);
+        if (newsFilterBtn) newsFilterBtn.classList.toggle("active", isFiltered);
+    }
+
+    function openNewsFilterDropdown() {
+        newsFilterDropdown.classList.add("open");
+        newsFilterBtn.setAttribute("aria-expanded", "true");
+    }
+
+    function closeNewsFilterDropdown() {
+        newsFilterDropdown.classList.remove("open");
+        newsFilterBtn.setAttribute("aria-expanded", "false");
+    }
+
+    if (newsFilterBtn && newsFilterDropdown) {
+        newsFilterBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isOpen = newsFilterDropdown.classList.contains("open");
+            if (isOpen) closeNewsFilterDropdown(); else openNewsFilterDropdown();
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!newsFilterDropdown.contains(e.target) && !newsFilterBtn.contains(e.target)) {
+                closeNewsFilterDropdown();
+            }
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") closeNewsFilterDropdown();
+        });
+    }
+
+    // ----------------------------------------------------
+    // ✅ Phase 1 — تطبيق البحث + الفلترة + الترتيب على البيانات المحمّلة فعليًا (بدون أي API request)
+    // ----------------------------------------------------
+    function applyFiltersAndRender() {
+        const searchInput = document.getElementById("newsSearchInput");
+        const query = (searchInput && searchInput.value ? searchInput.value : "").trim().toLowerCase();
+
+        let list = allNewsData.slice();
+
+        // الفلترة حسب التصنيف
+        if (activeCategory !== "all") {
+            list = list.filter(item => parseCategory(item.category).badgeClass === activeCategory);
+        }
+
+        // البحث (في العنوان والمحتوى والناشر)
+        if (query) {
+            list = list.filter(item => {
+                const haystack = `${item.title || ""} ${item.content || ""} ${item.publisher || ""}`.toLowerCase();
+                return haystack.includes(query);
+            });
+        }
+
+        // الترتيب
+        list.sort((a, b) => {
+            const diff = new Date(b.date) - new Date(a.date);
+            return activeSort === "oldest" ? -diff : diff;
+        });
+
+        renderNewsList(list);
+    }
+
+    // ----------------------------------------------------
+    // ✅ Phase 1 — بناء بطاقات الأخبار (منطق البناء الأصلي، فقط مفصول في دالة قابلة لإعادة الاستخدام)
+    // ----------------------------------------------------
+    function renderNewsList(allNews) {
+        const container = document.getElementById("news-container");
+
+        if (allNews.length === 0) {
+            // ✅ إصلاح — إن لم تكن هناك أي أخبار أصلاً (allNewsData فارغة)، فهذا ليس نتيجة بحث/فلترة
+            // فارغة، بل عدم وجود أخبار منشورة إطلاقاً. نعرض نفس رسالة التحميل الأولي بدل رسالة البحث.
+            if (allNewsData.length === 0) {
+                container.innerHTML = `
+                <div class="loading-status">
+                    <i class="far fa-folder-open" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
+                    لا توجد أخبار منشورة حالياً
+                </div>`;
+                return;
+            }
+            container.innerHTML = `
+            <div class="news-empty-state">
+                <i class="fas fa-magnifying-glass"></i>
+                <p>لا توجد أخبار مطابقة لبحثك.</p>
+                <p>جرّب تغيير كلمة البحث أو الفلتر.</p>
+            </div>`;
+            return;
+        }
+
+        container.innerHTML = "";
+
+        // موضع إعلان news_middle: يُدرج تلقائيًا في منتصف قائمة الأخبار المعروضة حاليًا
+        const midIndex = Math.floor(allNews.length / 2);
+
+        allNews.forEach((item, index) => {
+                if (index === midIndex && allNews.length > 1) {
+                    const midAd = document.createElement("div");
+                    midAd.setAttribute("data-ad-placement", "news_middle");
+                    midAd.style.gridColumn = "1 / -1";
+                    container.appendChild(midAd);
+                    if (window.AdManager) window.AdManager.render("news_middle");
+                }
+
+                const card = document.createElement("div");
+                card.className = "news-card";
+                if (item.id) card.dataset.newsId = item.id;
+
+                // تهيئة التاريخ وتنسيقه عربياً بشكل صحيح
+                const parsedDate = new Date(item.date);
+                const dateString = isNaN(parsedDate) ? item.date : parsedDate.toLocaleDateString("ar-EG", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric"
+                });
+
+                // معالجة التصنيف والشارة بصورة ديناميكية
+                const catDetails = parseCategory(item.category);
+
+                // تجهيز عنصر الصورة إن وُجدت
+                const imageSection = item.image 
+                    ? `<div class="news-image-wrap">
+                           <img src="${item.image}" alt="صورة الخبر" loading="lazy" decoding="async">
+                       </div>` 
+                    : '';
+
+                card.innerHTML = `
+                ${imageSection}
+                <div class="news-meta">
+                    <span class="news-tag ${catDetails.badgeClass}">
+                        <i class="fas ${catDetails.icon}"></i>
+                        ${catDetails.label}
+                    </span>
+                    <span class="news-date">
+                        <i class="far fa-calendar"></i>
+                        ${dateString}
+                    </span>
+                </div>
+                <div class="news-body">
+                    <h2></h2>
+                    <p></p>
+                    <div class="news-footer">
+                        <span>
+                            <i class="far fa-user"></i>
+                            الناشر: ${item.publisher || "أمانة الإعلام"}
+                        </span>
+                        <span class="verified-badge">
+                            موثق
+                            <i class="fas fa-check-circle"></i>
+                        </span>
+                    </div>
+                </div>
+                `;
+
+                // حماية المحتوى النصي من ثغرات الحقن (XSS)
+                card.querySelector("h2").textContent = item.title;
+                card.querySelector("p").textContent = item.content;
+
+                // إضافة زر التفاعل بالقلوب (متاح فقط للأخبار السحابية التي تملك معرّف Airtable)
+                const footer = card.querySelector(".news-footer");
+                const heartBtn = document.createElement("button");
+                heartBtn.className = "heart-btn";
+                heartBtn.setAttribute("aria-label", "أعجبني هذا الخبر");
+
+                if (item.id) {
+                    const likedIds = getLikedIds();
+                    const isLiked = likedIds.includes(item.id);
+                    setHeartUI(heartBtn, item.hearts || 0, isLiked);
+                    heartBtn.addEventListener("click", () => toggleHeart(item.id, heartBtn));
+                    logNewsView(item.id); // ✅ جديد — كل ظهور للبطاقة في التغذية = مشاهدة
+                } else {
+                    // خبر محلي (بدون معرّف سحابي): يُعرض بدون إمكانية تفاعل مشترك بين الزوار
+                    heartBtn.disabled = true;
+                    setHeartUI(heartBtn, 0, false);
+                }
+
+                footer.appendChild(heartBtn);
+                container.appendChild(card);
+
+                // ✅ Phase 4 — فتح تفاصيل الخبر عند الضغط على البطاقة (باستثناء زر القلب)
+                if (item.id) {
+                    card.addEventListener("click", (e) => {
+                        if (e.target.closest(".heart-btn")) return;
+                        openNewsModal(item.id);
+                    });
+                }
+            });
+    }
+
+    // ----------------------------------------------------
+    // ✅ Phase 4 — تفاصيل الخبر ضمن صفحة واحدة (Modal) مع رابط قابل للمشاركة عبر ?id=
+    // ----------------------------------------------------
+    function findNewsById(id) {
+        return allNewsData.find(n => n.id === id) || null;
+    }
+
+    function openNewsModal(id, opts) {
+        const options = opts || {};
+        const overlay = document.getElementById("newsModalOverlay");
+        const modalBody = document.getElementById("newsModalContent");
+        const item = findNewsById(id);
+
+        if (!item) {
+            modalBody.innerHTML = `
+                <button class="news-modal-close" id="newsModalCloseBtn" aria-label="إغلاق"><i class="fas fa-xmark"></i></button>
+                <div class="news-modal-notfound">
+                    <i class="fas fa-circle-exclamation"></i>
+                    <p>تعذر العثور على هذا الخبر.</p>
+                    <p>قد يكون الرابط غير صحيح أو تم حذف الخبر.</p>
+                </div>`;
+        } else {
+            const catDetails = parseCategory(item.category);
+            const parsedDate = new Date(item.date);
+            const dateString = isNaN(parsedDate) ? item.date : parsedDate.toLocaleDateString("ar-EG", {
+                year: "numeric", month: "long", day: "numeric"
+            });
+            const imageSection = item.image
+                ? `<div class="news-modal-image-wrap"><img src="${item.image}" alt="صورة الخبر" loading="lazy" decoding="async"></div>`
+                : "";
+
+            modalBody.innerHTML = `
+                <button class="news-modal-close" id="newsModalCloseBtn" aria-label="إغلاق"><i class="fas fa-xmark"></i></button>
+                ${imageSection}
+                <div class="news-modal-body">
+                    <div class="news-meta">
+                        <span class="news-tag ${catDetails.badgeClass}"><i class="fas ${catDetails.icon}"></i> ${catDetails.label}</span>
+                        <span class="news-date"><i class="far fa-calendar"></i> ${dateString}</span>
+                    </div>
+                    <h2 id="newsModalTitle"></h2>
+                    <p id="newsModalText"></p>
+                    <div class="news-footer">
+                        <span><i class="far fa-user"></i> الناشر: ${item.publisher || "أمانة الإعلام"}</span>
+                        <button type="button" class="news-modal-share" id="newsModalShareBtn">
+                            <i class="fas fa-share-nodes"></i> مشاركة
+                        </button>
+                    </div>
+                </div>`;
+
+            // حماية النصوص من الحقن عبر textContent
+            modalBody.querySelector("#newsModalTitle").textContent = item.title;
+            modalBody.querySelector("#newsModalText").textContent = item.content;
+
+            modalBody.querySelector("#newsModalShareBtn").addEventListener("click", () => shareNewsLink(item.id));
+        }
+
+        modalBody.querySelector("#newsModalCloseBtn").addEventListener("click", closeNewsModal);
+        overlay.classList.add("open");
+        document.body.style.overflow = "hidden";
+
+        // تحديث الرابط ليصبح قابلاً للمشاركة، دون إعادة تحميل الصفحة
+        if (!options.skipHistory) {
+            const url = new URL(window.location.href);
+            url.searchParams.set("id", id);
+            history.pushState({ newsId: id }, "", url);
+        }
+    }
+
+    function closeNewsModal(options) {
+        const opts = options || {};
+        const overlay = document.getElementById("newsModalOverlay");
+        overlay.classList.remove("open");
+        document.body.style.overflow = "";
+
+        if (!opts.skipHistory) {
+            const url = new URL(window.location.href);
+            if (url.searchParams.has("id")) {
+                const currentId = url.searchParams.get("id");
+
+                // ✅ إصلاح تكرار خطوات "تراجع" في المتصفح
+                // ------------------------------------------------------------
+                // فتح خبر يضيف سجل تاريخ جديد (pushState). سابقاً، إغلاقه كان
+                // *أيضاً* يضيف سجل جديد بدل استخدام سجل الرجوع الطبيعي، فيتراكم
+                // سجل مكرر لكل فتح/إغلاق (يفتح ثم يغلق = خطوتان بدل خطوة واحدة)،
+                // فيحتاج المستخدم لعدة ضغطات "رجوع" ليصل لما قبل صفحة الأخبار.
+                // الحل: لو كان السجل الحالي هو نفسه الذي أنشأناه عند فتح هذا
+                // الخبر تحديداً (history.state.newsId يطابقه)، نستخدم
+                // history.back() ليتراجع المتصفح فعلياً بدل دفع سجل جديد.
+                if (window.history.state && window.history.state.newsId === currentId) {
+                    window.history.back();
+                    return; // معالج popstate سيتولى تحديث الواجهة
+                }
+
+                // حالة نادرة: وصل المستخدم مباشرة لرابط ?id= (مشاركة/فتح مباشر)
+                // فلا يوجد سجل سابق لدينا للتراجع إليه — نكتفي بتنظيف الرابط
+                // بدون إضافة سجل جديد (replaceState) حتى لا نحبس المستخدم في
+                // تنقل داخلي غير ضروري.
+                url.searchParams.delete("id");
+                history.replaceState({}, "", url);
+            }
+        }
+    }
+
+    function shareNewsLink(id) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("id", id);
+        const shareUrl = url.toString();
+        const btn = document.getElementById("newsModalShareBtn");
+
+        if (navigator.share) {
+            navigator.share({ url: shareUrl }).catch(() => {});
+            return;
+        }
+        if (navigator.clipboard && btn) {
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> تم نسخ الرابط';
+                setTimeout(() => { btn.innerHTML = original; }, 1800);
+            }).catch(() => {});
+        }
+    }
+
+    // إغلاق النافذة عند الضغط خارج المحتوى أو زر Escape، أو عند التنقل بالخلف/الأمام في المتصفح
+    document.getElementById("newsModalOverlay").addEventListener("click", (e) => {
+        if (e.target.id === "newsModalOverlay") closeNewsModal();
+    });
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && document.getElementById("newsModalOverlay").classList.contains("open")) {
+            closeNewsModal();
+        }
+    });
+    window.addEventListener("popstate", () => {
+        const idParam = new URLSearchParams(window.location.search).get("id");
+        if (idParam) openNewsModal(idParam, { skipHistory: true });
+        else closeNewsModal({ skipHistory: true });
+    });
+
+    // ----------------------------------------------------
+    // ✅ Phase 1 — ربط عناصر شريط البحث/الفلترة/الترتيب بالأحداث
+    // ----------------------------------------------------
+    (function initNewsToolbar() {
+        const searchInput = document.getElementById("newsSearchInput");
+        const sortBtn = document.getElementById("newsSortBtn");
+
+        if (searchInput) {
+            let debounceTimer = null;
+            searchInput.addEventListener("input", () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(applyFiltersAndRender, 150);
+            });
+        }
+
+        // ✅ زر الترتيب: سهم يلف بأناقة بين الأعلى (تصاعدي/الأقدم أولاً) والأسفل (تنازلي/الأحدث أولاً)
+        if (sortBtn) {
+            sortBtn.addEventListener("click", () => {
+                activeSort = activeSort === "newest" ? "oldest" : "newest";
+                sortBtn.classList.toggle("sort-desc", activeSort === "newest");
+                sortBtn.setAttribute(
+                    "aria-label",
+                    activeSort === "newest"
+                        ? "الترتيب: الأحدث أولاً (اضغط لعكس الترتيب)"
+                        : "الترتيب: الأقدم أولاً (اضغط لعكس الترتيب)"
+                );
+                applyFiltersAndRender();
+            });
+        }
+    })();
+
+    // تشغيل الدالة بمجرد تحميل محتوى الصفحة
+    window.addEventListener("DOMContentLoaded", fetchNews);
+</script>
+
+<script src="analytics-tracker.js?v=5"></script>
+
+<!-- Ad Manager — يعرض تلقائيًا news_top/news_bottom الثابتين، وnews_middle يُستدعى صراحة عند بناء القائمة أعلاه -->
+<script src="ad-manager.js?v=1"></script>
+
+<script src="site-settings.js"></script>
+    <script src="ui-pro.js?v=5"></script>
+</body>
+</html>

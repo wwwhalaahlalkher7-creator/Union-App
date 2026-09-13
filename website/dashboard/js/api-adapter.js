@@ -30,10 +30,20 @@ window.Adapter = (() => {
   async function renameMaterialItem(){throw new Error('تعديل ملفات Drive المباشر غير مفعّل في هذه المرحلة. استخدم المزامنة الآمنة.');} async function deleteMaterialItem(id){return req('/admin/materials/'+id,{method:'DELETE'});} async function uploadMaterialPdf(){throw new Error('رفع ملفات Drive المباشر غير مفعّل في هذه المرحلة.');}
   async function getSiteSettings(){const rows=await req('/admin/settings');const o={};for(const r of rows){try{o[r.key]=JSON.parse(r.value_json);}catch{o[r.key]=r.value_json;}}return o;}
   async function updateSiteSettings(fields){for(const [key,value] of Object.entries(fields||{}))await req('/admin/settings/'+encodeURIComponent(key),{method:'PATCH',body:JSON.stringify({key,value})});return {success:true};}
-  async function listUsers(){return (await req('/admin/staff')).map(r=>({id:r.id,fields:{Names:r.display_name,Username:r.email,Email:r.email,Role:r.role_id,Active:r.active,LastLogin:r.last_login_at}}));}
-  async function createUser(f){return req('/admin/staff',{method:'POST',body:JSON.stringify({email:f.Username||f.Email,displayName:f.Names,roleId:f.Role,password:f.Password})});}
-  async function updateUser(id,f){return req('/admin/staff/'+id,{method:'PATCH',body:JSON.stringify({email:f.Username||f.Email,displayName:f.Names,roleId:f.Role,active:f.Active,password:f.Password||undefined})});}
-  async function toggleUserActive(id){const users=await listUsers(),u=users.find(x=>x.id===id);return updateUser(id,{Names:u.fields.Names,Username:u.fields.Username,Role:u.fields.Role,Active:!u.fields.Active});} async function deleteUser(id){return req('/admin/staff/'+id,{method:'DELETE'});}
+  async function listUsers(){return (await req('/admin/staff')).map(r=>({id:r.id,fields:{Names:r.display_name,Username:r.email,Email:r.email,Role:roleLabel(r.role_id),RoleId:r.role_id,Active:!!r.active,LastLogin:r.last_login_at}}));}
+  const ROLE_IDS={
+    'مدير عام':'super_admin',
+    'محرر محتوى':'content_manager',
+    'مسؤول أكاديمي':'academic_manager',
+    super_admin:'super_admin',content_manager:'content_manager',academic_manager:'academic_manager',moderator:'moderator', 'مشرف':'moderator'
+  };
+  const ROLE_BADGE={super_admin:'badge-danger',content_manager:'badge-info',academic_manager:'badge-success',moderator:'badge-warning'};
+  const ROLE_LABEL={super_admin:'مدير عام',content_manager:'محرر محتوى',academic_manager:'مسؤول أكاديمي',moderator:'مشرف'};
+  function roleId(value){return ROLE_IDS[value]||value||'content_manager';}
+  function roleLabel(value){return ROLE_LABEL[value]||value||'—';}
+  async function createUser(f){return req('/admin/staff',{method:'POST',body:JSON.stringify({email:f.Username||f.Email,displayName:f.Names,roleId:roleId(f.Role),password:f.Password})});}
+  async function updateUser(id,f){return req('/admin/staff/'+id,{method:'PATCH',body:JSON.stringify({email:f.Username||f.Email,displayName:f.Names,roleId:roleId(f.Role),active:f.Active,password:f.Password||undefined})});}
+  async function toggleUserActive(id){const users=await listUsers(),u=users.find(x=>x.id===id);return updateUser(id,{Names:u.fields.Names,Username:u.fields.Username,Role:u.fields.RoleId||u.fields.Role,Active:!u.fields.Active});} async function deleteUser(id){return req('/admin/staff/'+id,{method:'DELETE'});}
   async function listModerationComments(status='visible'){return req('/admin/moderation/comments?status='+encodeURIComponent(status)+'&limit=100');}
   async function moderateComment(id,status){return req('/admin/moderation/comments/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status})});}
   async function listAuditLog(){return (await req('/admin/audit-logs')).map(r=>({id:r.id,fields:{Timestamp:r.created_at,User:r.actor_name||r.actor_id||'',Role:r.role_name||'',Action:r.action,Details:r.resource_type+(r.resource_id?': '+r.resource_id:'')}}));}
@@ -42,5 +52,5 @@ window.Adapter = (() => {
   async function login(email,password){const d=await req('/auth/staff/login',{method:'POST',headers:{},body:JSON.stringify({email,password})});return {token:d.token,refreshToken:d.refreshToken,name:d.staffDisplayName||email,role:d.staffRole||d.role_name||d.staffRoleId,expiresAt:Date.now()+((d.expiresInSeconds||900)*1000)};}
   async function logoutSession(t){try{await fetch(base()+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+t}});}catch{}}
   async function getOverviewStats(){return req('/admin/dashboard/overview');} async function getRecentNews(l){return (await listContent('news')).slice(0,l||5).map(r=>({id:r.id,title:r.fields.Title,date:r.fields.Date,views:0}));} async function getSystemHealth(){try{await req('/health');return [{name:'Association API',configured:true,lastSuccess:new Date().toISOString()}];}catch{return [{name:'Association API',configured:true,lastSuccess:null}];}}
-  return {CONTENT_TYPES:schemas,getContentSchema:t=>schemas[t],listContent,createContent,updateContent,deleteContent,listStudentsAdmin,createStudentAdmin,updateStudentAdmin,deleteStudentAdmin,toggleStudentAdmin,listScheduleAdmin,createScheduleEntry,updateScheduleEntry,deleteScheduleEntry,toggleScheduleEntry,listMaterialsAdmin,createMaterialFolder,renameMaterialItem,deleteMaterialItem,uploadMaterialPdf,getSiteSettings,updateSiteSettings,listUsers,createUser,updateUser,toggleUserActive,deleteUser,listAuditLog,listFailedLoginAttempts,listModerationComments,moderateComment,changePassword,login,logoutSession,getOverviewStats,getRecentNews,getSystemHealth,sendNotification,listNotifications,ROLE_BADGE:{}};
+  return {CONTENT_TYPES:schemas,getContentSchema:t=>schemas[t],listContent,createContent,updateContent,deleteContent,listStudentsAdmin,createStudentAdmin,updateStudentAdmin,deleteStudentAdmin,toggleStudentAdmin,listScheduleAdmin,createScheduleEntry,updateScheduleEntry,deleteScheduleEntry,toggleScheduleEntry,listMaterialsAdmin,createMaterialFolder,renameMaterialItem,deleteMaterialItem,uploadMaterialPdf,getSiteSettings,updateSiteSettings,listUsers,createUser,updateUser,toggleUserActive,deleteUser,listAuditLog,listFailedLoginAttempts,listModerationComments,moderateComment,changePassword,login,logoutSession,getOverviewStats,getRecentNews,getSystemHealth,sendNotification,listNotifications,ROLE_BADGE};
 })();

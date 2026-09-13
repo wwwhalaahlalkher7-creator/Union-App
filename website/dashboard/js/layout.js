@@ -46,6 +46,15 @@
     "moderator": ["dashboard", "moderation", "account"]
   };
 
+
+  const ROLE_LABELS_UI = {
+    super_admin: 'مدير عام',
+    content_manager: 'محرر محتوى',
+    academic_manager: 'مسؤول أكاديمي',
+    moderator: 'مشرف'
+  };
+  function roleLabel(role) { return ROLE_LABELS_UI[role] || role || 'غير مصرح'; }
+
   const ROLE_LABELS = {
     "super_admin": "لديك صلاحية الوصول إلى جميع أقسام اللوحة.",
     "content_manager": "هذا القسم خارج نطاق صلاحيات محرر المحتوى.",
@@ -103,7 +112,7 @@
   function buildShellHtml(activeKey, session) {
     const title = PAGE_TITLES[activeKey] || "";
     const userName = (session && session.name) || "زائر";
-    const userRole = (session && session.role) || "غير مصرح";
+    const userRole = roleLabel(session && session.role);
     return `
       <div class="sidebar" id="sidebar">
         <div class="sidebar-brand">
@@ -215,9 +224,9 @@
     // فقط (مثل حذف محاولات الدخول الفاشلة في security.html) — راجع
     // .requires-admin في admin.css. لاحظ: هذا تحكم واجهة فقط، الحماية
     // الفعلية على الخادم عبر requireAdminSession_.
-    document.body.classList.toggle("role-admin", !!session && session.role === "مدير عام");
-    document.body.classList.toggle("role-academic", !!session && session.role === "مسؤول أكاديمي");
-    document.body.classList.toggle("role-editor", !!session && session.role === "محرر محتوى");
+    document.body.classList.toggle("role-admin", !!session && session.role === "super_admin");
+    document.body.classList.toggle("role-academic", !!session && session.role === "academic_manager");
+    document.body.classList.toggle("role-editor", !!session && session.role === "content_manager");
 
     // نحتفظ بأي محتوى وضعته الصفحة داخل app-shell قبل الحقن (نادر الاستخدام حالياً)
     const preExisting = document.createDocumentFragment();

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>الأمان | لوحة تحكم الرابطة</title>
+<title>حسابي | لوحة تحكم TRINEX</title>
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 <link rel="stylesheet" href="css/admin.css">
@@ -14,23 +14,23 @@
 
 <style>
 /* ============================================================
-   SECURITY PREMIUM LAYER
+   ACCOUNT PREMIUM LAYER
    يحافظ على جميع IDs والـfunctions الحالية
    ============================================================ */
 
-body[data-page="security"] {
+body[data-page="account"] {
   background:
     radial-gradient(circle at 92% 0%, rgba(46,128,199,.07), transparent 27rem),
     radial-gradient(circle at 5% 95%, rgba(14,58,99,.045), transparent 24rem),
     var(--canvas);
 }
 
-body[data-page="security"] .page-content {
+body[data-page="account"] .page-content {
   position: relative;
   padding-top: 30px;
 }
 
-body[data-page="security"] .page-content::before {
+body[data-page="account"] .page-content::before {
   content: "";
   position: fixed;
   inset: var(--topbar-h) 0 0;
@@ -45,22 +45,22 @@ body[data-page="security"] .page-content::before {
 }
 
 /* كل البطاقات */
-body[data-page="security"] .card {
+body[data-page="account"] .card {
   border-radius: 18px;
   border-color: rgba(20,85,142,.13);
   box-shadow: 0 7px 24px rgba(16,24,38,.045);
 }
 
-body[data-page="security"] .card-header {
+body[data-page="account"] .card-header {
   min-height: 34px;
 }
 
-body[data-page="security"] .card-header h3 {
+body[data-page="account"] .card-header h3 {
   font-size: .98rem;
   letter-spacing: -.01em;
 }
 
-body[data-page="security"] .card-header-hint {
+body[data-page="account"] .card-header-hint {
   padding: 4px 9px;
   border-radius: 999px;
   background: var(--blueprint-100);
@@ -68,36 +68,16 @@ body[data-page="security"] .card-header-hint {
   transition: background .18s ease, transform .18s ease;
 }
 
-body[data-page="security"] .card-header-hint:hover {
+body[data-page="account"] .card-header-hint:hover {
   transform: translateY(-1px);
 }
 
-/* الجداول */
-body[data-page="security"] .data-table th {
-  background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
-}
-
-body[data-page="security"] .data-table tbody tr {
-  transition: background .16s ease;
-}
-
-body[data-page="security"] .data-table tbody tr:hover {
-  background: color-mix(in srgb, var(--blueprint-100) 34%, transparent);
-}
-
-/* حالة عدم وجود بيانات */
-body[data-page="security"] .empty-state {
-  border: 1px dashed var(--line-strong);
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--surface-sunken) 30%, transparent);
-}
-
 /* دخول الصفحة */
-body[data-page="security"] #pageContent > * {
-  animation: securityReveal .48s cubic-bezier(.2,.75,.3,1) both;
+body[data-page="account"] #pageContent > * {
+  animation: accountReveal .48s cubic-bezier(.2,.75,.3,1) both;
 }
 
-@keyframes securityReveal {
+@keyframes accountReveal {
   from {
     opacity: 0;
     transform: translateY(9px);
@@ -110,105 +90,94 @@ body[data-page="security"] #pageContent > * {
 
 /* الوضع الليلي */
 @media (prefers-color-scheme: dark) {
-  body[data-page="security"] {
+  body[data-page="account"] {
     background:
       radial-gradient(circle at 92% 0%, rgba(46,128,199,.11), transparent 27rem),
       var(--canvas);
   }
 
-  body[data-page="security"] .card,
-  body[data-page="security"] .stat-card {
+  body[data-page="account"] .card,
+  body[data-page="account"] .stat-card {
     border-color: rgba(148,163,184,.13);
     box-shadow: 0 9px 28px rgba(0,0,0,.20);
   }
-  body[data-page="security"] .card-header-hint {
+  body[data-page="account"] .card-header-hint {
     background: rgba(46,128,199,.16);
   }
 }
 
 @media (max-width: 960px) {
-  body[data-page="security"] .page-content {
+  body[data-page="account"] .page-content {
     padding-top: 22px;
   }
 }
 
 @media (max-width: 560px) {
-  body[data-page="security"] .page-content {
+  body[data-page="account"] .page-content {
     padding: 14px;
   }
 
-  body[data-page="security"] .stats-grid {
+  body[data-page="account"] .stats-grid {
     gap: 10px;
   }
 
-  body[data-page="security"] .card {
+  body[data-page="account"] .card {
     border-radius: 15px;
     padding: 16px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body[data-page="security"] #pageContent > * {
+  body[data-page="account"] #pageContent > * {
     animation: none;
   }
 }
 </style>
 
 </head>
-<body data-page="security">
+<body data-page="account">
 
 <div id="app-shell"></div>
 
 <template id="pageTemplate">
-  <div class="card" style="margin-bottom:18px">
+  <div class="card" style="margin-bottom:18px;max-width:420px">
+    <div class="card-header">
+      <h3>معلومات الحساب</h3>
+    </div>
+    <p style="font-size:.87rem;color:var(--ink-700);line-height:1.9;margin:0">
+      <strong id="acctName">—</strong>
+      <span style="color:var(--ink-500)"> · </span>
+      <span id="acctRole" style="color:var(--ink-500)">—</span>
+    </p>
+  </div>
+
+  <div class="card" style="max-width:420px">
     <div class="card-header">
       <h3>تغيير كلمة المرور</h3>
       <span class="card-header-hint">تُطبَّق على حسابك الحالي فقط</span>
     </div>
 
-    <div class="login-feedback" id="pwFeedback" style="max-width:420px"></div>
+    <div class="login-feedback" id="pwFeedback"></div>
 
-    <form id="pwForm" novalidate style="max-width:420px">
+    <form id="pwForm" novalidate>
       <div class="field">
         <label for="oldPassword">كلمة المرور الحالية</label>
         <input type="password" id="oldPassword" name="oldPassword" autocomplete="current-password" required>
       </div>
       <div class="field">
         <label for="newPassword">كلمة المرور الجديدة</label>
-        <input type="password" id="newPassword" name="newPassword" autocomplete="new-password" minlength="10" required>
+        <input type="password" id="newPassword" name="newPassword" autocomplete="new-password" minlength="8" required>
         <span class="field-hint">٨ أحرف على الأقل</span>
       </div>
       <div class="field">
         <label for="confirmPassword">تأكيد كلمة المرور الجديدة</label>
-        <input type="password" id="confirmPassword" name="confirmPassword" autocomplete="new-password" minlength="10" required>
+        <input type="password" id="confirmPassword" name="confirmPassword" autocomplete="new-password" minlength="8" required>
       </div>
       <button type="submit" class="btn btn-primary" id="pwSubmitBtn">
         <i class="fa-solid fa-key"></i> تحديث كلمة المرور
       </button>
     </form>
   </div>
-
-  <div class="card" style="margin-bottom:18px">
-    <div class="card-header">
-      <div>
-        <h3>محاولات دخول فاشلة</h3>
-        <span class="card-header-hint">آخر 50 محاولة — من نفس سجل العمليات</span>
-      </div>
-
-    </div>
-    <div class="table-scroll">
-    <table class="data-table">
-      <thead>
-        <tr><th>الوقت</th><th>اسم المستخدم المحاول</th><th>السبب</th></tr>
-      </thead>
-      <tbody id="failedLoginsBody">
-        <tr><td colspan="3"><div class="empty-state"><i class="fa-solid fa-shield-halved"></i>جارٍ التحميل…</div></td></tr>
-      </tbody>
-    </table>
-    </div>
-  </div>
-
-
 </template>
 
 <script src="js/api-adapter.js?v=2.8.0"></script>
@@ -217,13 +186,15 @@ body[data-page="security"] #pageContent > * {
 <script src="js/modal.js"></script>
 <script src="js/layout.js"></script>
 <script>
-
   document.addEventListener("shell:ready", async () => {
     const tpl = document.getElementById("pageTemplate");
     document.getElementById("pageContent").appendChild(tpl.content.cloneNode(true));
 
+    const session = (typeof Auth !== "undefined") ? Auth.get() : null;
+    document.getElementById("acctName").textContent = (session && session.name) || "زائر";
+    document.getElementById("acctRole").textContent = (session && session.role) || "غير محدد";
+
     document.getElementById("pwForm").addEventListener("submit", handlePasswordSubmit);
-    await loadFailedLogins();
   });
 
   async function handlePasswordSubmit(e) {
@@ -248,10 +219,9 @@ body[data-page="security"] #pageContent > * {
       return;
     }
 
-    // ⚠️ التحقق أعلاه محلي فقط (بلا طلب شبكة) لذا يبقى في صندوق
-    // login-feedback المحلي؛ العملية الفعلية تمر عبر Feedback.busy —
-    // مؤشر فوري على الزر + Toast إجباري عند الفشل — ولا تُصفَّر خانات
-    // النموذج إلا بعد نجاح الخادم فعلياً.
+    // ⚠️ التحقق أعلاه محلي فقط (بلا طلب شبكة)؛ العملية الفعلية تمر
+    // عبر Feedback.busy — مؤشر فوري على الزر + Toast إجباري عند الفشل
+    // — ولا يُصفَّر النموذج إلا بعد نجاح الخادم فعلياً.
     try {
       await Feedback.busy(btn, () => Adapter.changePassword(oldPassword, newPassword), {
         busyLabel: "جارٍ التحديث...",
@@ -268,34 +238,6 @@ body[data-page="security"] #pageContent > * {
     feedback.textContent = "تم تحديث كلمة المرور بنجاح.";
     document.getElementById("pwForm").reset();
   }
-
-  async function loadFailedLogins() {
-    const tbody = document.getElementById("failedLoginsBody");
-    await Feedback.loadIntoTable(
-      tbody, 3,
-      () => Adapter.listFailedLoginAttempts(),
-      (failed) => {
-        failed = failed.slice(0, 50);
-
-        if (!failed.length) {
-          tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state"><i class="fa-solid fa-circle-check"></i>لا توجد محاولات دخول فاشلة مسجّلة</div></td></tr>`;
-          return;
-        }
-
-        tbody.innerHTML = failed.map(r => {
-          const f = r.fields;
-          return `
-            <tr>
-              <td style="font-size:.82rem;color:var(--ink-500)">${Utils.formatDate(f.Timestamp)}</td>
-              <td style="direction:ltr;text-align:right">${Utils.escapeHtml(f.User)}</td>
-              <td style="color:var(--ink-500)">${Utils.escapeHtml(f.Details || "—")}</td>
-            </tr>`;
-        }).join("");
-      },
-      { errorPrefix: "تعذّر تحميل السجل" }
-    );
-  }
-
 </script>
 </body>
 </html>
