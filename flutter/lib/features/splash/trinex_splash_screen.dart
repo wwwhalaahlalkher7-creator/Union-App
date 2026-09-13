@@ -115,7 +115,7 @@ class _TrinexSplashScreenState extends State<TrinexSplashScreen>
                     const SizedBox(height: 18),
                     const Text(
                       'TRINEX  •  ${AppVersion.full}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xFF8EA7BA),
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
