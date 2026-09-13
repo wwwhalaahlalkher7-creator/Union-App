@@ -62,6 +62,7 @@ export default {
 }
       if (request.method === 'GET' && path === '/public/achievements') return publicList(ctx, 'achievements');
       if (request.method === 'GET' && path === '/public/settings') return publicSettings(ctx);
+      if (request.method === 'GET' && path === '/public/materials') return publicMaterials(ctx);
 
       if (path === '/auth/login' && request.method === 'POST') return login(ctx);
       if (path === '/auth/staff/login' && request.method === 'POST') return staffLogin(ctx);
@@ -191,11 +192,205 @@ async function health(ctx) {
   return ok(ctx, { service: 'association-api', apiVersion: ctx.env.API_VERSION || 'v1', appVersion: ctx.env.APP_VERSION || 'unknown', database: db, timestamp: new Date().toISOString() });
 }
 
+function parseJsonValue(value, fallback = null) {
+  if (value === null || value === undefined || value === '') return fallback;
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
 async function publicList(ctx, table) {
   const limit = clampInt(ctx.url.searchParams.get('limit'), 20);
-  const order = table === 'activities' ? 'event_at DESC' : table === 'achievements' ? 'achieved_at DESC' : 'publish_at DESC';
-  const rows = await queryAll(ctx.env, `SELECT * FROM ${table} WHERE status = 'published' AND (${table === 'activities' ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at'} IS NULL OR ${table === 'activities' ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at'} <= CURRENT_TIMESTAMP) ORDER BY ${order} LIMIT ?`, limit);
-  return ok(ctx, rowMap(rows), { source: 'd1', count: rows.length });
+  const dateColumn = table === 'activities' ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
+  const order = `${dateColumn} DESC`;
+  const expiryClause = ['news', 'announcements'].includes(table)
+    ? " AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)"
+    : '';
+  const rows = await queryAll(
+    ctx.env,
+    `SELECT * FROM ${table}
+     WHERE status = 'published'
+       AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)
+       ${expiryClause}
+     ORDER BY ${order} LIMIT ?`,
+    limit
+  );
+
+  const data = rows.map(row => {
+    if (table === 'news') return {
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      imageUrl: row.image_url || null,
+      publishAt: row.publish_at || null,
+      expiresAt: row.expires_at || null,
+      createdAt: row.created_at || null,
+      updatedAt: row.updated_at || null,
+      category: row.category || null,
+      publisher: row.publisher || null,
+    };
+    if (table === 'activities') return {
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      imageUrl: row.image_url || null,
+      eventAt: row.event_at || null,
+      endAt: row.end_at || null,
+      location: row.location || null,
+      publisher: row.publisher || null,
+      createdAt: row.created_at || null,
+      updatedAt: row.updated_at || null,
+    };
+    if (table === 'achievements') return {
+      id: row.id,
+      title: row.title,
+      description: row.description || null,
+      intro: row.intro || row.description || null,
+      highlightsTitle: row.highlights_title || null,
+      highlights: parseJsonValue(row.highlights, null),
+      badge: row.badge || null,
+      publisher: row.publisher || null,
+      imageUrl: row.image_url || null,
+      images: parseJsonValue(row.images_json, null),
+      achievedAt: row.achieved_at || null,
+      createdAt: row.created_at || null,
+      updatedAt: row.updated_at || null,
+    };
+    return {
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      type: row.type || 'general',
+      targetDepartmentId: row.target_department_id || null,
+      targetSemesterId: row.target_semester_id || null,
+      publishAt: row.publish_at || null,
+      expiresAt: row.expires_at || null,
+      createdAt: row.created_at || null,
+      updatedAt: row.updated_at || null,
+    };
+  });
+
+  return ok(ctx, data, { source: 'd1', count: data.length, limit });
+}
+
+async function publicMaterials(ctx) {
+  const departmentId = String(ctx.url.searchParams.get('departmentId') || '').trim() || null;
+  const semesterId = String(ctx.url.searchParams.get('semesterId') || '').trim() || null;
+  const subjectId = String(ctx.url.searchParams.get('subjectId') || '').trim() || null;
+  const limit = clampInt(ctx.url.searchParams.get('limit'), 1000, 1, 1000);
+
+  const rows = await queryAll(ctx.env, `
+    SELECT
+      m.id, m.subject_id, m.title, m.description, m.drive_file_id,
+      m.drive_url, m.drive_web_view_url, m.mime_type, m.size_bytes,
+      m.active, m.sort_order, m.created_at, m.updated_at,
+      m.pinned, m.source, m.drive_modified_at,
+      s.code AS subject_code, s.name_ar AS subject_name, s.name_en AS subject_name_en,
+      s.semester_id, s.department_id, s.sort_order AS subject_sort_order,
+      sem.name_ar AS semester_name_ar, sem.name_en AS semester_name_en,
+      sem.number AS semester_number,
+      d.name_ar AS department_name_ar, d.name_en AS department_name_en,
+      d.code AS department_code, d.sort_order AS department_sort_order
+    FROM materials m
+    JOIN subjects s ON s.id = m.subject_id
+    JOIN departments d ON d.id = s.department_id
+    JOIN semesters sem ON sem.id = s.semester_id
+    WHERE m.active = 1 AND s.active = 1 AND d.active = 1 AND sem.active = 1
+      AND (? IS NULL OR d.id = ?)
+      AND (? IS NULL OR sem.id = ?)
+      AND (? IS NULL OR s.id = ?)
+    ORDER BY
+      d.sort_order, d.name_ar,
+      sem.number, sem.name_ar,
+      s.sort_order, s.name_ar,
+      m.pinned DESC, m.sort_order,
+      COALESCE(m.drive_modified_at, m.updated_at, m.created_at) DESC,
+      m.title
+    LIMIT ?`,
+    departmentId, departmentId,
+    semesterId, semesterId,
+    subjectId, subjectId,
+    limit
+  );
+
+  const departments = [];
+  const departmentMap = new Map();
+  const semesterMap = new Map();
+  const subjectMap = new Map();
+
+  for (const row of rows) {
+    let department = departmentMap.get(row.department_id);
+    if (!department) {
+      department = {
+        id: row.department_id,
+        name: row.department_name_ar || row.department_name_en || row.department_code || '',
+        nameEn: row.department_name_en || null,
+        code: row.department_code || null,
+        semesters: [],
+      };
+      departmentMap.set(row.department_id, department);
+      departments.push(department);
+    }
+
+    const semesterKey = `${row.department_id}:${row.semester_id}`;
+    let semester = semesterMap.get(semesterKey);
+    if (!semester) {
+      semester = {
+        id: row.semester_id,
+        name: row.semester_name_ar || row.semester_name_en || `الفصل ${row.semester_number}`,
+        nameEn: row.semester_name_en || null,
+        number: Number(row.semester_number || 0),
+        subjects: [],
+      };
+      semesterMap.set(semesterKey, semester);
+      department.semesters.push(semester);
+    }
+
+    const subjectKey = `${row.department_id}:${row.semester_id}:${row.subject_id}`;
+    let subject = subjectMap.get(subjectKey);
+    if (!subject) {
+      subject = {
+        id: row.subject_id,
+        code: row.subject_code || null,
+        name: row.subject_name || row.subject_name_en || row.subject_code || '',
+        nameEn: row.subject_name_en || null,
+        files: [],
+      };
+      subjectMap.set(subjectKey, subject);
+      semester.subjects.push(subject);
+    }
+
+    const driveId = row.drive_file_id || null;
+    const viewUrl = row.drive_web_view_url || row.drive_url || null;
+    subject.files.push({
+      id: row.id,
+      name: row.title,
+      mimeType: row.mime_type || 'application/pdf',
+      sizeBytes: Number(row.size_bytes || 0),
+      viewUrl,
+      downloadUrl: driveId
+        ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}`
+        : viewUrl,
+      modifiedAt: row.drive_modified_at || row.updated_at || row.created_at || null,
+    });
+  }
+
+  for (const department of departments) {
+    department.semesters.sort((a, b) => a.number - b.number || a.name.localeCompare(b.name, 'ar'));
+    for (const semester of department.semesters) {
+      semester.subjects.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    }
+  }
+  departments.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+
+  return ok(ctx, {
+    departments,
+  }, {
+    source: 'd1',
+    count: rows.length,
+    limit,
+    departmentId,
+    semesterId,
+    subjectId,
+  });
 }
 
 async function publicSettings(ctx) {

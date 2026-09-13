@@ -16,6 +16,10 @@
    `npx wrangler secret put EINO_MODEL`
 5. لا تضع أي secrets في Git أو Flutter.
 
+## عقد الموقع العام
+
+تمت إضافة `GET /api/v1/public/materials` وإكمال عقد البيانات العامة للموقع. تفاصيل الحقول والاستجابات في `docs/PUBLIC_API_CONTRACT.md`. الموقع العام يقرأ من D1/Google Drive عبر TRINEX API فقط، ولا يعتمد على Apps Script أو Airtable.
+
 ## حالة النظام الحالية
 المسارات الأساسية للـAPI موجودة الآن، مع:
 - CORS

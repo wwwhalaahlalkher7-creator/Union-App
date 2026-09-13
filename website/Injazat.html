@@ -26,10 +26,7 @@
 <meta name="twitter:description" content="لوحة إنجازات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي.">
 <meta name="twitter:image" content="https://ush-eng.great-site.net/favicon.png">
 
-<!-- تجهيز الاتصال مسبقاً بخادم البيانات (Apps Script) لتقليل زمن أول طلب -->
-<link rel="preconnect" href="https://script.google.com">
-<link rel="preconnect" href="https://script.googleusercontent.com">
-
+<!-- الاتصال بواجهة TRINEX العامة يتم عند الحاجة -->
 <!-- مكتبة الأيقونات FontAwesome -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
@@ -1013,10 +1010,9 @@
     });
 
     // ----------------------------------------------------
-    // إعدادات جلب الإنجازات الحية من Airtable عبر Google Apps Script
+    // جلب الإنجازات الحية من TRINEX Public API
     // ----------------------------------------------------
-    // نفس رابط الـ Web App المستخدم في صفحة الأخبار (news.html)
-    const NEWS_API_URL = "https://script.google.com/macros/s/AKfycbwIZBuPEaZ8TD08HoaSPIC_WfP8hhhkGkKtHk4bwZAkG7x_cxABToy8zdw9Kc4CH6yOUw/exec";
+    const PUBLIC_API_URL = "https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1/public/achievements";
 
     // ----------------------------------------------------
     // معرض الصور (Gallery) والصندوق الضوئي (Lightbox)
@@ -1024,7 +1020,7 @@
     let lbImages = [];
     let lbIndex = 0;
 
-    // خريطة تصنيفات الشارة (حقل "Badge" من نوع Single Select في Airtable).
+    // خريطة تصنيفات الشارة القادمة من عقد TRINEX.
     // كل تصنيف مرتبط بأيقونة ونص ثابتين يحددهما الكود، فلا حاجة لكتابة اسم
     // أيقونة يدوياً في كل سجل، ولا احتمال لخطأ إملائي أو حرف غير مدعوم.
     const BADGE_MAP = {
@@ -1121,86 +1117,26 @@
     });
 
     // ----------------------------------------------------
-    // منطق التفاعل بالقلوب (الإعجاب بالإنجاز)
-    // ----------------------------------------------------
-    function getLikedAchievementIds() {
-        return JSON.parse(localStorage.getItem("liked_achievements_ids")) || [];
-    }
-
-    function setHeartUI(button, hearts, isLiked) {
-        button.classList.toggle("liked", isLiked);
-        const iconStyle = isLiked ? "fas" : "far";
-        button.innerHTML = `
-            <i class="${iconStyle} fa-heart"></i>
-            <span>${hearts}</span>
-        `;
-    }
-
-    async function toggleAchievementHeart(recordId, button) {
-        if (button.disabled) return;
-        button.disabled = true;
-
-        const likedIds = getLikedAchievementIds();
-        const alreadyLiked = likedIds.includes(recordId);
-        const action = alreadyLiked ? "unlike" : "like";
-
-        try {
-            const response = await fetch(NEWS_API_URL, {
-                method: "POST",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify({ action, id: recordId, type: "achievements" })
-            });
-            const data = await response.json();
-
-            if (data && data.success) {
-                setHeartUI(button, data.hearts, !alreadyLiked);
-                button.classList.add("pop");
-                setTimeout(() => button.classList.remove("pop"), 350);
-
-                if (alreadyLiked) {
-                    const updated = likedIds.filter(id => id !== recordId);
-                    localStorage.setItem("liked_achievements_ids", JSON.stringify(updated));
-                } else {
-                    likedIds.push(recordId);
-                    localStorage.setItem("liked_achievements_ids", JSON.stringify(likedIds));
-                }
-            }
-        } catch (err) {
-            console.warn("تعذر تحديث الإعجاب، يرجى المحاولة لاحقاً.", err);
-        } finally {
-            button.disabled = false;
-        }
-    }
-
-    // ✅ جديد — تسجيل مشاهدة للإنجاز (fire-and-forget، بلا انتظار للرد ولا
-    // إظهار أي خطأ للزائر إن فشل الاتصال)
-    function logAchievementView(recordId) {
-        fetch(NEWS_API_URL + "?action=view&id=" + encodeURIComponent(recordId)).catch(function () {});
-    }
-
-    // ----------------------------------------------------
-    // بناء بطاقة إنجاز واحدة من سجل Airtable
+    // بناء بطاقة إنجاز واحدة من سجل TRINEX
     // ----------------------------------------------------
     function buildAchievementCard(record) {
-        const fields = record.fields || {};
+        const fields = record;
 
-        const badge           = resolveBadge(fields);
+        const badge           = resolveBadge({Badge: fields.badge});
         const badgeText       = badge.text;
         const badgeIcon       = badge.icon;
-        const title           = fields.Title || "";
-        const introRaw        = fields.Intro || "";
-        const highlightsTitle = fields.HighlightsTitle || "أبرز المحاور";
-        const highlightsRaw   = fields.Highlights || "";
-        const publisher       = fields.Publisher || "أمانة الإعلام";
-        const hearts           = typeof fields.Hearts === "number" ? fields.Hearts : 0;
+        const title           = fields.title || "";
+        const introRaw        = fields.intro || fields.description || "";
+        const highlightsTitle = fields.highlightsTitle || "أبرز المحاور";
+        const highlightsRaw   = fields.highlights || "";
+        const publisher       = fields.publisher || "أمانة الإعلام";
+        
 
         // استخراج جميع روابط الصور المرفقة (يدعم أكثر من صورة للإنجاز الواحد)
-        const images = Array.isArray(fields.Image)
-            ? fields.Image.map(img => img.url).filter(Boolean)
-            : [];
+        const images = (Array.isArray(fields.images) ? fields.images : [fields.imageUrl]).filter(Boolean);
 
         // تنسيق تاريخ العرض: تاريخ النشر المجدول وإلا تاريخ إنشاء السجل
-        const dateSource = fields.PublishDate || record.createdTime;
+        const dateSource = fields.achievedAt || record.createdAt;
         const parsedDate = new Date(dateSource);
         const dateString = isNaN(parsedDate) ? "" : parsedDate.toLocaleDateString("ar-EG", {
             year: "numeric",
@@ -1215,16 +1151,11 @@
             .filter(Boolean);
 
         // تفكيك المحاور المفصولة بـ || إلى عناوين وتفاصيل
-        const highlightItems = highlightsRaw
-            .split("||")
-            .map(seg => seg.trim())
-            .filter(Boolean)
+        const highlightItems = (Array.isArray(highlightsRaw) ? highlightsRaw : String(highlightsRaw || "").split("||"))
             .map(seg => {
-                const parts = seg.split(":");
-                const subTitle = (parts.shift() || "").trim();
-                const detail = parts.join(":").trim();
-                return { title: subTitle, detail: detail };
-            });
+                if (seg && typeof seg === "object") return {title: seg.title || seg.name || "", detail: seg.detail || seg.description || ""};
+                const parts = String(seg).split(":"); return {title:(parts.shift()||"").trim(), detail:parts.join(":").trim()};
+            }).filter(x => x.title || x.detail);
 
         const card = document.createElement("div");
         card.className = "achievement-card";
@@ -1294,25 +1225,6 @@
             card.querySelector(".structure-section").remove();
         }
 
-        // زر التفاعل بالقلوب
-        const footer = card.querySelector(".achievement-footer");
-        const heartBtn = document.createElement("button");
-        heartBtn.className = "heart-btn";
-        heartBtn.setAttribute("aria-label", "أعجبني هذا الإنجاز");
-
-        if (record.id) {
-            const likedIds = getLikedAchievementIds();
-            const isLiked = likedIds.includes(record.id);
-            setHeartUI(heartBtn, hearts, isLiked);
-            heartBtn.addEventListener("click", () => toggleAchievementHeart(record.id, heartBtn));
-            logAchievementView(record.id); // ✅ جديد — كل ظهور للبطاقة = مشاهدة
-        } else {
-            heartBtn.disabled = true;
-            setHeartUI(heartBtn, hearts, false);
-        }
-
-        footer.appendChild(heartBtn);
-
         // ✅ Phase 5 — زر مشاركة رابط الإنجاز مباشرة (Injazat.html?id=...)
         if (record.id) {
             const shareBtn = document.createElement("button");
@@ -1350,7 +1262,7 @@
     }
 
     // ----------------------------------------------------
-    // جلب الإنجازات من Airtable وعرضها في الصفحة
+    // جلب الإنجازات من TRINEX وعرضها في الصفحة
     // ----------------------------------------------------
     // ----------------------------------------------------
     // ✅ Phase 2 — حالة البحث/الفلترة/الترتيب (Client-side بالكامل، نفس مبدأ صفحة الأخبار)
@@ -1360,62 +1272,21 @@
     let achActiveSort = "newest";
 
     async function fetchAchievements() {
-        const container = document.getElementById("page-cards-container");
-        container.innerHTML = `
-            <div class="loading-status">
-                <i class="fas fa-circle-notch fa-spin" style="margin-left: 8px;"></i> جاري تحميل الإنجازات من خادم مجالس الرابطة...
-            </div>`;
-
-        try {
-            const response = await fetch(NEWS_API_URL + "?type=achievements");
-            if (!response.ok) throw new Error("network_error");
-
-            const data = await response.json();
-            const records = (data && Array.isArray(data.records)) ? data.records : [];
-
-            // استبعاد الإنجازات المجدولة لوقت لاحق (لم يحن وقت نشرها بعد)
-            const now = new Date();
-            const visible = records.filter(record => {
-                const pd = record.fields && record.fields.PublishDate;
-                if (!pd) return true;
-                const scheduled = new Date(pd);
-                return isNaN(scheduled) || scheduled <= now;
-            });
-
-            if (visible.length === 0) {
-                container.innerHTML = `
-                <div class="loading-status">
-                    <i class="far fa-folder-open" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
-                    لا توجد إنجازات منشورة حالياً
-                </div>`;
-                return;
-            }
-
-            // ✅ Phase 2 — نخزّن البيانات الكاملة محليًا، ونبني الفلاتر والعرض من applyAchFiltersAndRender()
-            allAchievementsData = visible;
-            buildAchCategoryChips(allAchievementsData);
-            applyAchFiltersAndRender();
-
-        } catch (error) {
-            console.error(error);
-            container.innerHTML = `
-            <div class="loading-status" style="color:#ff4a4a">
-                <i class="fas fa-triangle-exclamation" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
-                تعذر تحميل الإنجازات، يرجى مراجعة اتصال الشبكة والمحاولة لاحقاً.
-            </div>`;
-        }
+        const container=document.getElementById("page-cards-container");
+        container.innerHTML=`<div class="loading-status"><i class="fas fa-circle-notch fa-spin"></i> جاري تحميل الإنجازات...</div>`;
+        try { const r=await fetch(PUBLIC_API_URL+"?limit=50"); if(!r.ok) throw new Error(); const d=await r.json(); const records=Array.isArray(d.data)?d.data:[];
+            if(!records.length){container.innerHTML=`<div class="loading-status"><i class="far fa-folder-open"></i> لا توجد إنجازات منشورة حالياً</div>`;return;}
+            allAchievementsData=records; buildAchCategoryChips(records); applyAchievementsFilter();
+        } catch(e){ console.error(e); container.innerHTML=`<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الإنجازات، يرجى المحاولة لاحقاً.</div>`; }
     }
 
-    // ----------------------------------------------------
-    // ✅ Phase 2 — بناء شرائح (Chips) التصنيفات من حقل Badge الفعلي في البيانات فقط
-    // ----------------------------------------------------
     function buildAchCategoryChips(records) {
         const chipsContainer = document.getElementById("achCategoryChips");
         if (!chipsContainer) return;
 
         const seen = new Map(); // key: نص الشارة، value: نص الشارة (يُستخدم كمعرّف وكعنوان)
         records.forEach(record => {
-            const badge = resolveBadge(record.fields || {});
+            const badge = resolveBadge({Badge: record.badge});
             if (!seen.has(badge.text)) seen.set(badge.text, badge.text);
         });
 
@@ -1503,20 +1374,20 @@
         let list = allAchievementsData.slice();
 
         if (achActiveCategory !== "all") {
-            list = list.filter(record => resolveBadge(record.fields || {}).text === achActiveCategory);
+            list = list.filter(record => resolveBadge({Badge: record.badge}).text === achActiveCategory);
         }
 
         if (query) {
             list = list.filter(record => {
-                const fields = record.fields || {};
-                const haystack = `${fields.Title || ""} ${fields.Intro || ""} ${fields.Publisher || ""}`.toLowerCase();
+                const fields = record;
+                const haystack = `${fields.title || ""} ${fields.intro || fields.description || ""} ${fields.publisher || ""}`.toLowerCase();
                 return haystack.includes(query);
             });
         }
 
         list.sort((a, b) => {
-            const da = new Date((a.fields && a.fields.PublishDate) || a.createdTime);
-            const db = new Date((b.fields && b.fields.PublishDate) || b.createdTime);
+            const da = new Date((a.achievedAt) || a.createdAt);
+            const db = new Date((b.achievedAt) || b.createdAt);
             const diff = db - da;
             return achActiveSort === "oldest" ? -diff : diff;
         });
@@ -1630,9 +1501,6 @@
     // تشغيل الدالة بمجرد تحميل محتوى الصفحة
     window.addEventListener("DOMContentLoaded", fetchAchievements);
 </script>
-
-<script src="analytics-tracker.js?v=5"></script>
-
 <script src="site-settings.js"></script>
     <script src="ui-pro.js?v=5"></script>
 </body>

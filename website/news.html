@@ -24,11 +24,8 @@
     <meta name="twitter:description" content="آخر الأخبار والتغطيات الإخبارية لرابطة كلية الهندسة والعمارة بجامعة شندي.">
     <meta name="twitter:image" content="https://ush-eng.great-site.net/favicon.png">
 
-    <!-- تجهيز الاتصال مسبقاً بخادم البيانات (Apps Script) لتقليل زمن أول طلب -->
-    <link rel="preconnect" href="https://script.google.com">
-    <link rel="preconnect" href="https://script.googleusercontent.com">
-
-    <!-- مكتبة الأيقونات FontAwesome -->
+    <!-- الاتصال بواجهة TRINEX العامة يتم عند الحاجة -->
+<!-- مكتبة الأيقونات FontAwesome -->
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <!-- خط كايرو المحدث -->
@@ -842,8 +839,6 @@
 </div>
 
 <!-- موضع إعلان: news_top -->
-<div data-ad-placement="news_top" style="max-width:900px;margin:0 auto 18px;padding:0 16px;"></div>
-
 <div class="news-container" id="news-container">
     <div class="loading-status">
         <i class="fas fa-circle-notch fa-spin" style="margin-left: 8px;"></i> جاري مزامنة وجلب الأخبار من خادم مجالس الرابطة...
@@ -851,8 +846,6 @@
 </div>
 
 <!-- موضع إعلان: news_bottom -->
-<div data-ad-placement="news_bottom" style="max-width:900px;margin:18px auto;padding:0 16px;"></div>
-
 <footer>
     <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
     <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
@@ -905,10 +898,9 @@
     });
 
     // ----------------------------------------------------
-    // إعدادات جلب الأخبار الحية من Airtable عبر Google Apps Script
+    // جلب الأخبار الحية من TRINEX Public API
     // ----------------------------------------------------
-    // ضع هنا الرابط (Web App URL) الذي حصلت عليه بعد عمل Deploy لـ Google Script
-    const NEWS_API_URL = "https://script.google.com/macros/s/AKfycbwIZBuPEaZ8TD08HoaSPIC_WfP8hhhkGkKtHk4bwZAkG7x_cxABToy8zdw9Kc4CH6yOUw/exec";
+    const PUBLIC_API_URL = "https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1/public/news";
 
     // ----------------------------------------------------
     // ✅ Phase 1 — حالة البحث/الفلترة/الترتيب (Client-side بالكامل، بدون أي Request إضافي)
@@ -949,284 +941,25 @@
         };
     }
 
-    // ----------------------------------------------------
-    // منطق التفاعل بالقلوب (الإعجاب بالخبر)
-    // ----------------------------------------------------
-
-    // جلب قائمة معرّفات الأخبار التي أعجب بها هذا الزائر من هذا المتصفح
-    function getLikedIds() {
-        return JSON.parse(localStorage.getItem("liked_news_ids")) || [];
-    }
-
-    // ✅ جديد — تسجيل مشاهدة للخبر (fire-and-forget، بلا انتظار للرد ولا
-    // إظهار أي خطأ للزائر إن فشل الاتصال، بنفس روح analytics-tracker.js)
-    function logNewsView(recordId) {
-        fetch(NEWS_API_URL + "?action=view&id=" + encodeURIComponent(recordId)).catch(function () {});
-    }
-
-    // تحديث شكل زر القلب وعدد الإعجابات المعروض
-    function setHeartUI(button, hearts, isLiked) {
-        button.classList.toggle("liked", isLiked);
-        const iconStyle = isLiked ? "fas" : "far";
-        button.innerHTML = `
-            <i class="${iconStyle} fa-heart"></i>
-            <span>${hearts}</span>
-        `;
-    }
-
-    // إرسال طلب إعجاب/إلغاء إعجاب إلى Google Apps Script وتحديث العدّاد في Airtable
-    async function toggleHeart(recordId, button) {
-        if (button.disabled) return;
-        button.disabled = true;
-
-        const likedIds = getLikedIds();
-        const alreadyLiked = likedIds.includes(recordId);
-        const action = alreadyLiked ? "unlike" : "like";
-
-        try {
-            const response = await fetch(NEWS_API_URL, {
-                method: "POST",
-                // نستخدم text/plain لتفادي طلب Preflight الذي لا يدعمه Apps Script بسهولة
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify({ action, id: recordId })
-            });
-            const data = await response.json();
-
-            if (data && data.success) {
-                setHeartUI(button, data.hearts, !alreadyLiked);
-                button.classList.add("pop");
-                setTimeout(() => button.classList.remove("pop"), 350);
-
-                if (alreadyLiked) {
-                    const updated = likedIds.filter(id => id !== recordId);
-                    localStorage.setItem("liked_news_ids", JSON.stringify(updated));
-                } else {
-                    likedIds.push(recordId);
-                    localStorage.setItem("liked_news_ids", JSON.stringify(likedIds));
-                }
-            }
-        } catch (err) {
-            console.warn("تعذر تحديث الإعجاب، يرجى المحاولة لاحقاً.", err);
-        } finally {
-            button.disabled = false;
-        }
-    }
-
     async function fetchNews() {
         const container = document.getElementById("news-container");
-
         try {
-            // 1. جلب الأخبار السحابية ومعالجتها من Airtable
-            let cloudNews = [];
-            try {
-                const response = await fetch(NEWS_API_URL);
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    // تحويل وتجهيز مخرجات Airtable لتتطابق مع هيكلة موقعك بسلاسة
-                    if (data && data.records) {
-                        cloudNews = data.records.map(record => {
-                            const fields = record.fields || {};
-                            
-                            // استخلاص رابط الصورة من حقل الـ Attachment الخاص بـ Airtable
-                            let imageUrl = "";
-                            if (fields.Image && Array.isArray(fields.Image) && fields.Image.length > 0) {
-                                imageUrl = fields.Image[0].url;
-                            }
-
-                            return {
-                                id: record.id,
-                                title: fields.Title || "",
-                                content: fields.Content || "",
-                                image: imageUrl,
-                                category: fields.Category || "",
-                                publisher: fields.Publisher || "أمانة الإعلام",
-                                // حقل Date الموحّد: يُستخدم للعرض وللترتيب الزمني ولتحديد وقت النشر معاً.
-                                // فارغ ← يُنشر فوراً بتاريخ الآن (تاريخ إنشاء السجل)
-                                // تاريخ ماضٍ ← يُنشر بهذا التاريخ ويترتّب في موضعه الزمني بين باقي الأخبار
-                                // تاريخ مستقبلي ← يبقى الخبر محفوظاً في Airtable ومخفياً عن الموقع حتى يحين هذا التاريخ فيُنشر تلقائياً
-                                date: fields.Date || record.createdTime,
-                                hearts: typeof fields.Hearts === "number" ? fields.Hearts : 0
-                            };
-                        });
-                    }
-                }
-            } catch (cloudErr) {
-                console.warn("تنبيه: فشل جلب الأخبار من السحاب، سيتم عرض الأخبار المحلية فقط.", cloudErr);
-            }
-
-            // 2. جلب الأخبار المحلية المخزنة في الجهاز
-            const localNews = JSON.parse(localStorage.getItem('local_university_news')) || [];
-
-            // 3. استبعاد الأخبار المجدولة لتاريخ مستقبلي (لم يحن وقت نشرها بعد)
-            const now = new Date();
-            const visibleCloudNews = cloudNews.filter(item => {
-                const scheduled = new Date(item.date);
-                return isNaN(scheduled) || scheduled <= now;
-            });
-
-            // 4. دمج المجموعتين وفرزهم بحيث يظهر الأحدث أولاً
-            const allNews = [...localNews, ...visibleCloudNews];
-            allNews.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            // حفظ إجمالي عدد الأخبار في الذاكرة لعداد الصفحة الرئيسية
-            localStorage.setItem('total_news_count', allNews.length.toString());
-
-            if (allNews.length === 0) {
-                container.innerHTML = `
-                <div class="loading-status">
-                    <i class="far fa-folder-open" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
-                    لا توجد أخبار منشورة حالياً
-                </div>`;
-                return;
-            }
-
-            // ✅ Phase 1 — نخزّن البيانات الكاملة محليًا، ثم نبني الفلاتر ونعرض النتيجة
-            // عبر applyFiltersAndRender() بدل عرض allNews مباشرة. لا يوجد أي Request إضافي هنا.
-            allNewsData = allNews;
-            buildCategoryChips(allNewsData);
-            applyFiltersAndRender();
-
-            // ✅ Phase 4 — إذا فُتحت الصفحة برابط مباشر يحتوي ?id=، اعرض الخبر تلقائيًا (مرة واحدة عند أول تحميل)
-            if (!window.__newsInitialIdChecked) {
-                window.__newsInitialIdChecked = true;
-                const idParam = new URLSearchParams(window.location.search).get("id");
-                if (idParam) openNewsModal(idParam, { skipHistory: true });
-            }
-
+            const response = await fetch(PUBLIC_API_URL + "?limit=50");
+            if (!response.ok) throw new Error("network_error");
+            const data = await response.json();
+            const cloudNews = Array.isArray(data.data) ? data.data.map(item => ({
+                id:item.id, title:item.title||"", content:item.body||"", image:item.imageUrl||"",
+                category:item.category||"", publisher:item.publisher||"أمانة الإعلام", date:item.publishAt||item.createdAt||""
+            })) : [];
+            const localNews = [];
+            allNewsData = cloudNews.concat(localNews);
+            renderNewsList(allNewsData);
         } catch (error) {
             console.error(error);
-            container.innerHTML = `
-            <div class="loading-status" style="color:#ff4a4a">
-                <i class="fas fa-triangle-exclamation" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
-                تعذر تحميل وتحديث شريط الأخبار، يرجى مراجعة اتصال الشبكة.
-            </div>`;
+            container.innerHTML = `<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الأخبار، يرجى المحاولة لاحقاً.</div>`;
         }
     }
 
-    // ----------------------------------------------------
-    // ✅ Phase 1 — بناء شرائح (Chips) التصنيفات من البيانات الفعلية فقط
-    // ----------------------------------------------------
-    function buildCategoryChips(list) {
-        const chipsContainer = document.getElementById("newsCategoryChips");
-        if (!chipsContainer) return;
-
-        // نجمع التصنيفات الفعلية الموجودة في البيانات (بعد تمريرها على parseCategory لتوحيد التسميات)
-        const seen = new Map(); // key: badgeClass, value: {label, icon}
-        list.forEach(item => {
-            const details = parseCategory(item.category);
-            if (!seen.has(details.badgeClass)) seen.set(details.badgeClass, details);
-        });
-
-        // إذا كانت الفلاتر مبنية مسبقًا بنفس عدد التصنيفات، لا داعي لإعادة البناء (يحافظ على الحالة النشطة عند إعادة الجلب)
-        if (chipsContainer.dataset.built === String(seen.size)) return;
-
-        chipsContainer.innerHTML = '<button type="button" class="toolbar-dropdown-item active" data-category="all" role="option" aria-selected="true">الكل</button>';
-        seen.forEach((details, badgeClass) => {
-            const chip = document.createElement("button");
-            chip.type = "button";
-            chip.className = "toolbar-dropdown-item";
-            chip.dataset.category = badgeClass;
-            chip.setAttribute("role", "option");
-            chip.setAttribute("aria-selected", "false");
-            chip.textContent = details.label;
-            chipsContainer.appendChild(chip);
-        });
-        chipsContainer.dataset.built = String(seen.size);
-        activeCategory = "all";
-        updateNewsFilterIndicator();
-
-        chipsContainer.querySelectorAll(".toolbar-dropdown-item").forEach(chip => {
-            chip.addEventListener("click", () => {
-                chipsContainer.querySelectorAll(".toolbar-dropdown-item").forEach(c => {
-                    c.classList.remove("active");
-                    c.setAttribute("aria-selected", "false");
-                });
-                chip.classList.add("active");
-                chip.setAttribute("aria-selected", "true");
-                activeCategory = chip.dataset.category;
-                updateNewsFilterIndicator();
-                closeNewsFilterDropdown();
-                applyFiltersAndRender();
-            });
-        });
-    }
-
-    // ----------------------------------------------------
-    // ✅ زر ولوحة فلترة التصنيف — فتح/إغلاق منسدل بدلاً من صف شرائح أفقي
-    // ----------------------------------------------------
-    const newsFilterBtn = document.getElementById("newsFilterBtn");
-    const newsFilterDropdown = document.getElementById("newsCategoryChips");
-    const newsFilterDot = document.getElementById("newsFilterDot");
-
-    function updateNewsFilterIndicator() {
-        const isFiltered = activeCategory !== "all";
-        if (newsFilterDot) newsFilterDot.classList.toggle("show", isFiltered);
-        if (newsFilterBtn) newsFilterBtn.classList.toggle("active", isFiltered);
-    }
-
-    function openNewsFilterDropdown() {
-        newsFilterDropdown.classList.add("open");
-        newsFilterBtn.setAttribute("aria-expanded", "true");
-    }
-
-    function closeNewsFilterDropdown() {
-        newsFilterDropdown.classList.remove("open");
-        newsFilterBtn.setAttribute("aria-expanded", "false");
-    }
-
-    if (newsFilterBtn && newsFilterDropdown) {
-        newsFilterBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            const isOpen = newsFilterDropdown.classList.contains("open");
-            if (isOpen) closeNewsFilterDropdown(); else openNewsFilterDropdown();
-        });
-
-        document.addEventListener("click", (e) => {
-            if (!newsFilterDropdown.contains(e.target) && !newsFilterBtn.contains(e.target)) {
-                closeNewsFilterDropdown();
-            }
-        });
-
-        document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape") closeNewsFilterDropdown();
-        });
-    }
-
-    // ----------------------------------------------------
-    // ✅ Phase 1 — تطبيق البحث + الفلترة + الترتيب على البيانات المحمّلة فعليًا (بدون أي API request)
-    // ----------------------------------------------------
-    function applyFiltersAndRender() {
-        const searchInput = document.getElementById("newsSearchInput");
-        const query = (searchInput && searchInput.value ? searchInput.value : "").trim().toLowerCase();
-
-        let list = allNewsData.slice();
-
-        // الفلترة حسب التصنيف
-        if (activeCategory !== "all") {
-            list = list.filter(item => parseCategory(item.category).badgeClass === activeCategory);
-        }
-
-        // البحث (في العنوان والمحتوى والناشر)
-        if (query) {
-            list = list.filter(item => {
-                const haystack = `${item.title || ""} ${item.content || ""} ${item.publisher || ""}`.toLowerCase();
-                return haystack.includes(query);
-            });
-        }
-
-        // الترتيب
-        list.sort((a, b) => {
-            const diff = new Date(b.date) - new Date(a.date);
-            return activeSort === "oldest" ? -diff : diff;
-        });
-
-        renderNewsList(list);
-    }
-
-    // ----------------------------------------------------
-    // ✅ Phase 1 — بناء بطاقات الأخبار (منطق البناء الأصلي، فقط مفصول في دالة قابلة لإعادة الاستخدام)
-    // ----------------------------------------------------
     function renderNewsList(allNews) {
         const container = document.getElementById("news-container");
 
@@ -1252,18 +985,7 @@
 
         container.innerHTML = "";
 
-        // موضع إعلان news_middle: يُدرج تلقائيًا في منتصف قائمة الأخبار المعروضة حاليًا
-        const midIndex = Math.floor(allNews.length / 2);
-
-        allNews.forEach((item, index) => {
-                if (index === midIndex && allNews.length > 1) {
-                    const midAd = document.createElement("div");
-                    midAd.setAttribute("data-ad-placement", "news_middle");
-                    midAd.style.gridColumn = "1 / -1";
-                    container.appendChild(midAd);
-                    if (window.AdManager) window.AdManager.render("news_middle");
-                }
-
+        allNews.forEach((item) => {
                 const card = document.createElement("div");
                 card.className = "news-card";
                 if (item.id) card.dataset.newsId = item.id;
@@ -1317,32 +1039,11 @@
                 // حماية المحتوى النصي من ثغرات الحقن (XSS)
                 card.querySelector("h2").textContent = item.title;
                 card.querySelector("p").textContent = item.content;
-
-                // إضافة زر التفاعل بالقلوب (متاح فقط للأخبار السحابية التي تملك معرّف Airtable)
-                const footer = card.querySelector(".news-footer");
-                const heartBtn = document.createElement("button");
-                heartBtn.className = "heart-btn";
-                heartBtn.setAttribute("aria-label", "أعجبني هذا الخبر");
-
-                if (item.id) {
-                    const likedIds = getLikedIds();
-                    const isLiked = likedIds.includes(item.id);
-                    setHeartUI(heartBtn, item.hearts || 0, isLiked);
-                    heartBtn.addEventListener("click", () => toggleHeart(item.id, heartBtn));
-                    logNewsView(item.id); // ✅ جديد — كل ظهور للبطاقة في التغذية = مشاهدة
-                } else {
-                    // خبر محلي (بدون معرّف سحابي): يُعرض بدون إمكانية تفاعل مشترك بين الزوار
-                    heartBtn.disabled = true;
-                    setHeartUI(heartBtn, 0, false);
-                }
-
-                footer.appendChild(heartBtn);
                 container.appendChild(card);
 
                 // ✅ Phase 4 — فتح تفاصيل الخبر عند الضغط على البطاقة (باستثناء زر القلب)
                 if (item.id) {
                     card.addEventListener("click", (e) => {
-                        if (e.target.closest(".heart-btn")) return;
                         openNewsModal(item.id);
                     });
                 }
@@ -1520,12 +1221,6 @@
     // تشغيل الدالة بمجرد تحميل محتوى الصفحة
     window.addEventListener("DOMContentLoaded", fetchNews);
 </script>
-
-<script src="analytics-tracker.js?v=5"></script>
-
-<!-- Ad Manager — يعرض تلقائيًا news_top/news_bottom الثابتين، وnews_middle يُستدعى صراحة عند بناء القائمة أعلاه -->
-<script src="ad-manager.js?v=1"></script>
-
 <script src="site-settings.js"></script>
     <script src="ui-pro.js?v=5"></script>
 </body>

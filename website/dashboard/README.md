@@ -8,7 +8,6 @@
 مشروعك/ (= htdocs على InfinityFree)
 ├── index.html, news.html, ... (ملفات الموقع العام الحالية)
 ├── favicon.png
-├── analytics-tracker.js   ← تتبع الزوار للموقع العام
 └── admin/                 ← لوحة التحكم بالكامل
     ├── login.html          صفحة الدخول (تسجيل دخول حقيقي)
     ├── index.html          الرئيسية: إحصائيات + رسوم + حالة الخدمات

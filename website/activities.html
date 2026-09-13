@@ -25,10 +25,7 @@
 <meta name="twitter:description" content="نشاطات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي.">
 <meta name="twitter:image" content="https://ush-eng.great-site.net/favicon.png">
 
-<!-- تجهيز الاتصال مسبقاً بخادم البيانات (Apps Script) لتقليل زمن أول طلب -->
-<link rel="preconnect" href="https://script.google.com">
-<link rel="preconnect" href="https://script.googleusercontent.com">
-
+<!-- الاتصال بواجهة TRINEX العامة يتم عند الحاجة -->
 <!-- مكتبة الأيقونات FontAwesome -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
@@ -679,7 +676,7 @@
     // ----------------------------------------------------
     // نفس رابط الـ Web App المستخدم في باقي صفحات الموقع
     // ----------------------------------------------------
-    const NEWS_API_URL = "https://script.google.com/macros/s/AKfycbwIZBuPEaZ8TD08HoaSPIC_WfP8hhhkGkKtHk4bwZAkG7x_cxABToy8zdw9Kc4CH6yOUw/exec";
+    const PUBLIC_API_URL = "https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1/public/activities";
 
     // ----------------------------------------------------
     // معرض الصور (Gallery) والصندوق الضوئي (Lightbox)
@@ -759,116 +756,22 @@
     });
 
     // ----------------------------------------------------
-    // منطق التفاعل بالقلوب (الإعجاب بالنشاط)
-    // ----------------------------------------------------
-    function getLikedActivityIds() {
-        return JSON.parse(localStorage.getItem("liked_activities_ids")) || [];
-    }
-
-    function setHeartUI(button, hearts, isLiked) {
-        button.classList.toggle("liked", isLiked);
-        const iconStyle = isLiked ? "fas" : "far";
-        button.innerHTML = `
-            <i class="${iconStyle} fa-heart"></i>
-            <span>${hearts}</span>
-        `;
-    }
-
-    // ✅ جديد — تسجيل مشاهدة للنشاط (fire-and-forget، بلا انتظار للرد ولا
-    // إظهار أي خطأ للزائر إن فشل الاتصال)
-    function logActivityView(recordId) {
-        fetch(NEWS_API_URL + "?action=view&id=" + encodeURIComponent(recordId)).catch(function () {});
-    }
-
-    async function toggleActivityHeart(recordId, button) {
-        if (button.disabled) return;
-        button.disabled = true;
-
-        const likedIds = getLikedActivityIds();
-        const alreadyLiked = likedIds.includes(recordId);
-        const action = alreadyLiked ? "unlike" : "like";
-
-        try {
-            const response = await fetch(NEWS_API_URL, {
-                method: "POST",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify({ action, id: recordId, type: "activities" })
-            });
-            const data = await response.json();
-
-            if (data && data.success) {
-                setHeartUI(button, data.hearts, !alreadyLiked);
-                button.classList.add("pop");
-                setTimeout(() => button.classList.remove("pop"), 350);
-
-                if (alreadyLiked) {
-                    const updated = likedIds.filter(id => id !== recordId);
-                    localStorage.setItem("liked_activities_ids", JSON.stringify(updated));
-                } else {
-                    likedIds.push(recordId);
-                    localStorage.setItem("liked_activities_ids", JSON.stringify(likedIds));
-                }
-            }
-        } catch (err) {
-            console.warn("تعذر تحديث الإعجاب، يرجى المحاولة لاحقاً.", err);
-        } finally {
-            button.disabled = false;
-        }
-    }
-
-    // ----------------------------------------------------
-    // ✅ معدَّل — منطق زمني يحل محل تصنيف النشاط اليدوي القديم (Category).
-    // يقرأ حقلَي Date (بداية) وEndDate (نهاية، اختياري) من Airtable
-    // ويحسب حالة النشاط تلقائياً بمقارنتهما بالوقت الحالي:
-    //   - لم يحن تاريخ البداية بعد          → "لم يبدأ بعد"   (is-upcoming)
-    //   - بدأ ولم ينتهِ بعد (أو بلا EndDate) → "جارٍ الآن"      (is-ongoing)
-    //   - تجاوز EndDate                      → "انتهى"          (is-ended)
-    // الأنشطة المنتهية (التي لها EndDate فقط) تبقى ظاهرة يومين إضافيين
-    // بعد الانتهاء مع شارة "انتهى"، ثم تُخفى تلقائياً من القائمة بعدها
-    // (دون حذف السجل من Airtable نفسه — إخفاء عرض فقط، راجع fetchActivities).
-    // ----------------------------------------------------
-    const ENDED_GRACE_DAYS = 2;
-
-    function computeActivityStatus(fields) {
-        const now = new Date();
-        const start = fields.Date ? new Date(fields.Date) : null;
-        const end = fields.EndDate ? new Date(fields.EndDate) : null;
-
-        if (start && !isNaN(start) && now < start) {
-            return { state: "upcoming", icon: "fa-hourglass-half", label: "لم يبدأ بعد", hideAfter: null };
-        }
-        if (end && !isNaN(end)) {
-            if (now <= end) {
-                return { state: "ongoing", icon: "fa-circle-play", label: "جارٍ الآن", hideAfter: null };
-            }
-            const hideAt = new Date(end.getTime() + ENDED_GRACE_DAYS * 24 * 60 * 60 * 1000);
-            return { state: "ended", icon: "fa-flag-checkered", label: "انتهى", hideAfter: hideAt };
-        }
-        // بلا تاريخ انتهاء محدد: يبقى "جارٍ الآن" (أو بلا شارة إن لم يوجد تاريخ بداية أصلاً)
-        return start && !isNaN(start)
-            ? { state: "ongoing", icon: "fa-circle-play", label: "جارٍ الآن", hideAfter: null }
-            : null;
-    }
-
-    // ----------------------------------------------------
-    // بناء بطاقة نشاط واحدة من سجل Airtable
+    // بناء بطاقة نشاط واحدة من سجل TRINEX
     // ----------------------------------------------------
     function buildActivityCard(record) {
-        const fields = record.fields || {};
+        const fields = record;
 
-        const title     = fields.Title || "";
-        const contentRaw = fields.Content || "";
-        const location  = fields.Location || "";
-        const publisher = fields.Publisher || "أمانة الإعلام";
-        const hearts    = typeof fields.Hearts === "number" ? fields.Hearts : 0;
-        const statusEntry = computeActivityStatus(fields);
+        const title     = fields.title || "";
+        const contentRaw = fields.body || "";
+        const location  = fields.location || "";
+        const publisher = fields.publisher || "أمانة الإعلام";
+        
+        const statusEntry = computeActivityStatus({Date: fields.eventAt, EndDate: fields.endAt});
 
-        const images = Array.isArray(fields.Image)
-            ? fields.Image.map(img => img.url).filter(Boolean)
-            : [];
+        const images = [fields.imageUrl].filter(Boolean);
 
         // حقل Date الموحّد: يُستخدم للعرض والترتيب الزمني معاً (فارغ = تاريخ إنشاء السجل)
-        const dateSource = fields.Date || record.createdTime;
+        const dateSource = fields.eventAt || record.createdAt;
         const parsedDate = new Date(dateSource);
         const dateString = isNaN(parsedDate) ? "" : parsedDate.toLocaleDateString("ar-EG", {
             year: "numeric",
@@ -922,91 +825,24 @@
             introBox.remove();
         }
 
-        const footer = card.querySelector(".activity-footer");
-        const heartBtn = document.createElement("button");
-        heartBtn.className = "heart-btn";
-        heartBtn.setAttribute("aria-label", "أعجبني هذا النشاط");
-
-        if (record.id) {
-            const likedIds = getLikedActivityIds();
-            const isLiked = likedIds.includes(record.id);
-            setHeartUI(heartBtn, hearts, isLiked);
-            heartBtn.addEventListener("click", () => toggleActivityHeart(record.id, heartBtn));
-            logActivityView(record.id); // ✅ جديد — كل ظهور للبطاقة = مشاهدة
-        } else {
-            heartBtn.disabled = true;
-            setHeartUI(heartBtn, hearts, false);
-        }
-
-        footer.appendChild(heartBtn);
-
         return card;
     }
 
     // ----------------------------------------------------
-    // جلب النشاطات من Airtable وعرضها في الصفحة — قائمة واحدة مرتبة
+    // جلب النشاطات من TRINEX وعرضها في الصفحة — قائمة واحدة مرتبة
     // زمنياً (الأحدث أولاً)، مع إخفاء المنتهية بعد فترة السماح (راجع
     // computeActivityStatus أعلاه)
     // ----------------------------------------------------
     async function fetchActivities() {
-        const container = document.getElementById("page-cards-container");
-        container.innerHTML = `
-            <div class="loading-status">
-                <i class="fas fa-circle-notch fa-spin" style="margin-left: 8px;"></i> جاري تحميل النشاطات من خادم مجالس الرابطة...
-            </div>`;
-
-        try {
-            const response = await fetch(NEWS_API_URL + "?type=activities");
-            if (!response.ok) throw new Error("network_error");
-
-            const data = await response.json();
-            let records = (data && Array.isArray(data.records)) ? data.records : [];
-
-            // ✅ جديد — إخفاء الأنشطة المنتهية بعد فترة سماح يومين من
-            // EndDate (راجع computeActivityStatus/ENDED_GRACE_DAYS أعلاه).
-            // إخفاء عرض فقط، لا حذف من Airtable.
-            const now = new Date();
-            records = records.filter(record => {
-                const status = computeActivityStatus(record.fields || {});
-                if (status && status.hideAfter && now > status.hideAfter) return false;
-                return true;
-            });
-
-            records.sort((a, b) => {
-                const da = new Date((a.fields && a.fields.Date) || a.createdTime);
-                const db = new Date((b.fields && b.fields.Date) || b.createdTime);
-                return db - da;
-            });
-
-            if (records.length === 0) {
-                container.innerHTML = `
-                <div class="loading-status">
-                    <i class="fas fa-hourglass-start" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
-                    لا توجد نشاطات حالياً
-                </div>`;
-                return;
-            }
-
-            container.innerHTML = "";
-            records.forEach(record => {
-                container.appendChild(buildActivityCard(record));
-            });
-
-        } catch (error) {
-            console.error(error);
-            container.innerHTML = `
-            <div class="loading-status" style="color:#ff4a4a">
-                <i class="fas fa-triangle-exclamation" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
-                تعذر تحميل النشاطات، يرجى مراجعة اتصال الشبكة والمحاولة لاحقاً.
-            </div>`;
-        }
+        const container=document.getElementById("page-cards-container");
+        container.innerHTML=`<div class="loading-status"><i class="fas fa-circle-notch fa-spin"></i> جاري تحميل النشاطات...</div>`;
+        try { const r=await fetch(PUBLIC_API_URL+"?limit=50"); if(!r.ok) throw new Error(); const d=await r.json(); const records=Array.isArray(d.data)?d.data:[];
+            if(!records.length){container.innerHTML=`<div class="loading-status"><i class="fas fa-hourglass-start"></i> لا توجد نشاطات حالياً</div>`;return;}
+            container.innerHTML=""; records.forEach(x=>container.appendChild(buildActivityCard(x)));
+        } catch(e){ console.error(e); container.innerHTML=`<div class="loading-status" style="color:#ff4a4a">تعذر تحميل النشاطات، يرجى المحاولة لاحقاً.</div>`; }
     }
-
     window.addEventListener("DOMContentLoaded", fetchActivities);
 </script>
-
-<script src="analytics-tracker.js?v=5"></script>
-
 <script src="site-settings.js"></script>
     <script src="ui-pro.js?v=5"></script>
 </body>

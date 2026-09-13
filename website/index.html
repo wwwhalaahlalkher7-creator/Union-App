@@ -36,11 +36,8 @@
     }
     </script>
 
-    <!-- تجهيز الاتصال مسبقاً بخادم البيانات (Apps Script) لتقليل زمن أول طلب -->
-    <link rel="preconnect" href="https://script.google.com">
-    <link rel="preconnect" href="https://script.googleusercontent.com">
-
-    <!-- مكتبة الأيقونات FontAwesome -->
+    <!-- الاتصال بواجهة TRINEX العامة يتم عند الحاجة -->
+<!-- مكتبة الأيقونات FontAwesome -->
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <!-- خط كايرو المحدث -->
@@ -758,10 +755,6 @@
         </div>
     </div>
 </section>
-
-<!-- موضع إعلان: homepage_top — يُدار بالكامل عبر Ad Manager (ad-manager.js)، فارغ تلقائيًا إن لم يوجد إعلان فعّال -->
-<div data-ad-placement="homepage_top" style="max-width:960px;margin:18px auto;padding:0 16px;"></div>
-
 <!-- الأقسام الفرعية والكروت -->
 <section style="background-color: rgba(18, 27, 36, 0.15);">
     <div class="cards-container">
@@ -829,8 +822,6 @@
 </section>
 
 <!-- موضع إعلان: homepage_middle -->
-<div data-ad-placement="homepage_middle" style="max-width:960px;margin:18px auto;padding:0 16px;"></div>
-
 <!-- ================= الميزة 1: عُدّة نجاة المهندس الرقمية ================= -->
 <section style="background-color: rgba(18, 27, 36, 0.2);">
     <h2>عُدّة نجاة المهندس الرقمية</h2>
@@ -864,68 +855,7 @@
 </section>
 
 <!-- ================= الميزة 2+3: مركز تواصل الأمانة والمقترحات والربط السريع ================= -->
-<section>
-    <h2>مركز تواصل الأمانة والزوار</h2>
-    <div class="hub-container">
-        
-        <div class="form-card">
-            <h3><i class="far fa-envelope-open" style="margin-left: 8px; color: var(--primary);"></i> إرسال مقترح أو بلاغ</h3>
-            <div class="form-feedback" id="formFeedback"></div>
-            
-            <form id="proposalForm">
-                <div class="form-group">
-                    <label for="student-name">هوية المرسل (اختياري)</label>
-                    <input type="text" id="student-name" name="senderId" placeholder="اترك الحقل فارغاً للإرسال كمجهول ">
-                </div>
 
-                <div class="form-group">
-                    <label>نوع الرسالة</label>
-                    <div class="type-toggle" style="display:flex; gap:10px; margin-top:6px;">
-                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:normal;">
-                            <input type="radio" name="msgType" value="مقترح" checked> مقترح
-                        </label>
-                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:normal;">
-                            <input type="radio" name="msgType" value="بلاغ"> بلاغ
-                        </label>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="student-dept">القسم الأكاديمي المختص</label>
-                    <select id="student-dept" name="dept">
-                        <option value="" disabled selected>اضغط لتحديد القسم المستهدف...</option>
-                        <option value="كهرباء إلكترونية">الهندسة الكهربائية والإلكترونية</option>
-                        <option value="هندسة مدنية">الهندسة المدنية</option>
-                        <option value="هندسة معمارية">هندسة العمارة</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="student-msg">تفاصيل الرسالة أو المقترح</label>
-                    <textarea id="student-msg" name="message" rows="4" placeholder="اكتب تفاصيل مقترحك أو مشكلتك بعناية وبوضوح..."></textarea>
-                </div>
-
-                <button type="submit" class="submit-btn"><i class="fas fa-paper-plane" style="margin-left: 6px;"></i>إرسال المقترح</button>
-            </form>
-        </div>
-
-        <div class="support-card">
-            <h3><i class="fas fa-headset" style="margin-left: 8px; color: var(--primary);"></i> بوابات الدعم والربط الفوري</h3>
-            
-            <a id="contactWhatsappLink" href="https://wa.me/249906507741" target="_blank" rel="noopener noreferrer" class="social-btn btn-whatsapp">
-                <i class="fab fa-whatsapp" style="font-size: 1.2rem;"></i>
-                <span>الخط الساخن للأمانة (واتساب)</span>
-            </a>
-
-            <a id="contactFacebookLink" href="https://www.facebook.com/profile.php?id=100075959199801" target="_blank" rel="noopener noreferrer" class="social-btn btn-facebook">
-                <i class="fab fa-facebook-f" style="font-size: 1.1rem;"></i>
-                <span>المنصة الرسمية للرابطة (فيسبوك)</span>
-            </a>
-            <a id="contactEmailLink" href="mailto:engineeringassociation908@gmail.com" class="social-btn btn-email"><i class="fas fa-envelope"></i><span>الدعم عبر البريد الإلكتروني</span></a>
-        </div>
-
-    </div>
-</section>
 
 <!-- قسم الإحصائيات والأرقام: تُجلب مباشرة من خادم الأخبار/الإنجازات دون الحاجة لزيارة الصفحتين -->
 <section class="statistics-section" style="background-color: rgba(18, 27, 36, 0.3);">
@@ -943,8 +873,6 @@
 </section>
 
 <!-- موضع إعلان: homepage_bottom -->
-<div data-ad-placement="homepage_bottom" style="max-width:960px;margin:18px auto;padding:0 16px;"></div>
-
 <footer>
     <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
     <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
@@ -991,74 +919,6 @@
         }
     });
 
-    // رابط نشر مشروع Apps Script الخاص بالاقتراحات والبلاغات (يُستبدل بعد النشر بالرابط الحقيقي المنتهي بـ /exec)
-    const SUGGESTIONS_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxmn03FJ0xH8Ay6SVJcdc8A1uXvwI8Ps7gpOjU3GPcOo22wjJwT1oL48qPD7wzMA4_a/exec'; // ✅ محدَّث 7 أغسطس — نشر جديد بعد حذف القديم + إضافة HMAC
-
-    // تأكيد صحة بيانات النموذج، وإرسالها للخادم، وعرض نتيجة الإرسال الحقيقية (نجاح أو فشل)
-    const proposalForm = document.getElementById('proposalForm');
-    const formFeedback = document.getElementById('formFeedback');
-
-    if (proposalForm) {
-        proposalForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            const senderId = document.getElementById('student-name').value.trim();
-            const dept = document.getElementById('student-dept').value;
-            const msg = document.getElementById('student-msg').value.trim();
-            const typeInput = proposalForm.querySelector('input[name="msgType"]:checked');
-            const msgType = typeInput ? typeInput.value : 'مقترح';
-
-            const showFeedback = (ok, text) => {
-                if (formFeedback._hideTimer) clearTimeout(formFeedback._hideTimer);
-                formFeedback.style.display = 'block';
-                formFeedback.style.background = ok ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
-                formFeedback.style.border = ok ? '1px solid var(--whatsapp-color)' : '1px solid #ef4444';
-                formFeedback.style.color = ok ? '#bbf7d0' : '#ff9999';
-                formFeedback.textContent = text;
-                // إخفاء الرسالة تلقائياً بعد فترة معقولة حتى لا تبقى معلّقة على الشاشة
-                formFeedback._hideTimer = setTimeout(() => {
-                    formFeedback.style.display = 'none';
-                }, 6000);
-            };
-
-            if (!dept || !msg) {
-                showFeedback(false, '⚠️ عذراً، يرجى اختيار القسم وكتابة تفاصيل المقترح أولاً.');
-                return;
-            }
-
-            if (!SUGGESTIONS_APPS_SCRIPT_URL || SUGGESTIONS_APPS_SCRIPT_URL.indexOf('ضع_رابط') === 0) {
-                showFeedback(false, '⚠️ لم يتم ربط النموذج بالخادم بعد من قبل مدير الصفحة.');
-                return;
-            }
-
-            const submitBtn = proposalForm.querySelector('.submit-btn');
-            submitBtn.disabled = true;
-
-            const url = SUGGESTIONS_APPS_SCRIPT_URL
-                + '?senderId=' + encodeURIComponent(senderId)
-                + '&dept=' + encodeURIComponent(dept)
-                + '&message=' + encodeURIComponent(msg)
-                + '&type=' + encodeURIComponent(msgType);
-
-            fetch(url)
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data.success) {
-                        showFeedback(true, '🎉 تم إرسال المقترح بنجاح.');
-                        proposalForm.reset();
-                    } else {
-                        showFeedback(false, '⚠️ ' + ((data && data.error) || 'تعذر الإرسال، حاول مرة أخرى.'));
-                    }
-                })
-                .catch(() => {
-                    showFeedback(false, '⚠️ تعذر الاتصال بالخادم، تحقق من اتصالك بالإنترنت وحاول مرة أخرى.');
-                })
-                .finally(() => {
-                    submitBtn.disabled = false;
-                });
-        });
-    }
-
     // دالة الأنيميشن التصاعدي للعداد (تمر بكل رقم بسلاسة حتى الوصول للهدف)
     const runCounterAnimation = (counterElement) => {
         const target = +counterElement.getAttribute('data-target');
@@ -1086,66 +946,17 @@
         updateCount();
     };
 
-    // ----------------------------------------------------
-    // جلب أعداد الأخبار والإنجازات المنشورة مباشرة من نفس خادم Airtable
-    // (بدون الحاجة لزيارة صفحة الأخبار أو الإنجازات مسبقاً)
-    // ----------------------------------------------------
-    const NEWS_API_URL = "https://script.google.com/macros/s/AKfycbwIZBuPEaZ8TD08HoaSPIC_WfP8hhhkGkKtHk4bwZAkG7x_cxABToy8zdw9Kc4CH6yOUw/exec";
-
-    // حساب عدد السجلات المنشورة فعلياً (باستثناء المجدولة لتاريخ مستقبلي لم يحن بعد)
-    // News تستخدم حقل Date الموحّد، بينما Achievements ما زال يستخدم PublishDate
-    function countPublishedRecords(records) {
-        const now = new Date();
-        return records.filter(record => {
-            const f = record.fields || {};
-            const pd = f.Date || f.PublishDate;
-            if (!pd) return true;
-            const scheduled = new Date(pd);
-            return isNaN(scheduled) || scheduled <= now;
-        }).length;
+    const PUBLIC_API_BASE = "https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1/public";
+    async function fetchPublicCount(path) {
+        try { const r=await fetch(PUBLIC_API_BASE+path+"?limit=50"); if(!r.ok) throw new Error(); const d=await r.json(); return Array.isArray(d.data)?d.data.length:null; } catch(e) { return null; }
     }
-
-    async function fetchCount(query) {
-        try {
-            const response = await fetch(NEWS_API_URL + query);
-            if (!response.ok) throw new Error("network_error");
-            const data = await response.json();
-            const records = (data && Array.isArray(data.records)) ? data.records : [];
-            return countPublishedRecords(records);
-        } catch (err) {
-            console.warn("تعذر جلب العدد", err);
-            return null;
-        }
-    }
-
-    // جلب الأرقام الحقيقية من الخادم فور تحميل الصفحة
     document.addEventListener("DOMContentLoaded", async () => {
-        const newsCounter = document.getElementById('news-counter');
-        const actCounter = document.getElementById('activities-counter');
-
-        const [newsCount, injazatCount] = await Promise.all([
-            fetchCount(""),
-            fetchCount("?type=achievements")
-        ]);
-
-        if (newsCount !== null) {
-            newsCounter.setAttribute('data-target', newsCount);
-        }
-        runCounterAnimation(newsCounter);
-
-        if (injazatCount !== null) {
-            actCounter.setAttribute('data-target', injazatCount);
-        }
-        runCounterAnimation(actCounter);
+        const newsCounter=document.getElementById('news-counter'); const actCounter=document.getElementById('activities-counter');
+        const [newsCount,actCount]=await Promise.all([fetchPublicCount('/news'),fetchPublicCount('/activities')]);
+        if(newsCount!==null) newsCounter.setAttribute('data-target',newsCount); runCounterAnimation(newsCounter);
+        if(actCount!==null) actCounter.setAttribute('data-target',actCount); runCounterAnimation(actCounter);
     });
-
 </script>
-
-<script src="analytics-tracker.js?v=5"></script>
-
-<!-- Ad Manager — يعرض تلقائيًا كل [data-ad-placement] في الصفحة، بلا أي استدعاء يدوي إضافي -->
-<script src="ad-manager.js?v=1"></script>
-
 <script src="site-settings.js"></script>
     <script src="ui-pro.js?v=5"></script>
 </body>

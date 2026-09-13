@@ -24,11 +24,8 @@
     <meta name="twitter:description" content="المستندات والمواد الأكاديمية لمواد كلية الهندسة والعمارة – جامعة شندي.">
     <meta name="twitter:image" content="https://ush-eng.great-site.net/favicon.png">
 
-    <!-- تجهيز الاتصال مسبقاً بخادم البيانات (Apps Script) لتقليل زمن أول طلب -->
-    <link rel="preconnect" href="https://script.google.com">
-    <link rel="preconnect" href="https://script.googleusercontent.com">
-
-    <!-- مكتبة الأيقونات FontAwesome -->
+    <!-- الاتصال بواجهة TRINEX العامة يتم عند الحاجة -->
+<!-- مكتبة الأيقونات FontAwesome -->
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <!-- خط كايرو المحدث -->
@@ -1167,8 +1164,6 @@
 </div>
 
 <!-- موضع إعلان: materials_top -->
-<div data-ad-placement="materials_top" style="max-width:900px;margin:14px auto;padding:0 16px;"></div>
-
 <!-- حاوية تجمع الأزرار والمحتوى لنتمكّن من عكس ترتيبهما بصرياً أثناء البحث -->
 <div class="courses-body" id="coursesBody">
     <!-- أزرار التبديل الكبرى للأقسام (تُبنى ديناميكياً بالكامل من Google Drive) -->
@@ -1177,15 +1172,11 @@
     <!-- موضع إعلان: materials_middle — ثابت بين شريط التبويبات ومنطقة المحتوى
          الديناميكية (لم نُدرجه داخل منطق بناء الملفات نفسه تفاديًا لأي تعارض
          مع نظام التبويب/البحث المعقّد في هذه الصفحة تحديدًا) -->
-    <div data-ad-placement="materials_middle" style="max-width:900px;margin:14px auto;padding:0 16px;"></div>
-
-    <!-- منطقة المحتوى الرئيسية (تُبنى ديناميكياً) -->
+<!-- منطقة المحتوى الرئيسية (تُبنى ديناميكياً) -->
     <main id="contentArea"></main>
 </div>
 
 <!-- موضع إعلان: materials_bottom -->
-<div data-ad-placement="materials_bottom" style="max-width:900px;margin:14px auto;padding:0 16px;"></div>
-
 <footer>
     <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
     <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
@@ -1263,8 +1254,8 @@
 
         // -------------------- الإعدادات --------------------
         const CONFIG = {
-            // ⚠️ الإعداد الوحيد المطلوب هنا: رابط تطبيق الويب الخاص بـ Apps Script (ينتهي بـ /exec)
-            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwd0Anyj3ZZwcEwuaviwPXgEhHT3euh3pqr7OEg_Ls1CxL5uELw5mnc20nsJTmGWQ7f1w/exec',
+            // عنوان واجهة TRINEX العامة للمواد الدراسية
+            PUBLIC_MATERIALS_URL: 'https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1/public/materials',
 
             SESSION_CACHE_KEY: 'coursesData_v2',
             CACHE_TTL_MS: 20 * 60 * 1000, // مدة صلاحية النسخة المخزّنة محلياً قبل اعتبارها قديمة (٢٠ دقيقة)
@@ -1426,7 +1417,7 @@
         }
 
         // ====================================================================
-        // طبقة الاتصال بـ Apps Script API
+        // طبقة الاتصال بـ TRINEX Public API
         // ====================================================================
         function readLocalCache() {
             try {
@@ -1442,19 +1433,33 @@
         }
 
         function fetchFromServer(forceRefresh) {
-            const url = CONFIG.APPS_SCRIPT_URL + '?action=index' + (forceRefresh ? '&nocache=1' : '');
-            return fetch(url)
-                .then(res => {
-                    if (!res.ok) throw new Error('تعذر الاتصال بالخادم (HTTP ' + res.status + ')');
-                    return res.json();
-                })
-                .then(data => {
-                    if (!data || data.success !== true) {
-                        throw new Error((data && data.error) || 'استجابة غير صالحة من الخادم');
-                    }
-                    writeLocalCache(data);
-                    return data;
+            const url = CONFIG.PUBLIC_MATERIALS_URL + '?limit=1000' + (forceRefresh ? '&nocache=1' : '');
+            return fetch(url).then(res => {
+                if (!res.ok) throw new Error('تعذر الاتصال بخادم المواد (HTTP ' + res.status + ')');
+                return res.json();
+            }).then(payload => {
+                if (!payload || payload.success !== true || !payload.data) throw new Error('استجابة غير صالحة من خادم المواد');
+                const sections=[]; const files=[];
+                (payload.data.departments || []).forEach(dept => {
+                    const section={id:dept.id,name:dept.name||dept.nameEn||'',semesters:[]};
+                    (dept.semesters||[]).forEach(sem => {
+                        const semester={id:sem.id,name:sem.name||sem.nameEn||'',fileCount:0};
+                        section.semesters.push(semester);
+                        (sem.subjects||[]).forEach(subject => {
+                            (subject.files||[]).forEach(f => {
+                                files.push({
+                                    id:f.id,name:f.name||'',size:Number(f.sizeBytes||0),modified:f.modifiedAt||new Date().toISOString(),
+                                    pinned:false,sectionId:dept.id,sectionName:section.name,semesterId:sem.id,semesterName:semester.name,
+                                    materialName:subject.name||subject.nameEn||'',previewLink:f.viewUrl||f.downloadUrl||'',link:f.viewUrl||f.downloadUrl||'',downloadLink:f.downloadUrl||f.viewUrl||''
+                                }); semester.fileCount++;
+                            });
+                        });
+                    });
+                    sections.push(section);
                 });
+                const data={sections,files};
+                writeLocalCache(data); return data;
+            });
         }
 
         function fetchIndex(forceRefresh) {
@@ -1473,12 +1478,7 @@
             return fetchFromServer(false);
         }
 
-        function logFileOpenRemote(file) {
-            if (!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.indexOf('PUT_APPS_SCRIPT') === 0) return;
-            const url = CONFIG.APPS_SCRIPT_URL + '?action=logOpen&fileId=' + encodeURIComponent(file.id) +
-                '&fileName=' + encodeURIComponent(file.name);
-            fetch(url, { method: 'GET', keepalive: true }).catch(() => { /* غير حرج */ });
-        }
+        function logFileOpenRemote(file) { /* Public website has no analytics/open tracking. */ }
 
         // ====================================================================
         // البحث عن ملف بمعرفه داخل الفهرس المحمّل
@@ -2146,12 +2146,6 @@
         CoursesApp.init();
     });
 </script>
-
-<script src="analytics-tracker.js?v=5"></script>
-
-<!-- Ad Manager — يعرض تلقائيًا كل [data-ad-placement] الثابتة في الصفحة -->
-<script src="ad-manager.js?v=1"></script>
-
 <script src="site-settings.js"></script>
     <script src="ui-pro.js?v=5"></script>
 </body>

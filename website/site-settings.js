@@ -40,7 +40,7 @@
   //    ⚠️ لا يزال يعتمد على أن action=getPublicSettings الجديد مُعاد
   //    نشره فعليًا على هذا الرابط (Deploy → New version) — راجع
   //    CLAUDE_CONTEXT.md.
-  const SITE_SETTINGS_URL = "https://script.google.com/macros/s/AKfycbxMoaJoDkd18koFfySF3UkpV4EM4YG5gxfNvJ0e_RL7WMLuzBUMiWvQXou1JTlIQnsS/exec";
+  const SITE_SETTINGS_URL = "https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1/public/settings";
 
   if (!SITE_SETTINGS_URL) return;
 
@@ -79,11 +79,11 @@
     else setThemeColor(DEFAULT_THEME_COLOR);
   } catch (e) { /* تجاهل */ }
 
-  fetch(SITE_SETTINGS_URL + "?action=getPublicSettings")
+  fetch(SITE_SETTINGS_URL)
     .then(function (res) { return res.json(); })
     .then(function (data) {
-      if (!data || !data.success || !data.settings) return;
-      const s = data.settings;
+      if (!data || !data.success || !data.data) return;
+      const s = data.data;
 
       const serverColor = (s.SiteThemeColor || "").toLowerCase();
       setThemeColor(serverColor === LEGACY_THEME_COLOR ? DEFAULT_THEME_COLOR : (s.SiteThemeColor || DEFAULT_THEME_COLOR));
