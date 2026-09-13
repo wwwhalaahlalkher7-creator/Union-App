@@ -941,9 +941,19 @@ async function adminCrud(ctx, table, id, actorId) {
 }
 
 async function adminAuthEvents(ctx) {
-  const a = await adminRouteAuthOnly(ctx, 'superadmin.read');\n  if (a.response) return a.response;
-  const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);\n  const rows = await queryAll(ctx.env, `SELECT e.id, e.actor_type, e.actor_id, e.event_type, e.created_at, su.email AS actor_email, su.display_name AS actor_name, r.name AS role_name\n    FROM auth_audit_events e\n    LEFT JOIN staff_users su ON su.id = e.actor_id\n    LEFT JOIN roles r ON r.id = su.role_id\n    WHERE e.event_type IN ('login_failed','login_locked','password_change_failed','password_change_locked')\n    ORDER BY e.created_at DESC LIMIT ?`, limit);\n  return ok(ctx, rows, {limit});
-}\n\nasync function adminAuditLogs(ctx) {
+  const a = await adminRouteAuthOnly(ctx, 'superadmin.read');
+  if (a.response) return a.response;
+  const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
+  const rows = await queryAll(ctx.env, `SELECT e.id, e.actor_type, e.actor_id, e.event_type, e.created_at, su.email AS actor_email, su.display_name AS actor_name, r.name AS role_name
+    FROM auth_audit_events e
+    LEFT JOIN staff_users su ON su.id = e.actor_id
+    LEFT JOIN roles r ON r.id = su.role_id
+    WHERE e.event_type IN ('login_failed','login_locked','password_change_failed','password_change_locked')
+    ORDER BY e.created_at DESC LIMIT ?`, limit);
+  return ok(ctx, rows, {limit});
+}
+
+async function adminAuditLogs(ctx) {
   const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
   const rows = await queryAll(ctx.env, `SELECT al.*, su.display_name AS actor_name, r.name AS role_name FROM audit_logs al LEFT JOIN staff_users su ON su.id=al.actor_id LEFT JOIN roles r ON r.id=su.role_id ORDER BY al.created_at DESC LIMIT ?`, limit);
   return ok(ctx, rows, {limit});
