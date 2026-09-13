@@ -206,7 +206,7 @@ class _QuickGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final twoColumns = constraints.maxWidth < 560;
-        final gap = 10.0;
+        const gap = 10.0;
         final cardWidth = twoColumns
             ? (constraints.maxWidth - gap) / 2
             : (constraints.maxWidth - (gap * 3)) / 4;
