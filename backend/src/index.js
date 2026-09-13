@@ -814,7 +814,9 @@ async function adminDashboardOverview(ctx) {
     visibleComments: Number(comments?.count || 0),
     announcements: Number(announcements?.count || 0),
   });
-}\n\nasync function adminRoute(ctx) {
+}
+
+async function adminRoute(ctx) {
   const a = await auth(ctx); if (a.response) return a.response;
   if (!a.session.staff_user_id || a.session.staff_active !== 1) return error('STAFF_AUTH_REQUIRED', 'جلسة موظف الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors);
   const role = a.session.staff_role_id;
@@ -938,7 +940,10 @@ async function adminCrud(ctx, table, id, actorId) {
   return error('METHOD_NOT_ALLOWED','الطريقة غير مدعومة.',405,ctx.requestId,ctx.cors);
 }
 
-async function adminAuthEvents(ctx) {\n  const a = await adminRouteAuthOnly(ctx, 'superadmin.read');\n  if (a.response) return a.response;\n  const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);\n  const rows = await queryAll(ctx.env, `SELECT e.id, e.actor_type, e.actor_id, e.event_type, e.created_at, su.email AS actor_email, su.display_name AS actor_name, r.name AS role_name\n    FROM auth_audit_events e\n    LEFT JOIN staff_users su ON su.id = e.actor_id\n    LEFT JOIN roles r ON r.id = su.role_id\n    WHERE e.event_type IN ('login_failed','login_locked','password_change_failed','password_change_locked')\n    ORDER BY e.created_at DESC LIMIT ?`, limit);\n  return ok(ctx, rows, {limit});\n}\n\nasync function adminAuditLogs(ctx) {
+async function adminAuthEvents(ctx) {
+  const a = await adminRouteAuthOnly(ctx, 'superadmin.read');\n  if (a.response) return a.response;
+  const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);\n  const rows = await queryAll(ctx.env, `SELECT e.id, e.actor_type, e.actor_id, e.event_type, e.created_at, su.email AS actor_email, su.display_name AS actor_name, r.name AS role_name\n    FROM auth_audit_events e\n    LEFT JOIN staff_users su ON su.id = e.actor_id\n    LEFT JOIN roles r ON r.id = su.role_id\n    WHERE e.event_type IN ('login_failed','login_locked','password_change_failed','password_change_locked')\n    ORDER BY e.created_at DESC LIMIT ?`, limit);\n  return ok(ctx, rows, {limit});
+}\n\nasync function adminAuditLogs(ctx) {
   const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
   const rows = await queryAll(ctx.env, `SELECT al.*, su.display_name AS actor_name, r.name AS role_name FROM audit_logs al LEFT JOIN staff_users su ON su.id=al.actor_id LEFT JOIN roles r ON r.id=su.role_id ORDER BY al.created_at DESC LIMIT ?`, limit);
   return ok(ctx, rows, {limit});
