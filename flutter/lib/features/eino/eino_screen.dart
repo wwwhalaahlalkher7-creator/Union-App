@@ -4,7 +4,6 @@ import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
 import '../../data/repositories/eino_repository.dart';
 import 'eino_face.dart';
-import '../../core/theme/design_tokens.dart';
 
 class EinoScreen extends StatefulWidget {
   const EinoScreen({super.key, this.source = 'home'});
@@ -128,11 +127,8 @@ class _EinoScreenState extends State<EinoScreen> {
     if (!_ready) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
-      backgroundColor: cs.surfaceContainerLowest,
       appBar: AppBar(
-        backgroundColor: AppColors.navy,
-        foregroundColor: Colors.white,
-        title: const Row(children: [EinoFace(size: 38, mood: EinoMood.happy, showGlow: false), SizedBox(width: 9), Text('إينو')]),
+        title: const Text('إينو'),
         actions: [
           IconButton(
             tooltip: 'محادثة جديدة',
@@ -171,7 +167,7 @@ class _EinoScreenState extends State<EinoScreen> {
   Widget _welcome(ColorScheme cs, AppLocalizations l10n) => ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
         children: [
-          Center(child: Container(width: 180, height: 205, decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(30), border: Border.all(color: cs.outline.withValues(alpha: .5))), padding: const EdgeInsets.all(8), child: EinoFace(size: 150, mood: _mood))),
+          Center(child: EinoFace(size: 128, mood: _mood)),
           const SizedBox(height: 8),
           const Center(child: Text('أنا إينو ✨', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800))),
           const SizedBox(height: 6),

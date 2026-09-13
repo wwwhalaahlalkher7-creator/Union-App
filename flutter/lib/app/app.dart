@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/app_version.dart';
@@ -9,7 +8,6 @@ import '../core/update/update_service.dart';
 import '../core/update/update_info.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'router.dart';
-import '../features/splash/trinex_splash_screen.dart';
 
 class TrinexApp extends StatefulWidget {
   const TrinexApp({super.key});
@@ -25,17 +23,12 @@ class _TrinexAppState extends State<TrinexApp> {
   final AppPreferences _preferences = AppPreferences();
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
-  bool _showSplash = true;
-  Timer? _splashTimer;
 
   @override
   void initState() {
     super.initState();
     _loadPreferences();
     _checkForUpdate();
-    _splashTimer = Timer(const Duration(milliseconds: 1100), () {
-      if (mounted) setState(() => _showSplash = false);
-    });
   }
 
   Future<void> _loadPreferences() async {
@@ -100,13 +93,6 @@ class _TrinexAppState extends State<TrinexApp> {
     );
   }
 
-  @override
-  void dispose() {
-    _splashTimer?.cancel();
-    _splashTimer = null;
-    super.dispose();
-  }
-
   Future<void> setThemeMode(ThemeMode mode) async {
     await _preferences.setThemeMode(mode);
     if (!mounted) return;
@@ -137,20 +123,6 @@ class _TrinexAppState extends State<TrinexApp> {
         onLocaleChanged: setLocale,
         themeMode: _themeMode,
         locale: _locale,
-      ),
-      builder: (context, child) => Stack(
-        fit: StackFit.expand,
-        children: [
-          child ?? const SizedBox.shrink(),
-          IgnorePointer(
-            ignoring: !_showSplash,
-            child: AnimatedOpacity(
-              opacity: _showSplash ? 1 : 0,
-              duration: const Duration(milliseconds: 360),
-              child: const TrinexSplashScreen(),
-            ),
-          ),
-        ],
       ),
     );
   }
