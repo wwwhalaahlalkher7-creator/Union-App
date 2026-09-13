@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/app_version.dart';
@@ -25,13 +26,16 @@ class _TrinexAppState extends State<TrinexApp> {
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
   bool _showSplash = true;
+  Timer? _splashTimer;
 
   @override
   void initState() {
     super.initState();
     _loadPreferences();
     _checkForUpdate();
-    Future<void>.delayed(const Duration(milliseconds: 1100), () { if (mounted) setState(() => _showSplash = false); });
+    _splashTimer = Timer(const Duration(milliseconds: 1100), () {
+      if (mounted) setState(() => _showSplash = false);
+    });
   }
 
   Future<void> _loadPreferences() async {
@@ -94,6 +98,13 @@ class _TrinexAppState extends State<TrinexApp> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _splashTimer?.cancel();
+    _splashTimer = null;
+    super.dispose();
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
