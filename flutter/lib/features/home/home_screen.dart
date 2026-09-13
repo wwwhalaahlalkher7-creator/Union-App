@@ -206,39 +206,54 @@ class _QuickGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final twoColumns = constraints.maxWidth < 560;
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: twoColumns ? 2 : 4,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: twoColumns ? 1.58 : 1.12,
-          ),
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return AppCard(
-              onTap: () => context.push(item.$4),
-              padding: const EdgeInsets.all(13),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .11), borderRadius: BorderRadius.circular(13)),
-                    child: Icon(item.$1, color: AppColors.primary, size: 21),
+        final gap = 10.0;
+        final cardWidth = twoColumns
+            ? (constraints.maxWidth - gap) / 2
+            : (constraints.maxWidth - (gap * 3)) / 4;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final item in items)
+              SizedBox(
+                width: cardWidth,
+                height: twoColumns ? 116 : 136,
+                child: AppCard(
+                  onTap: () => context.push(item.$4),
+                  padding: const EdgeInsets.all(13),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: .11),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(item.$1, color: AppColors.primary, size: 21),
+                      ),
+                      const SizedBox(height: 9),
+                      Text(
+                        item.$2,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        item.$3,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 9),
-                  Text(item.$2, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  Text(item.$3, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
-                ],
+                ),
               ),
-            );
-          },
+          ],
         );
       },
     );
