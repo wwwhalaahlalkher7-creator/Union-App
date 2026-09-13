@@ -11,7 +11,6 @@ class UpdateInfo {
   final String? updateUrl;
   final String? releaseNotes;
 
-  bool get hasUpdate => minimumVersion != null && VersionComparator.isNewer(currentVersion, minimumVersion!);
 }
 
 class VersionComparator {

@@ -11,14 +11,14 @@ class AboutScreen extends StatelessWidget {
 
   Future<void> _checkUpdate(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
-    final info = await const UpdateService().check();
+    final service = const UpdateService();
+    final info = await service.check();
     if (!context.mounted) return;
     if (info == null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('updateCheckFailed'))));
       return;
     }
-    const service = UpdateService();
-    final newer = VersionComparator.compare(info.currentVersion, AppVersion.name) > 0;
+    final newer = service.isOptional(info) || service.isForceRequired(info);
     if (!newer) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('upToDate'))));
       return;

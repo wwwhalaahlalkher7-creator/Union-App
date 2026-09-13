@@ -13,7 +13,7 @@ import 'router.dart';
 class TrinexApp extends StatefulWidget {
   const TrinexApp({
     super.key,
-    this.enableStartupUpdateCheck = true,
+    this.enableStartupUpdateCheck = false,
     this.startupFutureOverride,
     this.initialLocationOverride,
   });
