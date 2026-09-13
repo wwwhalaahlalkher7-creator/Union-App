@@ -5,39 +5,32 @@ class AppTheme {
   AppTheme._();
 
   static ThemeData _build(Brightness brightness) {
-    final isDark = brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
+    final dark = brightness == Brightness.dark;
     final scheme = ColorScheme.fromSeed(
-      seedColor: primary,
+      seedColor: dark ? AppColors.primaryDark : AppColors.primary,
       brightness: brightness,
     ).copyWith(
-      primary: primary,
+      primary: dark ? AppColors.primaryDark : AppColors.primary,
       onPrimary: Colors.white,
       secondary: AppColors.navy,
       onSecondary: Colors.white,
       tertiary: AppColors.blue,
-      surface: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-      onSurface: isDark ? const Color(0xFFF3F6F9) : AppColors.text,
-      surfaceContainerLowest: isDark ? AppColors.darkBackground : AppColors.background,
-      surfaceContainerLow: isDark ? const Color(0xFF0B2439) : const Color(0xFFF0F3F6),
-      surfaceContainerHighest: isDark ? const Color(0xFF183A55) : const Color(0xFFEAF0F4),
-      outline: isDark ? const Color(0xFF38566D) : AppColors.border,
+      surface: dark ? AppColors.darkSurface : Colors.white,
+      onSurface: dark ? const Color(0xFFF4F7FA) : AppColors.text,
+      surfaceContainerLowest: dark ? AppColors.darkBackground : AppColors.background,
+      surfaceContainerLow: dark ? const Color(0xFF0D2437) : const Color(0xFFF0F3F6),
+      surfaceContainerHighest: dark ? const Color(0xFF1A3B55) : const Color(0xFFE8EEF3),
+      outline: dark ? const Color(0xFF36566D) : AppColors.border,
       error: AppColors.danger,
     );
 
-    final base = ThemeData(
-      useMaterial3: true,
-      brightness: brightness,
-      colorScheme: scheme,
-      fontFamily: 'sans',
-    );
+    final base = ThemeData(useMaterial3: true, brightness: brightness, colorScheme: scheme, fontFamily: 'sans');
     final text = base.textTheme;
-
     return base.copyWith(
       scaffoldBackgroundColor: scheme.surfaceContainerLowest,
       splashFactory: InkSparkle.splashFactory,
-      splashColor: primary.withValues(alpha: .10),
-      highlightColor: primary.withValues(alpha: .04),
+      splashColor: scheme.primary.withValues(alpha: .10),
+      highlightColor: scheme.primary.withValues(alpha: .04),
       visualDensity: VisualDensity.standard,
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
         TargetPlatform.android: _FadeThroughTransitionsBuilder(),
@@ -49,9 +42,8 @@ class AppTheme {
       textTheme: text.copyWith(
         displaySmall: text.displaySmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.8),
         headlineLarge: text.headlineLarge?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.5),
-        headlineMedium: text.headlineMedium?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.35),
-        headlineSmall: text.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-        titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+        headlineMedium: text.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+        titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w900),
         titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w800),
         bodyLarge: text.bodyLarge?.copyWith(height: 1.5),
         bodyMedium: text.bodyMedium?.copyWith(height: 1.45),
@@ -69,30 +61,16 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         height: 76,
         elevation: 0,
-        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-        indicatorColor: primary.withValues(alpha: .15),
+        backgroundColor: dark ? AppColors.darkSurface : Colors.white,
+        indicatorColor: scheme.primary.withValues(alpha: .13),
         indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        labelTextStyle: WidgetStatePropertyAll(TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: scheme.onSurfaceVariant)),
-      ),
-      iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(
-          minimumSize: const Size.square(DesignTokens.iconButtonSize),
-          foregroundColor: scheme.onSurface,
-        ),
+        labelTextStyle: WidgetStatePropertyAll(TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: scheme.onSurfaceVariant)),
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, DesignTokens.controlHeight),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        ),
+        style: FilledButton.styleFrom(minimumSize: const Size(0, DesignTokens.controlHeight), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, DesignTokens.controlHeight),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          side: BorderSide(color: scheme.outline),
-        ),
+        style: OutlinedButton.styleFrom(minimumSize: const Size(0, DesignTokens.controlHeight), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), side: BorderSide(color: scheme.outline)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -100,20 +78,17 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: primary.withValues(alpha: .55), width: 1.5)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: scheme.primary.withValues(alpha: .55), width: 1.5)),
       ),
       cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         elevation: 0,
         color: scheme.surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: scheme.outline.withValues(alpha: .55)),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: scheme.outline.withValues(alpha: .55))),
       ),
       chipTheme: ChipThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         side: BorderSide(color: scheme.outline.withValues(alpha: .4)),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
@@ -127,17 +102,9 @@ class AppTheme {
 
 class _FadeThroughTransitionsBuilder extends PageTransitionsBuilder {
   const _FadeThroughTransitionsBuilder();
-
   @override
   Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
-    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-    final fadeOut = CurvedAnimation(parent: secondaryAnimation, curve: Curves.easeInCubic);
-    return FadeTransition(
-      opacity: curved,
-      child: FadeTransition(
-        opacity: Tween<double>(begin: 1, end: 0).animate(fadeOut),
-        child: ScaleTransition(scale: Tween<double>(begin: .985, end: 1).animate(curved), child: child),
-      ),
-    );
+    final fade = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+    return FadeTransition(opacity: fade, child: child);
   }
 }

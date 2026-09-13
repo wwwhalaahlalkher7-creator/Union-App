@@ -1,165 +1,74 @@
 import 'package:flutter/material.dart';
-import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
-import '../../data/repositories/progress_repository.dart';
 import '../../data/models/material_item.dart';
 import '../../data/repositories/materials_repository.dart';
-import '../../shared/widgets/app_card.dart';
+import '../../data/repositories/progress_repository.dart';
+import '../../core/theme/design_tokens.dart';
 
 class MaterialsScreen extends StatefulWidget {
   const MaterialsScreen({super.key});
   @override State<MaterialsScreen> createState() => _MaterialsScreenState();
 }
-
 class _MaterialsScreenState extends State<MaterialsScreen> {
   ApiClient? _client;
-  MaterialsRepository? _repository;
+  MaterialsRepository? _repo;
   ProgressRepository? _progress;
   String? _semesterId;
-  List<Map<String, dynamic>> _semesters = const [];
-  List<Map<String, dynamic>> _subjects = const [];
-  List<MaterialItem> _materials = const [];
+  List<Map<String,dynamic>> _semesters = [];
+  List<Map<String,dynamic>> _subjects = [];
+  List<MaterialItem> _materials = [];
   bool _loading = true;
   String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-  }
-
-  @override
-  void dispose() { _client?.dispose(); super.dispose(); }
-
-  Future<void> _init() async {
-    try {
-      _client = await AuthenticatedClient.create();
-      _repository = MaterialsRepository(_client!);
-      _progress = ProgressRepository(_client!);
-      await _load();
-    } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
-    }
-  }
-
+  @override void initState(){super.initState();_init();}
+  @override void dispose(){_client?.dispose();super.dispose();}
+  Future<void> _init() async { try { _client=await AuthenticatedClient.create(); _repo=MaterialsRepository(_client!); _progress=ProgressRepository(_client!); await _load(); } catch(e){ if(mounted)setState(()=>_error=e.toString()); } }
   Future<void> _load({String? semesterId}) async {
-    setState(() { _loading = true; _error = null; });
+    setState(()=>_loading=true);
     try {
-      final repo = _repository;
-      if (repo == null) return;
-      final semesters = await repo.semesters();
-      final selected = semesterId ?? _semesterId ?? _currentSemester(semesters);
-      final subjects = selected == null ? <Map<String, dynamic>>[] : await repo.subjects(semesterId: selected);
-      final materials = selected == null ? <MaterialItem>[] : await repo.list(semesterId: selected);
-      if (!mounted) return;
-      setState(() { _semesters = semesters; _semesterId = selected; _subjects = subjects; _materials = materials; _loading = false; });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() { _loading = false; _error = e.toString(); });
-    }
+      final r=_repo; if(r==null)return;
+      final semesters=await r.semesters();
+      final selected=semesterId??_semesterId??_current(semesters);
+      final subjects=selected==null?<Map<String,dynamic>>[]:await r.subjects(semesterId:selected);
+      final materials=selected==null?<MaterialItem>[]:await r.list(semesterId:selected);
+      if(mounted)setState((){_semesters=semesters;_semesterId=selected;_subjects=subjects;_materials=materials;_loading=false;_error=null;});
+    } catch(e){if(mounted)setState(()=>_loading=false);if(mounted)setState(()=>_error=e.toString());}
   }
-
-  String? _currentSemester(List<Map<String, dynamic>> items) {
-    for (final item in items) { if (item['is_current'] == 1 || item['is_current'] == true) return item['id']?.toString(); }
-    return items.isEmpty ? null : items.first['id']?.toString();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    if (_loading && _semesters.isEmpty) return Scaffold(appBar: AppBar(title: Text(l10n.t('materials'))), body: const Center(child: CircularProgressIndicator()));
-    if (_error != null && _semesters.isEmpty) return Scaffold(appBar: AppBar(title: Text(l10n.t('materials'))), body: _Message(icon: Icons.cloud_off_outlined, text: 'تعذر تحميل المواد.\n$_error', retry: _load));
-
-    final subjectGroups = <String, List<MaterialItem>>{};
-    for (final material in _materials) { subjectGroups.putIfAbsent(material.subjectId ?? material.subject ?? 'other', () => []).add(material); }
-
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('materials')), actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded))]),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-          children: [
-            DropdownButtonFormField<String>(
-              value: _semesterId,
-              decoration: const InputDecoration(labelText: 'الفصل الدراسي', prefixIcon: Icon(Icons.calendar_month_outlined)),
-              items: _semesters.map((s) => DropdownMenuItem(value: s['id']?.toString(), child: Text((s['name_ar'] ?? 'الفصل ${s['number'] ?? ''}').toString()))).toList(),
-              onChanged: (value) { if (value != null) _load(semesterId: value); },
-            ),
-            const SizedBox(height: 20),
-            if (_loading) const LinearProgressIndicator(),
-            if (!_loading && _subjects.isEmpty) const _EmptySubjects(),
-            ..._subjects.map((subject) {
-              final id = subject['id']?.toString() ?? '';
-              final items = subjectGroups[id] ?? [];
-              return _SubjectCard(subject: subject, materials: items, progress: _progress);
-            }),
-            if (!_loading && _subjects.isNotEmpty && _materials.isEmpty) const Padding(padding: EdgeInsets.all(24), child: _EmptyMaterials()),
-          ],
-        ),
-      ),
-    );
+  String? _current(List<Map<String,dynamic>> list){for(final s in list){if(s['is_current']==true||s['is_current']==1)return s['id']?.toString();}return list.isEmpty?null:list.first['id']?.toString();}
+  @override Widget build(BuildContext context){
+    final groups=<String,List<MaterialItem>>{};
+    for(final m in _materials){groups.putIfAbsent(m.subjectId??m.subject??'other',()=>[]).add(m);}
+    return Scaffold(backgroundColor:Theme.of(context).colorScheme.surfaceContainerLowest,body:CustomScrollView(slivers:[
+      SliverToBoxAdapter(child:_PageHeader(title:'المواد الدراسية',subtitle:'مواد تخصصك مرتبة حسب الفصل',icon:Icons.menu_book_rounded,onRefresh:_load)),
+      SliverPadding(padding:const EdgeInsets.fromLTRB(16,14,16,120),sliver:SliverList(delegate:SliverChildListDelegate([
+        if(_error!=null&&_semesters.isEmpty)_Message(text:'تعذر تحميل المواد.\n$_error',retry:_load),
+        if(_semesters.isNotEmpty)DropdownButtonFormField<String>(value:_semesterId,decoration:const InputDecoration(labelText:'الفصل الدراسي',prefixIcon:Icon(Icons.calendar_month_rounded)),items:_semesters.map((s)=>DropdownMenuItem(value:s['id']?.toString(),child:Text((s['name_ar']??s['name']??'الفصل').toString()))).toList(),onChanged:(v){if(v!=null)_load(semesterId:v);}),
+        const SizedBox(height:18),
+        if(_loading)const LinearProgressIndicator(minHeight:3),
+        const SizedBox(height:10),
+        if(!_loading&&_subjects.isEmpty)const _Empty(icon:Icons.menu_book_outlined,text:'لا توجد مقررات متاحة لهذا الفصل والتخصص حاليًا.'),
+        ..._subjects.map((subject){final id=subject['id']?.toString()??'';return _Subject(subject:subject,items:groups[id]??[],progress:_progress);}),
+        if(!_loading&&_subjects.isNotEmpty&&_materials.isEmpty)const _Empty(icon:Icons.folder_open_rounded,text:'المقررات موجودة، لكن لا توجد ملفات منشورة بعد.'),
+      ]))),
+    ]));
   }
 }
 
-Future<void> _openMaterial(BuildContext context, MaterialItem material, ProgressRepository? progress) async {
-  if (progress != null) {
-    try { await progress.record(materialId: material.id, eventType: 'open'); } catch (_) {}
-  }
-  if (!context.mounted) return;
-  _showProgressSheet(context, material, progress);
+class _PageHeader extends StatelessWidget {
+  const _PageHeader({required this.title,required this.subtitle,required this.icon,required this.onRefresh});
+  final String title,subtitle; final IconData icon; final VoidCallback onRefresh;
+  @override Widget build(BuildContext context)=>Container(padding:const EdgeInsets.fromLTRB(18,10,18,22),decoration:const BoxDecoration(gradient:LinearGradient(begin:AlignmentDirectional.topStart,end:AlignmentDirectional.bottomEnd,colors:[AppColors.navy,Color(0xFF173D5A)]),borderRadius:BorderRadius.vertical(bottom:Radius.circular(28))),child:SafeArea(bottom:false,child:Row(children:[Container(width:48,height:48,decoration:BoxDecoration(color:Colors.white10,borderRadius:BorderRadius.circular(15)),child:Icon(icon,color:AppColors.primary)),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(color:Colors.white,fontSize:21,fontWeight:FontWeight.w900)),const SizedBox(height:3),Text(subtitle,style:const TextStyle(color:Colors.white70,fontSize:12))])),IconButton(onPressed:onRefresh,icon:const Icon(Icons.refresh_rounded,color:Colors.white))])));
 }
-
-void _showProgressSheet(BuildContext context, MaterialItem material, ProgressRepository? progress) {
-  showModalBottomSheet(context: context, showDragHandle: true, builder: (sheetContext) => SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-    const Icon(Icons.picture_as_pdf_rounded, size: 44), const SizedBox(height: 10),
-    Text(material.name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-    const SizedBox(height: 8),
-    if (material.url != null) SelectableText(material.url!, textAlign: TextAlign.center),
-    const SizedBox(height: 14),
-    const Text('حدّث تقدمك أثناء الدراسة. التقدم يحفظ على حسابك ولا يمنح XP لمجرد فتح الملف.', textAlign: TextAlign.center),
-    const SizedBox(height: 12),
-    Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
-      for (final value in [25, 50, 75, 100]) OutlinedButton(onPressed: progress == null ? null : () async { try { await progress.record(materialId: material.id, eventType: value == 100 ? 'complete' : 'progress', progressPercent: value); if (sheetContext.mounted) Navigator.pop(sheetContext); } catch (e) { if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'تعذر حفظ التقدم.'))); } }, child: Text('$value%'))
-    ]),
-  ]))));
+class _Subject extends StatelessWidget {
+  const _Subject({required this.subject,required this.items,required this.progress});
+  final Map<String,dynamic> subject; final List<MaterialItem> items; final ProgressRepository? progress;
+  @override Widget build(BuildContext context){final name=(subject['name_ar']??subject['name']??'مادة').toString();final code=(subject['code']??'').toString();return Container(margin:const EdgeInsets.only(bottom:12),decoration:BoxDecoration(color:Theme.of(context).colorScheme.surface,borderRadius:BorderRadius.circular(21),border:Border.all(color:Theme.of(context).colorScheme.outline.withValues(alpha:.52))),child:Theme(data:Theme.of(context).copyWith(dividerColor:Colors.transparent),child:ExpansionTile(tilePadding:const EdgeInsets.symmetric(horizontal:15,vertical:5),childrenPadding:const EdgeInsets.fromLTRB(12,0,12,10),leading:Container(width:45,height:45,decoration:BoxDecoration(color:AppColors.navy.withValues(alpha:.07),borderRadius:BorderRadius.circular(14)),child:const Icon(Icons.menu_book_rounded,color:AppColors.navy)),title:Text(name,style:const TextStyle(fontWeight:FontWeight.w900)),subtitle:Text(code.isEmpty?'${items.length} ملف':'$code • ${items.length} ملف'),children:items.isEmpty?[const Padding(padding:EdgeInsets.all(20),child:Text('لا توجد ملفات لهذا المقرر حاليًا.'))]:items.map((m)=>_MaterialTile(material:m,progress:progress)).toList())));}
 }
-
-class _SubjectCard extends StatelessWidget {
-  const _SubjectCard({required this.subject, required this.materials, required this.progress});
-  final Map<String, dynamic> subject;
-  final List<MaterialItem> materials;
-  final ProgressRepository? progress;
-  @override Widget build(BuildContext context) {
-    final name = (subject['name_ar'] ?? subject['name'] ?? 'مادة').toString();
-    final code = (subject['code'] ?? '').toString();
-    return AppCard(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ExpansionTile(
-        leading: const CircleAvatar(child: Icon(Icons.menu_book_outlined)),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(code.isEmpty ? '${materials.length} ملف' : '$code • ${materials.length} ملف'),
-        children: materials.isEmpty
-            ? const [Padding(padding: EdgeInsets.all(20), child: Text('لا توجد ملفات لهذا المقرر حاليًا.'))]
-            : materials.map((m) => ListTile(
-                leading: Icon(m.pinned ? Icons.push_pin_rounded : Icons.picture_as_pdf_outlined),
-                title: Text(m.name),
-                subtitle: m.size == null || m.size == 0 ? null : Text(_formatSize(m.size!)),
-                trailing: const Icon(Icons.chevron_left),
-                onTap: m.url == null ? null : () => _openMaterial(context, m, progress),
-              )).toList(),
-      ),
-    );
-  }
-  static String _formatSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
+class _MaterialTile extends StatelessWidget {
+  const _MaterialTile({required this.material,required this.progress}); final MaterialItem material; final ProgressRepository? progress;
+  @override Widget build(BuildContext context)=>ListTile(contentPadding:const EdgeInsets.symmetric(horizontal:8),leading:Container(width:40,height:40,decoration:BoxDecoration(color:AppColors.primary.withValues(alpha:.11),borderRadius:BorderRadius.circular(12)),child:Icon(material.pinned?Icons.push_pin_rounded:Icons.picture_as_pdf_rounded,color:AppColors.primary,size:19)),title:Text(material.name,style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:material.size==null?null:Text(_size(material.size!)),trailing:const Icon(Icons.chevron_left_rounded),onTap:material.url==null?null:()=>_open(context));
+  Future<void> _open(BuildContext context) async { try{await progress?.record(materialId:material.id,eventType:'open');}catch(_){ } if(!context.mounted)return; showModalBottomSheet(context:context,showDragHandle:true,builder:(_)=>SafeArea(child:Padding(padding:const EdgeInsets.fromLTRB(20,6,20,20),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.picture_as_pdf_rounded,size:44,color:AppColors.primary),const SizedBox(height:10),Text(material.name,textAlign:TextAlign.center,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),if(material.url!=null)SelectableText(material.url!,textAlign:TextAlign.center),const SizedBox(height:16),const Text('حدّث تقدمك أثناء الدراسة.',textAlign:TextAlign.center),const SizedBox(height:12),Wrap(spacing:8,children:[for(final v in [25,50,75,100])OutlinedButton(onPressed:progress==null?null:()async{try{await progress!.record(materialId:material.id,eventType:v==100?'complete':'progress',progressPercent:v);if(context.mounted)Navigator.pop(context);}catch(_){ }},child:Text('$v%'))])])))); }
+  static String _size(int b)=>b<1024?'$b B':b<1024*1024?'${(b/1024).round()} KB':'${(b/(1024*1024)).toStringAsFixed(1)} MB';
 }
-
-class _EmptySubjects extends StatelessWidget { const _EmptySubjects(); @override Widget build(BuildContext context) => const Padding(padding: EdgeInsets.all(30), child: Column(children: [Icon(Icons.school_outlined, size: 56), SizedBox(height: 12), Text('لا توجد مقررات متاحة لهذا الفصل والتخصص حاليًا.', textAlign: TextAlign.center)])); }
-class _EmptyMaterials extends StatelessWidget { const _EmptyMaterials(); @override Widget build(BuildContext context) => const Column(children: [Icon(Icons.folder_open_outlined, size: 48), SizedBox(height: 10), Text('المقررات موجودة، لكن لا توجد ملفات منشورة بعد.', textAlign: TextAlign.center)]); }
-class _Message extends StatelessWidget { const _Message({required this.icon, required this.text, this.retry}); final IconData icon; final String text; final VoidCallback? retry; @override Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 60), const SizedBox(height: 14), Text(text, textAlign: TextAlign.center), if (retry != null) ...[const SizedBox(height: 14), OutlinedButton(onPressed: retry, child: const Text('إعادة المحاولة'))]]))); }
+class _Empty extends StatelessWidget{const _Empty({required this.icon,required this.text});final IconData icon;final String text;@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.all(30),child:Column(children:[Icon(icon,size:52,color:AppColors.blue),const SizedBox(height:12),Text(text,textAlign:TextAlign.center)]));}
+class _Message extends StatelessWidget{const _Message({required this.text,required this.retry});final String text;final VoidCallback retry;@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.all(22),child:Column(children:[const Icon(Icons.cloud_off_rounded,size:55,color:AppColors.blue),const SizedBox(height:12),Text(text,textAlign:TextAlign.center),const SizedBox(height:12),OutlinedButton(onPressed:retry,child:const Text('إعادة المحاولة'))]));}
