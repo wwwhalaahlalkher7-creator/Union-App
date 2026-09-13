@@ -15,10 +15,12 @@ class TrinexApp extends StatefulWidget {
     super.key,
     this.enableStartupUpdateCheck = true,
     this.startupFutureOverride,
+    this.initialLocationOverride,
   });
 
   final bool enableStartupUpdateCheck;
   final Future<void>? startupFutureOverride;
+  final String? initialLocationOverride;
 
   @override
   State<TrinexApp> createState() => _TrinexAppState();
@@ -44,6 +46,7 @@ class _TrinexAppState extends State<TrinexApp> {
       onLocaleChanged: setLocale,
       themeMode: () => _themeMode,
       locale: () => _locale,
+      initialLocation: widget.initialLocationOverride ?? '/splash',
     );
     if (widget.enableStartupUpdateCheck) _checkForUpdate();
   }

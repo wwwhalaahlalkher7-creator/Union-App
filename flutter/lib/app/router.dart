@@ -32,9 +32,10 @@ GoRouter buildRouter({
   required ThemeMode Function() themeMode,
   required Locale? Function() locale,
   required Future<void> startupFuture,
+  String initialLocation = '/splash',
 }) {
   return GoRouter(
-    initialLocation: '/splash',
+    initialLocation: initialLocation,
     routes: [
       GoRoute(path: '/splash', builder: (_, _) => SplashScreen(startupFuture: startupFuture)),
       ShellRoute(

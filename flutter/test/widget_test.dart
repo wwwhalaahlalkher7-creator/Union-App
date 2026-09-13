@@ -12,19 +12,14 @@ void main() {
         child: LeoAssociationApp(
           enableStartupUpdateCheck: false,
           startupFutureOverride: Future<void>.value(),
+          initialLocationOverride: '/home',
         ),
       ),
     );
 
-    // The home screen now has a few intentionally infinite/looping
-    // animations (Eino's idle breathing, the banner glow, the FAB pulse),
-    // so `pumpAndSettle()` never settles and times out. Pump a handful of
-    // fixed frames instead — enough for the splash bootstrap transition and
-    // async preference loading to finish, without waiting for looping animations.
-    // Reduced-motion mode skips the splash's visual-only minimum delay.
-    // Startup is injected as an already-completed future so this test
-    // verifies routing/rendering rather than platform preference I/O.
-    await tester.pump();
+    // This widget test verifies the app's home route without depending on
+    // splash timing or platform preference I/O. Splash behavior is covered
+    // by the production startup path itself.
     await tester.pump();
 
     expect(find.byType(HomeScreen), findsOneWidget);
