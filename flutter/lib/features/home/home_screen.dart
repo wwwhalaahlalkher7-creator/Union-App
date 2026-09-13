@@ -369,7 +369,7 @@ class _ServicesCard extends StatelessWidget {
   Widget build(BuildContext context) => const AppCard(
         padding: EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('كل ما تحتاجه', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          Text('كل ما تحتاجه', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 8, children: [
             _ServiceChip(icon: Icons.emoji_events_rounded, text: 'الإنجازات', route: '/achievements'),
