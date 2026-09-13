@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/app_version.dart';
 import '../core/localization/app_localizations.dart';
@@ -26,10 +27,18 @@ class _TrinexAppState extends State<TrinexApp> {
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
   late final Future<void> _preferencesFuture = _loadPreferences();
+  late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
+    _router = buildRouter(
+      startupFuture: _preferencesFuture,
+      onThemeModeChanged: setThemeMode,
+      onLocaleChanged: setLocale,
+      themeMode: () => _themeMode,
+      locale: () => _locale,
+    );
     if (widget.enableStartupUpdateCheck) _checkForUpdate();
   }
 
@@ -122,13 +131,7 @@ class _TrinexAppState extends State<TrinexApp> {
       locale: _locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
-      routerConfig: buildRouter(
-        startupFuture: _preferencesFuture,
-        onThemeModeChanged: setThemeMode,
-        onLocaleChanged: setLocale,
-        themeMode: _themeMode,
-        locale: _locale,
-      ),
+      routerConfig: _router,
     );
   }
 }

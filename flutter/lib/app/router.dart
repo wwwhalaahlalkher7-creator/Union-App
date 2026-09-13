@@ -29,8 +29,8 @@ import '../shared/widgets/student_access_gate.dart';
 GoRouter buildRouter({
   required ValueChanged<ThemeMode> onThemeModeChanged,
   required ValueChanged<Locale?> onLocaleChanged,
-  required ThemeMode themeMode,
-  required Locale? locale,
+  required ThemeMode Function() themeMode,
+  required Locale? Function() locale,
   required Future<void> startupFuture,
 }) {
   return GoRouter(
@@ -63,9 +63,9 @@ GoRouter buildRouter({
       GoRoute(
         path: '/settings',
         builder: (_, _) => SettingsScreen(
-          currentThemeMode: themeMode,
+          currentThemeMode: themeMode(),
           onThemeModeChanged: onThemeModeChanged,
-          locale: locale,
+          locale: locale(),
           onLocaleChanged: onLocaleChanged,
         ),
       ),
