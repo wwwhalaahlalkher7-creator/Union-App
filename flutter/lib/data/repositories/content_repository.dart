@@ -1,4 +1,3 @@
-import '../../core/constants/app_constants.dart';
 import '../../core/network/api_client.dart';
 import '../models/content_item.dart';
 
@@ -7,24 +6,23 @@ class ContentRepository {
 
   final ApiClient _client;
 
-  Future<List<ContentItem>> news() => _list(AppConstants.newsAction);
+  Future<List<ContentItem>> news() => _list('/api/v1/public/news');
 
   Future<List<ContentItem>> announcements() =>
-      _list(AppConstants.announcementsAction);
+      _list('/api/v1/public/announcements');
 
   Future<List<ContentItem>> activities() =>
-      _list(AppConstants.activitiesAction);
+      _list('/api/v1/public/activities');
 
   Future<List<ContentItem>> achievements() =>
-      _list(AppConstants.achievementsAction);
+      _list('/api/v1/public/achievements');
 
-  Future<List<ContentItem>> _list(String action) async {
+  Future<List<ContentItem>> _list(String path) async {
     final json = await _client.getJson(
-      '',
-      query: {'action': action},
+      path,
       cacheTtl: const Duration(seconds: 45),
     );
-    final records = json['records'] ?? json['data'] ?? [];
+    final records = json['data'];
     if (records is! List) return const [];
 
     return records

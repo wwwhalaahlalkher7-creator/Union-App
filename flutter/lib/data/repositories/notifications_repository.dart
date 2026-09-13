@@ -6,7 +6,7 @@ class NotificationsRepository {
   final ApiClient _client;
 
   Future<List<NotificationItem>> list() async {
-    final json = await _client.getJson('/student/notifications');
+    final json = await _client.getJson('/api/v1/student/notifications');
     final data = json['data'];
     if (data is! List) return const [];
     return data.whereType<Map>().map((e) => NotificationItem.fromJson(Map<String, dynamic>.from(e))).toList();
@@ -15,6 +15,6 @@ class NotificationsRepository {
   Future<void> markRead(Iterable<String> ids) async {
     final list = ids.where((id) => id.isNotEmpty).toList();
     if (list.isEmpty) return;
-    await _client.postJson('/student/notifications/read', body: {'ids': list});
+    await _client.postJson('/api/v1/student/notifications/read', body: {'ids': list});
   }
 }
