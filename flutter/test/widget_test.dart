@@ -18,7 +18,9 @@ void main() {
     // so `pumpAndSettle()` never settles and times out. Pump a handful of
     // fixed frames instead — enough for the splash bootstrap transition and
     // async preference loading to finish, without waiting for looping animations.
-    for (var i = 0; i < 16; i++) {
+    // Reduced-motion mode skips the splash's visual-only minimum delay.
+    // Pump enough frames for preferences, routing, and the first home build.
+    for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
 

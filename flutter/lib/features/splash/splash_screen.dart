@@ -34,9 +34,19 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     } catch (_) {
       // Preferences failure should not block opening the app.
     }
-    final elapsed = DateTime.now().difference(started);
-    final remaining = const Duration(milliseconds: 1200) - elapsed;
-    if (remaining > Duration.zero) await Future<void>.delayed(remaining);
+    if (!mounted || _navigated) return;
+
+    // Reduced-motion mode should also skip the decorative minimum delay.
+    // This keeps accessibility behavior consistent and makes widget tests
+    // deterministic without waiting on a visual-only timer.
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (!reduceMotion) {
+      final elapsed = DateTime.now().difference(started);
+      final remaining = const Duration(milliseconds: 1200) - elapsed;
+      if (remaining > Duration.zero) {
+        await Future<void>.delayed(remaining);
+      }
+    }
     if (!mounted || _navigated) return;
     _navigated = true;
     context.go('/home');
@@ -61,7 +71,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           Positioned.fill(
             child: AnimatedBuilder(
               animation: _controller,
-              builder: (_, __) => CustomPaint(
+              builder: (_, _) => CustomPaint(
                 painter: _CircuitPainter(
                   progress: reduceMotion ? 1 : _controller.value,
                   accent: cs.primary,
