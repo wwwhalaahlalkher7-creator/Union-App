@@ -132,7 +132,7 @@ class _EinoScreenState extends State<EinoScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
-        title: Row(children: [const EinoFace(size: 38, mood: EinoMood.happy, showGlow: false), const SizedBox(width: 9), const Text('إينو')]),
+        title: const Row(children: [EinoFace(size: 38, mood: EinoMood.happy, showGlow: false), SizedBox(width: 9), Text('إينو')]),
         actions: [
           IconButton(
             tooltip: 'محادثة جديدة',

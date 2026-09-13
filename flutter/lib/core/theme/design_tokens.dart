@@ -16,9 +16,13 @@ abstract final class AppColors {
 
 abstract final class DesignTokens {
   static const double radiusSm = 12;
+  static const double radius12 = 12;
+  static const double radius20 = 20;
   static const double radiusMd = 18;
   static const double radiusLg = 26;
   static const double radiusXl = 32;
+  static const double space4 = 4;
+  static const double space6 = 6;
   static const double space8 = 8;
   static const double space12 = 12;
   static const double space16 = 16;
