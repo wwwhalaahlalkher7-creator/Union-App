@@ -166,7 +166,7 @@ class _EinoScreenState extends State<EinoScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Row(mainAxisSize: MainAxisSize.min, children: [
-          const EinoFace(size: 30, mood: _mood),
+          ,EinoFace(size: 30, mood: _mood),
           const SizedBox(width: 8),
           Text(l10n.t('einoTitle')),
         ]),
