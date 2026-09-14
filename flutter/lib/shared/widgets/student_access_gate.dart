@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/localization/app_localizations.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/storage/auth_storage.dart';
 import 'app_card.dart';
@@ -22,8 +21,8 @@ class _StudentAccessGateState extends State<StudentAccessGate> {
   late final Future<bool> _accessFuture = _readAccess();
 
   Future<bool> _readAccess() async {
-    final prefs = await SharedPreferences.getInstance();
-    return AuthStorage(prefs).isLoggedIn;
+    final storage = await AuthStorage.create();
+    return await storage.isLoggedIn;
   }
 
   @override

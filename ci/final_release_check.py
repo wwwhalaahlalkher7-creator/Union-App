@@ -35,9 +35,30 @@ try:
 except Exception as exc:
     errors.append(f'Migration check failed: {exc}')
 
+# Production security invariants.
+backend_source = (ROOT / 'backend/src/index.js').read_text(encoding='utf-8')
+if 'const ADMIN_ROLE_PERMISSIONS = Object.freeze({' not in backend_source:
+    errors.append('Missing centralized admin role permission map')
+if 'if(!ADMIN_ROLE_IDS.has(role))' not in backend_source or 'if(!ADMIN_ROLE_IDS.has(nextRole))' not in backend_source:
+    errors.append('Staff role allowlist validation is missing')
+if "allowedOrigins.length === 0 ? '*'" in backend_source:
+    errors.append('CORS must not fall back to wildcard in production')
+
+# Admin API safety invariants.
+if 'const ADMIN_SELECT_COLUMNS = {' not in backend_source:
+    errors.append('Admin CRUD must use an explicit safe SELECT projection')
+if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'activities', 'announcements', 'achievements']))" not in backend_source:
+    errors.append('Admin content lifecycle contract is missing')
+if "UPDATE ${table} SET status='archived'" not in backend_source:
+    errors.append('Admin content DELETE must archive by status')
+if "students: 'id,student_number,full_name,department_id,current_semester_id,active,created_at,updated_at'" not in backend_source:
+    errors.append('Admin student projection must exclude authentication secrets')
+if "WHERE id=? AND active=1" not in backend_source:
+    errors.append('Soft-deletable admin records must not fall through to hard delete')
+
 # Active operational source must not contain retired provider/ad architecture.
 legacy_tokens = ('ad-manager', 'google apps script', 'airtable')
-for base in (ROOT / 'flutter/lib', ROOT / 'dashboard', ROOT / 'backend/src'):
+for base in (ROOT / 'flutter/lib', ROOT / 'website/dashboard', ROOT / 'backend/src'):
     for path in base.rglob('*'):
         if path.suffix not in {'.dart', '.js', '.ts', '.html', '.css'}:
             continue

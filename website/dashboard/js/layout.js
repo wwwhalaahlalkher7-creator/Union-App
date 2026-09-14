@@ -207,7 +207,7 @@
         try { await Adapter.logoutSession(session.token); } catch (e) { /* تجاهل — الانتهاء التلقائي يكفي */ }
       }
       if (typeof Auth !== "undefined") Auth.logout();
-      else { localStorage.removeItem("assoc_admin_session"); location.href = "login.html"; }
+      else { sessionStorage.removeItem("assoc_admin_session"); location.href = "login.html"; }
     });
   }
 

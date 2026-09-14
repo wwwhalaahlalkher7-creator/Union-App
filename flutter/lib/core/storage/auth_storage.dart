@@ -1,43 +1,107 @@
 import 'dart:convert';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Secure persistence for authentication state.
+///
+/// Access/refresh tokens and the cached student profile are kept in the
+/// platform secure storage. A one-time migration moves legacy values from
+/// SharedPreferences and removes the old copies.
 class AuthStorage {
-  AuthStorage(this._prefs);
-  final SharedPreferences _prefs;
+  AuthStorage._(this._secureStorage);
+
+  final FlutterSecureStorage _secureStorage;
+
   static const _access = 'auth_access_token';
   static const _refresh = 'auth_refresh_token';
   static const _profile = 'auth_student_profile';
 
-  String? get accessToken => _prefs.getString(_access);
-  String? get refreshToken => _prefs.getString(_refresh);
-  bool get isLoggedIn => accessToken?.isNotEmpty == true;
+  static Future<AuthStorage> create() async {
+    const secure = FlutterSecureStorage();
+    final storage = AuthStorage._(secure);
+    await storage._migrateLegacyPreferences();
+    return storage;
+  }
 
-  Map<String, dynamic>? get profile {
-    final raw = _prefs.getString(_profile);
+  Future<String?> get accessToken async => _secureStorage.read(key: _access);
+
+  Future<String?> get refreshToken async => _secureStorage.read(key: _refresh);
+
+  Future<bool> get isLoggedIn async {
+    final token = await accessToken;
+    return token?.isNotEmpty == true;
+  }
+
+  Future<Map<String, dynamic>?> get profile async {
+    final raw = await _secureStorage.read(key: _profile);
     if (raw == null) return null;
-    try { return Map<String, dynamic>.from(jsonDecode(raw) as Map); } catch (_) { return null; }
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> saveSession(Map<String, dynamic> data) async {
     final token = data['token']?.toString();
     final refresh = data['refreshToken']?.toString();
-    if (token?.isNotEmpty == true) await _prefs.setString(_access, token!);
-    if (refresh?.isNotEmpty == true) await _prefs.setString(_refresh, refresh!);
+    if (token?.isNotEmpty == true) {
+      await _secureStorage.write(key: _access, value: token);
+    }
+    if (refresh?.isNotEmpty == true) {
+      await _secureStorage.write(key: _refresh, value: refresh);
+    }
+
     final profile = <String, dynamic>{
-      'studentId': data['studentId'], 'studentNumber': data['studentNumber'],
-      'fullName': data['fullName'], 'departmentId': data['departmentId'],
+      'studentId': data['studentId'],
+      'studentNumber': data['studentNumber'],
+      'fullName': data['fullName'],
+      'departmentId': data['departmentId'],
     };
-    await _prefs.setString(_profile, jsonEncode(profile));
+    await _secureStorage.write(key: _profile, value: jsonEncode(profile));
   }
 
   Future<void> saveRefreshedSession(Map<String, dynamic> data) async {
     final token = data['token']?.toString();
     final refresh = data['refreshToken']?.toString();
-    if (token?.isNotEmpty == true) await _prefs.setString(_access, token!);
-    if (refresh?.isNotEmpty == true) await _prefs.setString(_refresh, refresh!);
+    if (token?.isNotEmpty == true) {
+      await _secureStorage.write(key: _access, value: token);
+    }
+    if (refresh?.isNotEmpty == true) {
+      await _secureStorage.write(key: _refresh, value: refresh);
+    }
   }
 
   Future<void> clear() async {
-    await _prefs.remove(_access); await _prefs.remove(_refresh); await _prefs.remove(_profile);
+    await Future.wait([
+      _secureStorage.delete(key: _access),
+      _secureStorage.delete(key: _refresh),
+      _secureStorage.delete(key: _profile),
+    ]);
+  }
+
+  Future<void> _migrateLegacyPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final legacyAccess = prefs.getString(_access);
+    final legacyRefresh = prefs.getString(_refresh);
+    final legacyProfile = prefs.getString(_profile);
+
+    if (legacyAccess?.isNotEmpty == true) {
+      await _secureStorage.write(key: _access, value: legacyAccess);
+    }
+    if (legacyRefresh?.isNotEmpty == true) {
+      await _secureStorage.write(key: _refresh, value: legacyRefresh);
+    }
+    if (legacyProfile?.isNotEmpty == true) {
+      await _secureStorage.write(key: _profile, value: legacyProfile);
+    }
+
+    if (legacyAccess != null || legacyRefresh != null || legacyProfile != null) {
+      await prefs.remove(_access);
+      await prefs.remove(_refresh);
+      await prefs.remove(_profile);
+    }
   }
 }

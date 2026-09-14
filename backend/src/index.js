@@ -8,6 +8,9 @@ const AUTH_ACCESS_TTL = 15 * 60;
 const AUTH_REFRESH_TTL = 30 * 24 * 60 * 60;
 const AUTH_MAX_FAILED = 5;
 const AUTH_LOCK_SECONDS = 15 * 60;
+const AUTH_IP_WINDOW_SECONDS = 5 * 60;
+const AUTH_IP_LOGIN_LIMIT = 10;
+const AUTH_IP_REFRESH_LIMIT = 30;
 // Cloudflare Workers CPU-safe work factor for WebCrypto PBKDF2.
 // Keep this value aligned between bootstrap and staff login.
 const PBKDF2_ITERATIONS = 15000;
@@ -17,15 +20,18 @@ const EINO_MAX_MESSAGE = 4000;
 const EINO_MAX_CONTEXT = 6000;
 const EINO_WINDOW_SECONDS = 10 * 60;
 const EINO_WINDOW_LIMIT = 20;
+const EINO_STUDENT_DAILY_LIMIT_DEFAULT = 100;
+const EINO_GUEST_DAILY_LIMIT_DEFAULT = 20;
+const EINO_GLOBAL_DAILY_LIMIT_DEFAULT = 2000;
 
 export default {
   async fetch(request, env) {
     const requestId = crypto.randomUUID();
     const requestOrigin = request.headers.get('Origin') || '';
     const allowedOrigins = String(env.ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
-    const origin = allowedOrigins.length === 0 ? '*' : (allowedOrigins.includes(requestOrigin) ? requestOrigin : 'null');
+    const origin = requestOrigin && allowedOrigins.includes(requestOrigin) ? requestOrigin : '';
     const cors = {
-      'access-control-allow-origin': origin,
+      ...(origin ? { 'access-control-allow-origin': origin, 'vary': 'Origin' } : {}),
       'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
       'access-control-allow-headers': 'Content-Type, Authorization, X-Request-Id',
       'access-control-max-age': '86400',
@@ -57,9 +63,6 @@ export default {
       if (request.method === 'GET' && path === '/public/news') return publicList(ctx, 'news');
       if (request.method === 'GET' && path === '/public/announcements') return publicList(ctx, 'announcements');
       if (request.method === 'GET' && path === '/public/activities') return publicList(ctx, 'activities');
-      if (path === '/auth/staff/reset-password' && request.method === 'POST') {
-  return staffResetPassword(ctx);
-}
       if (request.method === 'GET' && path === '/public/achievements') return publicList(ctx, 'achievements');
       if (request.method === 'GET' && path === '/public/settings') return publicSettings(ctx);
       if (request.method === 'GET' && path === '/public/materials') return publicMaterials(ctx);
@@ -108,6 +111,7 @@ export default {
       if (path === '/admin/moderation/comments' && request.method === 'GET') return adminModerationComments(ctx);
       if (/^\/admin\/moderation\/comments\/[^/]+$/.test(path) && request.method === 'PATCH') return adminModerationComment(ctx, path.split('/')[4]);
       if (path === '/admin/dashboard/overview' && request.method === 'GET') return adminDashboardOverview(ctx);
+      if (path === '/admin/security/eino-usage' && request.method === 'GET') return adminEinoUsage(ctx);
       if (path.startsWith('/admin/')) return adminRoute(ctx);
       if (path === '/eino/chat' && request.method === 'POST') return eino(ctx);
 
@@ -120,7 +124,20 @@ export default {
 };
 
 function headers(ctx, extra = {}) {
-  return { ...JSON_HEADERS, ...ctx.cors, 'x-request-id': ctx.requestId, ...extra };
+  return {
+    ...JSON_HEADERS,
+    ...ctx.cors,
+    'x-request-id': ctx.requestId,
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+    'referrer-policy': 'no-referrer',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    'cross-origin-opener-policy': 'same-origin',
+    'x-permitted-cross-domain-policies': 'none',
+    'cache-control': 'no-store',
+    'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'",
+    ...extra,
+  };
 }
 
 function json(ctx, payload, status = 200, extra = {}) {
@@ -134,7 +151,19 @@ function ok(ctx, data, meta = null, status = 200) {
 function error(code, message, status = 400, requestId = crypto.randomUUID(), cors = {}) {
   return new Response(JSON.stringify({ success: false, error: { code, message, details: null, requestId } }), {
     status,
-    headers: { ...JSON_HEADERS, ...cors, 'x-request-id': requestId },
+    headers: {
+      ...JSON_HEADERS,
+      ...cors,
+      'x-request-id': requestId,
+      'x-content-type-options': 'nosniff',
+      'x-frame-options': 'DENY',
+      'referrer-policy': 'no-referrer',
+      'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+      'cross-origin-opener-policy': 'same-origin',
+      'x-permitted-cross-domain-policies': 'none',
+      'cache-control': 'no-store',
+      'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'",
+    },
   });
 }
 
@@ -452,6 +481,24 @@ async function upgradeStudentHash(ctx, student, secret) {
     .bind(hash, salt, student.id).run();
 }
 
+async function authIpRateLimit(ctx, action, limit, windowSeconds = AUTH_IP_WINDOW_SECONDS) {
+  // Cloudflare supplies CF-Connecting-IP at the edge. Hash it before persistence so
+  // the database never stores a raw client IP. The bucketed UPSERT is atomic in D1.
+  const ip = ctx.request.headers.get('CF-Connecting-IP') || 'unknown';
+  const ipHash = await sha256(ip);
+  const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
+  const id = `${action}:${ipHash}:${bucket}`;
+  const result = await ctx.env.DB.prepare(`
+    INSERT INTO auth_rate_limits (id, ip_hash, action, window_started_at, count)
+    VALUES (?, ?, ?, datetime(?, 'unixepoch'), 1)
+    ON CONFLICT(id) DO UPDATE SET count = count + 1
+  `).bind(id, ipHash, action, bucket * windowSeconds).run();
+  if (!result.success) return { allowed: false, retryAfterSeconds: windowSeconds };
+  const row = await queryOne(ctx.env, 'SELECT count FROM auth_rate_limits WHERE id=?', id);
+  const count = Number(row?.count || 0);
+  return { allowed: count <= limit, retryAfterSeconds: windowSeconds - (Math.floor(Date.now() / 1000) % windowSeconds) };
+}
+
 async function recordAuthEvent(ctx, actorType, actorId, eventType) {
   try {
     const ip = ctx.request.headers.get('CF-Connecting-IP') || '';
@@ -466,6 +513,8 @@ function lockedResponse(ctx) {
 }
 
 async function login(ctx) {
+  const ipLimit = await authIpRateLimit(ctx, 'student_login', AUTH_IP_LOGIN_LIMIT);
+  if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد محاولات تسجيل الدخول مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
   const body = await parseJson(ctx.request);
   const studentNumber = String(body?.studentNumber || '').trim();
   const secret = String(body?.password || body?.verificationCode || '');
@@ -488,6 +537,8 @@ async function login(ctx) {
 }
 
 async function staffLogin(ctx) {
+  const ipLimit = await authIpRateLimit(ctx, 'staff_login', AUTH_IP_LOGIN_LIMIT);
+  if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد محاولات تسجيل الدخول مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
   const body = await parseJson(ctx.request);
   const email = String(body?.email || '').trim().toLowerCase();
   const password = String(body?.password || '');
@@ -586,12 +637,37 @@ async function staffChangePassword(ctx) {
 }
 
 async function refresh(ctx) {
+  const ipLimit = await authIpRateLimit(ctx, 'refresh', AUTH_IP_REFRESH_LIMIT);
+  if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد محاولات تحديث الجلسة مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
   const body = await parseJson(ctx.request); const raw = String(body?.refreshToken || '');
-  if (!raw) return error('AUTH_REFRESH_REQUIRED', 'رمز التحديث مطلوب.', 400, ctx.requestId, ctx.cors);
+  if (!raw || raw.length > 4096) return error('AUTH_REFRESH_REQUIRED', 'رمز التحديث مطلوب.', 400, ctx.requestId, ctx.cors);
   const hash = await sha256(raw);
   const session = await queryOne(ctx.env, 'SELECT * FROM sessions WHERE refresh_token_hash = ? AND revoked_at IS NULL AND refresh_expires_at > CURRENT_TIMESTAMP LIMIT 1', hash);
-  if (!session) return error('AUTH_REFRESH_INVALID', 'رمز التحديث غير صالح أو منتهي.', 401, ctx.requestId, ctx.cors);
-  await ctx.env.DB.prepare('UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE id = ?').bind(session.id).run();
+  if (!session) {
+    await recordAuthEvent(ctx, 'unknown', null, 'refresh_reuse_or_invalid');
+    return error('AUTH_REFRESH_INVALID', 'رمز التحديث غير صالح أو منتهي.', 401, ctx.requestId, ctx.cors);
+  }
+
+  // Claim the refresh token atomically. This closes the rotation race where two
+  // concurrent requests could both exchange the same refresh token.
+  const claim = await ctx.env.DB.prepare(
+    'UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE id = ? AND refresh_token_hash = ? AND revoked_at IS NULL AND refresh_expires_at > CURRENT_TIMESTAMP'
+  ).bind(session.id, hash).run();
+  if (!claim.meta?.changes) {
+    await recordAuthEvent(ctx, session.staff_user_id ? 'staff' : 'student', session.staff_user_id || session.student_id, 'refresh_reuse_detected');
+    return error('AUTH_REFRESH_REUSED', 'تم استخدام رمز التحديث من قبل. سجّل الدخول مجددًا.', 401, ctx.requestId, ctx.cors);
+  }
+
+  // Do not mint a new session for an account that has since been disabled.
+  if (session.staff_user_id) {
+    const staff = await queryOne(ctx.env, 'SELECT active FROM staff_users WHERE id=? LIMIT 1', session.staff_user_id);
+    if (!staff?.active) return error('AUTH_ACCOUNT_DISABLED', 'حساب الإدارة معطل.', 403, ctx.requestId, ctx.cors);
+  }
+  if (session.student_id) {
+    const student = await queryOne(ctx.env, 'SELECT active FROM students WHERE id=? LIMIT 1', session.student_id);
+    if (!student?.active) return error('AUTH_ACCOUNT_DISABLED', 'حساب الطالب معطل.', 403, ctx.requestId, ctx.cors);
+  }
+  await recordAuthEvent(ctx, session.staff_user_id ? 'staff' : 'student', session.staff_user_id || session.student_id, 'refresh_success');
   return issueSession(ctx, { studentId: session.student_id, staffUserId: session.staff_user_id });
 }
 
@@ -981,8 +1057,8 @@ async function reaction(ctx) {
   await ctx.env.DB.prepare('INSERT INTO reactions (id,student_id,content_type,content_id,reaction) VALUES (?,?,?,?,?) ON CONFLICT(student_id,content_type,content_id) DO UPDATE SET reaction=excluded.reaction').bind(crypto.randomUUID(),a.session.student_id,parts[2],parts[3],value).run(); return ok(ctx,{reaction:value});
 }
 async function deleteComment(ctx,id) { const a=await auth(ctx); if(a.response) return a.response; const result=await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=? AND status='visible'").bind(id,a.session.student_id).run(); if(!result.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود أو لا يمكنك حذفه.',404,ctx.requestId,ctx.cors); return ok(ctx,{deleted:true}); }
-async function adminModerationComments(ctx) { const a=await auth(ctx); if(a.response) return a.response; if(!a.session.staff_user_id||a.session.staff_active!==1||!['super_admin','moderator'].includes(a.session.staff_role_id)) return error('FORBIDDEN','لا تملك صلاحية الإشراف.',403,ctx.requestId,ctx.cors); const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,'SELECT c.*,s.full_name,s.student_number FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?',status,limit); return ok(ctx,rows,{count:rows.length}); }
-async function adminModerationComment(ctx,id) { const a=await auth(ctx); if(a.response) return a.response; if(!a.session.staff_user_id||a.session.staff_active!==1||!['super_admin','moderator'].includes(a.session.staff_role_id)) return error('FORBIDDEN','لا تملك صلاحية الإشراف.',403,ctx.requestId,ctx.cors); const body=await parseJson(ctx.request); const status=String(body?.status||'').trim(); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const r=await ctx.env.DB.prepare('UPDATE comments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run(); if(!r.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,a.session.staff_user_id,'status_update','comment',id,{status}); return ok(ctx,{id,status}); }
+async function adminModerationComments(ctx) { const a=await requireAdminPermission(ctx, 'moderation.read'); if(a.response) return a.response; const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,'SELECT c.*,s.full_name,s.student_number FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?',status,limit); return ok(ctx,rows,{count:rows.length}); }
+async function adminModerationComment(ctx,id) { const a=await requireAdminPermission(ctx, 'moderation.write'); if(a.response) return a.response; const body=await parseJson(ctx.request); const status=String(body?.status||'').trim(); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const r=await ctx.env.DB.prepare('UPDATE comments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run(); if(!r.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,a.session.staff_user_id,'status_update','comment',id,{status}); return ok(ctx,{id,status}); }
 
 async function adminDashboardOverview(ctx) {
   const a = await adminRouteAuthOnly(ctx, 'dashboard.read');
@@ -1011,19 +1087,34 @@ async function adminDashboardOverview(ctx) {
   });
 }
 
+const ADMIN_ROLE_PERMISSIONS = Object.freeze({
+  super_admin: ['*'],
+  content_manager: ['content.read', 'content.write', 'notifications.write', 'dashboard.read'],
+  academic_manager: ['academic.read', 'academic.write', 'dashboard.read'],
+  moderator: ['moderation.read', 'moderation.write', 'dashboard.read'],
+});
+const ADMIN_ROLE_IDS = new Set(Object.keys(ADMIN_ROLE_PERMISSIONS));
+
+function hasAdminPermission(roleId, permissionName) {
+  const allowed = ADMIN_ROLE_PERMISSIONS[roleId] || [];
+  return allowed.includes('*') || allowed.includes(permissionName);
+}
+
+async function requireAdminPermission(ctx, permissionName) {
+  const a = await auth(ctx);
+  if (a.response) return a;
+  if (!a.session.staff_user_id || a.session.staff_active !== 1) {
+    return { response: error('STAFF_AUTH_REQUIRED', 'صلاحيات الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors) };
+  }
+  if (!hasAdminPermission(a.session.staff_role_id, permissionName)) {
+    return { response: error('FORBIDDEN', 'ليس لديك صلاحية لتنفيذ هذا الإجراء.', 403, ctx.requestId, ctx.cors) };
+  }
+  return a;
+}
+
 async function adminRoute(ctx) {
-  const a = await auth(ctx); if (a.response) return a.response;
-  if (!a.session.staff_user_id || a.session.staff_active !== 1) return error('STAFF_AUTH_REQUIRED', 'جلسة موظف الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors);
-  const role = a.session.staff_role_id;
-  const permission = adminPermission(ctx.path, ctx.request.method);
-  const permissions = {
-    super_admin: ['*'],
-    content_manager: ['content.read', 'content.write', 'dashboard.read'],
-    academic_manager: ['academic.read', 'academic.write', 'dashboard.read'],
-    moderator: ['moderation.read', 'moderation.write', 'dashboard.read'],
-  };
-  const allowed = permissions[role] || [];
-  if (!allowed.includes('*') && !allowed.includes(permission)) return error('FORBIDDEN', 'لا تملك الصلاحية لتنفيذ هذه العملية.', 403, ctx.requestId, ctx.cors);
+  const a = await requireAdminPermission(ctx, adminPermission(ctx.path, ctx.request.method));
+  if (a.response) return a.response;
 
   const parts = ctx.path.split('/').filter(Boolean);
   const resource = parts[1] || '';
@@ -1054,16 +1145,20 @@ function adminResourceTable(resource) {
 }
 
 const ADMIN_FIELDS = {
-  news: ['title','body','image_url','publish_at','expires_at','status'],
+  news: ['title','body','image_url','publish_at','expires_at','status','category','publisher'],
   announcements: ['title','body','type','target_department_id','target_semester_id','publish_at','expires_at','status'],
-  activities: ['title','body','image_url','event_at','status'],
-  achievements: ['title','description','image_url','achieved_at','status'],
+  activities: ['title','body','image_url','event_at','end_at','location','publisher','status'],
+  achievements: ['title','description','intro','highlights_title','highlights','badge','publisher','image_url','images_json','achieved_at','status'],
   subjects: ['semester_id','department_id','code','name_ar','name_en','active','sort_order'],
   materials: ['subject_id','title','description','drive_file_id','drive_url','mime_type','size_bytes','active','sort_order','drive_parent_id','drive_modified_at','drive_web_view_url','pinned','source'],
   schedules: ['semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer','active'],
   students: ['student_number','full_name','department_id','current_semester_id','active'],
   badges: ['name_ar','description_ar','icon_url','rule_type','rule_value','active','sort_order'],
 };
+
+const CONTENT_STATUS_VALUES = Object.freeze(new Set(['draft', 'published', 'archived']));
+const CONTENT_TABLES = Object.freeze(new Set(['news', 'activities', 'announcements', 'achievements']));
+const CONTENT_UPDATED_BY_TABLES = Object.freeze(new Set(['news', 'activities', 'achievements']));
 
 function cleanAdminPayload(table, body) {
   const out = {};
@@ -1078,16 +1173,31 @@ async function writeAudit(ctx, actorId, action, resourceType, resourceId, metada
     .bind(crypto.randomUUID(), 'staff', actorId, action, resourceType, resourceId, JSON.stringify(metadata || {})).run();
 }
 
+const ADMIN_SELECT_COLUMNS = {
+  news: 'id,title,body,image_url,publish_at,expires_at,status,category,publisher,created_by,updated_by,created_at,updated_at',
+  announcements: 'id,title,body,type,target_department_id,target_semester_id,publish_at,expires_at,status,created_by,created_at,updated_at',
+  activities: 'id,title,body,image_url,event_at,end_at,location,publisher,status,created_by,updated_by,created_at,updated_at',
+  achievements: 'id,title,description,intro,highlights_title,highlights,badge,publisher,image_url,images_json,achieved_at,status,created_by,updated_by,created_at,updated_at',
+  subjects: 'id,semester_id,department_id,code,name_ar,name_en,active,sort_order',
+  materials: 'id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,created_at,updated_at',
+  schedules: 'id,semester_id,department_id,subject_id,day_of_week,start_time,end_time,room,lecturer,active,created_by,updated_by,updated_at',
+  students: 'id,student_number,full_name,department_id,current_semester_id,active,created_at,updated_at',
+  badges: 'id,name_ar,description_ar,icon_url,rule_type,rule_value,active,sort_order,created_at,updated_at',
+};
+
 async function adminCrud(ctx, table, id, actorId) {
   if (ctx.request.method === 'GET') {
     const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
     const offset = Math.max(0, Number.parseInt(ctx.url.searchParams.get('offset') || '0', 10) || 0);
-    const rows = await queryAll(ctx.env, `SELECT * FROM ${table} ORDER BY rowid DESC LIMIT ? OFFSET ?`, limit, offset);
+    const columns = ADMIN_SELECT_COLUMNS[table];
+    if (!columns) return error('ADMIN_RESOURCE_NOT_FOUND','وحدة الإدارة غير معروفة.',404,ctx.requestId,ctx.cors);
+    const rows = await queryAll(ctx.env, `SELECT ${columns} FROM ${table} ORDER BY rowid DESC LIMIT ? OFFSET ?`, limit, offset);
     const count = await queryOne(ctx.env, `SELECT COUNT(*) AS count FROM ${table}`);
     return ok(ctx, rows, { limit, offset, total: Number(count?.count || 0) });
   }
   if (ctx.request.method === 'POST') {
     const body = await parseJson(ctx.request); const fields = cleanAdminPayload(table, body);
+    if (CONTENT_TABLES.has(table) && fields.status !== undefined && !CONTENT_STATUS_VALUES.has(String(fields.status))) return error('CONTENT_STATUS_INVALID','حالة المحتوى غير مدعومة.',400,ctx.requestId,ctx.cors);
     if (table === 'badges') {
       const allowedRules = new Set(['xp_total','level','completed_materials','progress_events']);
       if (fields.rule_type && !allowedRules.has(String(fields.rule_type))) return error('BADGE_RULE_INVALID','نوع قاعدة الشارة غير مدعوم.',400,ctx.requestId,ctx.cors);
@@ -1109,13 +1219,15 @@ async function adminCrud(ctx, table, id, actorId) {
   if (!id) return error('ADMIN_ID_REQUIRED','معرّف السجل مطلوب.',400,ctx.requestId,ctx.cors);
   if (ctx.request.method === 'PATCH') {
     const body = await parseJson(ctx.request); const fields = cleanAdminPayload(table, body);
+    if (CONTENT_TABLES.has(table) && fields.status !== undefined && !CONTENT_STATUS_VALUES.has(String(fields.status))) return error('CONTENT_STATUS_INVALID','حالة المحتوى غير مدعومة.',400,ctx.requestId,ctx.cors);
     if (table === 'badges') {
       const allowedRules = new Set(['xp_total','level','completed_materials','progress_events']);
       if (fields.rule_type && !allowedRules.has(String(fields.rule_type))) return error('BADGE_RULE_INVALID','نوع قاعدة الشارة غير مدعوم.',400,ctx.requestId,ctx.cors);
       if (fields.rule_value != null && (!Number.isInteger(Number(fields.rule_value)) || Number(fields.rule_value)<=0)) return error('BADGE_RULE_VALUE_INVALID','قيمة قاعدة الشارة يجب أن تكون رقمًا صحيحًا موجبًا.',400,ctx.requestId,ctx.cors);
     }
     if (!Object.keys(fields).length) return error('ADMIN_NO_FIELDS','لم يتم إرسال أي تغييرات.',400,ctx.requestId,ctx.cors);
-    if (table === 'news' || table === 'activities' || table === 'announcements') { fields.updated_by = actorId; fields.updated_at = new Date().toISOString(); }
+    if (CONTENT_UPDATED_BY_TABLES.has(table)) { fields.updated_by = actorId; fields.updated_at = new Date().toISOString(); }
+    if (table === 'announcements') { fields.updated_at = new Date().toISOString(); }
     if (table === 'achievements') { fields.updated_at = new Date().toISOString(); fields.updated_by = actorId; }
     if (table === 'schedules') { fields.updated_at = new Date().toISOString(); fields.updated_by = actorId; }
     const sets = Object.keys(fields).map(k=>`${k}=?`).join(',');
@@ -1125,10 +1237,26 @@ async function adminCrud(ctx, table, id, actorId) {
     return ok(ctx, await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id));
   }
   if (ctx.request.method === 'DELETE') {
-    let result;
-    if (['news','activities','announcements','achievements','materials','schedules','students','subjects','badges'].includes(table)) result = await ctx.env.DB.prepare(`UPDATE ${table} SET active=0 WHERE id=?`).bind(id).run().catch(()=>null);
-    if (!result || !result.meta?.changes) result = await ctx.env.DB.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();
-    if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
+    if (CONTENT_TABLES.has(table)) {
+      // Content uses lifecycle status rather than the boolean `active` flag used by
+      // operational records. DELETE therefore archives the record and keeps its
+      // history/audit trail intact; public endpoints only expose `published` rows.
+      const result = CONTENT_UPDATED_BY_TABLES.has(table)
+        ? await ctx.env.DB.prepare(`UPDATE ${table} SET status='archived', updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND status!='archived'`).bind(actorId, id).run()
+        : await ctx.env.DB.prepare(`UPDATE ${table} SET status='archived', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status!='archived'`).bind(id).run();
+      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود أو مؤرشف مسبقًا.',404,ctx.requestId,ctx.cors);
+      await writeAudit(ctx, actorId, 'archive', table, id, { previousAction: 'delete' });
+      return ok(ctx, { deleted:true, archived:true, status:'archived', id });
+    }
+
+    const softDeleteTables = new Set(['materials','schedules','students','subjects','badges']);
+    if (softDeleteTables.has(table)) {
+      const result = await ctx.env.DB.prepare(`UPDATE ${table} SET active=0 WHERE id=? AND active=1`).bind(id).run();
+      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود أو معطل مسبقًا.',404,ctx.requestId,ctx.cors);
+    } else {
+      const result = await ctx.env.DB.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();
+      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
+    }
     await writeAudit(ctx, actorId, 'delete', table, id);
     return ok(ctx, { deleted:true, id });
   }
@@ -1176,6 +1304,7 @@ async function adminStaff(ctx, id, actorId) {
   if (ctx.request.method === 'POST') {
     const email=String(body?.email||'').trim().toLowerCase(), name=String(body?.displayName||body?.display_name||'').trim(), password=String(body?.password||''), role=String(body?.roleId||body?.role_id||'content_manager');
     if(!email||!name||password.length<8) return error('STAFF_INPUT_INVALID','البريد والاسم وكلمة مرور من 8 أحرف مطلوبة.',400,ctx.requestId,ctx.cors);
+    if(!ADMIN_ROLE_IDS.has(role)) return error('STAFF_ROLE_INVALID','دور الإدارة غير صالح.',400,ctx.requestId,ctx.cors);
     const salt=token(16), hash=await pbkdf2Hash(password,salt), sid=crypto.randomUUID();
     await ctx.env.DB.prepare('INSERT INTO staff_users(id,email,display_name,role_id,password_hash,password_salt,password_algo) VALUES(?,?,?,?,?,?,?)').bind(sid,email,name,role,hash,salt,'pbkdf2-sha256').run();
     await writeAudit(ctx,actorId,'create','staff_users',sid,{email,role}); return ok(ctx,{id:sid,email,display_name:name,role_id:role},null,201);
@@ -1185,12 +1314,35 @@ async function adminStaff(ctx, id, actorId) {
     const sets=[], vals=[];
     if(body?.email){sets.push('email=?');vals.push(String(body.email).trim().toLowerCase());}
     if(body?.displayName||body?.display_name){sets.push('display_name=?');vals.push(String(body.displayName||body.display_name).trim());}
-    if(body?.roleId||body?.role_id){sets.push('role_id=?');vals.push(String(body.roleId||body.role_id));}
-    if(body?.active!==undefined){sets.push('active=?');vals.push(body.active?1:0);}
-    if(body?.password){if(String(body.password).length<8)return error('STAFF_PASSWORD_INVALID','كلمة المرور يجب ألا تقل عن 8 أحرف.',400,ctx.requestId,ctx.cors);const salt=token(16);sets.push('password_hash=?','password_salt=?','password_algo=?');vals.push(await pbkdf2Hash(String(body.password),salt),salt,'pbkdf2-sha256');}
+    if(body?.roleId||body?.role_id){
+      const nextRole=String(body.roleId||body.role_id);
+      if(!ADMIN_ROLE_IDS.has(nextRole)) return error('STAFF_ROLE_INVALID','دور الإدارة غير صالح.',400,ctx.requestId,ctx.cors);
+      if(id===actorId) return error('STAFF_SELF_ROLE_CHANGE_FORBIDDEN','لا يمكنك تغيير دور حسابك الحالي.',400,ctx.requestId,ctx.cors);
+      sets.push('role_id=?');vals.push(nextRole);
+    }
+    if(body?.active!==undefined){
+      if(id===actorId && !body.active) return error('STAFF_SELF_DEACTIVATE_FORBIDDEN','لا يمكنك تعطيل حسابك الحالي.',400,ctx.requestId,ctx.cors);
+      sets.push('active=?');vals.push(body.active?1:0);
+    }
+    let passwordChanged = false;
+    if(body?.password){
+      const nextPassword=String(body.password);
+      if(nextPassword.length<8 || nextPassword.length>256)return error('STAFF_PASSWORD_INVALID','كلمة المرور يجب أن تكون بين 8 و256 حرفًا.',400,ctx.requestId,ctx.cors);
+      if(id===actorId)return error('STAFF_USE_CHANGE_PASSWORD','استخدم تغيير كلمة المرور من حسابك بدل تعديلها إداريًا.',400,ctx.requestId,ctx.cors);
+      const salt=token(16);
+      sets.push('password_hash=?','password_salt=?','password_algo=?','failed_login_attempts=?','locked_until=?');
+      vals.push(await pbkdf2Hash(nextPassword,salt),salt,'pbkdf2-sha256',0,null);
+      passwordChanged = true;
+    }
     if(!sets.length)return error('ADMIN_NO_FIELDS','لم يتم إرسال أي تغييرات.',400,ctx.requestId,ctx.cors);
     vals.push(id); const result=await ctx.env.DB.prepare(`UPDATE staff_users SET ${sets.join(',')},updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(...vals).run();
-    if(!result.meta?.changes)return error('ADMIN_NOT_FOUND','المستخدم غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,actorId,'update','staff_users',id,{fields:sets.map(x=>x.split('=')[0])}); return ok(ctx,{updated:true});
+    if(!result.meta?.changes)return error('ADMIN_NOT_FOUND','المستخدم غير موجود.',404,ctx.requestId,ctx.cors);
+    if(passwordChanged){
+      await ctx.env.DB.prepare('UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE staff_user_id=? AND revoked_at IS NULL').bind(id).run();
+      await recordAuthEvent(ctx,'staff',id,'password_reset_by_admin');
+    }
+    await writeAudit(ctx,actorId,'update','staff_users',id,{fields:sets.map(x=>x.split('=')[0]),passwordChanged});
+    return ok(ctx,{updated:true,passwordSessionsRevoked:passwordChanged});
   }
   if(ctx.request.method==='DELETE'){if(id===actorId)return error('STAFF_SELF_DELETE_FORBIDDEN','لا يمكنك حذف حسابك الحالي.',400,ctx.requestId,ctx.cors);const r=await ctx.env.DB.prepare('UPDATE staff_users SET active=0,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(id).run();if(!r.meta?.changes)return error('ADMIN_NOT_FOUND','المستخدم غير موجود.',404,ctx.requestId,ctx.cors);await writeAudit(ctx,actorId,'deactivate','staff_users',id);return ok(ctx,{deleted:true});}
   return error('METHOD_NOT_ALLOWED','الطريقة غير مدعومة.',405,ctx.requestId,ctx.cors);
@@ -1229,14 +1381,7 @@ async function adminNotificationSend(ctx, actorId) {
 }
 
 async function adminRouteAuthOnly(ctx, permissionName) {
-  const a = await auth(ctx);
-  if (a.response) return a;
-  if (!a.session.staff_user_id || a.session.staff_active !== 1) return {response:error('STAFF_AUTH_REQUIRED','صلاحيات الإدارة مطلوبة.',403,ctx.requestId,ctx.cors)};
-  const role = a.session.staff_role_id;
-  const permissions = {super_admin:['*'],content_manager:['content.read','content.write','notifications.write','dashboard.read'],academic_manager:['academic.read','academic.write','dashboard.read'],moderator:['moderation.read','moderation.write','dashboard.read']};
-  const allowed = permissions[role] || [];
-  if (!allowed.includes('*') && !allowed.includes(permissionName)) return {response:error('FORBIDDEN','ليس لديك صلاحية لتنفيذ هذا الإجراء.',403,ctx.requestId,ctx.cors)};
-  return a;
+  return requireAdminPermission(ctx, permissionName);
 }
 
 async function eino(ctx) {
@@ -1248,6 +1393,7 @@ async function eino(ctx) {
   const message = String(body?.message || body?.prompt || '').trim();
   const context = String(body?.context || '').trim();
   if (!message || message.length > EINO_MAX_MESSAGE || context.length > EINO_MAX_CONTEXT) {
+    await recordEinoTelemetry(ctx, 'validation_invalid', 'unknown');
     return error('EINO_INPUT_INVALID', 'رسالة Eino أو سياق المحادثة غير صالح.', 400, ctx.requestId, ctx.cors);
   }
 
@@ -1262,15 +1408,26 @@ async function eino(ctx) {
        LEFT JOIN semesters se ON se.id = st.current_semester_id
       WHERE st.id = ? AND st.active = 1`, a.session.student_id) : null;
 
+  const actorType = a?.session?.student_id ? 'student' : 'guest';
   const actorKey = a?.session?.student_id
     ? `student:${a.session.student_id}`
     : `ip:${await sha256(ctx.request.headers.get('CF-Connecting-IP') || 'unknown')}`;
   const rate = await consumeEinoQuota(ctx, actorKey);
-  if (!rate.allowed) return error('EINO_RATE_LIMITED', 'استخدم Eino بهدوء قليلًا ثم أعد المحاولة.', 429, ctx.requestId, ctx.cors);
+  if (!rate.allowed) {
+    await recordEinoTelemetry(ctx, `quota_${rate.scope}`, actorType);
+    const code = rate.scope === 'daily' ? 'EINO_DAILY_LIMITED' : rate.scope === 'global' ? 'EINO_GLOBAL_LIMITED' : 'EINO_RATE_LIMITED';
+    const message = rate.scope === 'daily'
+      ? 'وصلت إلى الحد اليومي لاستخدام Eino. حاول مرة أخرى غدًا.'
+      : rate.scope === 'global'
+        ? 'تم إيقاف طلبات Eino مؤقتًا بسبب ضغط الاستخدام. حاول لاحقًا.'
+        : 'استخدم Eino بهدوء قليلًا ثم أعد المحاولة.';
+    return error(code, message, 429, ctx.requestId, ctx.cors);
+  }
 
   const configuredModel = String(ctx.env.EINO_MODEL || 'openai/gpt-4o-mini').trim();
   // OmniRoute expects provider/model. Never forward the old ambiguous "auto" value.
   if (!/^[^/\\s]+\/[^/\\s]+$/.test(configuredModel) || configuredModel.toLowerCase() === 'auto') {
+    await recordEinoTelemetry(ctx, 'config_invalid', actorType);
     return error('EINO_MODEL_INVALID', 'إعداد نموذج Eino غير صالح. يجب تحديد provider/model.', 503, ctx.requestId, ctx.cors);
   }
 
@@ -1290,6 +1447,7 @@ async function eino(ctx) {
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
+  const startedAt = Date.now();
   try {
     const response = await fetch(`${ctx.env.OMNIROUTE_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`, {
       method: 'POST',
@@ -1297,13 +1455,26 @@ async function eino(ctx) {
       body: JSON.stringify({ model: configuredModel, messages, temperature: 0.4, max_tokens: 900 }),
       signal: controller.signal,
     });
-    if (!response.ok) return error('EINO_PROVIDER_ERROR', 'تعذر الوصول إلى Eino حاليًا.', 502, ctx.requestId, ctx.cors);
+    const latencyMs = Date.now() - startedAt;
+    if (!response.ok) {
+      await recordEinoTelemetry(ctx, 'provider_error', actorType, latencyMs);
+      return error('EINO_PROVIDER_ERROR', 'تعذر الوصول إلى Eino حاليًا.', 502, ctx.requestId, ctx.cors);
+    }
     const data = await response.json();
     const answer = data?.choices?.[0]?.message?.content;
-    if (typeof answer !== 'string' || !answer.trim()) return error('EINO_EMPTY_RESPONSE', 'لم تصل إجابة صالحة من Eino.', 502, ctx.requestId, ctx.cors);
+    if (typeof answer !== 'string' || !answer.trim()) {
+      await recordEinoTelemetry(ctx, 'empty_response', actorType, latencyMs);
+      return error('EINO_EMPTY_RESPONSE', 'لم تصل إجابة صالحة من Eino.', 502, ctx.requestId, ctx.cors);
+    }
+    await recordEinoTelemetry(ctx, 'success', actorType, latencyMs);
     return ok(ctx, { message: answer.trim(), provider: 'omniroute', model: configuredModel });
   } catch (e) {
-    if (e?.name === 'AbortError') return error('EINO_TIMEOUT', 'استغرق Eino وقتًا أطول من المتوقع. أعد المحاولة.', 504, ctx.requestId, ctx.cors);
+    const latencyMs = Date.now() - startedAt;
+    if (e?.name === 'AbortError') {
+      await recordEinoTelemetry(ctx, 'timeout', actorType, latencyMs);
+      return error('EINO_TIMEOUT', 'استغرق Eino وقتًا أطول من المتوقع. أعد المحاولة.', 504, ctx.requestId, ctx.cors);
+    }
+    await recordEinoTelemetry(ctx, 'provider_error', actorType, latencyMs);
     console.error(`[${ctx.requestId}] Eino gateway error`, e);
     return error('EINO_PROVIDER_ERROR', 'تعذر الوصول إلى Eino حاليًا.', 502, ctx.requestId, ctx.cors);
   } finally {
@@ -1312,16 +1483,113 @@ async function eino(ctx) {
 }
 
 async function consumeEinoQuota(ctx, actorKey) {
+  const studentLimit = positiveInt(ctx.env.EINO_STUDENT_DAILY_LIMIT, EINO_STUDENT_DAILY_LIMIT_DEFAULT);
+  const guestLimit = positiveInt(ctx.env.EINO_GUEST_DAILY_LIMIT, EINO_GUEST_DAILY_LIMIT_DEFAULT);
+  const globalLimit = positiveInt(ctx.env.EINO_GLOBAL_DAILY_LIMIT, EINO_GLOBAL_DAILY_LIMIT_DEFAULT);
+  const dailyLimit = actorKey.startsWith('student:') ? studentLimit : guestLimit;
   const now = Date.now();
   const windowStarted = new Date(Math.floor(now / (EINO_WINDOW_SECONDS * 1000)) * EINO_WINDOW_SECONDS * 1000).toISOString();
-  const row = await queryOne(ctx.env, 'SELECT id, request_count FROM eino_usage WHERE actor_key = ? AND window_started_at = ?', actorKey, windowStarted);
-  if (row && Number(row.request_count || 0) >= EINO_WINDOW_LIMIT) return { allowed: false, remaining: 0 };
-  if (row) {
-    await ctx.env.DB.prepare('UPDATE eino_usage SET request_count = request_count + 1, last_request_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(row.id).run();
-    return { allowed: true, remaining: EINO_WINDOW_LIMIT - Number(row.request_count || 0) - 1 };
+  const dayStarted = new Date(Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate())).toISOString();
+
+  // Check the global guard first so an exhausted system-wide budget does not
+  // consume an individual user's quota.
+  const global = await consumeEinoBucket(ctx, 'day', 'global', dayStarted, globalLimit);
+  if (!global.allowed) return { allowed: false, scope: 'global', remaining: 0 };
+
+  // The actor window and daily counters are independent atomic buckets. A
+  // rejected request may consume an earlier bucket when a later bucket rejects;
+  // this is intentional: every admitted-to-governance request is an attempt.
+  const daily = await consumeEinoBucket(ctx, 'day', actorKey, dayStarted, dailyLimit);
+  if (!daily.allowed) return { allowed: false, scope: 'daily', remaining: 0 };
+
+  const burst = await consumeEinoBucket(ctx, 'window', actorKey, windowStarted, EINO_WINDOW_LIMIT);
+  if (!burst.allowed) return { allowed: false, scope: 'window', remaining: 0 };
+
+  return { allowed: true, remaining: Math.min(burst.remaining, daily.remaining, global.remaining) };
+}
+
+async function consumeEinoBucket(ctx, bucketType, scopeKey, bucketStartedAt, limit) {
+  const id = crypto.randomUUID();
+  const result = await ctx.env.DB.prepare(`
+    INSERT INTO eino_quota_usage
+      (id, bucket_type, scope_key, bucket_started_at, request_count, last_request_at)
+    VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+    ON CONFLICT(bucket_type, scope_key, bucket_started_at) DO UPDATE SET
+      request_count = request_count + 1,
+      last_request_at = CURRENT_TIMESTAMP,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE request_count < ?
+  `).bind(id, bucketType, scopeKey, bucketStartedAt, limit).run();
+
+  if (!result.meta?.changes) return { allowed: false, remaining: 0 };
+  const row = await queryOne(ctx.env,
+    'SELECT request_count FROM eino_quota_usage WHERE bucket_type=? AND scope_key=? AND bucket_started_at=?',
+    bucketType, scopeKey, bucketStartedAt);
+  const count = Number(row?.request_count || 1);
+  return { allowed: true, remaining: Math.max(0, limit - count) };
+}
+
+function positiveInt(value, fallback) {
+  const n = Number.parseInt(String(value ?? ''), 10);
+  return Number.isSafeInteger(n) && n > 0 ? n : fallback;
+}
+
+async function recordEinoTelemetry(ctx, eventType, actorType = 'unknown', latencyMs = 0) {
+  try {
+    const now = Date.now();
+    const bucketStarted = new Date(Math.floor(now / 3600000) * 3600000).toISOString();
+    await ctx.env.DB.prepare(`
+      INSERT INTO eino_telemetry
+        (id, bucket_started_at, event_type, actor_type, event_count, total_latency_ms, last_event_at)
+      VALUES (?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(bucket_started_at, event_type, actor_type) DO UPDATE SET
+        event_count = event_count + 1,
+        total_latency_ms = total_latency_ms + excluded.total_latency_ms,
+        last_event_at = CURRENT_TIMESTAMP
+    `).bind(crypto.randomUUID(), bucketStarted, eventType, actorType, Math.max(0, Number(latencyMs) || 0)).run();
+  } catch (e) {
+    // Telemetry must never break the user-facing Eino request.
+    console.error(`[${ctx.requestId}] Eino telemetry error`, e);
   }
-  await ctx.env.DB.prepare('INSERT INTO eino_usage (id, actor_key, window_started_at, request_count, last_request_at) VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)').bind(crypto.randomUUID(), actorKey, windowStarted).run();
-  return { allowed: true, remaining: EINO_WINDOW_LIMIT - 1 };
+}
+
+async function adminEinoUsage(ctx) {
+  const a = await requireAdminPermission(ctx, 'dashboard.read');
+  if (a.response) return a.response;
+  const hours = clampInt(ctx.url.searchParams.get('hours'), 24, 1, 168);
+  const since = new Date(Date.now() - hours * 3600000).toISOString();
+  const rows = await queryAll(ctx.env, `
+    SELECT bucket_started_at AS bucketStartedAt, event_type AS eventType, actor_type AS actorType,
+           event_count AS eventCount, total_latency_ms AS totalLatencyMs, last_event_at AS lastEventAt
+      FROM eino_telemetry
+     WHERE bucket_started_at >= ?
+     ORDER BY bucket_started_at DESC, event_type ASC, actor_type ASC
+     LIMIT 2000`, since);
+  const summaryRows = await queryAll(ctx.env, `
+    SELECT event_type AS eventType, actor_type AS actorType,
+           SUM(event_count) AS eventCount, SUM(total_latency_ms) AS totalLatencyMs
+      FROM eino_telemetry
+     WHERE bucket_started_at >= ?
+     GROUP BY event_type, actor_type
+     ORDER BY eventCount DESC`, since);
+  return ok(ctx, {
+    hours,
+    since,
+    limits: {
+      window: EINO_WINDOW_LIMIT,
+      windowSeconds: EINO_WINDOW_SECONDS,
+      studentDaily: positiveInt(ctx.env.EINO_STUDENT_DAILY_LIMIT, EINO_STUDENT_DAILY_LIMIT_DEFAULT),
+      guestDaily: positiveInt(ctx.env.EINO_GUEST_DAILY_LIMIT, EINO_GUEST_DAILY_LIMIT_DEFAULT),
+      globalDaily: positiveInt(ctx.env.EINO_GLOBAL_DAILY_LIMIT, EINO_GLOBAL_DAILY_LIMIT_DEFAULT),
+    },
+    summary: summaryRows.map(r => ({
+      eventType: r.eventType, actorType: r.actorType, eventCount: Number(r.eventCount || 0),
+      averageLatencyMs: r.eventCount ? Math.round(Number(r.totalLatencyMs || 0) / Number(r.eventCount)) : 0,
+    })),
+    buckets: rows.map(r => ({
+      ...r, eventCount: Number(r.eventCount || 0), totalLatencyMs: Number(r.totalLatencyMs || 0),
+    })),
+  });
 }
 
 

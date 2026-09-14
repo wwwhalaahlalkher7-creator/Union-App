@@ -4,7 +4,7 @@ import re, sqlite3, sys
 ROOT = Path(__file__).resolve().parents[1]
 FLUTTER = ROOT / 'flutter'
 BACKEND = ROOT / 'backend'
-DASHBOARD = ROOT / 'dashboard'
+DASHBOARD = ROOT / 'website/dashboard'
 
 errors=[]
 
@@ -46,8 +46,29 @@ for base in (FLUTTER/'lib', DASHBOARD, BACKEND/'src'):
 # Release config sanity: debug signing is permitted only as a CI/test fallback,
 # but must be explicitly documented as NOT production signing.
 gradle=(FLUTTER/'android/app/build.gradle').read_text(encoding='utf-8')
-if 'signingConfig = signingConfigs.debug' in gradle:
+if 'signingConfig = hasReleaseSigning ? signingConfigs.release : signingConfigs.debug' in gradle:
     print('WARNING: release build currently uses debug signing; RC is test-installable, NOT production/Play signed.')
+
+# Production security invariants.
+backend_source = (BACKEND / 'src/index.js').read_text(encoding='utf-8')
+if 'const ADMIN_ROLE_PERMISSIONS = Object.freeze({' not in backend_source:
+    errors.append('Missing centralized admin role permission map')
+if 'if(!ADMIN_ROLE_IDS.has(role))' not in backend_source or 'if(!ADMIN_ROLE_IDS.has(nextRole))' not in backend_source:
+    errors.append('Staff role allowlist validation is missing')
+if "allowedOrigins.length === 0 ? '*'" in backend_source:
+    errors.append('CORS must not fall back to wildcard in production')
+
+# Admin API safety invariants.
+if 'const ADMIN_SELECT_COLUMNS = {' not in backend_source:
+    errors.append('Admin CRUD must use an explicit safe SELECT projection')
+if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'activities', 'announcements', 'achievements']))" not in backend_source:
+    errors.append('Admin content lifecycle contract is missing')
+if "UPDATE ${table} SET status='archived'" not in backend_source:
+    errors.append('Admin content DELETE must archive by status')
+if "students: 'id,student_number,full_name,department_id,current_semester_id,active,created_at,updated_at'" not in backend_source:
+    errors.append('Admin student projection must exclude authentication secrets')
+if "WHERE id=? AND active=1" not in backend_source:
+    errors.append('Soft-deletable admin records must not fall through to hard delete')
 
 # Release metadata must exist.
 meta=ROOT/'docs/RELEASE_CANDIDATE_V1.md'

@@ -43,7 +43,7 @@ class ApiClient {
     }
     try {
       final headers = <String, String>{'Accept': 'application/json'};
-      final token = authStorage?.accessToken;
+      final token = await authStorage?.accessToken;
       if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
       if (body != null) { headers['Content-Type'] = 'application/json'; }
       final response = switch (method) {
@@ -51,7 +51,7 @@ class ApiClient {
         'DELETE' => await _client.delete(uri, headers: headers).timeout(const Duration(seconds: 20)),
         _ => await _client.post(uri, headers: headers, body: jsonEncode(body ?? const {})).timeout(const Duration(seconds: 20)),
       };
-      if (response.statusCode == 401 && retry && authStorage?.refreshToken?.isNotEmpty == true) {
+      if (response.statusCode == 401 && retry && (await authStorage?.refreshToken)?.isNotEmpty == true) {
         final refreshed = await _refreshSession();
         if (refreshed) return _request(method, path, query: query, body: body, retry: false, cacheTtl: cacheTtl, forceRefresh: forceRefresh);
       }
@@ -66,7 +66,7 @@ class ApiClient {
   }
 
   Future<bool> _refreshSession() async {
-    final refresh = authStorage?.refreshToken; if (refresh == null || refresh.isEmpty) return false;
+    final refresh = await authStorage?.refreshToken; if (refresh == null || refresh.isEmpty) return false;
     try {
       final response = await _client.post(_buildUri('/api/v1/auth/refresh'), headers: const {'Accept':'application/json','Content-Type':'application/json'}, body: jsonEncode({'refreshToken': refresh})).timeout(const Duration(seconds: 15));
       final decoded = jsonDecode(response.body);

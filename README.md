@@ -24,3 +24,7 @@ The public website under `website/` is the source of truth and uses the TRINEX A
 The GitHub Actions website workflow deploys the complete website in one Cloudflare Worker: public pages at `/` and the administration dashboard at `/admin/`. The backend Worker remains deployed separately.
 
 The final public domain/route must be attached to the `leo-association-website` Worker in Cloudflare; no domain or API credentials are stored in the repository.
+
+## Stage 5
+- Flutter authentication storage hardened with `flutter_secure_storage`.
+- Legacy SharedPreferences auth values are migrated and deleted.

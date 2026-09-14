@@ -128,10 +128,19 @@ async function loadSchedule() {
     const selectedEntries = (scheduleData.entries || []).filter(e => !window.scheduleDepartmentFilter || e.departmentId === window.scheduleDepartmentFilter);
     renderSchedule(selectedEntries);
   } catch (e) {
-    body.innerHTML = `<tr><td colspan="9"><div class="empty-state is-error"><i class="fa-solid fa-triangle-exclamation"></i>${Utils.escapeHtml(e.message || "تعذّر تحميل الجداول")}<br><button class="btn btn-secondary" type="button" onclick="loadSchedule()">إعادة المحاولة</button></div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="9"><div class="empty-state is-error"><i class="fa-solid fa-triangle-exclamation"></i>${Utils.escapeHtml(e.message || "تعذّر تحميل الجداول")}<br><button class="btn btn-secondary" type="button" data-action="retry-load">إعادة المحاولة</button></div></td></tr>`;
     document.getElementById("resultHint").textContent = "فشل التحميل";
   }
 }
+
+document.getElementById("scheduleBody").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("button[data-action]"); if (!btn) return;
+  const id = btn.dataset.id; const action = btn.dataset.action;
+  if (action === "retry-load") loadSchedule();
+  else if (action === "edit") openForm(id);
+  else if (action === "toggle") toggleEntry(id, btn.dataset.active !== "1");
+  else if (action === "delete") deleteEntry(id);
+});
 
 function renderSchedule(entries) {
   const body = document.getElementById("scheduleBody");
@@ -152,9 +161,9 @@ function renderSchedule(entries) {
       <td>${Utils.escapeHtml(e.instructor || "—")}</td>
       <td><span class="badge ${e.active === false ? "badge-neutral" : "badge-success"}">${e.active === false ? "معطلة" : "نشطة"}</span></td>
       <td><div class="row-actions requires-edit">
-        <button class="icon-btn" type="button" title="تعديل" onclick='openForm(${JSON.stringify(e.id)})'><i class="fa-solid fa-pen"></i></button>
-        <button class="icon-btn" type="button" title="${e.active === false ? "تفعيل" : "تعطيل"}" onclick='toggleEntry(${JSON.stringify(e.id)}, ${e.active === false})'><i class="fa-solid ${e.active === false ? "fa-toggle-on" : "fa-toggle-off"}"></i></button>
-        <button class="icon-btn is-danger" type="button" title="حذف" onclick='deleteEntry(${JSON.stringify(e.id)})'><i class="fa-solid fa-trash"></i></button>
+        <button class="icon-btn" type="button" title="تعديل" data-action="edit" data-id="${Utils.escapeHtml(String(e.id))}"><i class="fa-solid fa-pen"></i></button>
+        <button class="icon-btn" type="button" title="${e.active === false ? "تفعيل" : "تعطيل"}" data-action="toggle" data-id="${Utils.escapeHtml(String(e.id))}" data-active="${e.active === false ? "0" : "1"}"><i class="fa-solid ${e.active === false ? "fa-toggle-on" : "fa-toggle-off"}"></i></button>
+        <button class="icon-btn is-danger" type="button" title="حذف" data-action="delete" data-id="${Utils.escapeHtml(String(e.id))}"><i class="fa-solid fa-trash"></i></button>
       </div></td>
     </tr>`).join("");
 }

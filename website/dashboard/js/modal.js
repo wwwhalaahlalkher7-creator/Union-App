@@ -36,7 +36,13 @@ const Modal = (function () {
   function open(opts) {
     const el = ensureOverlay();
     el.querySelector("#modalTitle").textContent = opts.title || "";
-    el.querySelector("#modalBody").innerHTML = opts.bodyHtml || "";
+    const body = el.querySelector("#modalBody");
+    body.replaceChildren();
+    if (opts.bodyHtml) {
+      const tpl = document.createElement("template");
+      tpl.innerHTML = opts.bodyHtml;
+      body.appendChild(tpl.content.cloneNode(true));
+    }
 
     const footer = el.querySelector("#modalFooter");
     footer.innerHTML = "";
@@ -65,14 +71,30 @@ const Modal = (function () {
   /** نافذة تأكيد بسيطة تُعيد Promise<boolean> بدل confirm() الافتراضية للمتصفح */
   function confirmDialog(message, confirmLabel) {
     return new Promise(resolve => {
-      open({
-        title: "تأكيد",
-        bodyHtml: `<p style="color:var(--ink-700);font-size:.9rem;line-height:1.8">${message}</p>`,
-        buttons: [
-          { label: "إلغاء", className: "btn-secondary", onClick: () => { close(); resolve(false); } },
-          { label: confirmLabel || "تأكيد", className: "btn-danger", onClick: () => { close(); resolve(true); } }
-        ]
+      const el = ensureOverlay();
+      el.querySelector("#modalTitle").textContent = "تأكيد";
+      const body = el.querySelector("#modalBody");
+      body.replaceChildren();
+      const p = document.createElement("p");
+      p.style.cssText = "color:var(--ink-700);font-size:.9rem;line-height:1.8";
+      p.textContent = message == null ? "" : String(message);
+      body.appendChild(p);
+      const footer = el.querySelector("#modalFooter");
+      footer.replaceChildren();
+      [
+        { label: "إلغاء", className: "btn-secondary", onClick: () => { close(); resolve(false); } },
+        { label: confirmLabel || "تأكيد", className: "btn-danger", onClick: () => { close(); resolve(true); } }
+      ].forEach(btn => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "btn " + btn.className;
+        b.textContent = btn.label;
+        b.addEventListener("click", () => btn.onClick(b));
+        footer.appendChild(b);
       });
+      el.classList.add("is-open");
+      document.body.classList.add("modal-open");
+      setTimeout(() => { const first = el.querySelector("button:not(#modalCloseBtn)"); if (first) first.focus(); }, 0);
     });
   }
 

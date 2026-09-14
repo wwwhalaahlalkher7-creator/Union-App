@@ -4,11 +4,24 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Production signing is supplied at build time through android/key.properties
+// and is intentionally never committed to the repository.
+import java.util.Properties
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def hasReleaseSigning = [
+    'keyAlias', 'keyPassword', 'storeFile', 'storePassword'
+].every { keystoreProperties.getProperty(it) }
+
 android {
     namespace = "com.leoassociation.app"
     compileSdk = flutter.compileSdkVersion
 
-    // Keep Java and Kotlin JVM targets aligned for modern Android/Flutter builds.
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -18,12 +31,22 @@ android {
         jvmTarget = "17"
     }
 
-    // Sign the CI release APK with Gradle's local debug key so the generated
-    // artifact is installable for testing. Replace this with a real release
-    // keystore before publishing to production/Google Play.
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                keyAlias = keystoreProperties['keyAlias']
+                keyPassword = keystoreProperties['keyPassword']
+                storeFile = file(keystoreProperties['storeFile'])
+                storePassword = keystoreProperties['storePassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            // CI/local production builds must provide key.properties.
+            // Keeping the debug fallback preserves development builds only.
+            signingConfig = hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
 

@@ -42,6 +42,18 @@ jobs:
       - name: Check Worker syntax
         run: node --check src/index.js
 
+      - name: Check Dashboard adapter syntax
+        working-directory: website/dashboard/js
+        run: node --check api-adapter.js
+
+      - name: Admin CRUD contract tests
+        working-directory: .
+        run: python3 ci/admin_crud_check.py
+
+      - name: Authentication hardening contract tests
+        working-directory: .
+        run: python3 ci/auth_hardening_check.py
+
       - name: Migration smoke test
         run: |
           python3 - <<'PY'

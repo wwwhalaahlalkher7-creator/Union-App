@@ -26,6 +26,24 @@
   <div class="stat-card"><div class="stat-card-icon"><i class="fa-solid fa-newspaper"></i></div><div class="stat-card-label">المحتوى المنشور</div><div class="stat-card-value" id="news">—</div></div>
 </div>
 
+<section class="card dashboard-eino-card" id="einoUsageCard">
+  <div class="card-header">
+    <div><h3>مراقبة إينو</h3><span class="card-header-hint">آخر 24 ساعة — حوكمة واستخدام الذكاء الاصطناعي</span></div>
+    <span class="badge badge-neutral" id="einoHealthBadge">جارٍ الفحص</span>
+  </div>
+  <div class="stats-grid dashboard-eino-stats">
+    <div class="stat-card"><div class="stat-card-icon"><i class="fa-solid fa-circle-check"></i></div><div class="stat-card-label">نجاح</div><div class="stat-card-value" id="einoSuccess">—</div></div>
+    <div class="stat-card"><div class="stat-card-icon"><i class="fa-solid fa-gauge-high"></i></div><div class="stat-card-label">تجاوزات الحصة</div><div class="stat-card-value" id="einoQuota">—</div></div>
+    <div class="stat-card"><div class="stat-card-icon"><i class="fa-solid fa-triangle-exclamation"></i></div><div class="stat-card-label">أخطاء المزود</div><div class="stat-card-value" id="einoProviderErrors">—</div></div>
+    <div class="stat-card"><div class="stat-card-icon"><i class="fa-solid fa-stopwatch"></i></div><div class="stat-card-label">متوسط زمن الاستجابة</div><div class="stat-card-value" id="einoLatency">—</div></div>
+  </div>
+  <div class="dashboard-eino-meta">
+    <span>طالب: <strong id="einoStudentLimit">—</strong>/يوم</span>
+    <span>زائر: <strong id="einoGuestLimit">—</strong>/يوم</span>
+    <span>عام: <strong id="einoGlobalLimit">—</strong>/يوم</span>
+  </div>
+</section>
+
 <section class="card dashboard-quick-card">
   <div class="card-header"><div><h3>إجراءات سريعة</h3><span class="card-header-hint">اختصارات للمهام المتكررة</span></div></div>
   <div class="quick-actions">
@@ -47,7 +65,7 @@
 </template>
 <script src="js/api-adapter.js?v=2.8.0"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/layout.js"></script>
 <script>
-document.addEventListener('shell:ready',async()=>{document.getElementById('pageContent').appendChild(document.getElementById('pageTemplate').content.cloneNode(true));bindQuickRoleGuards();await Promise.all([loadStats(),loadHealth(),loadNews()]);});
+document.addEventListener('shell:ready',async()=>{document.getElementById('pageContent').appendChild(document.getElementById('pageTemplate').content.cloneNode(true));bindQuickRoleGuards();await Promise.all([loadStats(),loadHealth(),loadNews(),loadEinoUsage()]);});
 function bindQuickRoleGuards(){
   const session=Auth.get();
   document.querySelectorAll('a[data-role-key]').forEach(a=>a.addEventListener('click',e=>{
@@ -61,5 +79,25 @@ function bindQuickRoleGuards(){
 }
 async function loadStats(){try{const s=await Adapter.getOverviewStats();[['students',s.students],['activeStudents',s.activeStudents],['materials',s.materials],['news',s.news]].forEach(([id,v])=>document.getElementById(id).textContent=Utils.formatNumber(v||0));}catch(e){['students','activeStudents','materials','news'].forEach(id=>document.getElementById(id).textContent='—');}}
 async function loadHealth(){const el=document.getElementById('healthList');try{const arr=await Adapter.getSystemHealth();el.innerHTML=arr.length?arr.map(s=>`<div class="v2-status"><span class="v2-dot"></span><div><strong>${Utils.escapeHtml(s.name)}</strong><div class="field-hint">${s.lastSuccess?'آخر نجاح: '+Utils.formatDate(s.lastSuccess):'لم يتم التحقق بعد'}</div></div></div>`).join(''):'<div class="empty-state">لا توجد خدمات مراقبة.</div>';}catch(e){el.innerHTML='<div class="empty-state is-error">تعذّر فحص حالة النظام.</div>';}}
+async function loadEinoUsage(){
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  const badge=document.getElementById('einoHealthBadge');
+  try{
+    const d=await Adapter.getEinoUsage(24);
+    const summary=Array.isArray(d.summary)?d.summary:[];
+    const total=(event)=>summary.filter(x=>x.eventType===event).reduce((n,x)=>n+Number(x.eventCount||0),0);
+    const success=total('success'), quota=summary.filter(x=>String(x.eventType||'').startsWith('quota_')).reduce((n,x)=>n+Number(x.eventCount||0),0), providerErrors=total('provider_error');
+    const latencyRows=summary.filter(x=>['success','provider_error','empty_response','timeout'].includes(x.eventType)&&Number(x.eventCount||0)>0);
+    const weightedCount=latencyRows.reduce((n,x)=>n+Number(x.eventCount||0),0);
+    const latency=weightedCount?Math.round(latencyRows.reduce((n,x)=>n+Number(x.averageLatencyMs||0)*Number(x.eventCount||0),0)/weightedCount):0;
+    set('einoSuccess',Utils.formatNumber(success));set('einoQuota',Utils.formatNumber(quota));set('einoProviderErrors',Utils.formatNumber(providerErrors));set('einoLatency',latency?Utils.formatNumber(latency)+' ms':'—');
+    set('einoStudentLimit',Utils.formatNumber(d.limits?.studentDaily||0));set('einoGuestLimit',Utils.formatNumber(d.limits?.guestDaily||0));set('einoGlobalLimit',Utils.formatNumber(d.limits?.globalDaily||0));
+    badge.textContent=providerErrors===0?'مستقر':providerErrors<5?'تنبيه':'يحتاج مراجعة';
+    badge.className='badge '+(providerErrors===0?'badge-success':providerErrors<5?'badge-warning':'badge-danger');
+  }catch(e){
+    ['einoSuccess','einoQuota','einoProviderErrors','einoLatency','einoStudentLimit','einoGuestLimit','einoGlobalLimit'].forEach(id=>set(id,'—'));
+    badge.textContent='غير متاح';badge.className='badge badge-neutral';
+  }
+}
 async function loadNews(){const el=document.getElementById('newsList');try{const items=await Adapter.getRecentNews(5);el.innerHTML=items.length?items.map(n=>`<div class="list-row"><div style="flex:1"><strong>${Utils.escapeHtml(n.title||'بدون عنوان')}</strong><div class="field-hint">${n.date?Utils.formatDate(n.date):'—'}</div></div><span class="badge badge-neutral">${Utils.formatNumber(n.views||0)} مشاهدة</span></div>`).join(''):'<div class="empty-state">لا توجد أخبار حالياً.</div>';}catch(e){el.innerHTML='<div class="empty-state is-error">تعذّر تحميل الأخبار.</div>';}}
 </script></body></html>

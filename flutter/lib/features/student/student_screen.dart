@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
@@ -35,14 +34,13 @@ class _StudentScreenState extends State<StudentScreen> {
 
   Future<void> _init() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final storage = AuthStorage(prefs);
+      final storage = await AuthStorage.create();
       final client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: storage);
       if (!mounted) { client.dispose(); return; }
       _storage = storage;
       _client = client;
       _repo = StudentRepository(client);
-      if (storage.isLoggedIn) await _loadProfile();
+      if (await storage.isLoggedIn) await _loadProfile();
     } catch (e) {
       if (mounted) _error = e.toString();
     } finally {

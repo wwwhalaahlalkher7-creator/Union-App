@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/storage/auth_storage.dart';
@@ -30,11 +29,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    final storage = AuthStorage(prefs);
+    final storage = await AuthStorage.create();
     if (!mounted) return;
     setState(() {
-      _signedIn = storage.isLoggedIn;
+      _signedIn = await storage.isLoggedIn;
       _sessionLoaded = true;
     });
   }

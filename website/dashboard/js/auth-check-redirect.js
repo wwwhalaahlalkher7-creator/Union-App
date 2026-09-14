@@ -4,7 +4,7 @@
    ============================================================ */
 (function () {
   try {
-    const s = JSON.parse(localStorage.getItem("assoc_admin_session"));
+    const s = JSON.parse(sessionStorage.getItem("assoc_admin_session"));
     if (s && s.expiresAt > Date.now()) location.replace("index.html");
   } catch (e) { /* لا شيء محفوظ أو تالف — تابع لعرض نموذج الدخول */ }
 })();

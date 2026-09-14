@@ -10,3 +10,6 @@ coverage/
 *.iml
 *.log
 .DS_Store
+key.properties
+*.jks
+*.keystore
