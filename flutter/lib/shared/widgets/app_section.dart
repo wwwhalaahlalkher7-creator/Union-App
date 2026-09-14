@@ -23,7 +23,7 @@ class AppSection extends StatelessWidget {
               Text(subtitle!, style: text.bodySmall),
             ],
           ])),
-          if (action != null) action!,
+          ?action,
         ]),
         const SizedBox(height: DesignTokens.space12),
         child,

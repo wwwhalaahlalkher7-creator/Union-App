@@ -31,8 +31,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadSession() async {
     final storage = await AuthStorage.create();
     if (!mounted) return;
+    final signedIn = await storage.isLoggedIn;
+    if (!mounted) return;
     setState(() {
-      _signedIn = await storage.isLoggedIn;
+      _signedIn = signedIn;
       _sessionLoaded = true;
     });
   }

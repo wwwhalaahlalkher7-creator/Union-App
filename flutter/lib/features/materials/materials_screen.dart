@@ -87,7 +87,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: [
             DropdownButtonFormField<String>(
-              value: _semesterId,
+              initialValue: _semesterId,
               decoration: InputDecoration(labelText: l10n.t('semester'), prefixIcon: const Icon(Icons.calendar_month_outlined)),
               items: _semesters.map((s) => DropdownMenuItem(value: s['id']?.toString(), child: Text(_localizedSemesterName(context, s, l10n)))).toList(),
               onChanged: (value) { if (value != null) _load(semesterId: value); },

@@ -53,7 +53,7 @@ class ApiClient {
       };
       if (response.statusCode == 401 && retry && (await authStorage?.refreshToken)?.isNotEmpty == true) {
         final refreshed = await _refreshSession();
-        if (refreshed) return _request(method, path, query: query, body: body, retry: false, cacheTtl: cacheTtl, forceRefresh: forceRefresh);
+        if (refreshed) return await _request(method, path, query: query, body: body, retry: false, cacheTtl: cacheTtl, forceRefresh: forceRefresh);
       }
       final decoded = _decode(response);
       if (canCache) {

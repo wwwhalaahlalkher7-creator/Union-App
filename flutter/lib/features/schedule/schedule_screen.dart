@@ -106,7 +106,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     final semesters = semestersSnapshot.data ?? const <Map<String, dynamic>>[];
                     if (semesters.isEmpty) return const SizedBox.shrink();
                     return DropdownButtonFormField<String>(
-                      value: _semesterId ?? data.semester?['id']?.toString(),
+                      initialValue: _semesterId ?? data.semester?['id']?.toString(),
                       decoration: InputDecoration(labelText: l10n.t('semester'), border: const OutlineInputBorder()),
                       items: semesters.map((semester) {
                         final id = semester['id']?.toString();
