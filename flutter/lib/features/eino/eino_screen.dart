@@ -24,9 +24,9 @@ class _EinoScreenState extends State<EinoScreen> {
 
   EinoMood get _mood => _sending
       ? EinoMood.thinking
-      : _messages.isEmpty
-          ? EinoMood.idle
-          : EinoMood.happy;
+      : _messages.any((m) => !m.user && !m.isError)
+          ? EinoMood.happy
+          : EinoMood.idle;
 
   @override
   void initState() {
@@ -94,6 +94,19 @@ class _EinoScreenState extends State<EinoScreen> {
     }
   }
 
+  String _friendlyError(Object error, AppLocalizations l10n) {
+    if (error is ApiException) {
+      if (error.message.contains('مزود Eino مشغول')) return l10n.t('einoProviderBusy');
+      if (error.message.contains('مزود Eino غير متاح')) return l10n.t('einoProviderUnavailable');
+      if (error.message.contains('مسار Eino غير متاح')) return l10n.t('einoProviderRoute');
+      if (error.message.contains('التحقق من اتصال Eino')) return l10n.t('einoProviderAuth');
+      if (error.message.contains('استغرق Eino')) return l10n.t('einoTimeout');
+      if (error.statusCode == 429) return l10n.t('einoRateLimited');
+      return error.message;
+    }
+    return l10n.t('einoGenericError');
+  }
+
   Future<void> _send(BuildContext context, [String? preset]) async {
     if (!_ready || _sending) return;
     final prompt = (preset ?? _controller.text).trim();
@@ -104,12 +117,28 @@ class _EinoScreenState extends State<EinoScreen> {
       _sending = true;
     });
     _scrollToBottom();
+    await _requestAnswer(prompt);
+  }
 
+  Future<void> _retry(String prompt) async {
+    if (!_ready || _sending || prompt.trim().isEmpty) return;
+    setState(() {
+      final index = _messages.lastIndexWhere((m) => m.isError && m.retryPrompt == prompt);
+      if (index >= 0) _messages.removeAt(index);
+      _sending = true;
+    });
+    await _requestAnswer(prompt);
+  }
+
+  Future<void> _requestAnswer(String prompt) async {
     try {
       final history = _messages.length > 10
-          ? _messages.sublist(_messages.length - 10, _messages.length - 1)
-          : _messages.sublist(0, _messages.length - 1);
-      final historyText = history.map((m) => '${m.user ? 'المستخدم' : 'إينو'}: ${m.text}').join('\n');
+          ? _messages.sublist(_messages.length - 10, _messages.length)
+          : List<_Message>.from(_messages);
+      final historyText = history
+          .where((m) => !m.isError && m.text != prompt)
+          .map((m) => '${m.user ? 'المستخدم' : 'إينو'}: ${m.text}')
+          .join('\n');
       final l10n = AppLocalizations.of(context);
       final contextPayload = [
         'صفحة المستخدم الحالية: ${_sourceLabel(l10n)}.',
@@ -118,7 +147,10 @@ class _EinoScreenState extends State<EinoScreen> {
       final answer = await _repository.chat(prompt: prompt, context: contextPayload);
       if (mounted) setState(() => _messages.add(_Message(false, answer)));
     } catch (e) {
-      if (mounted) setState(() => _messages.add(_Message(false, e.toString().replaceFirst('ApiException(null): ', ''))));
+      if (mounted) {
+        final l10n = AppLocalizations.of(context);
+        setState(() => _messages.add(_Message(false, _friendlyError(e, l10n), isError: true, retryPrompt: prompt)));
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
       _scrollToBottom();
@@ -133,7 +165,11 @@ class _EinoScreenState extends State<EinoScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.t('einoTitle')),
+        title: Row(mainAxisSize: MainAxisSize.min, children: [
+          EinoFace(size: 30, mood: _mood),
+          const SizedBox(width: 8),
+          Text(l10n.t('einoTitle')),
+        ]),
         actions: [
           IconButton(
             tooltip: l10n.t('newChat'),
@@ -153,7 +189,11 @@ class _EinoScreenState extends State<EinoScreen> {
                     itemCount: _messages.length + (_sending ? 1 : 0),
                     itemBuilder: (_, i) {
                       if (i == _messages.length) return _typingBubble(cs);
-                      return _AnimatedEntry(key: ValueKey(i), child: _bubble(context, _messages[i]));
+                      final message = _messages[i];
+                      return _AnimatedEntry(
+                        key: ValueKey('${message.text}-$i'),
+                        child: _bubble(context, message),
+                      );
                     },
                   ),
           ),
@@ -176,22 +216,13 @@ class _EinoScreenState extends State<EinoScreen> {
           const SizedBox(height: 8),
           Center(child: Text(l10n.t('einoGreeting'), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800))),
           const SizedBox(height: 6),
-          Center(
-            child: Text(
-              l10n.t('withYou', {'section': _sourceLabel(l10n)}),
-              style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700),
-            ),
-          ),
+          Center(child: Text(l10n.t('withYou', {'section': _sourceLabel(l10n)}), style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700))),
           const SizedBox(height: 8),
           Text(l10n.t('einoWelcome'), textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant, height: 1.5)),
           const SizedBox(height: 22),
           Text(l10n.t('suggestions'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 9,
-            runSpacing: 9,
-            children: _suggestions(l10n).map((text) => _prompt(text, cs)).toList(),
-          ),
+          Wrap(spacing: 9, runSpacing: 9, children: _suggestions(l10n).map((text) => _prompt(text, cs)).toList()),
         ],
       );
 
@@ -204,6 +235,37 @@ class _EinoScreenState extends State<EinoScreen> {
 
   Widget _bubble(BuildContext context, _Message m) {
     final cs = Theme.of(context).colorScheme;
+    if (m.isError) {
+      return Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 420),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.fromLTRB(14, 13, 12, 10),
+          decoration: BoxDecoration(
+            color: cs.errorContainer,
+            borderRadius: BorderRadius.circular(20).copyWith(bottomLeft: const Radius.circular(5)),
+            border: Border.all(color: cs.error.withValues(alpha: .18)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              EinoFace(size: 34, mood: EinoMood.error),
+              const SizedBox(width: 9),
+              Expanded(child: Text(m.text, style: TextStyle(color: cs.onErrorContainer, height: 1.45))),
+            ]),
+            const SizedBox(height: 5),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton.icon(
+                onPressed: _sending ? null : () => _retry(m.retryPrompt ?? ''),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(AppLocalizations.of(context).t('einoRetry')),
+              ),
+            ),
+          ]),
+        ),
+      );
+    }
     return Align(
       alignment: m.user ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
       child: Container(
@@ -219,14 +281,11 @@ class _EinoScreenState extends State<EinoScreen> {
         ),
         child: m.user
             ? Text(m.text, style: TextStyle(color: cs.onPrimary, height: 1.45))
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const EinoFace(size: 32, mood: EinoMood.happy),
-                  const SizedBox(width: 9),
-                  Expanded(child: SelectableText(m.text, style: const TextStyle(height: 1.5))),
-                ],
-              ),
+            : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const EinoFace(size: 32, mood: EinoMood.happy),
+                const SizedBox(width: 9),
+                Expanded(child: SelectableText(m.text, style: const TextStyle(height: 1.5))),
+              ]),
       ),
     );
   }
@@ -238,7 +297,7 @@ class _EinoScreenState extends State<EinoScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(20).copyWith(bottomLeft: const Radius.circular(5))),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const EinoFace(size: 30, talking: true, mood: EinoMood.thinking),
+            const EinoFace(size: 30, mood: EinoMood.thinking),
             const SizedBox(width: 9),
             _TypingDots(color: cs.onSurfaceVariant),
           ]),
@@ -299,25 +358,21 @@ class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderState
   @override void dispose() { _controller.dispose(); super.dispose(); }
   @override Widget build(BuildContext context) => AnimatedBuilder(
         animation: _controller,
-        builder: (context, _) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (i) {
-            final phase = (_controller.value - i * .18) % 1.0;
-            final lift = phase < .5 ? phase * 2 : (1 - phase) * 2;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Transform.translate(
-                offset: Offset(0, -lift * 4),
-                child: Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color.withValues(alpha: .6 + lift * .4))),
-              ),
-            );
-          }),
-        ),
+        builder: (context, _) => Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) {
+          final phase = (_controller.value - i * .18) % 1.0;
+          final lift = phase < .5 ? phase * 2 : (1 - phase) * 2;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Transform.translate(offset: Offset(0, -lift * 4), child: Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color.withValues(alpha: .6 + lift * .4)))),
+          );
+        })),
       );
 }
 
 class _Message {
-  const _Message(this.user, this.text);
+  const _Message(this.user, this.text, {this.isError = false, this.retryPrompt});
   final bool user;
   final String text;
+  final bool isError;
+  final String? retryPrompt;
 }

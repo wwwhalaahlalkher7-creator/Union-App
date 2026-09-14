@@ -7,4 +7,11 @@ const Auth = (() => {
   async function logout(){const s=get();try{if(s?.token) await fetch(window.APP_CONFIG.api.baseUrl+'/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+s.token}});}catch{} clear();location.replace('login.html');}
   return {SESSION_HOURS:0.25,save,get,clear,requireAuth,logout};
 })();
-Auth.requireAuth();
+
+// صفحات تسجيل الدخول تحتاج واجهة Auth نفسها، لكن لا يجوز تشغيل حارس الجلسة
+// عليها تلقائيًا؛ وإلا سيحدث تحويل login.html -> login.html في حلقة لا نهائية.
+(function guardProtectedPage() {
+  const path = String(location.pathname || '').toLowerCase();
+  const isLoginPage = path.endsWith('/login.html') || path.endsWith('/login.htm') || path.endsWith('/login');
+  if (!isLoginPage) Auth.requireAuth();
+})();

@@ -1458,16 +1458,39 @@ async function eino(ctx) {
   const timeout = setTimeout(() => controller.abort(), 20000);
   const startedAt = Date.now();
   try {
-    const response = await fetch(`${ctx.env.OMNIROUTE_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${ctx.env.OMNIROUTE_API_KEY}` },
-      body: JSON.stringify({ model: configuredModel, messages, temperature: 0.4, max_tokens: 900 }),
-      signal: controller.signal,
-    });
+    const endpoint = `${ctx.env.OMNIROUTE_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`;
+    const requestBody = JSON.stringify({ model: configuredModel, messages, temperature: 0.4, max_tokens: 900 });
+    let response;
+    let upstreamStatus = null;
+
+    // A short retry absorbs transient gateway/provider failures without hiding
+    // persistent configuration or authentication errors.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${ctx.env.OMNIROUTE_API_KEY}` },
+        body: requestBody,
+        signal: controller.signal,
+      });
+      upstreamStatus = response.status;
+      if (response.ok || ![502, 503, 504].includes(response.status) || attempt === 1) break;
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+
     const latencyMs = Date.now() - startedAt;
     if (!response.ok) {
+      const status = upstreamStatus ?? 502;
       await recordEinoTelemetry(ctx, 'provider_error', actorType, latencyMs);
-      return error('EINO_PROVIDER_ERROR', 'تعذر الوصول إلى Eino حاليًا.', 502, ctx.requestId, ctx.cors);
+      if (status === 401 || status === 403) {
+        return error('EINO_PROVIDER_AUTH', 'تعذر التحقق من اتصال Eino حاليًا. حاول لاحقًا.', 502, ctx.requestId, ctx.cors);
+      }
+      if (status === 429) {
+        return error('EINO_PROVIDER_LIMITED', 'مزود Eino مشغول حاليًا. انتظر قليلًا ثم أعد المحاولة.', 503, ctx.requestId, ctx.cors);
+      }
+      if (status === 404) {
+        return error('EINO_PROVIDER_ROUTE', 'مسار Eino غير متاح حاليًا. حاول لاحقًا.', 502, ctx.requestId, ctx.cors);
+      }
+      return error('EINO_PROVIDER_ERROR', 'مزود Eino غير متاح حاليًا. أعد المحاولة بعد قليل.', 502, ctx.requestId, ctx.cors);
     }
     const data = await response.json();
     const answer = data?.choices?.[0]?.message?.content;
@@ -1485,7 +1508,7 @@ async function eino(ctx) {
     }
     await recordEinoTelemetry(ctx, 'provider_error', actorType, latencyMs);
     console.error(`[${ctx.requestId}] Eino gateway error`, e);
-    return error('EINO_PROVIDER_ERROR', 'تعذر الوصول إلى Eino حاليًا.', 502, ctx.requestId, ctx.cors);
+    return error('EINO_PROVIDER_ERROR', 'مزود Eino غير متاح حاليًا. أعد المحاولة بعد قليل.', 502, ctx.requestId, ctx.cors);
   } finally {
     clearTimeout(timeout);
   }
