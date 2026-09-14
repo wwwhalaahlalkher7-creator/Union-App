@@ -1611,7 +1611,43 @@ async function adminDriveAuth(ctx) {
   return a;
 }
 
-function normalizeDriveName(name) { return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
+function normalizeDriveName(name) {
+  return String(name || '')
+    .trim()
+    .replace(/[ًٌٍَُِّْـ]/g, '')
+    .replace(/[إأآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function departmentAliases(department) {
+  const aliases = [department?.name_ar, department?.name_en, department?.code];
+  const code = normalizeDriveName(department?.code);
+  if (code === 'ee') aliases.push('الهندسة الكهربائية الإلكترونية', 'الهندسة الكهربائية والالكترونية', 'كهرباء إلكترونية', 'كهرباء الكترونية');
+  if (code === 'ce') aliases.push('الهندسة المدنية', 'مدنية');
+  if (code === 'arch') aliases.push('هندسة العمارة', 'الهندسة المعمارية', 'معمار');
+  return aliases.filter(Boolean);
+}
+
+function semesterNumberFromName(name) {
+  const value = normalizeDriveName(name);
+  const arabic = {
+    'الاول': 1, 'الأول': 1, 'اول': 1,
+    'الثاني': 2, 'الثانى': 2, 'ثاني': 2,
+    'الثالث': 3, 'ثالث': 3, 'الرابع': 4, 'رابع': 4,
+    'الخامس': 5, 'خامس': 5, 'السادس': 6, 'سادس': 6,
+    'السابع': 7, 'سابع': 7, 'الثامن': 8, 'ثامن': 8,
+    'التاسع': 9, 'تاسع': 9, 'العاشر': 10, 'عاشر': 10,
+  };
+  for (const [word, number] of Object.entries(arabic)) {
+    if (value.includes(word)) return number;
+  }
+  const match = value.match(/(?:semester|الفصل|سمستر|السمستر)\s*[-_#:]?\s*(\d{1,2})/i);
+  return match ? Number(match[1]) : null;
+}
+
 function drivePin(description) {
   const value = String(description || '').toLowerCase();
   return ['pinned', 'مثبت', 'مثبّت'].some(k => value.includes(k));
@@ -1660,8 +1696,8 @@ async function adminDriveSync(ctx) {
     const semesters = await queryAll(ctx.env, 'SELECT * FROM semesters WHERE active = 1');
     const depByName = new Map();
     const semByName = new Map();
-    for (const d of departments) for (const n of [d.name_ar, d.name_en, d.code]) if (n) depByName.set(normalizeDriveName(n), d);
-    for (const s of semesters) for (const n of [s.name_ar, s.name_en, `semester ${s.number}`, `الفصل ${s.number}`, `سمستر ${s.number}`]) if (n) semByName.set(normalizeDriveName(n), s);
+    for (const d of departments) for (const n of departmentAliases(d)) depByName.set(normalizeDriveName(n), d);
+    for (const s of semesters) for (const n of [s.name_ar, s.name_en, `semester ${s.number}`, `الفصل ${s.number}`, `سمستر ${s.number}`, `السمستر ${s.number}`]) if (n) semByName.set(normalizeDriveName(n), s);
 
     let foldersSeen = Array.isArray(index.sections) ? index.sections.reduce((n, s) => n + 1 + (Array.isArray(s.semesters) ? s.semesters.length : 0), 0) : 0;
     let filesSeen = index.files.length;
@@ -1679,7 +1715,7 @@ async function adminDriveSync(ctx) {
         ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,folder_type=excluded.folder_type,department_id=excluded.department_id,name=excluded.name,modified_at=excluded.modified_at,active=1,last_synced_at=CURRENT_TIMESTAMP`)
         .bind(depIndexId, 'apps-script-root', 'department', dep.id, section.name, null).run();
       for (const semester of (Array.isArray(section.semesters) ? section.semesters : [])) {
-        const sem = semByName.get(normalizeDriveName(semester.name));
+        const sem = semByName.get(normalizeDriveName(semester.name)) || semesters.find(s => s.number === semesterNumberFromName(semester.name));
         if (!sem) continue;
         const semIndexId = `apps-script-semester-${semester.id}`;
         await ctx.env.DB.prepare(`INSERT INTO drive_folder_index (id,parent_id,folder_type,department_id,semester_id,name,modified_at,active,last_synced_at)
@@ -1693,7 +1729,7 @@ async function adminDriveSync(ctx) {
     const subjectGroups = new Map();
     for (const file of index.files) {
       const dep = depByName.get(normalizeDriveName(file.sectionName));
-      const sem = semByName.get(normalizeDriveName(file.semesterName));
+      const sem = semByName.get(normalizeDriveName(file.semesterName)) || semesters.find(s => s.number === semesterNumberFromName(file.semesterName));
       if (!dep || !sem) continue;
       const materialName = String(file.materialName || 'مواد عامة').trim() || 'مواد عامة';
       const groupKey = `${dep.id}::${sem.id}::${normalizeDriveName(materialName)}`;
