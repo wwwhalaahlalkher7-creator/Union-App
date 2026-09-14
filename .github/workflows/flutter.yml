@@ -78,10 +78,10 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Setup Gradle 8.13
+      - name: Setup Gradle 8.14
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.13'
+          gradle-version: '8.14'
 
       - name: Get dependencies
         run: flutter pub get
@@ -92,12 +92,12 @@ jobs:
           set -euo pipefail
           cd android
           if [ ! -f gradlew ] || [ ! -f gradle/wrapper/gradle-wrapper.properties ] || [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            gradle wrapper --gradle-version 8.13 --distribution-type bin
+            gradle wrapper --gradle-version 8.14 --distribution-type bin
           fi
           test -x gradlew
           test -f gradle/wrapper/gradle-wrapper.properties
           test -f gradle/wrapper/gradle-wrapper.jar
-          grep -q 'gradle-8\.13-' gradle/wrapper/gradle-wrapper.properties
+          grep -q 'gradle-8\.14-' gradle/wrapper/gradle-wrapper.properties
           chmod +x gradlew
           ./gradlew --version
 
