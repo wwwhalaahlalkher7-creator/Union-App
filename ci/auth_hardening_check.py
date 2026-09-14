@@ -15,6 +15,8 @@ checks = {
     'atomic refresh rotation': "UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE id = ? AND refresh_token_hash = ? AND revoked_at IS NULL" in worker,
     'refresh reuse detection': "AUTH_REFRESH_REUSED" in worker and "refresh_reuse_or_invalid" in worker,
     'disabled account refresh guard': "AUTH_ACCOUNT_DISABLED" in worker and "SELECT active FROM staff_users" in worker and "SELECT active FROM students" in worker,
+    'staff user_id login': "lower(su.user_id) = ?" in worker and "user_id TEXT NOT NULL" in (root / 'backend/migrations/0018_staff_user_id.sql').read_text(encoding='utf-8'),
+    'Eino auto model': "configuredModel.toLowerCase() === 'auto'" in worker and "EINO_MODEL = \"auto\"" in (root / 'backend/wrangler.toml').read_text(encoding='utf-8'),
     'rate-limit migration': 'CREATE TABLE IF NOT EXISTS auth_rate_limits' in migration and 'CREATE INDEX IF NOT EXISTS idx_auth_rate_limits_window' in migration,
     'session expiry index': 'idx_sessions_expiry' in migration,
 }

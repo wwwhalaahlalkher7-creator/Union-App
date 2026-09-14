@@ -69,7 +69,7 @@ try:
         con.executescript(path.read_text(encoding='utf-8'))
 
     con.execute("INSERT INTO roles(id,name) VALUES('role-1','super_admin')")
-    con.execute("INSERT INTO staff_users(id,email,display_name,role_id) VALUES('staff-1','admin@example.invalid','Test Admin','role-1')")
+    con.execute("INSERT INTO staff_users(id,user_id,email,display_name,role_id) VALUES('staff-1','admin-test','admin@example.invalid','Test Admin','role-1')")
     con.execute("INSERT INTO departments(id,name_ar,code) VALUES('dep-1','قسم تجريبي','TEST')")
     con.execute("INSERT INTO semesters(id,name_ar,academic_year,number) VALUES('sem-1','فصل تجريبي','2026/2027',1)")
     con.execute("INSERT INTO students(id,student_number,full_name,department_id) VALUES('stu-1','S-1','طالب تجريبي','dep-1')")

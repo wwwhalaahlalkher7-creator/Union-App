@@ -288,7 +288,11 @@ body[data-page="users"] #pageContent > * {
           <input type="text" name="Names" value="${Utils.escapeHtml(f.Names || "")}" required>
         </div>
         <div class="field"><label>اسم المستخدم</label>
-          <input type="text" name="Username" value="${Utils.escapeHtml(f.Username || "")}" required style="direction:ltr">
+          <input type="text" name="Username" value="${Utils.escapeHtml(f.Username || "")}" required style="direction:ltr" autocomplete="username">
+          <span class="field-hint">يمكن أن يكون أي اسم، وليس من الضروري أن يكون بريدًا إلكترونيًا.</span>
+        </div>
+        <div class="field"><label>البريد الإلكتروني <span style="font-weight:400;color:var(--ink-500)">(اختياري)</span></label>
+          <input type="email" name="Email" value="${Utils.escapeHtml(f.Email || "")}" style="direction:ltr" autocomplete="email">
         </div>
         <div class="field"><label>الدور</label>
           <select name="Role" required>
@@ -319,6 +323,7 @@ body[data-page="users"] #pageContent > * {
     const fields = {
       Names: form.Names.value.trim(),
       Username: form.Username.value.trim(),
+      Email: form.Email ? form.Email.value.trim() : "",
       Role: form.Role.value
     };
     // حقل كلمة المرور يظهر فقط عند الإضافة (راجع openUserForm أعلاه)

@@ -46,7 +46,7 @@ window.Adapter = (() => {
   async function renameMaterialItem(){throw new Error('تعديل ملفات Drive المباشر غير مفعّل في هذه المرحلة. استخدم المزامنة الآمنة.');} async function deleteMaterialItem(id){return req('/admin/materials/'+id,{method:'DELETE'});} async function uploadMaterialPdf(){throw new Error('رفع ملفات Drive المباشر غير مفعّل في هذه المرحلة.');}
   async function getSiteSettings(){const rows=await req('/admin/settings');const o={};for(const r of rows){try{o[r.key]=JSON.parse(r.value_json);}catch{o[r.key]=r.value_json;}}return o;}
   async function updateSiteSettings(fields){for(const [key,value] of Object.entries(fields||{}))await req('/admin/settings/'+encodeURIComponent(key),{method:'PATCH',body:JSON.stringify({key,value})});return {success:true};}
-  async function listUsers(){return (await req('/admin/staff')).map(r=>({id:r.id,fields:{Names:r.display_name,Username:r.email,Email:r.email,Role:roleLabel(r.role_id),RoleId:r.role_id,Active:!!r.active,LastLogin:r.last_login_at}}));}
+  async function listUsers(){return (await req('/admin/staff')).map(r=>({id:r.id,fields:{Names:r.display_name,Username:r.user_id,Email:r.email||'',Role:roleLabel(r.role_id),RoleId:r.role_id,Active:!!r.active,LastLogin:r.last_login_at}}));}
   const ROLE_IDS={
     'مدير عام':'super_admin',
     'محرر محتوى':'content_manager',
@@ -57,15 +57,15 @@ window.Adapter = (() => {
   const ROLE_LABEL={super_admin:'مدير عام',content_manager:'محرر محتوى',academic_manager:'مسؤول أكاديمي',moderator:'مشرف'};
   function roleId(value){return ROLE_IDS[value]||value||'content_manager';}
   function roleLabel(value){return ROLE_LABEL[value]||value||'—';}
-  async function createUser(f){return req('/admin/staff',{method:'POST',body:JSON.stringify({email:f.Username||f.Email,displayName:f.Names,roleId:roleId(f.Role),password:f.Password})});}
-  async function updateUser(id,f){return req('/admin/staff/'+id,{method:'PATCH',body:JSON.stringify({email:f.Username||f.Email,displayName:f.Names,roleId:roleId(f.Role),active:f.Active,password:f.Password||undefined})});}
+  async function createUser(f){return req('/admin/staff',{method:'POST',body:JSON.stringify({userId:f.Username, email:f.Email||null, displayName:f.Names,roleId:roleId(f.Role),password:f.Password})});}
+  async function updateUser(id,f){return req('/admin/staff/'+id,{method:'PATCH',body:JSON.stringify({userId:f.Username, email:f.Email===undefined?undefined:(f.Email||null),displayName:f.Names,roleId:roleId(f.Role),active:f.Active,password:f.Password||undefined})});}
   async function toggleUserActive(id){const users=await listUsers(),u=users.find(x=>x.id===id);return updateUser(id,{Names:u.fields.Names,Username:u.fields.Username,Role:u.fields.RoleId||u.fields.Role,Active:!u.fields.Active});} async function deleteUser(id){return req('/admin/staff/'+id,{method:'DELETE'});}
   async function listModerationComments(status='visible'){return req('/admin/moderation/comments?status='+encodeURIComponent(status)+'&limit=100');}
   async function moderateComment(id,status){return req('/admin/moderation/comments/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status})});}
   async function listAuditLog(){return (await req('/admin/audit-logs')).map(r=>({id:r.id,fields:{Timestamp:r.created_at,User:r.actor_name||r.actor_id||'',Role:r.role_name||'',Action:r.action,Details:r.resource_type+(r.resource_id?': '+r.resource_id:'')}}));}
-  async function listFailedLoginAttempts(){return (await req('/admin/security/auth-events?limit=50')).map(r=>({id:r.id,fields:{Timestamp:r.created_at,User:r.actor_name||r.actor_email||r.actor_id||'',Role:r.role_name||'',Action:r.event_type,Details:r.event_type}}));}
+  async function listFailedLoginAttempts(){return (await req('/admin/security/auth-events?limit=50')).map(r=>({id:r.id,fields:{Timestamp:r.created_at,User:r.actor_name||r.actor_user_id||r.actor_email||r.actor_id||'',Role:r.role_name||'',Action:r.event_type,Details:r.event_type}}));}
   async function changePassword(oldPassword,newPassword){return req('/auth/staff/change-password',{method:'POST',body:JSON.stringify({currentPassword:oldPassword,newPassword})});}
-  async function login(email,password){const d=await req('/auth/staff/login',{method:'POST',headers:{},body:JSON.stringify({email,password})});return {token:d.token,refreshToken:d.refreshToken,name:d.staffDisplayName||email,role:d.staffRole||d.role_name||d.staffRoleId,expiresAt:Date.now()+((d.expiresInSeconds||900)*1000)};}
+  async function login(userId,password){const d=await req('/auth/staff/login',{method:'POST',headers:{},body:JSON.stringify({userId,password})});return {token:d.token,refreshToken:d.refreshToken,name:d.staffDisplayName||userId,role:d.staffRole||d.role_name||d.staffRoleId,expiresAt:Date.now()+((d.expiresInSeconds||900)*1000)};}
   async function logoutSession(t){try{await fetch(base()+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+t}});}catch{}}
   async function getOverviewStats(){return req('/admin/dashboard/overview');}
   async function getEinoUsage(hours=24){return req('/admin/security/eino-usage?hours='+encodeURIComponent(Math.min(168,Math.max(1,Number(hours)||24))));} async function getRecentNews(l){return (await listContent('news')).slice(0,l||5).map(r=>({id:r.id,title:r.fields.Title,date:r.fields.Date,views:0}));} async function getSystemHealth(){try{await req('/health');return [{name:'Association API',configured:true,lastSuccess:new Date().toISOString()}];}catch{return [{name:'Association API',configured:true,lastSuccess:null}];}}

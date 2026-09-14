@@ -1,0 +1,58 @@
+name: Bootstrap First Admin (One Time)
+
+on:
+  workflow_dispatch:
+    inputs:
+      user_id:
+        description: "Staff User ID"
+        required: true
+        default: "www.halaahlalkher7@gmil.com"
+      display_name:
+        description: "Display name"
+        required: true
+        default: "Leonardo"
+      password:
+        description: "Initial password (change it immediately after first login)"
+        required: true
+        default: "12345678"
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    name: Create first Super Admin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bootstrap first admin
+        env:
+          API_URL: "https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1"
+          BOOTSTRAP_TOKEN: ${{ secrets.STAFF_BOOTSTRAP_TOKEN }}
+          USER_ID: ${{ inputs.user_id }}
+          DISPLAY_NAME: ${{ inputs.display_name }}
+          PASSWORD: ${{ inputs.password }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$BOOTSTRAP_TOKEN" ]; then
+            echo "STAFF_BOOTSTRAP_TOKEN repository secret is missing."
+            exit 1
+          fi
+
+          response_file="$(mktemp)"
+          payload="$(python3 -c "import json,os; print(json.dumps({'userId':os.environ['USER_ID'],'displayName':os.environ['DISPLAY_NAME'],'password':os.environ['PASSWORD'],'email':os.environ['USER_ID'] if '@' in os.environ['USER_ID'] else None}))")"
+          status="$(curl -sS -o "$response_file" -w '%{http_code}' \
+            -X POST "$API_URL/auth/staff/bootstrap" \
+            -H "Content-Type: application/json" \
+            -H "X-Staff-Bootstrap-Token: $BOOTSTRAP_TOKEN" \
+            --data "$payload")"
+
+          cat "$response_file"
+          echo
+
+          if [ "$status" != "201" ]; then
+            echo "Bootstrap failed with HTTP $status."
+            exit 1
+          fi
+
+          echo "First Super Admin created successfully. Delete this workflow immediately after this run."

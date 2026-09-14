@@ -449,7 +449,7 @@ async function auth(ctx, required = true) {
   const raw = bearer(ctx.request);
   if (!raw) return required ? { response: error('AUTH_REQUIRED', 'تسجيل الدخول مطلوب.', 401, ctx.requestId, ctx.cors) } : null;
   const hash = await sha256(raw);
-  const row = await queryOne(ctx.env, `SELECT s.*, st.student_number, st.full_name, st.department_id, st.active AS student_active, su.email AS staff_email, su.display_name AS staff_display_name, su.role_id AS staff_role_id, r.name AS staff_role_name, su.active AS staff_active FROM sessions s LEFT JOIN students st ON st.id = s.student_id LEFT JOIN staff_users su ON su.id = s.staff_user_id LEFT JOIN roles r ON r.id = su.role_id WHERE s.access_token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > CURRENT_TIMESTAMP`, hash);
+  const row = await queryOne(ctx.env, `SELECT s.*, st.student_number, st.full_name, st.department_id, st.active AS student_active, su.id AS staff_user_id, su.user_id AS staff_user_id_login, su.email AS staff_email, su.display_name AS staff_display_name, su.role_id AS staff_role_id, r.name AS staff_role_name, su.active AS staff_active FROM sessions s LEFT JOIN students st ON st.id = s.student_id LEFT JOIN staff_users su ON su.id = s.staff_user_id LEFT JOIN roles r ON r.id = su.role_id WHERE s.access_token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > CURRENT_TIMESTAMP`, hash);
   if (!row) return { response: error('AUTH_INVALID', 'الجلسة غير صالحة أو منتهية. سجّل الدخول مجددًا.', 401, ctx.requestId, ctx.cors) };
   return { session: row };
 }
@@ -540,10 +540,11 @@ async function staffLogin(ctx) {
   const ipLimit = await authIpRateLimit(ctx, 'staff_login', AUTH_IP_LOGIN_LIMIT);
   if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد محاولات تسجيل الدخول مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
   const body = await parseJson(ctx.request);
-  const email = String(body?.email || '').trim().toLowerCase();
+  const userId = String(body?.userId || body?.username || body?.email || '').trim();
+  const loginKey = userId.toLowerCase();
   const password = String(body?.password || '');
-  if (!email || !password || password.length > 256) return error('AUTH_INPUT_INVALID', 'أدخل البريد وكلمة المرور.', 400, ctx.requestId, ctx.cors);
-  const staff = await queryOne(ctx.env, 'SELECT su.*, r.name AS role_name FROM staff_users su JOIN roles r ON r.id = su.role_id WHERE lower(su.email) = ? AND su.active = 1 LIMIT 1', email);
+  if (!userId || !password || userId.length > 128 || password.length > 256) return error('AUTH_INPUT_INVALID', 'أدخل اسم المستخدم وكلمة المرور.', 400, ctx.requestId, ctx.cors);
+  const staff = await queryOne(ctx.env, 'SELECT su.*, r.name AS role_name FROM staff_users su JOIN roles r ON r.id = su.role_id WHERE lower(su.user_id) = ? AND su.active = 1 LIMIT 1', loginKey);
   if (!staff || !staff.password_hash) return error('AUTH_INVALID_CREDENTIALS', 'بيانات تسجيل الدخول غير صحيحة.', 401, ctx.requestId, ctx.cors);
   if (staff.locked_until && new Date(staff.locked_until).getTime() > Date.now()) return lockedResponse(ctx);
   const valid = await verifySecret(password, staff.password_hash, staff.password_salt, staff.password_algo);
@@ -566,25 +567,27 @@ async function staffBootstrap(ctx) {
   const count = await queryOne(ctx.env, 'SELECT COUNT(*) AS count FROM staff_users');
   if (Number(count?.count || 0) > 0) return error('BOOTSTRAP_ALREADY_DONE', 'تمت تهيئة حسابات الإدارة مسبقًا.', 409, ctx.requestId, ctx.cors);
   const body = await parseJson(ctx.request);
-  const email = String(body?.email || '').trim().toLowerCase();
+  const userId = String(body?.userId || body?.username || body?.email || '').trim();
+  const emailRaw = String(body?.email || '').trim();
+  const email = emailRaw ? emailRaw.toLowerCase() : null;
   const displayName = String(body?.displayName || '').trim();
   const password = String(body?.password || '');
-  if (!email || !displayName || password.length < 8 || password.length > 256) return error('BOOTSTRAP_INPUT_INVALID', 'بيانات حساب الإدارة غير صالحة. كلمة المرور يجب ألا تقل عن 8 أحرف.', 400, ctx.requestId, ctx.cors);
+  if (!userId || userId.length > 128 || !displayName || password.length < 8 || password.length > 256) return error('BOOTSTRAP_INPUT_INVALID', 'بيانات حساب الإدارة غير صالحة. اسم المستخدم مطلوب وكلمة المرور يجب ألا تقل عن 8 أحرف.', 400, ctx.requestId, ctx.cors);
   const role = await queryOne(ctx.env, "SELECT id FROM roles WHERE id = 'super_admin' LIMIT 1");
   if (!role) return error('BOOTSTRAP_ROLE_MISSING', 'دور المدير العام غير موجود. طبّق migrations أولًا.', 503, ctx.requestId, ctx.cors);
   const salt = token(16);
   const hash = await pbkdf2Hash(password, salt);
   const id = crypto.randomUUID();
-  await ctx.env.DB.prepare('INSERT INTO staff_users (id, email, display_name, role_id, password_hash, password_salt, password_algo) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, email, displayName, role.id, hash, salt, 'pbkdf2-sha256').run();
+  await ctx.env.DB.prepare('INSERT INTO staff_users (id, user_id, email, display_name, role_id, password_hash, password_salt, password_algo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, userId, email, displayName, role.id, hash, salt, 'pbkdf2-sha256').run();
   await recordAuthEvent(ctx, 'staff', id, 'bootstrap_created');
-  return ok(ctx, { created: true, staffUserId: id, email, role: 'super_admin' }, null, 201);
+  return ok(ctx, { created: true, staffUserId: id, userId, email, role: 'super_admin' }, null, 201);
 }
 
 async function staffMe(ctx) {
   const a = await auth(ctx); if (a.response) return a.response;
   if (!a.session.staff_user_id) return error('STAFF_AUTH_REQUIRED', 'جلسة موظف الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors);
-  const row = await queryOne(ctx.env, 'SELECT su.id, su.email, su.display_name, su.role_id, r.name AS role_name FROM staff_users su JOIN roles r ON r.id = su.role_id WHERE su.id = ? AND su.active = 1', a.session.staff_user_id);
+  const row = await queryOne(ctx.env, 'SELECT su.id, su.user_id, su.email, su.display_name, su.role_id, r.name AS role_name FROM staff_users su JOIN roles r ON r.id = su.role_id WHERE su.id = ? AND su.active = 1', a.session.staff_user_id);
   if (!row) return error('STAFF_NOT_FOUND', 'حساب الإدارة غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors);
   return ok(ctx, row);
 }
@@ -606,7 +609,7 @@ async function staffChangePassword(ctx) {
     return error('STAFF_PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);
   }
 
-  const staff = await queryOne(ctx.env, 'SELECT id, email, password_hash, password_salt, password_algo, failed_login_attempts, locked_until, active FROM staff_users WHERE id = ? LIMIT 1', a.session.staff_user_id);
+  const staff = await queryOne(ctx.env, 'SELECT id, user_id, email, password_hash, password_salt, password_algo, failed_login_attempts, locked_until, active FROM staff_users WHERE id = ? LIMIT 1', a.session.staff_user_id);
   if (!staff || staff.active !== 1) {
     return error('STAFF_NOT_FOUND', 'حساب الإدارة غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors);
   }
@@ -686,7 +689,7 @@ async function issueSession(ctx, identity) {
   await ctx.env.DB.prepare('INSERT INTO sessions (id,student_id,staff_user_id,access_token_hash,refresh_token_hash,expires_at,refresh_expires_at) VALUES (?,?,?,?,?,?,?)')
     .bind(id, identity.studentId || null, identity.staffUserId || null, await sha256(accessToken), await sha256(refreshToken), expiresAt, refreshExpiresAt).run();
   let profile = {};
-  if (identity.staffUserId) profile = await queryOne(ctx.env, 'SELECT su.id AS staffUserId,su.email AS staffEmail,su.display_name AS staffDisplayName,su.role_id AS staffRoleId,r.name AS staffRole FROM staff_users su JOIN roles r ON r.id=su.role_id WHERE su.id=?', identity.staffUserId) || {};
+  if (identity.staffUserId) profile = await queryOne(ctx.env, 'SELECT su.id AS staffUserId,su.user_id AS staffUserIdLogin,su.email AS staffEmail,su.display_name AS staffDisplayName,su.role_id AS staffRoleId,r.name AS staffRole FROM staff_users su JOIN roles r ON r.id=su.role_id WHERE su.id=?', identity.staffUserId) || {};
   if (identity.studentId) profile = await queryOne(ctx.env, 'SELECT id AS studentId,student_number AS studentNumber,full_name AS fullName,department_id AS departmentId FROM students WHERE id=?', identity.studentId) || {};
   return ok(ctx, { token: accessToken, refreshToken, expiresInSeconds: AUTH_ACCESS_TTL, refreshExpiresInSeconds: AUTH_REFRESH_TTL, ...profile });
 }
@@ -697,7 +700,7 @@ async function authMe(ctx) {
 }
 
 function sanitizeSession(row) {
-  return { studentId: row.student_id, studentNumber: row.student_number, fullName: row.full_name, departmentId: row.department_id, staffUserId: row.staff_user_id, staffEmail: row.staff_email, staffDisplayName: row.staff_display_name, staffRoleId: row.staff_role_id, staffRole: row.staff_role_name, expiresAt: row.expires_at };
+  return { studentId: row.student_id, studentNumber: row.student_number, fullName: row.full_name, departmentId: row.department_id, staffUserId: row.staff_user_id, staffUserIdLogin: row.staff_user_id_login, staffEmail: row.staff_email, staffDisplayName: row.staff_display_name, staffRoleId: row.staff_role_id, staffRole: row.staff_role_name, expiresAt: row.expires_at };
 }
 
 async function studentAuth(ctx) {
@@ -1267,7 +1270,7 @@ async function adminAuthEvents(ctx) {
   const a = await adminRouteAuthOnly(ctx, 'superadmin.read');
   if (a.response) return a.response;
   const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
-  const rows = await queryAll(ctx.env, `SELECT e.id, e.actor_type, e.actor_id, e.event_type, e.created_at, su.email AS actor_email, su.display_name AS actor_name, r.name AS role_name
+  const rows = await queryAll(ctx.env, `SELECT e.id, e.actor_type, e.actor_id, e.event_type, e.created_at, su.user_id AS actor_user_id, su.email AS actor_email, su.display_name AS actor_name, r.name AS role_name
     FROM auth_audit_events e
     LEFT JOIN staff_users su ON su.id = e.actor_id
     LEFT JOIN roles r ON r.id = su.role_id
@@ -1296,23 +1299,26 @@ async function adminSettings(ctx, id) {
 
 async function adminStaff(ctx, id, actorId) {
   if (ctx.request.method === 'GET') {
-    const rows = await queryAll(ctx.env, `SELECT su.id,su.email,su.display_name,su.role_id,su.active,su.created_at,su.updated_at,su.last_login_at,r.name AS role_name FROM staff_users su JOIN roles r ON r.id=su.role_id ORDER BY su.created_at DESC LIMIT 100`);
+    const rows = await queryAll(ctx.env, `SELECT su.id,su.user_id,su.email,su.display_name,su.role_id,su.active,su.created_at,su.updated_at,su.last_login_at,r.name AS role_name FROM staff_users su JOIN roles r ON r.id=su.role_id ORDER BY su.created_at DESC LIMIT 100`);
     return ok(ctx, rows);
   }
   if (ctx.session?.staff_role_id !== 'super_admin' && actorId) { /* permission map already blocks non-super admin writes below */ }
   const body = await parseJson(ctx.request);
   if (ctx.request.method === 'POST') {
-    const email=String(body?.email||'').trim().toLowerCase(), name=String(body?.displayName||body?.display_name||'').trim(), password=String(body?.password||''), role=String(body?.roleId||body?.role_id||'content_manager');
-    if(!email||!name||password.length<8) return error('STAFF_INPUT_INVALID','البريد والاسم وكلمة مرور من 8 أحرف مطلوبة.',400,ctx.requestId,ctx.cors);
+    const userId=String(body?.userId||body?.username||body?.email||'').trim(), emailRaw=String(body?.email||'').trim(), email=emailRaw?emailRaw.toLowerCase():null, name=String(body?.displayName||body?.display_name||'').trim(), password=String(body?.password||''), role=String(body?.roleId||body?.role_id||'content_manager');
+    if(!userId||userId.length>128||!name||password.length<8) return error('STAFF_INPUT_INVALID','اسم المستخدم والاسم وكلمة المرور من 8 أحرف مطلوبة.',400,ctx.requestId,ctx.cors);
     if(!ADMIN_ROLE_IDS.has(role)) return error('STAFF_ROLE_INVALID','دور الإدارة غير صالح.',400,ctx.requestId,ctx.cors);
+    const duplicate = await queryOne(ctx.env, 'SELECT id FROM staff_users WHERE lower(user_id)=? LIMIT 1', userId.toLowerCase());
+    if (duplicate) return error('STAFF_USER_ID_TAKEN','اسم المستخدم مستخدم بالفعل.',409,ctx.requestId,ctx.cors);
     const salt=token(16), hash=await pbkdf2Hash(password,salt), sid=crypto.randomUUID();
-    await ctx.env.DB.prepare('INSERT INTO staff_users(id,email,display_name,role_id,password_hash,password_salt,password_algo) VALUES(?,?,?,?,?,?,?)').bind(sid,email,name,role,hash,salt,'pbkdf2-sha256').run();
-    await writeAudit(ctx,actorId,'create','staff_users',sid,{email,role}); return ok(ctx,{id:sid,email,display_name:name,role_id:role},null,201);
+    await ctx.env.DB.prepare('INSERT INTO staff_users(id,user_id,email,display_name,role_id,password_hash,password_salt,password_algo) VALUES(?,?,?,?,?,?,?,?)').bind(sid,userId,email,name,role,hash,salt,'pbkdf2-sha256').run();
+    await writeAudit(ctx,actorId,'create','staff_users',sid,{userId,email,role}); return ok(ctx,{id:sid,user_id:userId,email,display_name:name,role_id:role},null,201);
   }
   if(!id) return error('ADMIN_ID_REQUIRED','معرّف المستخدم مطلوب.',400,ctx.requestId,ctx.cors);
   if(ctx.request.method==='PATCH') {
     const sets=[], vals=[];
-    if(body?.email){sets.push('email=?');vals.push(String(body.email).trim().toLowerCase());}
+    if(body?.userId||body?.username){const nextUserId=String(body.userId||body.username).trim(); if(!nextUserId||nextUserId.length>128)return error('STAFF_USER_ID_INVALID','اسم المستخدم غير صالح.',400,ctx.requestId,ctx.cors); const duplicate=await queryOne(ctx.env,'SELECT id FROM staff_users WHERE lower(user_id)=? AND id<>? LIMIT 1',nextUserId.toLowerCase(),id); if(duplicate)return error('STAFF_USER_ID_TAKEN','اسم المستخدم مستخدم بالفعل.',409,ctx.requestId,ctx.cors); sets.push('user_id=?');vals.push(nextUserId);}
+    if(body?.email!==undefined){const nextEmail=String(body.email||'').trim();sets.push('email=?');vals.push(nextEmail?nextEmail.toLowerCase():null);}
     if(body?.displayName||body?.display_name){sets.push('display_name=?');vals.push(String(body.displayName||body.display_name).trim());}
     if(body?.roleId||body?.role_id){
       const nextRole=String(body.roleId||body.role_id);
@@ -1424,11 +1430,14 @@ async function eino(ctx) {
     return error(code, message, 429, ctx.requestId, ctx.cors);
   }
 
-  const configuredModel = String(ctx.env.EINO_MODEL || 'openai/gpt-4o-mini').trim();
-  // OmniRoute expects provider/model. Never forward the old ambiguous "auto" value.
-  if (!/^[^/\\s]+\/[^/\\s]+$/.test(configuredModel) || configuredModel.toLowerCase() === 'auto') {
+  const configuredModel = String(ctx.env.EINO_MODEL || 'auto').trim();
+  // OmniRoute supports the bare "auto" model and chooses a healthy provider/model itself.
+  // Explicit provider/model values remain supported for environments that want a fixed route.
+  const isAutoModel = configuredModel.toLowerCase() === 'auto' || configuredModel.toLowerCase().startsWith('auto/');
+  const isProviderModel = /^[^/\s]+\/[^/\s]+$/.test(configuredModel);
+  if (!isAutoModel && !isProviderModel) {
     await recordEinoTelemetry(ctx, 'config_invalid', actorType);
-    return error('EINO_MODEL_INVALID', 'إعداد نموذج Eino غير صالح. يجب تحديد provider/model.', 503, ctx.requestId, ctx.cors);
+    return error('EINO_MODEL_INVALID', 'إعداد نموذج Eino غير صالح. استخدم auto أو provider/model.', 503, ctx.requestId, ctx.cors);
   }
 
   const systemParts = [
