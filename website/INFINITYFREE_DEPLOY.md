@@ -1,26 +1,42 @@
 # نشر الموقع + لوحة التحكم على InfinityFree
 
-هذه الحزمة هي الواجهة الثابتة فقط. الـBackend وقاعدة D1 وEino/OmniRoute تبقى على Cloudflare.
+الموقع العام ولوحة التحكم يتم نشرهما تلقائيًا من GitHub Actions إلى InfinityFree عبر FTPS.
 
-## البنية المطلوبة داخل `htdocs`
+## المطلوب مرة واحدة فقط
+
+أضف هذه **Repository Secrets** في GitHub:
+
+- `INFINITYFREE_FTP_USERNAME` — اسم مستخدم FTP لحساب InfinityFree.
+- `INFINITYFREE_FTP_PASSWORD` — كلمة مرور FTP.
+- `INFINITYFREE_FTP_REMOTE_DIR` — المسار البعيد للموقع، وغالبًا `htdocs/` للموقع الرئيسي. إذا تركته بدون قيمة سيستخدم الـ workflow `htdocs/` تلقائيًا.
+
+لا تضع كلمة المرور داخل ملفات المشروع أو الـ workflow.
+
+InfinityFree يستخدم مضيف FTP مستقلًا عن الدومين؛ المضيف المستخدم في الـ workflow هو `ftpupload.net`، وليس `ush-eng.great-site.net`.
+
+## بعد الإعداد
+
+أي `push` إلى `main` يغيّر ملفات `website/` سيؤدي إلى:
+
+1. فحص JavaScript وملفات الموقع والـ Dashboard.
+2. تجهيز نسخة الموقع العام داخل الجذر وDashboard داخل `/admin/`.
+3. نشر الملفات تلقائيًا إلى InfinityFree عبر FTPS.
+4. الاحتفاظ أيضًا بحزمة ZIP كـ GitHub Actions artifact.
+
+لا يحتاج المستخدم بعد ذلك إلى تحميل ZIP ورفعه يدويًا في كل تحديث.
+
+## البنية
 
 ```text
-htdocs/
-├── index.html
-├── news.html
-├── activities.html
-├── courses.html
-├── ...
-└── admin/
+InfinityFree
+└── htdocs/
     ├── index.html
-    ├── login.html
-    ├── users.html
-    └── ...
+    ├── news.html
+    ├── ...
+    └── admin/
+        ├── index.html
+        ├── login.html
+        └── ...
 ```
 
-- ارفع **محتويات حزمة InfinityFree** إلى `htdocs`، وليس مجلد `website` نفسه.
-- لوحة التحكم ستكون على `/admin/`.
-- عنوان الـAPI يبقى `https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1` في إعدادات الواجهة.
-- لا ترفع مجلدي `worker/` ولا ملفات `wrangler.toml` إلى InfinityFree؛ هذه خاصة بنشر Cloudflare القديم للموقع.
-
-المصدر الكامل للموقع والـDashboard يبقى داخل المستودع تحت `website/`، بينما هذه الحزمة مجرد نسخة نشر مستقلة.
+أما الـ Backend وD1 وEino/OmniRoute فما زالت على البنية السحابية الحالية، ولا يتم رفعها إلى InfinityFree.

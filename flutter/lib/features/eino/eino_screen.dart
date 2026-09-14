@@ -249,7 +249,7 @@ class _EinoScreenState extends State<EinoScreen> {
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              EinoFace(size: 34, mood: EinoMood.error),
+              const EinoFace(size: 34, mood: EinoMood.error),
               const SizedBox(width: 9),
               Expanded(child: Text(m.text, style: TextStyle(color: cs.onErrorContainer, height: 1.45))),
             ]),

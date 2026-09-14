@@ -1,4 +1,4 @@
-name: Website CI / InfinityFree Package
+name: Website CI / InfinityFree Deploy
 
 on:
   push:
@@ -96,7 +96,6 @@ jobs:
             --exclude='wrangler.toml' \
             --exclude='README*.md'
 
-          cp website/INFINITYFREE_DEPLOY.md infinityfree-dist/INFINITYFREE_DEPLOY.md
           test -f infinityfree-dist/index.html
           test -f infinityfree-dist/admin/index.html
 
@@ -111,3 +110,76 @@ jobs:
           name: TRINEX-InfinityFree-site-dashboard
           path: TRINEX-InfinityFree-site-dashboard.zip
           if-no-files-found: error
+
+  deploy-to-infinityfree:
+    name: Deploy to InfinityFree via FTPS
+    needs: validate-and-package
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate deployment secrets
+        shell: bash
+        env:
+          INFINITYFREE_FTP_USERNAME: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          INFINITYFREE_FTP_PASSWORD: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+          INFINITYFREE_FTP_REMOTE_DIR: ${{ secrets.INFINITYFREE_FTP_REMOTE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$INFINITYFREE_FTP_USERNAME" || { echo 'Missing INFINITYFREE_FTP_USERNAME repository secret.'; exit 1; }
+          test -n "$INFINITYFREE_FTP_PASSWORD" || { echo 'Missing INFINITYFREE_FTP_PASSWORD repository secret.'; exit 1; }
+          if [ -z "$INFINITYFREE_FTP_REMOTE_DIR" ]; then
+            echo 'INFINITYFREE_FTP_REMOTE_DIR is not set; using htdocs/.'
+          fi
+
+      - name: Prepare InfinityFree deployment directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf infinityfree-dist
+          mkdir -p infinityfree-dist/admin
+
+          rsync -a website/ infinityfree-dist/ \
+            --exclude='dashboard/' \
+            --exclude='worker/' \
+            --exclude='wrangler.toml' \
+            --exclude='README*.md' \
+            --exclude='UI_PRO_CHANGELOG.md' \
+            --exclude='INFINITYFREE_DEPLOY.md'
+
+          rsync -a website/dashboard/ infinityfree-dist/admin/ \
+            --exclude='worker/' \
+            --exclude='wrangler.toml' \
+            --exclude='README*.md'
+
+      - name: Deploy site + dashboard to InfinityFree
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ftpupload.net
+          username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          security: loose
+          local-dir: ./infinityfree-dist/
+          server-dir: ${{ secrets.INFINITYFREE_FTP_REMOTE_DIR || 'htdocs/' }}
+          log-level: minimal
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.DS_Store
+            **/node_modules/**
+
+      - name: Deployment summary
+        run: |
+          echo 'InfinityFree deployment completed.'
+          echo 'Public site: https://ush-eng.great-site.net/'
+          echo 'Dashboard:   https://ush-eng.great-site.net/admin/'
