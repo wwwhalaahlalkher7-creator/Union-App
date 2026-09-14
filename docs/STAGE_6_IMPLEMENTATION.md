@@ -1,56 +1,29 @@
-# المرحلة 6 — Google Drive Content Indexer
+# Stage 6 — Google Drive Adapter Migration
 
-تم نقل فكرة فهرسة المواد من Apps Script/DriveApp إلى طبقة مستقلة داخل Cloudflare Worker.
+تمت إعادة تصميم طبقة Drive لتكون: Google Drive → Google Apps Script → Cloudflare Worker → D1.
 
-## البنية
+## لماذا؟
 
-Google Drive → Cloudflare Worker → D1
+يتم التخلص من OAuth Service Account/JWT داخل Worker ومن الأسرار الثلاثة المرتبطة به، مع إبقاء Worker هو الـAPI الموحد.
 
-يستخدم الـ Worker حساب خدمة Google عبر OAuth 2.0 JWT، لذلك لا توجد مفاتيح Google داخل التطبيق أو المستودع.
+## الأسرار الجديدة
 
-## المتطلبات السرية
+### Apps Script — Script properties
+- `ROOT_FOLDER_ID`
+- `API_TOKEN`
 
-اضبط الأسرار التالية في Worker:
+### Cloudflare Worker
+- `GOOGLE_APPS_SCRIPT_URL` (var)
+- `GOOGLE_APPS_SCRIPT_TOKEN` (secret)
+
+## الأسرار التي لم تعد مطلوبة
 
 - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
 - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
 - `GOOGLE_DRIVE_ROOT_FOLDER_ID`
 
-ويجب مشاركة مجلد المواد الرئيسي مع البريد الخاص بحساب الخدمة بصلاحية قراءة.
-
-## بنية Drive المتوقعة
-
-```text
-المواد الدراسية/
-  القسم/
-    الفصل/
-      المادة/
-        *.pdf
-```
-
-تُطابق أسماء الأقسام والفصول مع سجلات D1. مجلد المادة يتحول إلى `subject`، وكل PDF يتحول إلى `material`.
-
-## API
-
-### تشغيل مزامنة
+## المزامنة
 
 `POST /api/v1/admin/drive/sync`
 
-يتطلب جلسة موظف بصلاحية `Super Admin` أو `Academic Manager`.
-
-### حالة آخر عمليات المزامنة
-
-`GET /api/v1/admin/drive/sync-status`
-
-## قواعد مهمة
-
-- المزامنة لا تحذف بيانات D1 فعليًا؛ الملفات التي اختفت من Drive تُعطّل (`active=0`).
-- الملفات الجديدة أو المعدلة تُحدّث تلقائيًا.
-- `drive_file_id` هو المفتاح الخارجي الأساسي لملف Drive.
-- يتم حفظ `modifiedTime` و`webViewLink` و`pinned`.
-- لا يقبل الـ Worker أي XP من Drive أو العميل.
-- لا توجد أي عودة إلى نظام الإعلانات التجارية.
-
-## تشغيل تلقائي لاحقًا
-
-يمكن استدعاء endpoint من Cron/Workflow بعد تفعيل النشر. المرحلة الحالية تركز على indexer نفسه؛ جدولة المزامنة وتشغيلها من Dashboard تأتي ضمن التشغيل الإداري الكامل.
+الـWorker يجلب فهرسًا مسطحًا من Apps Script، يطابق القسم والفصل مع D1، وينشئ/يحدّث subjects وmaterials.

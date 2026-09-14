@@ -1,8 +1,48 @@
-# المرحلة 6 — فهرس Google Drive
+# المرحلة 6 — Google Drive عبر Google Apps Script
 
-هذه النسخة تضيف مزامنة Google Drive إلى D1.
+تم استبدال اتصال Google Drive المباشر من Cloudflare Worker بحاجز Google Apps Script.
+الـWorker يبقى الواجهة الوحيدة للتطبيق والموقع، بينما Apps Script يملك صلاحية قراءة Drive.
 
-### أسرار Cloudflare المطلوبة
+## البنية
+
+```text
+Google Drive → Google Apps Script → Cloudflare Worker → D1 → Flutter/Web
+```
+
+## إعداد Google Apps Script
+
+الملف الجاهز موجود في `backend/apps-script/Code.gs`.
+
+من Project Settings → Script properties أضف:
+
+```text
+ROOT_FOLDER_ID = معرّف مجلد المواد الدراسية
+API_TOKEN      = سر عشوائي طويل
+```
+
+ثم Deploy → New deployment → Web app:
+- Execute as: Me
+- Who has access: Anyone
+
+احتفظ برابط Web app.
+
+## إعداد Cloudflare Worker
+
+المتغير العام:
+
+```text
+GOOGLE_APPS_SCRIPT_URL
+```
+
+والسر:
+
+```text
+GOOGLE_APPS_SCRIPT_TOKEN
+```
+
+قيمة `GOOGLE_APPS_SCRIPT_TOKEN` يجب أن تساوي `API_TOKEN` في Apps Script.
+
+لا يحتاج Worker إلى:
 
 ```text
 GOOGLE_SERVICE_ACCOUNT_EMAIL
@@ -10,22 +50,18 @@ GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
 GOOGLE_DRIVE_ROOT_FOLDER_ID
 ```
 
-لا تضع أيًا منها في `wrangler.toml` أو Git.
+## المزامنة
 
-### المزامنة
+`POST /api/v1/admin/drive/sync`
 
-بعد تسجيل دخول حساب إدارة بصلاحية Super Admin أو Academic Manager:
+يتطلب جلسة موظف بصلاحية `Super Admin` أو `Academic Manager`.
 
-```http
-POST /api/v1/admin/drive/sync
-```
+يمكن فرض إعادة قراءة Drive بدل كاش Apps Script عبر: `?nocache=1`.
 
-ولعرض آخر عمليات المزامنة:
+## قواعد الأمان
 
-```http
-GET /api/v1/admin/drive/sync-status
-```
-
-### ملاحظة
-
-المشروع لا يفترض أن معرف مجلد Drive الموجود في Apps Script ما زال هو المعرف الإنتاجي؛ يتم تمريره كـ Secret حتى يمكن تغييره بدون تعديل الكود.
+- Flutter والموقع لا يتصلان بـApps Script مباشرة.
+- رابط Apps Script يمكن أن يكون عامًا، لكن البيانات محمية بـ`API_TOKEN`.
+- الـWorker هو نقطة API الوحيدة للتطبيق.
+- لا توجد Service Account private keys في Cloudflare أو Git.
+- Apps Script يستخدم `DriveApp` بدل Advanced Drive API، لتقليل الاعتماد على Google Cloud.

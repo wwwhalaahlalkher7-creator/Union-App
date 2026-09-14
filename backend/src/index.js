@@ -1594,10 +1594,13 @@ async function adminEinoUsage(ctx) {
 
 
 // -----------------------------------------------------------------------------
-// Stage 6 — Google Drive indexer
-// The Worker talks to Google Drive REST API using a Google service account.
-// Required secrets: GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
-// GOOGLE_DRIVE_ROOT_FOLDER_ID. The service account must have access to the root folder.
+// Stage 6 — Google Drive indexer via Google Apps Script adapter
+// The Worker no longer authenticates to Google directly. Apps Script owns the
+// Drive permissions and returns a normalized JSON index. The Worker remains the
+// only public API and stores the normalized records in D1.
+// Required Worker configuration:
+//   GOOGLE_APPS_SCRIPT_URL (public deployment URL; var is fine)
+//   GOOGLE_APPS_SCRIPT_TOKEN (secret; must match Apps Script API_TOKEN)
 // -----------------------------------------------------------------------------
 async function adminDriveAuth(ctx) {
   const a = await auth(ctx);
@@ -1608,120 +1611,144 @@ async function adminDriveAuth(ctx) {
   return a;
 }
 
-function base64UrlEncodeBytes(bytes) {
-  return btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-function base64UrlEncodeText(text) { return base64UrlEncodeBytes(new TextEncoder().encode(text)); }
-
-function pemToArrayBuffer(pem) {
-  const clean = String(pem).replace(/-----BEGIN PRIVATE KEY-----/g, '').replace(/-----END PRIVATE KEY-----/g, '').replace(/\s+/g, '');
-  const raw = atob(clean);
-  const bytes = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-  return bytes.buffer;
-}
-
-async function googleAccessToken(ctx) {
-  const email = String(ctx.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '').trim();
-  const privateKey = String(ctx.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-  if (!email || !privateKey) throw new Error('Google Drive service account is not configured.');
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64UrlEncodeText(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const claim = base64UrlEncodeText(JSON.stringify({ iss: email, scope: 'https://www.googleapis.com/auth/drive.readonly', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }));
-  const unsigned = `${header}.${claim}`;
-  const key = await crypto.subtle.importKey('pkcs8', pemToArrayBuffer(privateKey), { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
-  const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(unsigned));
-  const assertion = `${unsigned}.${base64UrlEncodeBytes(signature)}`;
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${encodeURIComponent(assertion)}` });
-  if (!tokenResponse.ok) throw new Error(`Google token exchange failed (${tokenResponse.status}).`);
-  const data = await tokenResponse.json();
-  if (!data.access_token) throw new Error('Google token response did not contain an access token.');
-  return data.access_token;
-}
-
-async function googleDriveList(ctx, accessToken, q, fields) {
-  const all = [];
-  let pageToken = '';
-  do {
-    const params = new URLSearchParams({ q, fields, pageSize: '1000', spaces: 'drive', includeItemsFromAllDrives: 'true', supportsAllDrives: 'true' });
-    if (pageToken) params.set('pageToken', pageToken);
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, { headers: { authorization: `Bearer ${accessToken}` } });
-    if (!response.ok) throw new Error(`Google Drive list failed (${response.status}).`);
-    const data = await response.json();
-    all.push(...(data.files || []));
-    pageToken = data.nextPageToken || '';
-  } while (pageToken);
-  return all;
-}
-
+function normalizeDriveName(name) { return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
 function drivePin(description) {
   const value = String(description || '').toLowerCase();
   return ['pinned', 'مثبت', 'مثبّت'].some(k => value.includes(k));
 }
-function normalizeDriveName(name) { return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
-function driveFolderType(parentType) { return parentType === 'root' ? 'department' : parentType === 'department' ? 'semester' : 'subject'; }
+
+async function fetchAppsScriptIndex(ctx, forceRefresh = false) {
+  const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
+  const token = String(ctx.env.GOOGLE_APPS_SCRIPT_TOKEN || '').trim();
+  if (!endpoint || !token) throw new Error('Google Apps Script adapter is not configured.');
+  let url;
+  try { url = new URL(endpoint); } catch (e) { throw new Error('GOOGLE_APPS_SCRIPT_URL غير صالح.'); }
+  url.searchParams.set('action', 'index');
+  url.searchParams.set('token', token);
+  if (forceRefresh) url.searchParams.set('nocache', '1');
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`Apps Script index failed (${response.status}).`);
+    const data = await response.json();
+    if (!data || data.success !== true || !Array.isArray(data.files)) {
+      throw new Error(String(data?.error || 'Apps Script returned an invalid index.'));
+    }
+    return data;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 async function adminDriveSync(ctx) {
   const a = await adminDriveAuth(ctx); if (a.response) return a.response;
-  const rootId = String(ctx.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '').trim();
-  if (!rootId) return error('DRIVE_NOT_CONFIGURED', 'معرّف مجلد المواد في Google Drive غير مهيأ.', 503, ctx.requestId, ctx.cors);
   const syncId = crypto.randomUUID();
-  await ctx.env.DB.prepare('INSERT INTO drive_sync_runs (id, root_folder_id, status, triggered_by) VALUES (?, ?, ?, ?)').bind(syncId, rootId, 'running', a.session.staff_user_id).run();
+  const configuredUrl = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
+  if (!configuredUrl) return error('DRIVE_NOT_CONFIGURED', 'رابط Google Apps Script غير مهيأ.', 503, ctx.requestId, ctx.cors);
+  await ctx.env.DB.prepare('INSERT INTO drive_sync_runs (id, root_folder_id, status, triggered_by) VALUES (?, ?, ?, ?)')
+    .bind(syncId, 'apps-script', 'running', a.session.staff_user_id).run();
+
   try {
-    const accessToken = await googleAccessToken(ctx);
-    const folderFields = 'files(id,name,parents,mimeType,modifiedTime,trashed)';
-    const fileFields = 'files(id,name,parents,mimeType,size,modifiedTime,description,webViewLink,trashed)';
-    const folderMime = "mimeType = 'application/vnd.google-apps.folder' and trashed = false";
-    const pdfMime = "mimeType = 'application/pdf' and trashed = false";
+    const index = await fetchAppsScriptIndex(ctx, ctx.url.searchParams.get('nocache') === '1');
     const departments = await queryAll(ctx.env, 'SELECT * FROM departments WHERE active = 1');
     const semesters = await queryAll(ctx.env, 'SELECT * FROM semesters WHERE active = 1');
-    const depByName = new Map(); const semByName = new Map();
-    for (const d of departments) { for (const n of [d.name_ar, d.name_en, d.code]) if (n) depByName.set(normalizeDriveName(n), d); }
-    for (const s of semesters) { for (const n of [s.name_ar, s.name_en, `semester ${s.number}`, `الفصل ${s.number}`, `سمستر ${s.number}`]) if (n) semByName.set(normalizeDriveName(n), s); }
+    const depByName = new Map();
+    const semByName = new Map();
+    for (const d of departments) for (const n of [d.name_ar, d.name_en, d.code]) if (n) depByName.set(normalizeDriveName(n), d);
+    for (const s of semesters) for (const n of [s.name_ar, s.name_en, `semester ${s.number}`, `الفصل ${s.number}`, `سمستر ${s.number}`]) if (n) semByName.set(normalizeDriveName(n), s);
 
-    const depFolders = await googleDriveList(ctx, accessToken, `'${rootId}' in parents and ${folderMime}`, folderFields);
-    let foldersSeen = depFolders.length, filesSeen = 0, upserted = 0, deactivated = 0;
+    let foldersSeen = Array.isArray(index.sections) ? index.sections.reduce((n, s) => n + 1 + (Array.isArray(s.semesters) ? s.semesters.length : 0), 0) : 0;
+    let filesSeen = index.files.length;
+    let upserted = 0;
+    let deactivated = 0;
     const activeDriveIds = [];
 
-    for (const depFolder of depFolders) {
-      const dep = depByName.get(normalizeDriveName(depFolder.name));
+    // Keep the folder index coherent with the Apps Script source.
+    for (const section of (Array.isArray(index.sections) ? index.sections : [])) {
+      const dep = depByName.get(normalizeDriveName(section.name));
       if (!dep) continue;
-      await ctx.env.DB.prepare(`INSERT INTO drive_folder_index (id,parent_id,folder_type,department_id,name,modified_at,active,last_synced_at) VALUES (?,?,?,?,?,?,1,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,folder_type=excluded.folder_type,department_id=excluded.department_id,name=excluded.name,modified_at=excluded.modified_at,active=1,last_synced_at=CURRENT_TIMESTAMP`).bind(depFolder.id, rootId, 'department', dep.id, depFolder.name, depFolder.modifiedTime || null).run();
-      const semFolders = await googleDriveList(ctx, accessToken, `'${depFolder.id}' in parents and ${folderMime}`, folderFields);
-      foldersSeen += semFolders.length;
-      for (const semFolder of semFolders) {
-        const sem = semByName.get(normalizeDriveName(semFolder.name));
+      const depIndexId = `apps-script-department-${section.id}`;
+      await ctx.env.DB.prepare(`INSERT INTO drive_folder_index (id,parent_id,folder_type,department_id,name,modified_at,active,last_synced_at)
+        VALUES (?,?,?,?,?,?,1,CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,folder_type=excluded.folder_type,department_id=excluded.department_id,name=excluded.name,modified_at=excluded.modified_at,active=1,last_synced_at=CURRENT_TIMESTAMP`)
+        .bind(depIndexId, 'apps-script-root', 'department', dep.id, section.name, null).run();
+      for (const semester of (Array.isArray(section.semesters) ? section.semesters : [])) {
+        const sem = semByName.get(normalizeDriveName(semester.name));
         if (!sem) continue;
-        await ctx.env.DB.prepare(`INSERT INTO drive_folder_index (id,parent_id,folder_type,department_id,semester_id,name,modified_at,active,last_synced_at) VALUES (?,?,?,?,?,?,?,1,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,folder_type=excluded.folder_type,department_id=excluded.department_id,semester_id=excluded.semester_id,name=excluded.name,modified_at=excluded.modified_at,active=1,last_synced_at=CURRENT_TIMESTAMP`).bind(semFolder.id, depFolder.id, 'semester', dep.id, sem.id, semFolder.name, semFolder.modifiedTime || null).run();
-        const subjectFolders = await googleDriveList(ctx, accessToken, `'${semFolder.id}' in parents and ${folderMime}`, folderFields);
-        foldersSeen += subjectFolders.length;
-        for (const subjectFolder of subjectFolders) {
-          const subjectId = `drive-subject-${subjectFolder.id}`;
-          await ctx.env.DB.prepare(`INSERT INTO subjects (id,semester_id,department_id,code,name_ar,name_en,active,sort_order) VALUES (?,?,?,?,?,?,1,0) ON CONFLICT(id) DO UPDATE SET semester_id=excluded.semester_id,department_id=excluded.department_id,name_ar=excluded.name_ar,name_en=excluded.name_en,active=1`).bind(subjectId, sem.id, dep.id, `DRIVE:${subjectFolder.id}`, subjectFolder.name, subjectFolder.name,).run();
-          await ctx.env.DB.prepare(`INSERT INTO drive_folder_index (id,parent_id,folder_type,department_id,semester_id,subject_id,name,modified_at,active,last_synced_at) VALUES (?,?,?,?,?,?,?,?,1,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,folder_type=excluded.folder_type,department_id=excluded.department_id,semester_id=excluded.semester_id,subject_id=excluded.subject_id,name=excluded.name,modified_at=excluded.modified_at,active=1,last_synced_at=CURRENT_TIMESTAMP`).bind(subjectFolder.id, semFolder.id, 'subject', dep.id, sem.id, subjectId, subjectFolder.name, subjectFolder.modifiedTime || null).run();
-          const pdfs = await googleDriveList(ctx, accessToken, `'${subjectFolder.id}' in parents and ${pdfMime}`, fileFields);
-          filesSeen += pdfs.length;
-          for (const file of pdfs) {
-            activeDriveIds.push(file.id);
-            const materialId = `drive-material-${file.id}`;
-            const link = file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
-            await ctx.env.DB.prepare(`INSERT INTO materials (id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,last_synced_at) VALUES (?,?,?,?,?,?,?,?,1,0,?,?,?,?,'drive',CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET subject_id=excluded.subject_id,title=excluded.title,description=excluded.description,drive_url=excluded.drive_url,mime_type=excluded.mime_type,size_bytes=excluded.size_bytes,active=1,drive_parent_id=excluded.drive_parent_id,drive_modified_at=excluded.drive_modified_at,drive_web_view_url=excluded.drive_web_view_url,pinned=excluded.pinned,source='drive',last_synced_at=CURRENT_TIMESTAMP`).bind(materialId, subjectId, file.name, file.description || null, file.id, link, file.mimeType || 'application/pdf', Number(file.size || 0), file.id, subjectFolder.id, file.modifiedTime || null, link, drivePin(file.description) ? 1 : 0).run();
-            upserted++;
-          }
-        }
+        const semIndexId = `apps-script-semester-${semester.id}`;
+        await ctx.env.DB.prepare(`INSERT INTO drive_folder_index (id,parent_id,folder_type,department_id,semester_id,name,modified_at,active,last_synced_at)
+          VALUES (?,?,?,?,?,?,1,CURRENT_TIMESTAMP)
+          ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,folder_type=excluded.folder_type,department_id=excluded.department_id,semester_id=excluded.semester_id,name=excluded.name,modified_at=excluded.modified_at,active=1,last_synced_at=CURRENT_TIMESTAMP`)
+          .bind(semIndexId, depIndexId, 'semester', dep.id, sem.id, semester.name, null).run();
       }
     }
-    // Deactivate Drive-sourced records not seen in this full sync.
-    const rows = await queryAll(ctx.env, "SELECT drive_file_id FROM materials WHERE source='drive' AND active=1 AND drive_file_id IS NOT NULL");
+
+    // Group the flat Apps Script file index by department + semester + material.
+    const subjectGroups = new Map();
+    for (const file of index.files) {
+      const dep = depByName.get(normalizeDriveName(file.sectionName));
+      const sem = semByName.get(normalizeDriveName(file.semesterName));
+      if (!dep || !sem) continue;
+      const materialName = String(file.materialName || 'مواد عامة').trim() || 'مواد عامة';
+      const groupKey = `${dep.id}::${sem.id}::${normalizeDriveName(materialName)}`;
+      if (!subjectGroups.has(groupKey)) subjectGroups.set(groupKey, { dep, sem, materialName, files: [] });
+      subjectGroups.get(groupKey).files.push(file);
+    }
+
+    for (const group of subjectGroups.values()) {
+      const subjectSeed = group.files[0];
+      const subjectId = `drive-subject-${subjectSeed.sectionId}-${subjectSeed.semesterId}-${normalizeDriveName(group.materialName).replace(/[^a-z0-9\u0600-\u06ff]+/gi, '-').slice(0, 100)}`;
+      await ctx.env.DB.prepare(`INSERT INTO subjects (id,semester_id,department_id,code,name_ar,name_en,active,sort_order) VALUES (?,?,?,?,?,?,1,0)
+        ON CONFLICT(id) DO UPDATE SET semester_id=excluded.semester_id,department_id=excluded.department_id,code=excluded.code,name_ar=excluded.name_ar,name_en=excluded.name_en,active=1`)
+        .bind(subjectId, group.sem.id, group.dep.id, `DRIVE:${subjectSeed.semesterId}:${normalizeDriveName(group.materialName)}`, group.materialName, group.materialName).run();
+      const folderIndexId = `drive-folder-${subjectId}`;
+      await ctx.env.DB.prepare(`INSERT INTO drive_folder_index (id,parent_id,folder_type,department_id,semester_id,subject_id,name,modified_at,active,last_synced_at)
+        VALUES (?,?,?,?,?,?,?, ?,1,CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,folder_type=excluded.folder_type,department_id=excluded.department_id,semester_id=excluded.semester_id,subject_id=excluded.subject_id,name=excluded.name,modified_at=excluded.modified_at,active=1,last_synced_at=CURRENT_TIMESTAMP`)
+        .bind(folderIndexId, `apps-script-semester-${subjectSeed.semesterId}`, 'subject', group.dep.id, group.sem.id, subjectId, group.materialName, null).run();
+
+      for (const file of group.files) {
+        activeDriveIds.push(file.id);
+        const materialId = `drive-material-${file.id}`;
+        const link = file.link || `https://drive.google.com/file/d/${file.id}/view`;
+        await ctx.env.DB.prepare(`INSERT INTO materials
+          (id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,last_synced_at)
+          VALUES (?,?,?,?,?,?,?,?,1,0,?,?,?,?,'drive',CURRENT_TIMESTAMP)
+          ON CONFLICT(id) DO UPDATE SET subject_id=excluded.subject_id,title=excluded.title,description=excluded.description,
+          drive_url=excluded.drive_url,mime_type=excluded.mime_type,size_bytes=excluded.size_bytes,active=1,
+          drive_parent_id=excluded.drive_parent_id,drive_modified_at=excluded.drive_modified_at,
+          drive_web_view_url=excluded.drive_web_view_url,pinned=excluded.pinned,source='drive',last_synced_at=CURRENT_TIMESTAMP`)
+          .bind(materialId, subjectId, file.name, file.description || null, file.id, link, 'application/pdf', Number(file.size || 0), file.id, file.modified || null, file.previewLink || link, file.pinned ? 1 : 0).run();
+        upserted++;
+      }
+    }
+
     const activeSet = new Set(activeDriveIds);
-    for (const row of rows) if (!activeSet.has(row.drive_file_id)) { await ctx.env.DB.prepare("UPDATE materials SET active=0, updated_at=CURRENT_TIMESTAMP, last_synced_at=CURRENT_TIMESTAMP WHERE drive_file_id=? AND source='drive'").bind(row.drive_file_id).run(); deactivated++; }
-    await ctx.env.DB.prepare("UPDATE drive_folder_index SET active=0 WHERE last_synced_at < (SELECT started_at FROM drive_sync_runs WHERE id=?)").bind(syncId).run();
-    await ctx.env.DB.prepare("UPDATE drive_sync_runs SET status='success', finished_at=CURRENT_TIMESTAMP, folders_seen=?, files_seen=?, materials_upserted=?, materials_deactivated=? WHERE id=?").bind(foldersSeen, filesSeen, upserted, deactivated, syncId).run();
-    return ok(ctx, { syncId, foldersSeen, filesSeen, materialsUpserted: upserted, materialsDeactivated: deactivated });
+    const rows = await queryAll(ctx.env, "SELECT drive_file_id FROM materials WHERE source='drive' AND active=1 AND drive_file_id IS NOT NULL");
+    for (const row of rows) {
+      if (!activeSet.has(row.drive_file_id)) {
+        await ctx.env.DB.prepare("UPDATE materials SET active=0, updated_at=CURRENT_TIMESTAMP, last_synced_at=CURRENT_TIMESTAMP WHERE drive_file_id=? AND source='drive'")
+          .bind(row.drive_file_id).run();
+        deactivated++;
+      }
+    }
+
+    await ctx.env.DB.prepare("UPDATE drive_folder_index SET active=0 WHERE last_synced_at < (SELECT started_at FROM drive_sync_runs WHERE id=?)")
+      .bind(syncId).run();
+    await ctx.env.DB.prepare("UPDATE drive_sync_runs SET status='success', finished_at=CURRENT_TIMESTAMP, folders_seen=?, files_seen=?, materials_upserted=?, materials_deactivated=? WHERE id=?")
+      .bind(foldersSeen, filesSeen, upserted, deactivated, syncId).run();
+    return ok(ctx, { syncId, source: 'google-apps-script', generatedAt: index.generatedAt || null, foldersSeen, filesSeen, materialsUpserted: upserted, materialsDeactivated: deactivated });
   } catch (e) {
-    await ctx.env.DB.prepare("UPDATE drive_sync_runs SET status='failed', finished_at=CURRENT_TIMESTAMP, error_message=? WHERE id=?").bind(String(e?.message || e).slice(0,1000), syncId).run();
+    await ctx.env.DB.prepare("UPDATE drive_sync_runs SET status='failed', finished_at=CURRENT_TIMESTAMP, error_message=? WHERE id=?")
+      .bind(String(e?.message || e).slice(0,1000), syncId).run();
     console.error(`[${ctx.requestId}] drive sync`, e);
-    return error('DRIVE_SYNC_FAILED', 'تعذّر مزامنة المواد من Google Drive.', 502, ctx.requestId, ctx.cors);
+    return error('DRIVE_SYNC_FAILED', 'تعذّر مزامنة المواد من Google Drive عبر Apps Script.', 502, ctx.requestId, ctx.cors);
   }
 }
 
