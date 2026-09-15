@@ -306,6 +306,28 @@ async function publicMaterials(ctx) {
   const subjectId = String(ctx.url.searchParams.get('subjectId') || '').trim() || null;
   const limit = clampInt(ctx.url.searchParams.get('limit'), 1000, 1, 1000);
 
+  // الأقسام الأساسية للموقع ثابتة: لا تعتمد بطاقات الصفحة الرئيسية على وجود
+  // ملفات في D1 حتى يفتح القسم فوراً، بينما المواد/الشيتات نفسها تبقى D1-only.
+  const fixedDepartmentIds = ['dep_architecture', 'dep_civil', 'dep_electronics'];
+  const departmentsRows = await queryAll(ctx.env, `
+    SELECT id, name_ar, name_en, code, sort_order
+      FROM departments
+     WHERE active = 1 AND id IN (?, ?, ?)
+       AND (? IS NULL OR id = ?)
+     ORDER BY sort_order, name_ar`,
+    fixedDepartmentIds[0], fixedDepartmentIds[1], fixedDepartmentIds[2],
+    departmentId, departmentId
+  );
+
+  const semesterRows = await queryAll(ctx.env, `
+    SELECT id, name_ar, name_en, number, sort_order
+      FROM semesters
+     WHERE active = 1
+       AND (? IS NULL OR id = ?)
+     ORDER BY number, sort_order, name_ar`,
+    semesterId, semesterId
+  `);
+
   const rows = await queryAll(ctx.env, `
     SELECT
       m.id, m.subject_id, m.title, m.description, m.drive_file_id,
@@ -323,6 +345,7 @@ async function publicMaterials(ctx) {
     JOIN departments d ON d.id = s.department_id
     JOIN semesters sem ON sem.id = s.semester_id
     WHERE m.active = 1 AND s.active = 1 AND d.active = 1 AND sem.active = 1
+      AND d.id IN (?, ?, ?)
       AND (? IS NULL OR d.id = ?)
       AND (? IS NULL OR sem.id = ?)
       AND (? IS NULL OR s.id = ?)
@@ -334,44 +357,40 @@ async function publicMaterials(ctx) {
       COALESCE(m.drive_modified_at, m.updated_at, m.created_at) DESC,
       m.title
     LIMIT ?`,
+    fixedDepartmentIds[0], fixedDepartmentIds[1], fixedDepartmentIds[2],
     departmentId, departmentId,
     semesterId, semesterId,
     subjectId, subjectId,
     limit
   );
 
-  const departments = [];
-  const departmentMap = new Map();
+  const departments = departmentsRows.map(d => ({
+    id: d.id,
+    name: d.name_ar || d.name_en || d.code || '',
+    nameEn: d.name_en || null,
+    code: d.code || null,
+    semesters: semesterRows.map(sem => ({
+      id: sem.id,
+      name: sem.name_ar || sem.name_en || `الفصل ${sem.number}`,
+      nameEn: sem.name_en || null,
+      number: Number(sem.number || 0),
+      subjects: [],
+    })),
+  }));
+
+  const departmentMap = new Map(departments.map(d => [d.id, d]));
   const semesterMap = new Map();
   const subjectMap = new Map();
+  for (const department of departments) {
+    for (const semester of department.semesters) {
+      semesterMap.set(`${department.id}:${semester.id}`, semester);
+    }
+  }
 
   for (const row of rows) {
-    let department = departmentMap.get(row.department_id);
-    if (!department) {
-      department = {
-        id: row.department_id,
-        name: row.department_name_ar || row.department_name_en || row.department_code || '',
-        nameEn: row.department_name_en || null,
-        code: row.department_code || null,
-        semesters: [],
-      };
-      departmentMap.set(row.department_id, department);
-      departments.push(department);
-    }
-
-    const semesterKey = `${row.department_id}:${row.semester_id}`;
-    let semester = semesterMap.get(semesterKey);
-    if (!semester) {
-      semester = {
-        id: row.semester_id,
-        name: row.semester_name_ar || row.semester_name_en || `الفصل ${row.semester_number}`,
-        nameEn: row.semester_name_en || null,
-        number: Number(row.semester_number || 0),
-        subjects: [],
-      };
-      semesterMap.set(semesterKey, semester);
-      department.semesters.push(semester);
-    }
+    const department = departmentMap.get(row.department_id);
+    const semester = semesterMap.get(`${row.department_id}:${row.semester_id}`);
+    if (!department || !semester) continue;
 
     const subjectKey = `${row.department_id}:${row.semester_id}:${row.subject_id}`;
     let subject = subjectMap.get(subjectKey);
@@ -408,11 +427,8 @@ async function publicMaterials(ctx) {
       semester.subjects.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
     }
   }
-  departments.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 
-  return ok(ctx, {
-    departments,
-  }, {
+  return ok(ctx, { departments }, {
     source: 'd1',
     count: rows.length,
     limit,
