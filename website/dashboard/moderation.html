@@ -1,12 +1,52 @@
-<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الإشراف على التعليقات | لوحة التحكم</title><link rel="stylesheet" href="css/admin.css"><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"><script src="config.js"></script><script src="js/theme.js"></script><script src="js/auth.js"></script></head><body data-page="moderation"><div id="app-shell"></div><template id="pageTemplate"><section class="card"><div class="card-header"><div><h3>الإشراف على التعليقات</h3><span class="card-header-hint">مراجعة وإخفاء أو إعادة إظهار التعليقات الرسمية</span></div><button class="btn btn-secondary" onclick="loadModeration()"><i class="fa-solid fa-rotate"></i> تحديث</button></div><div id="list"><div class="empty-state">جارٍ التحميل...</div></div></section></template><script src="js/api-adapter.js?v=2.9.4"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/modal.js"></script><script src="js/layout.js"></script><script>
-document.addEventListener('shell:ready',()=>{document.getElementById('pageContent').appendChild(document.getElementById('pageTemplate').content.cloneNode(true));loadModeration();});
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الإشراف | لوحة تحكم TRINEX</title><link rel="stylesheet" href="css/admin.css"><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"><script src="config.js"></script><script src="js/theme.js"></script><script src="js/auth.js"></script></head><body data-page="moderation"><div id="app-shell"></div><template id="pageTemplate"><section class="card"><div class="card-header"><div><h3>الإشراف على التعليقات</h3><span class="card-header-hint">مراجعة وإخفاء أو إعادة إظهار التعليقات الرسمية</span></div><button type="button" class="btn btn-secondary" id="moderationRefreshBtn"><i class="fa-solid fa-rotate"></i> تحديث</button></div><div id="list"><div class="empty-state">جارٍ التحميل...</div></div></section></template><script src="js/api-adapter.js?v=3.0.0"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/modal.js"></script><script src="js/layout.js"></script><script>
+document.addEventListener('shell:ready',()=>{
+  document.getElementById('pageContent').appendChild(document.getElementById('pageTemplate').content.cloneNode(true));
+  document.getElementById('moderationRefreshBtn').addEventListener('click', loadModeration);
+  loadModeration();
+});
 document.getElementById("list").addEventListener("click", (ev) => {
   const btn = ev.target.closest("button[data-action]"); if (!btn) return;
-  if (btn.dataset.action === "moderate") moderate(btn.dataset.id, btn.dataset.status);
-  if (btn.dataset.action === "delete") deleteComment(btn.dataset.id);
+  if (btn.dataset.action === "moderate") moderate(btn.dataset.id, btn.dataset.status, btn);
+  if (btn.dataset.action === "delete") deleteComment(btn.dataset.id, btn);
 });
 
-async function loadModeration(){const el=document.getElementById('list');try{const rows=await Adapter.listModerationComments('visible');el.innerHTML=rows.length?rows.map(r=>`<article class="list-row" style="align-items:flex-start"><div style="flex:1"><strong>${Utils.escapeHtml(r.full_name||'طالب')}</strong><div class="field-hint">${Utils.escapeHtml(r.content_type||'')} · ${Utils.formatDate(r.created_at)}</div><p>${Utils.escapeHtml(r.body||'')}</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-secondary" data-action="moderate" data-id="${Utils.escapeHtml(String(r.id))}" data-status="hidden">إخفاء</button><button class="btn btn-danger" data-action="delete" data-id="${Utils.escapeHtml(String(r.id))}">حذف نهائي</button></div></article>`).join(''):'<div class="empty-state">لا توجد تعليقات معلّقة للمراجعة.</div>';}catch(e){el.innerHTML='<div class="empty-state is-error">تعذّر تحميل التعليقات.</div>';}}
-async function moderate(id,status){try{await Adapter.moderateComment(id,status);await loadModeration();}catch(e){Feedback.error(e.message);}}
-async function deleteComment(id){const ok=await Modal.confirmDialog('سيتم حذف التعليق وردوده نهائيًا من قاعدة البيانات. هل أنت متأكد؟','حذف نهائي');if(!ok)return;try{await Adapter.deleteCommentAdmin(id);Feedback.success('تم حذف التعليق');await loadModeration();}catch(e){Feedback.error(e.message||'تعذّر حذف التعليق')}}
+async function loadModeration(){
+  const el=document.getElementById('list');
+  await Feedback.loadInto(el, () => Adapter.listModerationComments('visible'), rows => {
+    el.innerHTML = rows.length ? rows.map(r=>`
+      <article class="list-row moderation-row">
+        <div class="moderation-copy">
+          <strong>${Utils.escapeHtml(r.full_name||'طالب')}</strong>
+          <div class="field-hint">${Utils.escapeHtml(r.content_type||'')} · ${Utils.formatDate(r.created_at)}</div>
+          <p>${Utils.escapeHtml(r.body||'')}</p>
+        </div>
+        <div class="row-actions moderation-actions">
+          <button type="button" class="btn btn-secondary" data-action="moderate" data-id="${Utils.escapeHtml(String(r.id))}" data-status="hidden">إخفاء</button>
+          <button type="button" class="btn btn-danger" data-action="delete" data-id="${Utils.escapeHtml(String(r.id))}">حذف نهائي</button>
+        </div>
+      </article>`).join('') : '<div class="empty-state"><i class="fa-solid fa-circle-check"></i>لا توجد تعليقات معلّقة للمراجعة.</div>';
+  }, { errorPrefix: 'تعذّر تحميل التعليقات' });
+}
+async function moderate(id,status,btn){
+  try {
+    await Feedback.busy(btn, () => Adapter.moderateComment(id,status), {
+      busyLabel:'جارٍ التنفيذ...',
+      successMessage:'تم تحديث حالة التعليق',
+      errorPrefix:'تعذّر تحديث التعليق'
+    });
+    await loadModeration();
+  } catch(e) {}
+}
+async function deleteComment(id,btn){
+  const ok=await Modal.confirmDialog('سيتم حذف التعليق وردوده نهائيًا من قاعدة البيانات. هل أنت متأكد؟','حذف نهائي');
+  if(!ok)return;
+  try {
+    await Feedback.busy(btn, () => Adapter.deleteCommentAdmin(id), {
+      busyLabel:'جارٍ الحذف...',
+      successMessage:'تم حذف التعليق',
+      errorPrefix:'تعذّر حذف التعليق'
+    });
+    await loadModeration();
+  } catch(e) {}
+}
 </script></body></html>

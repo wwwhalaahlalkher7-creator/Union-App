@@ -58,7 +58,7 @@ body[data-page="schedule"] .page-content{padding-top:24px}
     </div>
   </div>
 </template>
-<script src="js/api-adapter.js?v=2.9.4"></script>
+<script src="js/api-adapter.js?v=3.0.0"></script>
 <script src="js/utils.js"></script>
 <script src="js/feedback.js"></script>
 <script src="js/modal.js"></script>
@@ -130,6 +130,7 @@ async function loadSchedule() {
   } catch (e) {
     body.innerHTML = `<tr><td colspan="9"><div class="empty-state is-error"><i class="fa-solid fa-triangle-exclamation"></i>${Utils.escapeHtml(e.message || "تعذّر تحميل الجداول")}<br><button class="btn btn-secondary" type="button" data-action="retry-load">إعادة المحاولة</button></div></td></tr>`;
     document.getElementById("resultHint").textContent = "فشل التحميل";
+    Feedback.error(e.message || "تعذّر تحميل الجداول");
   }
 }
 
@@ -138,8 +139,8 @@ document.getElementById("scheduleBody").addEventListener("click", (ev) => {
   const id = btn.dataset.id; const action = btn.dataset.action;
   if (action === "retry-load") loadSchedule();
   else if (action === "edit") openForm(id);
-  else if (action === "toggle") toggleEntry(id, btn.dataset.active !== "1");
-  else if (action === "delete") deleteEntry(id);
+  else if (action === "toggle") toggleEntry(id, btn.dataset.active !== "1", btn);
+  else if (action === "delete") deleteEntry(id, btn);
 });
 
 function renderSchedule(entries) {
@@ -203,24 +204,45 @@ async function saveForm(ev) {
   const payload = formPayload();
   if (payload.startTime >= payload.endTime) { error.textContent = "وقت النهاية يجب أن يكون بعد وقت البداية."; error.style.display = "block"; return; }
   const id = document.getElementById("entryId").value;
-  const btn = document.getElementById("saveBtn"); btn.disabled = true;
+  const btn = document.getElementById("saveBtn");
   try {
-    if (id) await Adapter.updateScheduleEntry(id, payload); else await Adapter.createScheduleEntry(payload);
-    closeForm(); await loadSchedule();
-  } catch (e) { error.textContent = e.message || "تعذّر حفظ الحصة"; error.style.display = "block"; }
-  finally { btn.disabled = false; }
+    await Feedback.busy(btn, () => id
+      ? Adapter.updateScheduleEntry(id, payload)
+      : Adapter.createScheduleEntry(payload), {
+      busyLabel: "جارٍ الحفظ...",
+      successMessage: id ? "تم حفظ الحصة" : "تمت إضافة الحصة",
+      errorPrefix: "تعذّر حفظ الحصة"
+    });
+    closeForm();
+    await loadSchedule();
+  } catch (e) {
+    error.textContent = e.message || "تعذّر حفظ الحصة";
+    error.style.display = "block";
+  }
 }
-async function toggleEntry(id, active) {
+async function toggleEntry(id, active, btn) {
   const ok = await Modal.confirmDialog(active ? "هل تريد تفعيل هذه الحصة؟" : "هل تريد تعطيل هذه الحصة؟", active ? "تفعيل الحصة" : "تعطيل الحصة");
   if (!ok) return;
-  try { await Adapter.toggleScheduleEntry(id, active); Feedback.success(active ? "تم تفعيل الحصة" : "تم تعطيل الحصة"); await loadSchedule(); }
-  catch (e) { Feedback.error(e.message || "تعذّرت العملية"); }
+  try {
+    await Feedback.busy(btn, () => Adapter.toggleScheduleEntry(id, active), {
+      busyLabel: "جارٍ التنفيذ...",
+      successMessage: active ? "تم تفعيل الحصة" : "تم تعطيل الحصة",
+      errorPrefix: "تعذّرت العملية"
+    });
+    await loadSchedule();
+  } catch (e) {}
 }
-async function deleteEntry(id) {
+async function deleteEntry(id, btn) {
   const ok = await Modal.confirmDialog("سيتم حذف الحصة نهائيًا. هل أنت متأكد؟", "حذف نهائي");
   if (!ok) return;
-  try { await Adapter.deleteScheduleEntry(id); Feedback.success("تم حذف الحصة"); await loadSchedule(); }
-  catch (e) { Feedback.error(e.message || "تعذّر حذف الحصة"); }
+  try {
+    await Feedback.busy(btn, () => Adapter.deleteScheduleEntry(id), {
+      busyLabel: "جارٍ الحذف...",
+      successMessage: "تم حذف الحصة",
+      errorPrefix: "تعذّر حذف الحصة"
+    });
+    await loadSchedule();
+  } catch (e) {}
 }
 </script>
 </body>

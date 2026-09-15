@@ -70,7 +70,8 @@ const Utils = (function () {
     btn.type = "button";
     btn.className = "pw-toggle-btn";
     btn.setAttribute("aria-label", "إظهار كلمة المرور");
-    btn.tabIndex = -1;
+    btn.setAttribute("aria-pressed", "false");
+    btn.tabIndex = 0;
     btn.innerHTML = '<i class="fa-solid fa-eye"></i>';
 
     btn.addEventListener("click", () => {
@@ -78,6 +79,7 @@ const Utils = (function () {
       input.type = showing ? "password" : "text";
       btn.innerHTML = showing ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-eye-slash"></i>';
       btn.setAttribute("aria-label", showing ? "إظهار كلمة المرور" : "إخفاء كلمة المرور");
+      btn.setAttribute("aria-pressed", String(!showing));
     });
 
     wrap.appendChild(btn);

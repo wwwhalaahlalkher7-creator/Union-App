@@ -2706,3 +2706,585 @@ body[data-page="dashboard"] .quick-action:hover::after { opacity: .75; transform
 .dashboard-eino-meta span { padding:6px 10px; border-radius:999px; background:var(--surface-sunken); }
 .dashboard-eino-meta strong { color:var(--ink-700); }
 @media (max-width:560px){ .dashboard-eino-card .stats-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .dashboard-eino-meta { gap:7px; } }
+
+
+/* ============================================================
+   UI/UX PASS 9 — لوحة تحكم متماسكة للمس والكتابة والتنقل
+   الهدف: إصلاح سلوك الجوال/لوحة المفاتيح، وضوح أماكن الأزرار،
+   وتنظيم التنقل دون تغيير عقود الـAPI أو وظائف الصفحات.
+   ============================================================ */
+
+:root {
+  --content-max: 1480px;
+  --ui-control-h: 44px;
+  --ui-focus: 0 0 0 3px color-mix(in srgb, var(--blueprint-500) 22%, transparent);
+  --premium-radius: 14px;
+  --section-gap: 18px;
+}
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+body {
+  min-width: 320px;
+  overscroll-behavior-x: none;
+}
+
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}
+
+button, .btn, .icon-btn, .tab-btn, .sidebar-link {
+  user-select: none;
+}
+
+input, select, textarea {
+  min-height: var(--ui-control-h);
+  line-height: 1.45;
+  scroll-margin-block: 90px;
+}
+
+textarea { min-height: 110px; }
+
+.field input,
+.field select,
+.field textarea {
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  transform: none;
+}
+
+/* ---------- Navigation ---------- */
+.sidebar-brand {
+  padding: 16px 14px;
+  min-height: 76px;
+}
+
+.sidebar-brand-copy {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.sidebar-brand-text {
+  min-width: 0;
+}
+
+.sidebar-brand-text strong,
+.sidebar-brand-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-close-btn {
+  display: none;
+  color: #DDEBFA;
+  border-color: rgba(255,255,255,.12);
+}
+
+.sidebar-nav {
+  padding: 12px 10px;
+  gap: 10px;
+  overscroll-behavior: contain;
+}
+
+.sidebar-nav-group {
+  display: grid;
+  gap: 3px;
+}
+
+.sidebar-nav-label {
+  padding: 7px 14px 4px;
+  color: #80A6C8;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.sidebar-link {
+  position: relative;
+  min-height: 44px;
+  padding: 10px 12px;
+  gap: 11px;
+}
+
+.sidebar-link .nav-active-mark {
+  width: auto;
+  margin-inline-start: auto;
+  font-size: .65rem;
+  color: var(--blueprint-600);
+}
+
+.sidebar-footer {
+  padding: 10px 12px 14px;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.sidebar-footer-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border-radius: 10px;
+  color: #C6D9EC;
+  background: rgba(255,255,255,.055);
+  font-size: .78rem;
+  transition: background .16s ease, color .16s ease;
+}
+
+.sidebar-footer-link:hover {
+  color: #fff;
+  background: rgba(255,255,255,.10);
+}
+
+.topbar-actions {
+  min-width: 0;
+}
+
+.topbar-user-copy {
+  max-width: 190px;
+}
+
+.topbar-user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Page framing ---------- */
+.page-content {
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: 22px clamp(14px, 2.5vw, 30px) 34px;
+}
+
+.page-content::before {
+  z-index: -1;
+}
+
+/* ---------- Consistent action hierarchy ---------- */
+.toolbar,
+.students-actions-row,
+.toolbar-group {
+  align-items: center;
+}
+
+.toolbar .btn,
+.toolbar-group .btn,
+.students-actions-row .btn {
+  justify-content: center;
+}
+
+.btn {
+  white-space: nowrap;
+}
+
+.btn i,
+.icon-btn i {
+  flex: 0 0 auto;
+}
+
+.btn:disabled,
+.icon-btn:disabled {
+  transform: none !important;
+}
+
+.btn.is-busy {
+  cursor: wait;
+}
+
+.row-actions {
+  align-items: center;
+}
+
+/* ---------- Tables: horizontal scroll is intentional, never page scroll ---------- */
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  border-radius: 12px;
+}
+
+.data-table th,
+.data-table td {
+  vertical-align: middle;
+}
+
+.data-table th {
+  white-space: nowrap;
+}
+
+/* ---------- Modal: keyboard-safe bottom sheet ---------- */
+.modal-overlay {
+  padding:
+    max(16px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal {
+  max-height: min(88dvh, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.modal-header {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-footer {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.modal[aria-busy="true"] .modal-close-btn {
+  pointer-events: none;
+}
+
+/* File pickers need a real focusable drop zone. */
+.file-drop {
+  min-height: 112px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+}
+
+/* ---------- Empty/loading states ---------- */
+.empty-state {
+  min-height: 92px;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 18px;
+}
+
+.login-feedback {
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Small screens ---------- */
+@media (max-width: 900px) {
+  .sidebar {
+    width: min(86vw, 320px);
+  }
+
+  .sidebar-close-btn {
+    display: flex;
+  }
+
+  .topbar-public-link {
+    display: none;
+  }
+
+  .topbar-user-copy {
+    display: none;
+  }
+
+  .topbar-user {
+    border: 0;
+    padding: 0;
+    margin: 0;
+  }
+}
+
+@media (max-width: 680px) {
+  html {
+    scrollbar-gutter: auto;
+  }
+
+  .page-content {
+    padding: 13px 12px calc(28px + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    min-height: 60px;
+    height: 60px;
+    padding-inline: 10px;
+    gap: 6px;
+  }
+
+  .topbar-title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .topbar-actions {
+    flex: 0 0 auto;
+  }
+
+  .topbar .icon-btn,
+  .topbar-menu-btn {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+  }
+
+  .btn {
+    min-height: 46px;
+  }
+
+  input, select, textarea {
+    min-height: 46px;
+    font-size: 16px; /* يمنع التكبير التلقائي عند الكتابة في متصفحات الهاتف */
+  }
+
+  .field input,
+  .field select,
+  .field textarea {
+    padding: 11px 12px;
+  }
+
+  .tabs.premium-tabs {
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  .tabs.premium-tabs .tab-btn {
+    flex: 1 0 auto;
+    min-width: 120px;
+  }
+
+  .card-header {
+    align-items: flex-start;
+  }
+
+  .card-header > .btn,
+  .card-header > .toolbar-group {
+    width: 100%;
+  }
+
+  .card-header > .btn {
+    justify-content: center;
+  }
+
+  .table-scroll {
+    margin-inline: -1px;
+    width: calc(100% + 2px);
+  }
+
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .modal {
+    width: 100%;
+    max-width: none;
+    max-height: min(92dvh, 820px);
+    border-radius: 20px 20px 0 0;
+  }
+
+  .modal-header {
+    padding: 13px 16px 10px;
+  }
+
+  .modal-body {
+    padding: 16px;
+  }
+
+  .modal-footer {
+    padding: 11px 16px max(13px, env(safe-area-inset-bottom));
+  }
+
+  .modal-footer .btn {
+    min-height: 48px;
+  }
+
+  .schedule-form-grid {
+    padding: 16px;
+  }
+
+  .color-field {
+    align-items: stretch;
+  }
+
+  .color-field input[type="color"] {
+    width: 52px;
+    min-width: 52px;
+  }
+}
+
+@media (max-width: 380px) {
+  .page-content {
+    padding-inline: 9px;
+  }
+
+  .topbar {
+    padding-inline: 7px;
+  }
+
+  .topbar-title::before {
+    margin-inline-end: 5px;
+  }
+
+  .stats-grid {
+    gap: 8px;
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .tab-btn {
+    padding-inline: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* ---------- Mobile keyboard: use the dynamic viewport when available ---------- */
+@supports (height: 100dvh) {
+  .modal { max-height: min(88dvh, 760px); }
+  @media (max-width: 680px) {
+    .modal { max-height: 92dvh; }
+  }
+}
+
+/* Modal confirmation copy */
+.modal-confirm-message {
+  color: var(--ink-700);
+  font-size: .92rem;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+/* Keyboard-visible password controls */
+.pw-toggle-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus);
+}
+
+/* Keep long RTL labels from pushing action buttons off-screen. */
+.card-header > div:first-child,
+.toolbar-group,
+.students-actions-row,
+.schedule-filter-row > *,
+.materials-section-head > * {
+  min-width: 0;
+}
+
+@media (max-width: 680px) {
+  .toolbar-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .toolbar-group .btn {
+    width: 100%;
+  }
+
+  .students-actions-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .students-actions-row .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .toolbar-group,
+  .students-actions-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Moderation — readable review rows + stable action area */
+body[data-page="moderation"] .moderation-row {
+  align-items: flex-start;
+  gap: 16px;
+}
+body[data-page="moderation"] .moderation-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+body[data-page="moderation"] .moderation-copy p {
+  margin-top: 8px;
+  color: var(--ink-700);
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+body[data-page="moderation"] .moderation-actions {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+body[data-page="moderation"] .moderation-actions .btn {
+  min-width: 96px;
+}
+@media (max-width: 680px) {
+  body[data-page="moderation"] .moderation-row {
+    flex-direction: column;
+  }
+  body[data-page="moderation"] .moderation-actions {
+    width: 100%;
+  }
+  body[data-page="moderation"] .moderation-actions .btn {
+    flex: 1 1 0;
+  }
+}
+
+/* Students controls: RTL order must stay consistent with the Arabic labels. */
+body[data-page="students"] .students-filter-row,
+body[data-page="students"] .students-sort-row {
+  direction: rtl;
+}
+body[data-page="students"] .students-filter-card,
+body[data-page="students"] .students-sort-row .students-filter-card {
+  direction: rtl;
+}
+body[data-page="students"] .students-actions-row {
+  justify-content: flex-start;
+}
+
+@media (max-width: 680px) {
+  body[data-page="settings"] #settingsForm > div:last-child {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin-inline: -12px;
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+  }
+  body[data-page="settings"] #settingsForm > div:last-child .btn {
+    width: 100%;
+  }
+}

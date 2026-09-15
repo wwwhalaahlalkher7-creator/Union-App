@@ -12,17 +12,38 @@
 (function () {
   const cfg = window.APP_CONFIG;
 
-  const NAV_ITEMS = [
-    { key: "dashboard",   label: "الرئيسية",           icon: "fa-gauge-high",     href: "index.html" },
-    { key: "students",    label: "الطلاب",              icon: "fa-user-graduate",   href: "students.html" },
-    { key: "schedule",    label: "الجداول الدراسية",     icon: "fa-calendar-days",  href: "schedule.html" },
-    { key: "materials",   label: "المواد الدراسية",      icon: "fa-folder-open",    href: "materials.html" },
-    { key: "news",        label: "المحتوى",             icon: "fa-newspaper",      href: "content.html" },
-    { key: "moderation",  label: "الإشراف",             icon: "fa-comments",       href: "moderation.html" },
-    { key: "users",       label: "المستخدمون",          icon: "fa-user-shield",    href: "users.html" },
-    { key: "security",    label: "الأمان",              icon: "fa-lock",           href: "security.html" },
-    { key: "settings",    label: "إعدادات الموقع",      icon: "fa-gear",           href: "settings.html" }
+  const NAV_GROUPS = [
+    {
+      label: "الرئيسية",
+      items: [
+        { key: "dashboard", label: "لوحة المعلومات", icon: "fa-gauge-high", href: "index.html" }
+      ]
+    },
+    {
+      label: "الأكاديميون",
+      items: [
+        { key: "students", label: "الطلاب", icon: "fa-user-graduate", href: "students.html" },
+        { key: "schedule", label: "الجداول الدراسية", icon: "fa-calendar-days", href: "schedule.html" },
+        { key: "materials", label: "المواد الدراسية", icon: "fa-folder-open", href: "materials.html" }
+      ]
+    },
+    {
+      label: "المحتوى والتفاعل",
+      items: [
+        { key: "news", label: "المحتوى", icon: "fa-newspaper", href: "content.html" },
+        { key: "moderation", label: "الإشراف", icon: "fa-comments", href: "moderation.html" }
+      ]
+    },
+    {
+      label: "الإدارة",
+      items: [
+        { key: "users", label: "المستخدمون", icon: "fa-user-shield", href: "users.html" },
+        { key: "security", label: "الأمان", icon: "fa-lock", href: "security.html" },
+        { key: "settings", label: "إعدادات الموقع", icon: "fa-gear", href: "settings.html" }
+      ]
+    }
   ];
+  const NAV_ITEMS = NAV_GROUPS.flatMap(group => group.items);
 
   const PAGE_TITLES = NAV_ITEMS.reduce((map, item) => {
     map[item.key] = item.label;
@@ -94,19 +115,27 @@
 
   function buildNavHtml(activeKey, role) {
     const allowedKeys = ROLE_NAV_KEYS.hasOwnProperty(role) ? ROLE_NAV_KEYS[role] : [];
-    return NAV_ITEMS
-      .filter(item => cfg.modules[item.key] !== false)
-      .filter(item => !allowedKeys || allowedKeys.includes(item.key))
-      .map(item => {
-        const active = item.key === activeKey ? " is-active" : "";
-        return (
-          '<a class="sidebar-link' + active + '" href="' + item.href + '"' + (item.key === activeKey ? ' aria-current="page"' : '') + '>' +
-            '<i class="fa-solid ' + item.icon + '"></i>' +
-            '<span>' + item.label + '</span>' +
-          '</a>'
-        );
-      })
-      .join("");
+    return NAV_GROUPS.map(group => {
+      const items = group.items
+        .filter(item => cfg.modules[item.key] !== false)
+        .filter(item => !allowedKeys || allowedKeys.includes(item.key));
+      if (!items.length) return "";
+      return '<div class="sidebar-nav-group">' +
+        '<div class="sidebar-nav-label">' + group.label + '</div>' +
+        items.map(item => {
+          const active = item.key === activeKey ? " is-active" : "";
+          return (
+            '<a class="sidebar-link' + active + '" href="' + item.href + '"' +
+            ' data-role-key="' + item.key + '"' +
+            (item.key === activeKey ? ' aria-current="page"' : '') + '>' +
+              '<i class="fa-solid ' + item.icon + '" aria-hidden="true"></i>' +
+              '<span>' + item.label + '</span>' +
+              (item.key === activeKey ? '<i class="fa-solid fa-chevron-left nav-active-mark" aria-hidden="true"></i>' : '') +
+            '</a>'
+          );
+        }).join("") +
+      '</div>';
+    }).join("");
   }
 
   function buildShellHtml(activeKey, session) {
@@ -114,19 +143,31 @@
     const userName = (session && session.name) || "زائر";
     const userRole = roleLabel(session && session.role);
     return `
-      <div class="sidebar" id="sidebar">
+      <aside class="sidebar" id="sidebar" aria-label="التنقل الرئيسي">
         <div class="sidebar-brand">
-          <div class="sidebar-brand-logo sidebar-brand-mark" aria-hidden="true"><i class="fa-solid fa-building-columns"></i></div>
-          <div class="sidebar-brand-text">
-            <strong>${cfg.site.shortName}</strong>
-            <span>${cfg.site.org}</span>
+          <div class="sidebar-brand-copy">
+            <div class="sidebar-brand-logo sidebar-brand-mark" aria-hidden="true"><i class="fa-solid fa-building-columns"></i></div>
+            <div class="sidebar-brand-text">
+              <strong>${cfg.site.shortName}</strong>
+              <span>${cfg.site.org}</span>
+            </div>
           </div>
+          <button class="icon-btn sidebar-close-btn" id="sidebarCloseBtn" type="button" aria-label="إغلاق القائمة">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
         </div>
 
         <nav class="sidebar-nav">
           ${buildNavHtml(activeKey, session && session.role)}
         </nav>
-      </div>
+
+        <div class="sidebar-footer">
+          <a class="sidebar-footer-link" href="${cfg.site.publicUrl}" target="_blank" rel="noopener">
+            <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+            <span>فتح الموقع العام</span>
+          </a>
+        </div>
+      </aside>
 
       <div class="app-overlay" id="appOverlay"></div>
 
@@ -138,14 +179,14 @@
           <h1 class="topbar-title">${title}</h1>
 
           <div class="topbar-actions">
-            <a href="${cfg.site.publicUrl}" class="icon-btn" target="_blank" title="عرض الموقع">
+            <a href="${cfg.site.publicUrl}" class="icon-btn topbar-public-link" target="_blank" rel="noopener" title="عرض الموقع" aria-label="عرض الموقع">
               <i class="fa-solid fa-arrow-up-right-from-square"></i>
             </a>
             <a href="account.html" class="topbar-user" title="حسابي — تغيير كلمة المرور">
               <div class="topbar-user-avatar"><i class="fa-solid fa-user"></i></div>
               <span class="topbar-user-copy"><span class="topbar-user-name">${userName}</span><span class="topbar-role">${userRole}</span></span>
             </a>
-            <button class="icon-btn" id="logoutBtn" title="تسجيل الخروج">
+            <button class="icon-btn" id="logoutBtn" type="button" title="تسجيل الخروج" aria-label="تسجيل الخروج">
               <i class="fa-solid fa-arrow-right-from-bracket"></i>
             </button>
           </div>
@@ -181,14 +222,31 @@
     function close() {
       sidebar.classList.remove("is-open");
       overlay.classList.remove("is-visible");
+      menuBtn.setAttribute("aria-expanded", "false");
     }
+    menuBtn.setAttribute("aria-controls", "sidebar");
+    menuBtn.setAttribute("aria-expanded", "false");
     menuBtn.addEventListener("click", () => {
-      sidebar.classList.add("is-open");
-      overlay.classList.add("is-visible");
+      const opening = !sidebar.classList.contains("is-open");
+      sidebar.classList.toggle("is-open", opening);
+      overlay.classList.toggle("is-visible", opening);
+      menuBtn.setAttribute("aria-expanded", String(opening));
+      if (opening) {
+        const first = sidebar.querySelector("a,button");
+        if (first) setTimeout(() => first.focus(), 40);
+      }
     });
     overlay.addEventListener("click", close);
     if (closeBtn) closeBtn.addEventListener("click", close);
     sidebar.querySelectorAll("a").forEach(link => link.addEventListener("click", close));
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && sidebar.classList.contains("is-open")) {
+        event.preventDefault();
+        close();
+        menuBtn.focus();
+      }
+    });
+    overlay.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
   }
 
   function initTopbarScroll() {
