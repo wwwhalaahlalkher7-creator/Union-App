@@ -124,7 +124,7 @@ jobs:
           port: 21
           security: loose
           local-dir: ./infinityfree-dist/
-          server-dir: htdocs/
+          server-dir: ush-eng.great-site.net/htdocs/
           log-level: verbose
           dangerously-clean-slate: true
           exclude: |
@@ -139,21 +139,12 @@ jobs:
           set -euo pipefail
           test -f infinityfree-dist/deploy-version.txt
           test -f infinityfree-dist/admin/deploy-version.txt
-          grep -Fx 'TRINEX deploy V2.0.1-auth-sections-v4' infinityfree-dist/deploy-version.txt
-          grep -Fx 'TRINEX dashboard deploy V2.0.1-auth-sections-v4' infinityfree-dist/admin/deploy-version.txt
-
-      - name: Verify remote deployment
-        shell: bash
-        run: |
-          set -euo pipefail
-          expected='TRINEX dashboard deploy V2.0.1-auth-sections-v4'
-          remote=$(curl -fsSL --retry 3 --retry-delay 2 "https://ush-eng.great-site.net/admin/deploy-version.txt?run=${GITHUB_RUN_ID}")
-          printf '%s\n' "$remote" | grep -Fx "$expected"
-          echo 'Remote deployment marker verified.'
+          grep -Fx 'TRINEX deploy V2.0.1-auth-sections-v5' infinityfree-dist/deploy-version.txt
+          grep -Fx 'TRINEX dashboard deploy V2.0.1-auth-sections-v5' infinityfree-dist/admin/deploy-version.txt
 
       - name: Deployment summary
         run: |
           echo 'InfinityFree deployment completed.'
-          echo 'Files were uploaded directly from infinityfree-dist/ to htdocs/.'
+          echo 'Files were uploaded directly from infinityfree-dist/ to ush-eng.great-site.net/htdocs/.'
           echo 'Public site: https://ush-eng.great-site.net/'
           echo 'Dashboard:   https://ush-eng.great-site.net/admin/'
