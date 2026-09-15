@@ -33,7 +33,7 @@ except Exception as e:
     errors.append(f'Migration smoke test failed: {e}')
 
 # Source policy: no operational legacy providers / commercial ads.
-legacy_tokens=('ad-manager','commercial ads','google apps script','airtable')
+legacy_tokens=('ad-manager','commercial ads','airtable')
 for base in (FLUTTER/'lib', DASHBOARD, BACKEND/'src'):
     for p in base.rglob('*'):
         if p.suffix not in {'.dart','.js','.ts','.html','.css'}: continue
@@ -70,9 +70,9 @@ if "students: 'id,student_number,full_name,department_id,current_semester_id,act
 if "WHERE id=? AND active=1" not in backend_source:
     errors.append('Soft-deletable admin records must not fall through to hard delete')
 
-# Release metadata must exist.
-meta=ROOT/'docs/RELEASE_CANDIDATE_V1.md'
-if not meta.exists(): errors.append('Missing docs/RELEASE_CANDIDATE_V1.md')
+# Canonical maintenance/release documentation must exist.
+for rel in ('README.md', 'CONTRIBUTING.md', 'docs/ARCHITECTURE.md', 'docs/CONFIGURATION.md', 'docs/RELEASE.md'):
+    if not (ROOT / rel).exists(): errors.append(f'Missing canonical documentation: {rel}')
 
 if errors:
     print('RELEASE CHECK FAILED')

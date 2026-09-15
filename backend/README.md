@@ -1,35 +1,28 @@
-# Association API v1 — Cloudflare Worker
+# TRINEX API
 
-هذه هي بداية المرحلة 3. الـWorker هو الواجهة الموحدة للتطبيق والموقع ولوحة التحكم.
+Cloudflare Worker + D1 API الموحد للتطبيق والموقع ولوحة الإدارة.
 
-## مبدأ المرحلة الحالية
-الـAssociation API هو مصدر التشغيل الموحد. لا توجد اتصالات تشغيلية من التطبيق أو لوحة التحكم إلى Apps Script أو Airtable أو Sheets. أدوات الاستيراد القديمة محفوظة فقط لأغراض الترحيل التاريخي عند الحاجة.
+## Quick start
 
-## قبل أول نشر
-1. أنشئ D1 باسم `leo-association-db`.
-2. ضع `database_id` الحقيقي في `wrangler.toml`.
-3. طبّق migration:
-   `npx wrangler d1 migrations apply leo-association-db --remote`
-4. اضبط أسرار OmniRoute فقط عند تفعيل Eino:
-   `npx wrangler secret put OMNIROUTE_BASE_URL`
-   `npx wrangler secret put OMNIROUTE_API_KEY`
-   `npx wrangler secret put EINO_MODEL`
-5. لا تضع أي secrets في Git أو Flutter.
+```bash
+npm install --no-audit --no-fund
+node --check src/index.js
+npm run migrate:local
+npm run dev
+```
 
-## عقد الموقع العام
+## Production
 
-تمت إضافة `GET /api/v1/public/materials` وإكمال عقد البيانات العامة للموقع. تفاصيل الحقول والاستجابات في `docs/PUBLIC_API_CONTRACT.md`. الموقع العام يقرأ من D1/Google Drive عبر TRINEX API فقط، ولا يعتمد على Apps Script أو Airtable.
+- Worker config: `wrangler.toml`
+- Entry point: `src/index.js`
+- Database: D1 `leo-association-db`
+- Migrations: `migrations/`
+- Drive adapter: `apps-script/`
 
-## حالة النظام الحالية
-المسارات الأساسية للـAPI موجودة الآن، مع:
-- CORS
-- request IDs
-- أخطاء موحدة
-- health + D1 check
-- public content
-- student session foundation
-- student-scoped academic queries
-- progress foundation
-- comments/reactions foundation
-- Eino gateway boundary
+## Important
 
+Google Apps Script ليس API عامًا للتطبيق؛ دوره الحالي هو قراءة وفهرسة Google Drive عبر adapter محمي بـtoken. التطبيق والموقع واللوحة يتعاملون مع TRINEX API فقط.
+
+الأسرار لا تُحفظ في Git. راجع `../docs/CONFIGURATION.md`.
+
+API contract: `docs/PUBLIC_API_CONTRACT.md`.

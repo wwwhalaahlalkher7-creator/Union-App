@@ -5,10 +5,10 @@ Thumbs.db
 .idea/
 
 # Flutter
-app/.dart_tool/
-app/build/
-app/.flutter-plugins
-app/.flutter-plugins-dependencies
+flutter/.dart_tool/
+flutter/build/
+flutter/.flutter-plugins
+flutter/.flutter-plugins-dependencies
 
 # Node / Cloudflare
 backend/node_modules/
@@ -20,3 +20,12 @@ website/dashboard/public/
 .env
 .env.*
 !.env.example
+
+# Local Cloudflare secrets
+backend/.dev.vars
+backend/.dev.vars.*
+
+# Android local signing
+flutter/android/key.properties
+flutter/android/*.jks
+flutter/android/*.keystore

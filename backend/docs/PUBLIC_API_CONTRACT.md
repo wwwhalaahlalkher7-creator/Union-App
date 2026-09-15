@@ -1,14 +1,19 @@
 # TRINEX Public API Contract
 
-This contract is for the public website migration. The public website is read-only: no anonymous likes, comments, reactions, suggestions/reports, or commercial advertising APIs are part of this contract.
+Base:
 
-Base URL:
 `https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1`
 
-## Read-only endpoints
+## Public endpoints
+
+### Health / version
 
 - `GET /health`
 - `GET /version`
+- `GET /app/update?version=<installed>&build=<build>&platform=android`
+
+### Public content
+
 - `GET /public/news`
 - `GET /public/announcements`
 - `GET /public/activities`
@@ -16,101 +21,68 @@ Base URL:
 - `GET /public/settings`
 - `GET /public/materials`
 
-All successful responses use:
+Legacy-compatible public content routes `/news`, `/announcements`, `/activities`, `/achievements` remain implemented for compatibility.
+
+## Authentication endpoints
+
+- `POST /auth/login`
+- `POST /auth/staff/login`
+- `POST /auth/staff/bootstrap`
+- `GET /auth/staff/me`
+- `POST /auth/staff/change-password`
+- `POST /auth/refresh`
+- `POST /auth/logout`
+- `GET /auth/me`
+
+## Student endpoints
+
+- `GET /student/me`
+- `GET /student/profile`
+- `GET /student/stats`
+- `GET /student/notifications`
+- `POST /student/notifications/read`
+- `POST /student/notifications/device`
+- `DELETE /student/notifications/device`
+- `GET /semesters`
+- `GET /departments`
+- `GET /subjects`
+- `GET /materials`
+- `GET /materials/:id`
+- `GET /schedule`
+- `GET /progress`
+- `GET /xp`
+- `GET /badges`
+- `POST /materials/:id/progress`
+
+## Interaction endpoints
+
+- `GET/POST /content/:type/:id/comments`
+- `GET/POST /comments/:id/replies`
+- `POST /content/:type/:id/reactions`
+- `DELETE /comments/:id`
+
+## Eino
+
+- `POST /eino/chat`
+
+The Worker enforces input limits, quota governance and privacy-preserving telemetry before forwarding to OmniRoute.
+
+## Admin
+
+Admin endpoints are under `/admin/*` and require staff authentication plus the relevant permission. They cover content CRUD, students, staff, schedule/material operations, moderation, notifications, audit/auth events, dashboard overview, Eino usage and Drive synchronization.
+
+## Error contract
 
 ```json
 {
-  "success": true,
-  "data": {},
-  "meta": {}
-}
-```
-
-## Public materials
-
-`GET /public/materials` returns the public academic-material index without requiring authentication. It is a TRINEX-native hierarchical contract; it does not reproduce the old Apps Script/Airtable record shape.
-
-Optional query parameters:
-- `departmentId`
-- `semesterId`
-- `subjectId`
-- `limit` (1–1000, default 1000)
-
-The response is:
-
-```json
-{
-  "success": true,
-  "data": {
-    "departments": [
-      {
-        "id": "...",
-        "name": "...",
-        "nameEn": "...",
-        "code": "...",
-        "semesters": [
-          {
-            "id": "...",
-            "name": "...",
-            "nameEn": "...",
-            "number": 1,
-            "subjects": [
-              {
-                "id": "...",
-                "code": "...",
-                "name": "...",
-                "nameEn": "...",
-                "files": [
-                  {
-                    "id": "...",
-                    "name": "...",
-                    "mimeType": "application/pdf",
-                    "sizeBytes": 123456,
-                    "viewUrl": "...",
-                    "downloadUrl": "...",
-                    "modifiedAt": "..."
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "meta": {
-    "source": "d1",
-    "count": 1,
-    "limit": 1000
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Safe user-facing message",
+    "details": null,
+    "requestId": "uuid"
   }
 }
 ```
 
-Only active departments, semesters, subjects, and materials are returned. The optional filters narrow the same public dataset and require no student session.
-
-The API exposes Drive viewing/downloading URLs because these materials are part of the public website's academic-material access. It does not expose anonymous open-count analytics.
-
-
-## Publication semantics
-
-For public content, only rows with `status = 'published'` are returned. Where the endpoint has a publication/event/achievement date, rows dated in the future are not returned. News and announcements whose `expiresAt` has passed are excluded. No authenticated session is required for these read-only endpoints.
-
-## Public content fields
-
-The content endpoints return a normalized website-safe contract rather than raw D1 rows:
-
-- News: `id`, `title`, `body`, `imageUrl`, `category`, `publisher`, `publishAt`, `expiresAt`, `createdAt`, `updatedAt`
-- Activities: `id`, `title`, `body`, `imageUrl`, `location`, `publisher`, `eventAt`, `endAt`, `createdAt`, `updatedAt`
-- Achievements: `id`, `title`, `description`, `intro`, `highlightsTitle`, `highlights`, `badge`, `publisher`, `imageUrl`, `images`, `achievedAt`, `createdAt`, `updatedAt`
-- Announcements: `id`, `title`, `body`, `type`, `targetDepartmentId`, `targetSemesterId`, `publishAt`, `expiresAt`, `createdAt`, `updatedAt`
-- Settings: public key/value object under `data`
-
-## Deliberately excluded
-
-The public API does not expose anonymous:
-
-- likes/reactions
-- comments/replies
-- suggestions/reports
-- commercial advertisements
-- Apps Script/Airtable operational endpoints
+Do not expose provider secrets, SQL errors, stack traces, raw tokens or private student data through this contract.

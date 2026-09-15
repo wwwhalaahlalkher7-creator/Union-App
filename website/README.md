@@ -1,21 +1,29 @@
 # TRINEX Website
 
-هذا المجلد هو جذر الموقع العام. ملفات الموقع العام هنا تعتمد على TRINEX Public API للقراءة فقط.
+الموقع العام ولوحة الإدارة.
 
-- الموقع العام: `https://ush-eng.great-site.net`
-- لوحة الإدارة: `https://ush-eng.great-site.net/admin/` (تُخدم من نفس نشر الموقع)
+## URLs
+
+- Public site: `https://ush-eng.great-site.net/`
+- Dashboard: `https://ush-eng.great-site.net/admin/`
 - API: `https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1`
 
-## البنية
+## Structure
 
 ```text
 website/
-├── ملفات الموقع العام (HTML/CSS/JS)
+├── public pages + assets
+├── worker/                 Worker/static security boundary للموقع
 └── dashboard/
-    ├── ملفات لوحة الإدارة
-    └── worker/
+    ├── HTML pages
+    ├── js/ + css/
+    └── worker/             boundary لمسار /admin
 ```
 
-الموقع العام هو الأصل، و`/admin/` هو المسار المخصص للوحة الإدارة. كلاهما يُنشران معاً من Worker واحد.
+## Data flow
 
-> تم نقل طبقة القراءة العامة إلى TRINEX Public API. الموقع العام لا يملك حساب طالب ولا تفاعلًا عامًا، ولا يعتمد تشغيليًا على Apps Script أو Airtable أو نظام الإعلانات التجاري. المواد الدراسية تُقرأ من `/public/materials`، والمحتوى من endpoints `/public/*`.
+الموقع واللوحة يقرآن ويعدلان البيانات عبر TRINEX API. لا تعيد تكاملات Apps Script/Airtable القديمة إلى صفحات الموقع.
+
+## Deployment
+
+النشر الآلي موثق في `../docs/DEPLOYMENT.md` ويُدار عبر `.github/workflows/deploy-website.yml`.

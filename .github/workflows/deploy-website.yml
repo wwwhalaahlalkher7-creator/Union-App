@@ -71,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           if grep -RniE 'script\.google\.com|googleusercontent|Airtable|Apps Script|ad-manager\.js|analytics-tracker\.js|SUGGESTIONS_APPS_SCRIPT_URL|data-ad-placement|action=like|action=view|liked_(news|activities|achievements)_ids' website \
-            --exclude-dir=dashboard --exclude-dir=worker --exclude='README*' --exclude='UI_PRO_CHANGELOG.md'; then
+            --exclude-dir=dashboard --exclude-dir=worker --exclude='README*'; then
             echo 'Legacy public-site dependency detected.'
             exit 1
           fi
@@ -88,8 +88,8 @@ jobs:
             --exclude='worker/' \
             --exclude='wrangler.toml' \
             --exclude='README*.md' \
-            --exclude='UI_PRO_CHANGELOG.md' \
-            --exclude='INFINITYFREE_DEPLOY.md'
+            \
+           
 
           rsync -a website/dashboard/ infinityfree-dist/admin/ \
             --exclude='worker/' \
@@ -152,8 +152,8 @@ jobs:
             --exclude='worker/' \
             --exclude='wrangler.toml' \
             --exclude='README*.md' \
-            --exclude='UI_PRO_CHANGELOG.md' \
-            --exclude='INFINITYFREE_DEPLOY.md'
+            \
+           
 
           rsync -a website/dashboard/ infinityfree-dist/admin/ \
             --exclude='worker/' \

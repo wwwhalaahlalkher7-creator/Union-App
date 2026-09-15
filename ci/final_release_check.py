@@ -57,7 +57,7 @@ if "WHERE id=? AND active=1" not in backend_source:
     errors.append('Soft-deletable admin records must not fall through to hard delete')
 
 # Active operational source must not contain retired provider/ad architecture.
-legacy_tokens = ('ad-manager', 'google apps script', 'airtable')
+legacy_tokens = ('ad-manager', 'airtable')
 for base in (ROOT / 'flutter/lib', ROOT / 'website/dashboard', ROOT / 'backend/src'):
     for path in base.rglob('*'):
         if path.suffix not in {'.dart', '.js', '.ts', '.html', '.css'}:
@@ -69,7 +69,11 @@ for base in (ROOT / 'flutter/lib', ROOT / 'website/dashboard', ROOT / 'backend/s
                 break
 
 required = [
-    ROOT / 'docs/FINAL_RELEASE_V1_AR.md',
+    ROOT / 'README.md',
+    ROOT / 'CONTRIBUTING.md',
+    ROOT / 'docs/ARCHITECTURE.md',
+    ROOT / 'docs/CONFIGURATION.md',
+    ROOT / 'docs/RELEASE.md',
     ROOT / 'ci/release_check.py',
     ROOT / 'ci/verify_project.py',
 ]

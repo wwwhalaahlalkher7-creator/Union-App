@@ -1,32 +1,42 @@
-# TRINEX — Flutter App
+# TRINEX Flutter App
 
-## Release 1.1
+تطبيق Android مبني بـ Flutter. الواجهة تعتمد على TRINEX API ولا تحتوي مفاتيح مزودي AI أو قواعد بيانات مباشرة.
 
-This release takes the initial AI-generated foundation and aligns it with the
-agreed product plan.
-
-### Current direction
-
-- Guest-first usage.
-- Optional student account deferred for a later release.
-- TRINEX home / Materials / Schedule / Notifications / Student navigation.
-- Unified navy / orange visual system inspired by the TRINEX brand board.
-- Branded Android launcher icon and navy native splash.
-- Arabic / English / French localization.
-- Theme persistence.
-- API client with GET/POST support.
-- Backend repositories for news, announcements, activities, achievements and
-  materials.
-- No commercial ads.
-
-The app must remain usable without student authentication.
-
-## Build
+## Quick start
 
 ```bash
 flutter pub get
 flutter analyze
 flutter test
+flutter run
+```
+
+## Release build
+
+```bash
 flutter build apk --release
 flutter build appbundle --release
 ```
+
+## Version
+
+المصدر الوحيد:
+
+`flutter/VERSION`
+
+بعد تعديل الإصدار:
+
+```bash
+python3 tool/sync_version.py
+```
+
+## Structure
+
+- `lib/app/` — app shell + routing.
+- `lib/core/` — network/storage/theme/update/config.
+- `lib/data/` — models + repositories.
+- `lib/features/` — screens/features.
+- `lib/shared/widgets/` — reusable UI.
+- `test/` — focused automated tests.
+
+للمعمارية وسياسة الإصدار راجع `../docs/ARCHITECTURE.md` و`../docs/RELEASE.md`.
