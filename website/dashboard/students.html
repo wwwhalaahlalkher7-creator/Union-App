@@ -111,22 +111,7 @@ body[data-page="students"] #pageContent > *{animation:studentsReveal .45s cubic-
     </div>
   </div>
 
-  <div id="studentModal" class="modal-overlay">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="studentModalTitle">
-      <div class="modal-header"><h3 id="studentModalTitle">إضافة طالب</h3><button class="icon-btn" id="closeModal" type="button"><i class="fa-solid fa-xmark"></i></button></div>
-      <form id="studentForm">
-        <input type="hidden" id="studentRecordId">
-        <div class="schedule-form-grid">
-          <div class="field"><label>الرقم الجامعي</label><input id="studentId" class="students-id" type="text" required maxlength="100" autocomplete="off"></div>
-          <div class="field"><label>اسم الطالب</label><input id="studentName" type="text" required maxlength="150"></div>
-          <div class="field"><label>القسم</label><select id="department" required></select></div>
-          <div class="field"><label>الفصل</label><select id="semester" required></select></div>
-        </div>
-        <div id="formError" class="login-feedback is-error" style="display:none"></div>
-        <div class="modal-footer"><button type="button" class="btn btn-secondary" id="cancelBtn">إلغاء</button><button type="submit" class="btn btn-primary" id="saveBtn">حفظ</button></div>
-      </form>
-    </div>
-  </div>
+
 </template>
 <script src="js/api-adapter.js?v=3.0.0"></script>
 <script src="js/utils.js"></script>
@@ -146,9 +131,6 @@ document.addEventListener("shell:ready",async()=>{
   $("sortFilter").addEventListener("change",renderStudents);
   $("sortDirectionBtn").addEventListener("click",()=>{studentData.reverse=!studentData.reverse;updateSortButton();renderStudents();});
   $("addBtn").addEventListener("click",()=>openForm(null));
-  $("closeModal").addEventListener("click",closeForm);
-  $("cancelBtn").addEventListener("click",closeForm);
-  $("studentForm").addEventListener("submit",saveForm);
   $("studentsBody").addEventListener("click",(ev)=>{
     const btn=ev.target.closest("button[data-action]"); if(!btn) return;
     const id=btn.dataset.id; const action=btn.dataset.action;
@@ -161,14 +143,22 @@ document.addEventListener("shell:ready",async()=>{
 });
 
 function debounce(fn,ms){let t;return()=>{clearTimeout(t);t=setTimeout(fn,ms)}}
-function fillSelect(id,items,placeholder,labelFn){const el=$(id);el.innerHTML=`<option value="">${placeholder}</option>`+(items||[]).map(x=>{const value=x?.id??x?.value??x;const label=labelFn?labelFn(x):String(x);return `<option value="${Utils.escapeHtml(String(value))}">${Utils.escapeHtml(String(label))}</option>`}).join("")}
+function fillSelect(id,items,placeholder,valueKey,labelFn){
+  const el=$(id);
+  const first=`<option value="">${Utils.escapeHtml(placeholder||'')}</option>`;
+  el.innerHTML=first+(items||[]).map(x=>{
+    const value=valueKey?x?.[valueKey]:(x?.id??x?.value??x);
+    const label=labelFn?labelFn(x):Utils.displayText(x);
+    return `<option value="${Utils.escapeHtml(Utils.displayText(value,''))}">${Utils.escapeHtml(label)}</option>`;
+  }).join("");
+}
 function setupOptions(){
   const departmentLabel=x=>x?.name_ar||x?.name_en||x?.name||x?.code||x?.id||'';
   const semesterLabel=x=>x?.name_ar||x?.name_en||x?.name||((x?.number!=null)?`الفصل ${x.number}`:'')||x?.id||'';
-  fillSelect("departmentFilter",studentData.departments,"كل الأقسام",departmentLabel);
-  fillSelect("semesterFilter",studentData.semesters,"كل الفصول",semesterLabel);
-  fillSelect("department",studentData.departments,"اختر القسم",departmentLabel);
-  fillSelect("semester",studentData.semesters,"اختر الفصل",semesterLabel);
+  fillSelect("departmentFilter",studentData.departments,"كل الأقسام","id",departmentLabel);
+  fillSelect("semesterFilter",studentData.semesters,"كل الفصول","id",semesterLabel);
+  fillSelect("department",studentData.departments,"اختر القسم","id",departmentLabel);
+  fillSelect("semester",studentData.semesters,"اختر الفصل","id",semesterLabel);
 }
 async function loadStudents(){
   const body=$("studentsBody");if(!body)return;
@@ -209,8 +199,8 @@ function renderStudents(){
   body.innerHTML=rows.map(r=>`<tr>
     <td class="students-id">${Utils.escapeHtml(r.studentId||"—")}</td>
     <td><strong>${Utils.escapeHtml(r.name||"—")}</strong></td>
-    <td>${Utils.escapeHtml(r.department||"—")}</td>
-    <td>${Utils.escapeHtml(String(r.semester||"—"))}</td>
+    <td>${Utils.escapeHtml(r.departmentName || r.department || "—")}</td>
+    <td>${Utils.escapeHtml(r.semesterName || Utils.displayText(r.semester))}</td>
     <td><span class="badge ${r.active?"badge-success":"badge-neutral"}">${r.active?"نشط":"معطّل"}</span></td>
     <td><div class="row-actions requires-edit">
       <button class="icon-btn" type="button" title="تعديل" data-action="edit" data-id="${Utils.escapeHtml(String(r.id))}"><i class="fa-solid fa-pen"></i></button>
@@ -222,28 +212,45 @@ function renderStudents(){
 function getStudent(id){return(studentData.records||[]).find(r=>r.id===id)||null}
 function openForm(id){
   const r=id?getStudent(id):null;
-  $("studentModalTitle").textContent=r?"تعديل طالب":"إضافة طالب";
+  const bodyHtml=`<form id="studentForm" novalidate>
+    <input type="hidden" id="studentRecordId">
+    <div class="schedule-form-grid">
+      <div class="field"><label for="studentId">الرقم الجامعي</label><input id="studentId" class="students-id" type="text" required maxlength="100" autocomplete="off"></div>
+      <div class="field"><label for="studentName">اسم الطالب</label><input id="studentName" type="text" required maxlength="150"></div>
+      <div class="field"><label for="department">القسم</label><select id="department" required></select></div>
+      <div class="field"><label for="semester">الفصل</label><select id="semester" required></select></div>
+    </div>
+    <div id="formError" class="login-feedback is-error" style="display:none"></div>
+  </form>`;
+  Modal.open({
+    title:r?"تعديل طالب":"إضافة طالب",
+    bodyHtml,
+    buttons:[
+      {label:"إلغاء",className:"btn-secondary",onClick:()=>Modal.close()},
+      {label:r?"حفظ التعديلات":"حفظ",className:"btn-primary",onClick:(btn)=>saveForm(btn)}
+    ]
+  });
+  fillSelect("department",studentData.departments||[],"اختر القسم","id", x=>Utils.displayText(x));
+  fillSelect("semester",studentData.semesters||[],"اختر الفصل","id", x=>x?.name_ar||x?.name_en||(x?.number!=null?`الفصل ${x.number}`:x?.id));
   $("studentRecordId").value=r?.id||"";
   $("studentId").value=r?.studentId||"";
   $("studentName").value=r?.name||"";
   $("department").value=r?.department||"";
   $("semester").value=r?.semester?String(r.semester):"";
-  $("formError").style.display="none";
-  $("studentModal").classList.add("is-open");
 }
-function closeForm(){$("studentModal").classList.remove("is-open")}
-async function saveForm(ev){
-  ev.preventDefault();const err=$("formError");err.style.display="none";
+async function saveForm(btn){
+  const form=$("studentForm"),err=$("formError");err.style.display="none";
+  if(!form.checkValidity()){form.reportValidity();return;}
   const payload={studentId:$("studentId").value.trim(),name:$("studentName").value.trim(),department:$("department").value,semester:$("semester").value};
   if(!payload.studentId||!payload.name||!payload.department||!payload.semester){err.textContent="جميع الحقول مطلوبة.";err.style.display="block";return}
-  const id=$("studentRecordId").value,btn=$("saveBtn");
+  const id=$("studentRecordId").value;
   try{
     await Feedback.busy(btn,()=>id?Adapter.updateStudentAdmin(id,payload):Adapter.createStudentAdmin(payload),{
       busyLabel:"جارٍ الحفظ...",
       successMessage:id?"تم حفظ بيانات الطالب":"تمت إضافة الطالب",
       errorPrefix:"تعذّرت العملية"
     });
-    closeForm();
+    Modal.close();
     await loadStudents();
   }catch(e){err.textContent=e.message||"تعذّرت العملية";err.style.display="block"}
 }

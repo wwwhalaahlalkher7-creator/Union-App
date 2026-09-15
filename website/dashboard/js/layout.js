@@ -152,9 +152,6 @@
               <span>${cfg.site.org}</span>
             </div>
           </div>
-          <button class="icon-btn sidebar-close-btn" id="sidebarCloseBtn" type="button" aria-label="إغلاق القائمة">
-            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-          </button>
         </div>
 
         <nav class="sidebar-nav">
@@ -217,8 +214,6 @@
     const sidebar = document.getElementById("sidebar");
     const overlay = document.getElementById("appOverlay");
     const menuBtn = document.getElementById("menuBtn");
-    const closeBtn = document.getElementById("sidebarCloseBtn");
-
     function close() {
       sidebar.classList.remove("is-open");
       overlay.classList.remove("is-visible");
@@ -237,7 +232,6 @@
       }
     });
     overlay.addEventListener("click", close);
-    if (closeBtn) closeBtn.addEventListener("click", close);
     sidebar.querySelectorAll("a").forEach(link => link.addEventListener("click", close));
     document.addEventListener("keydown", event => {
       if (event.key === "Escape" && sidebar.classList.contains("is-open")) {

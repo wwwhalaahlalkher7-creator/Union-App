@@ -16,6 +16,24 @@ const Utils = (function () {
     return Number(n).toLocaleString("en-US");
   }
 
+  /**
+   * تحويل القيم القادمة من API إلى نص قابل للعرض بدون ظهور [object Object].
+   * يدعم الكائنات متعددة اللغات (name_ar/name_en/name:{ar,en}) والمصفوفات.
+   */
+  function displayText(value, fallback = "—") {
+    if (value === null || value === undefined || value === "") return fallback;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+    if (Array.isArray(value)) return value.map(item => displayText(item, "")).filter(Boolean).join("، ") || fallback;
+    if (typeof value === "object") {
+      const preferred = [value.name_ar, value.name_en, value.name?.ar, value.name?.en, value.label_ar, value.label_en, value.label, value.title, value.code, value.id, value.value];
+      for (const candidate of preferred) {
+        if (candidate !== null && candidate !== undefined && candidate !== "" && typeof candidate !== "object") return String(candidate);
+      }
+      return fallback;
+    }
+    return fallback;
+  }
+
   /** تنقية أي نص قبل إدراجه داخل HTML — حماية أساسية عند التعامل مع بيانات حقيقية لاحقاً */
   function escapeHtml(str) {
     if (str === null || str === undefined) return "";
@@ -102,5 +120,5 @@ const Utils = (function () {
     });
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  return { formatDate, formatNumber, escapeHtml, animateNumber };
+  return { formatDate, formatNumber, displayText, escapeHtml, animateNumber };
 })();

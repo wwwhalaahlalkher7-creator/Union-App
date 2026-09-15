@@ -36,27 +36,7 @@ body[data-page="schedule"] .page-content{padding-top:24px}
       </table>
     </div>
   </div>
-  <div id="scheduleModal" class="modal-overlay">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="scheduleModalTitle">
-      <div class="modal-header"><h3 id="scheduleModalTitle">إضافة حصة</h3><button class="icon-btn" id="closeModal" type="button"><i class="fa-solid fa-xmark"></i></button></div>
-      <form id="scheduleForm">
-        <input type="hidden" id="entryId">
-        <div class="schedule-form-grid">
-          <div class="field"><label>القسم</label><select id="departmentId" required></select></div>
-          <div class="field"><label>الفصل</label><select id="semester" required></select></div>
-          <div class="field"><label>اليوم</label><select id="dayOfWeek" required></select></div>
-          <div class="field"><label>وقت البداية</label><input id="startTime" type="time" required></div>
-          <div class="field"><label>وقت النهاية</label><input id="endTime" type="time" required></div>
-          <div class="field"><label>اسم المادة</label><input id="subjectName" type="text" required maxlength="150"></div>
-          <div class="field"><label>معرّف المادة <span class="field-hint">اختياري</span></label><input id="subjectId" type="text" maxlength="100"></div>
-          <div class="field"><label>القاعة <span class="field-hint">اختياري</span></label><input id="room" type="text" maxlength="100"></div>
-          <div class="field"><label>الدكتور/المحاضر <span class="field-hint">اختياري</span></label><input id="instructor" type="text" maxlength="150"></div>
-        </div>
-        <div id="formError" class="login-feedback is-error" style="display:none"></div>
-        <div class="modal-footer"><button type="button" class="btn btn-secondary" id="cancelBtn">إلغاء</button><button type="submit" class="btn btn-primary" id="saveBtn">حفظ</button></div>
-      </form>
-    </div>
-  </div>
+
 </template>
 <script src="js/api-adapter.js?v=3.0.0"></script>
 <script src="js/utils.js"></script>
@@ -72,24 +52,26 @@ document.addEventListener("shell:ready", async () => {
   document.getElementById("refreshBtn").addEventListener("click", loadSchedule);
   document.getElementById("semesterFilter").addEventListener("change", loadSchedule);
   document.getElementById("addBtn").addEventListener("click", () => openForm(null));
-  document.getElementById("closeModal").addEventListener("click", closeForm);
-  document.getElementById("cancelBtn").addEventListener("click", closeForm);
-  document.getElementById("scheduleForm").addEventListener("submit", saveForm);
   await loadSchedule();
 });
 
 function fillSelect(id, items, placeholder, valueKey, labelFn) {
   const el = document.getElementById(id);
-  const first = placeholder ? `<option value="">${placeholder}</option>` : "";
-  el.innerHTML = first + items.map(x => `<option value="${Utils.escapeHtml(String(valueKey ? x[valueKey] : x))}">${Utils.escapeHtml(labelFn ? labelFn(x) : String(x))}</option>`).join("");
+  const first = placeholder ? `<option value="">${Utils.escapeHtml(placeholder)}</option>` : "";
+  el.innerHTML = first + (items || []).map(x => {
+    const value = valueKey ? x?.[valueKey] : (x?.id ?? x?.value ?? x);
+    const label = labelFn ? labelFn(x) : Utils.displayText(x);
+    return `<option value="${Utils.escapeHtml(Utils.displayText(value, ""))}">${Utils.escapeHtml(label)}</option>`;
+  }).join("");
 }
 
 function setupOptions() {
   const deps = scheduleData.departments || [];
   renderDepartmentTabs(deps);
   fillSelect("departmentId", deps, "", "id", x => x.name.ar || x.name.en || x.id);
-  fillSelect("semesterFilter", scheduleData.semesters || [], "كل الفصول");
-  fillSelect("semester", scheduleData.semesters || [], "");
+  const semesterLabel = x => x?.name_ar || x?.name_en || (x?.number != null ? `الفصل ${x.number}` : '') || x?.id || '—';
+  fillSelect("semesterFilter", scheduleData.semesters || [], "كل الفصول", "id", semesterLabel);
+  fillSelect("semester", scheduleData.semesters || [], "", "id", semesterLabel);
   const days = Object.keys(DAYS).map(k => ({id:k,name:DAYS[k]}));
   fillSelect("dayOfWeek", days, "", "id", x => x.name);
 }
@@ -150,14 +132,15 @@ function renderSchedule(entries) {
     body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><i class="fa-regular fa-calendar-xmark"></i>لا توجد حصص مطابقة للفلاتر الحالية.</div></td></tr>`;
     return;
   }
-  const depMap = Object.fromEntries((scheduleData.departments || []).map(d => [d.id, d.name.ar || d.name.en || d.id]));
+  const depMap = Object.fromEntries((scheduleData.departments || []).map(d => [d.id, Utils.displayText(d.name)]));
+  const semesterMap = Object.fromEntries((scheduleData.semesters || []).map(s => [s.id, s.name_ar || s.name_en || (s.number != null ? `الفصل ${s.number}` : s.id)]));
   body.innerHTML = entries.map(e => `
     <tr>
       <td>${DAYS[e.dayOfWeek] || "—"}</td>
       <td style="direction:ltr">${Utils.escapeHtml(e.startTime || "—")} – ${Utils.escapeHtml(e.endTime || "—")}</td>
       <td><strong>${Utils.escapeHtml(e.subjectName || "—")}</strong></td>
       <td>${Utils.escapeHtml(depMap[e.departmentId] || e.departmentId || "—")}</td>
-      <td>${Utils.escapeHtml(String(e.semester || "—"))}</td>
+      <td>${Utils.escapeHtml(semesterMap[e.semester] || Utils.displayText(e.semester))}</td>
       <td>${Utils.escapeHtml(e.room || "—")}</td>
       <td>${Utils.escapeHtml(e.instructor || "—")}</td>
       <td><span class="badge ${e.active === false ? "badge-neutral" : "badge-success"}">${e.active === false ? "معطلة" : "نشطة"}</span></td>
@@ -172,10 +155,33 @@ function renderSchedule(entries) {
 function getEntry(id) { return (scheduleData.entries || []).find(e => e.id === id) || null; }
 function openForm(id) {
   const e = id ? getEntry(id) : null;
-  document.getElementById("scheduleModalTitle").textContent = e ? "تعديل الحصة" : "إضافة حصة";
+  const bodyHtml = `<form id="scheduleForm" novalidate>
+    <input type="hidden" id="entryId">
+    <div class="schedule-form-grid">
+      <div class="field"><label for="departmentId">القسم</label><select id="departmentId" required></select></div>
+      <div class="field"><label for="semester">الفصل</label><select id="semester" required></select></div>
+      <div class="field"><label for="dayOfWeek">اليوم</label><select id="dayOfWeek" required></select></div>
+      <div class="field"><label for="startTime">وقت البداية</label><input id="startTime" type="time" required></div>
+      <div class="field"><label for="endTime">وقت النهاية</label><input id="endTime" type="time" required></div>
+      <div class="field"><label for="subjectName">اسم المادة</label><input id="subjectName" type="text" required maxlength="150"></div>
+      <div class="field"><label for="subjectId">معرّف المادة <span class="field-hint">اختياري</span></label><input id="subjectId" type="text" maxlength="100"></div>
+      <div class="field"><label for="room">القاعة <span class="field-hint">اختياري</span></label><input id="room" type="text" maxlength="100"></div>
+      <div class="field"><label for="instructor">الدكتور/المحاضر <span class="field-hint">اختياري</span></label><input id="instructor" type="text" maxlength="150"></div>
+    </div>
+    <div id="formError" class="login-feedback is-error" style="display:none"></div>
+  </form>`;
+  Modal.open({
+    title: e ? "تعديل الحصة" : "إضافة حصة",
+    bodyHtml,
+    buttons: [
+      {label:"إلغاء", className:"btn-secondary", onClick:()=>Modal.close()},
+      {label:e ? "حفظ التعديلات" : "حفظ", className:"btn-primary", onClick:(btn)=>saveForm(btn)}
+    ]
+  });
+  setupOptions();
   document.getElementById("entryId").value = e?.id || "";
   document.getElementById("departmentId").value = e?.departmentId || scheduleData.departments?.[0]?.id || "";
-  document.getElementById("semester").value = e?.semester ? String(e.semester) : "1";
+  document.getElementById("semester").value = e?.semester ? String(e.semester) : (scheduleData.semesters?.[0]?.id || "");
   document.getElementById("dayOfWeek").value = e?.dayOfWeek ? String(e.dayOfWeek) : "1";
   document.getElementById("startTime").value = e?.startTime || "08:00";
   document.getElementById("endTime").value = e?.endTime || "10:00";
@@ -183,10 +189,7 @@ function openForm(id) {
   document.getElementById("subjectId").value = e?.subjectId || "";
   document.getElementById("room").value = e?.room || "";
   document.getElementById("instructor").value = e?.instructor || "";
-  document.getElementById("formError").style.display = "none";
-  document.getElementById("scheduleModal").classList.add("is-open");
 }
-function closeForm() { document.getElementById("scheduleModal").classList.remove("is-open"); }
 function formPayload() { return {
   departmentId: document.getElementById("departmentId").value,
   semester: document.getElementById("semester").value,
@@ -198,13 +201,13 @@ function formPayload() { return {
   room: document.getElementById("room").value.trim(),
   instructor: document.getElementById("instructor").value.trim()
 }; }
-async function saveForm(ev) {
-  ev.preventDefault();
+async function saveForm(btn) {
+  const form = document.getElementById("scheduleForm");
   const error = document.getElementById("formError"); error.style.display = "none";
+  if (!form.checkValidity()) { form.reportValidity(); return; }
   const payload = formPayload();
   if (payload.startTime >= payload.endTime) { error.textContent = "وقت النهاية يجب أن يكون بعد وقت البداية."; error.style.display = "block"; return; }
   const id = document.getElementById("entryId").value;
-  const btn = document.getElementById("saveBtn");
   try {
     await Feedback.busy(btn, () => id
       ? Adapter.updateScheduleEntry(id, payload)
@@ -213,7 +216,7 @@ async function saveForm(ev) {
       successMessage: id ? "تم حفظ الحصة" : "تمت إضافة الحصة",
       errorPrefix: "تعذّر حفظ الحصة"
     });
-    closeForm();
+    Modal.close();
     await loadSchedule();
   } catch (e) {
     error.textContent = e.message || "تعذّر حفظ الحصة";

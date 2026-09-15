@@ -325,7 +325,11 @@ body[data-page="news"] #pageContent > * {
     if (f.type === "select") {
       return `<div class="field"><label>${f.label}</label>
         <select name="${f.key}" ${req}>
-          ${f.options.map(opt => `<option value="${Utils.escapeHtml(opt)}" ${opt === val ? "selected" : ""}>${Utils.escapeHtml(opt)}</option>`).join("")}
+          ${f.options.map(opt => {
+            const optionValue = typeof opt === 'object' ? opt.value : opt;
+            const optionLabel = typeof opt === 'object' ? opt.label : opt;
+            return `<option value="${Utils.escapeHtml(optionValue)}" ${String(optionValue) === String(val) ? "selected" : ""}>${Utils.escapeHtml(optionLabel)}</option>`;
+          }).join("")}
         </select></div>`;
     }
     return `<div class="field"><label>${f.label}</label>

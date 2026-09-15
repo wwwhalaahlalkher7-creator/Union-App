@@ -47,7 +47,7 @@ const Modal = (function () {
           requestAnimationFrame(() => {
             const active = document.activeElement;
             if (active && overlayEl.contains(active) && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)) {
-              active.scrollIntoView({ block: "nearest", behavior: "auto" });
+              active.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
             }
           });
         }
@@ -137,7 +137,7 @@ const Modal = (function () {
       (first || modal).focus();
       const active = document.activeElement;
       if (active && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)) {
-        active.scrollIntoView({ block: "nearest", behavior: "auto" });
+        active.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
       }
     });
 
