@@ -53,13 +53,16 @@ try:
 except Exception as exc:
     errors.append(f'Schema/contract check failed: {exc}')
 
-# Content must use the status lifecycle; operational records use active=0.
+# Current admin contract: dashboard DELETE is a true hard delete.
+# Content records are permanently removed after dependent comments/reactions are cleaned.
+# Operational records are also hard-deleted; active=0 remains only for the separate
+# disable/deactivate controls and must not be used as the DELETE contract.
 if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'activities', 'announcements', 'achievements']))" not in SOURCE:
     errors.append('CONTENT_TABLES contract is missing or incomplete')
-if "UPDATE ${table} SET status='archived'" not in SOURCE:
-    errors.append('Content DELETE must archive by status')
-if "UPDATE ${table} SET active=0 WHERE id=? AND active=1" not in SOURCE:
-    errors.append('Operational soft-delete contract is missing')
+if "DELETE FROM ${table} WHERE id=?" not in SOURCE:
+    errors.append('Admin hard-delete SQL contract is missing')
+if "mode:'hard_delete'" not in SOURCE:
+    errors.append('Hard-delete audit contract is missing')
 
 # Execute the exact DELETE SQL shapes against a real SQLite schema with representative rows.
 try:
@@ -99,29 +102,33 @@ try:
         else:
             con.execute(update_rows[table], ('updated', f'test-{table}'))
 
-        if table in {'news','activities','achievements'}:
-            con.execute(f"UPDATE {table} SET status='archived', updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND status!='archived'", ('staff-1', f'test-{table}'))
-        else:
-            con.execute(f"UPDATE {table} SET status='archived', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status!='archived'", (f'test-{table}',))
-        row = con.execute(f"SELECT status FROM {table} WHERE id=?", (f'test-{table}',)).fetchone()
-        if not row or row[0] != 'archived':
-            errors.append(f'{table}: archive SQL did not produce archived state')
+        con.execute(f"DELETE FROM {table} WHERE id=?", (f'test-{table}',))
+        row = con.execute(f"SELECT id FROM {table} WHERE id=?", (f'test-{table}',)).fetchone()
+        if row is not None:
+            errors.append(f'{table}: hard-delete SQL did not remove row')
 
-    active_rows = {
-        'subjects': "UPDATE subjects SET active=0 WHERE id=? AND active=1",
-        'materials': "UPDATE materials SET active=0 WHERE id=? AND active=1",
-        'schedules': "UPDATE schedules SET active=0 WHERE id=? AND active=1",
-        'students': "UPDATE students SET active=0 WHERE id=? AND active=1",
-        'badges': "UPDATE badges SET active=0 WHERE id=? AND active=1",
+    hard_delete_rows = {
+        'subjects': "DELETE FROM subjects WHERE id=?",
+        'materials': "DELETE FROM materials WHERE id=?",
+        'schedules': "DELETE FROM schedules WHERE id=?",
+        'students': "DELETE FROM students WHERE id=?",
     }
+    # Badges are an internal fixed system and are intentionally not dashboard-deletable.
     con.execute("INSERT INTO materials(id,subject_id,title) VALUES('mat-1','sub-1','ملف تجريبي')")
     con.execute("INSERT INTO schedules(id,semester_id,department_id,day_of_week,start_time,end_time) VALUES('sch-1','sem-1','dep-1',1,'08:00','09:00')")
-    for table, sql in active_rows.items():
-        ident = {'subjects':'sub-1','materials':'mat-1','schedules':'sch-1','students':'stu-1','badges':'badge-1'}[table]
+    for table, sql in hard_delete_rows.items():
+        ident = {'subjects':'sub-1','materials':'mat-1','schedules':'sch-1','students':'stu-1'}[table]
+        # Subjects/materials are referenced by dependent test rows, so clean the minimal
+        # dependencies before executing the exact hard-delete shape.
+        if table == 'subjects':
+            con.execute("DELETE FROM materials WHERE subject_id=?", (ident,))
+            con.execute("DELETE FROM schedules WHERE subject_id=?", (ident,))
+        elif table == 'students':
+            pass
         con.execute(sql, (ident,))
-        row = con.execute(f"SELECT active FROM {table} WHERE id=?", (ident,)).fetchone()
-        if not row or row[0] != 0:
-            errors.append(f'{table}: active soft-delete SQL did not deactivate row')
+        row = con.execute(f"SELECT id FROM {table} WHERE id=?", (ident,)).fetchone()
+        if row is not None:
+            errors.append(f'{table}: hard-delete SQL did not remove row')
 except Exception as exc:
     errors.append(f'CRUD SQL execution check failed: {exc}')
 
@@ -131,4 +138,4 @@ if errors:
         print(' -', error)
     sys.exit(1)
 
-print('ADMIN CRUD CHECK PASSED: schema fields, projections, content archive, and active soft-delete contracts')
+print('ADMIN CRUD CHECK PASSED: schema fields, projections, and hard-delete contracts')
