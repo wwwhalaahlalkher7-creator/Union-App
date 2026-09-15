@@ -157,7 +157,7 @@ body[data-page="news"] #pageContent > * {
   </div>
 </template>
 
-<script src="js/api-adapter.js?v=2.8.0"></script>
+<script src="js/api-adapter.js?v=2.9.4"></script>
 <script src="js/utils.js"></script>
 <script src="js/feedback.js"></script>
 <script src="js/modal.js"></script>
@@ -551,14 +551,14 @@ body[data-page="news"] #pageContent > * {
 
   async function handleDelete(id, btn) {
     const ok = await Modal.confirmDialog(
-      "سيتم أرشفة هذا العنصر وإخفاؤه عن المستخدمين. يمكنك إعادته للنشر من خلال التعديل لاحقًا. هل أنت متأكد؟",
-      "أرشفة العنصر"
+      "سيتم حذف هذا العنصر نهائيًا من قاعدة البيانات. لا يمكن التراجع عن العملية. هل أنت متأكد؟",
+      "حذف نهائي"
     );
     if (!ok) return;
 
     try {
       await Feedback.busy(btn, () => Adapter.deleteContent(currentType, id), {
-        successMessage: "تمت الأرشفة بنجاح",
+        successMessage: "تم الحذف نهائيًا",
         errorPrefix: "تعذّر الحذف"
       });
     } catch (e) {

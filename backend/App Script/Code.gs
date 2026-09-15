@@ -41,6 +41,64 @@ function doGet(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+function doPost(e) {
+  var result;
+  try {
+    var body = {};
+    try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (parseErr) { throw new Error('بيانات الطلب غير صالحة.'); }
+    requireToken(String(body.token || ''));
+    if (body.action === 'deleteFiles') {
+      result = deleteFiles(body.fileIds || []);
+    } else {
+      result = { success: false, error: 'إجراء غير معروف.' };
+    }
+  } catch (err) {
+    result = { success: false, error: String(err && err.message ? err.message : err) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function deleteFiles(fileIds) {
+  if (!Array.isArray(fileIds)) throw new Error('fileIds يجب أن تكون قائمة.');
+  var uniqueIds = [];
+  var seen = {};
+  fileIds.forEach(function(id) {
+    var value = String(id || '').trim();
+    if (value && !seen[value]) { seen[value] = true; uniqueIds.push(value); }
+  });
+  if (!uniqueIds.length) return { success: true, deleted: [], count: 0 };
+  if (uniqueIds.length > 100) throw new Error('لا يمكن حذف أكثر من 100 ملف في الطلب الواحد.');
+
+  var deleted = [];
+  var failed = [];
+  uniqueIds.forEach(function(fileId) {
+    try {
+      // Verify the file is accessible to the Apps Script account before deletion.
+      DriveApp.getFileById(fileId).getName();
+      var response = UrlFetchApp.fetch(
+        'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) + '?supportsAllDrives=true',
+        {
+          method: 'delete',
+          muteHttpExceptions: true,
+          headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }
+        }
+      );
+      var status = response.getResponseCode();
+      if (status !== 200 && status !== 204) throw new Error('Drive API HTTP ' + status + ': ' + response.getContentText());
+      deleted.push(fileId);
+    } catch (err) {
+      failed.push({ id: fileId, error: String(err && err.message ? err.message : err) });
+    }
+  });
+
+  if (failed.length) {
+    return { success: false, deleted: deleted, failed: failed, count: deleted.length, failedCount: failed.length };
+  }
+  CacheService.getScriptCache().remove(CACHE_KEY);
+  return { success: true, deleted: deleted, count: deleted.length, failedCount: 0 };
+}
+
 function requireToken(token) {
   var expected = String(PropertiesService.getScriptProperties().getProperty(API_TOKEN_KEY) || '').trim();
   if (!expected) throw new Error('API_TOKEN غير مهيأ في Script properties.');

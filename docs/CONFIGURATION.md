@@ -33,12 +33,12 @@
 
 ## Google Apps Script
 
-`backend/apps-script/Code.gs` يحتاج Script Properties:
+`backend/App Script/Code.gs` يحتاج Script Properties:
 
 - `ROOT_FOLDER_ID`
 - `API_TOKEN`
 
-تفاصيل النشر موجودة في `backend/apps-script/README_AR.md`.
+تفاصيل النشر موجودة في `backend/App Script/README_AR.md`.
 
 ## GitHub Actions
 

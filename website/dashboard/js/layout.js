@@ -112,8 +112,7 @@
   function buildShellHtml(activeKey, session) {
     const title = PAGE_TITLES[activeKey] || "";
     const userName = (session && session.name) || "زائر";
-    const rawRole = session && session.role;
-    const userRole = roleLabel(rawRole);
+    const userRole = roleLabel(session && session.role);
     return `
       <div class="sidebar" id="sidebar">
         <div class="sidebar-brand">
@@ -125,7 +124,7 @@
         </div>
 
         <nav class="sidebar-nav">
-          ${buildNavHtml(activeKey, rawRole)}
+          ${buildNavHtml(activeKey, session && session.role)}
         </nav>
       </div>
 

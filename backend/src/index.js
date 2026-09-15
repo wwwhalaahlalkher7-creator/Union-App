@@ -306,28 +306,6 @@ async function publicMaterials(ctx) {
   const subjectId = String(ctx.url.searchParams.get('subjectId') || '').trim() || null;
   const limit = clampInt(ctx.url.searchParams.get('limit'), 1000, 1, 1000);
 
-  // الأقسام الأساسية للموقع ثابتة: لا تعتمد بطاقات الصفحة الرئيسية على وجود
-  // ملفات في D1 حتى يفتح القسم فوراً، بينما المواد/الشيتات نفسها تبقى D1-only.
-  const fixedDepartmentIds = ['dep_architecture', 'dep_civil', 'dep_electronics'];
-  const departmentsRows = await queryAll(ctx.env, `
-    SELECT id, name_ar, name_en, code, sort_order
-      FROM departments
-     WHERE active = 1 AND id IN (?, ?, ?)
-       AND (? IS NULL OR id = ?)
-     ORDER BY sort_order, name_ar`,
-    fixedDepartmentIds[0], fixedDepartmentIds[1], fixedDepartmentIds[2],
-    departmentId, departmentId
-  );
-
-  const semesterRows = await queryAll(ctx.env, `
-    SELECT id, name_ar, name_en, number, sort_order
-      FROM semesters
-     WHERE active = 1
-       AND (? IS NULL OR id = ?)
-     ORDER BY number, sort_order, name_ar`,
-    semesterId, semesterId
-  `);
-
   const rows = await queryAll(ctx.env, `
     SELECT
       m.id, m.subject_id, m.title, m.description, m.drive_file_id,
@@ -345,7 +323,6 @@ async function publicMaterials(ctx) {
     JOIN departments d ON d.id = s.department_id
     JOIN semesters sem ON sem.id = s.semester_id
     WHERE m.active = 1 AND s.active = 1 AND d.active = 1 AND sem.active = 1
-      AND d.id IN (?, ?, ?)
       AND (? IS NULL OR d.id = ?)
       AND (? IS NULL OR sem.id = ?)
       AND (? IS NULL OR s.id = ?)
@@ -357,40 +334,44 @@ async function publicMaterials(ctx) {
       COALESCE(m.drive_modified_at, m.updated_at, m.created_at) DESC,
       m.title
     LIMIT ?`,
-    fixedDepartmentIds[0], fixedDepartmentIds[1], fixedDepartmentIds[2],
     departmentId, departmentId,
     semesterId, semesterId,
     subjectId, subjectId,
     limit
   );
 
-  const departments = departmentsRows.map(d => ({
-    id: d.id,
-    name: d.name_ar || d.name_en || d.code || '',
-    nameEn: d.name_en || null,
-    code: d.code || null,
-    semesters: semesterRows.map(sem => ({
-      id: sem.id,
-      name: sem.name_ar || sem.name_en || `الفصل ${sem.number}`,
-      nameEn: sem.name_en || null,
-      number: Number(sem.number || 0),
-      subjects: [],
-    })),
-  }));
-
-  const departmentMap = new Map(departments.map(d => [d.id, d]));
+  const departments = [];
+  const departmentMap = new Map();
   const semesterMap = new Map();
   const subjectMap = new Map();
-  for (const department of departments) {
-    for (const semester of department.semesters) {
-      semesterMap.set(`${department.id}:${semester.id}`, semester);
-    }
-  }
 
   for (const row of rows) {
-    const department = departmentMap.get(row.department_id);
-    const semester = semesterMap.get(`${row.department_id}:${row.semester_id}`);
-    if (!department || !semester) continue;
+    let department = departmentMap.get(row.department_id);
+    if (!department) {
+      department = {
+        id: row.department_id,
+        name: row.department_name_ar || row.department_name_en || row.department_code || '',
+        nameEn: row.department_name_en || null,
+        code: row.department_code || null,
+        semesters: [],
+      };
+      departmentMap.set(row.department_id, department);
+      departments.push(department);
+    }
+
+    const semesterKey = `${row.department_id}:${row.semester_id}`;
+    let semester = semesterMap.get(semesterKey);
+    if (!semester) {
+      semester = {
+        id: row.semester_id,
+        name: row.semester_name_ar || row.semester_name_en || `الفصل ${row.semester_number}`,
+        nameEn: row.semester_name_en || null,
+        number: Number(row.semester_number || 0),
+        subjects: [],
+      };
+      semesterMap.set(semesterKey, semester);
+      department.semesters.push(semester);
+    }
 
     const subjectKey = `${row.department_id}:${row.semester_id}:${row.subject_id}`;
     let subject = subjectMap.get(subjectKey);
@@ -427,8 +408,11 @@ async function publicMaterials(ctx) {
       semester.subjects.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
     }
   }
+  departments.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 
-  return ok(ctx, { departments }, {
+  return ok(ctx, {
+    departments,
+  }, {
     source: 'd1',
     count: rows.length,
     limit,
@@ -1159,7 +1143,7 @@ function adminPermission(path, method) {
 }
 
 function adminResourceTable(resource) {
-  const map = { news:'news', announcements:'announcements', activities:'activities', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', badges:'badges' };
+  const map = { news:'news', announcements:'announcements', activities:'activities', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', badges:'badges', comments:'comments' };
   return map[resource] || null;
 }
 
@@ -1173,6 +1157,7 @@ const ADMIN_FIELDS = {
   schedules: ['semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer','active'],
   students: ['student_number','full_name','department_id','current_semester_id','active'],
   badges: ['name_ar','description_ar','icon_url','rule_type','rule_value','active','sort_order'],
+  comments: ['student_id','content_type','content_id','body','status'],
 };
 
 const CONTENT_STATUS_VALUES = Object.freeze(new Set(['draft', 'published', 'archived']));
@@ -1202,6 +1187,7 @@ const ADMIN_SELECT_COLUMNS = {
   schedules: 'id,semester_id,department_id,subject_id,day_of_week,start_time,end_time,room,lecturer,active,created_by,updated_by,updated_at',
   students: 'id,student_number,full_name,department_id,current_semester_id,active,created_at,updated_at',
   badges: 'id,name_ar,description_ar,icon_url,rule_type,rule_value,active,sort_order,created_at,updated_at',
+  comments: 'id,student_id,content_type,content_id,body,status,created_at,updated_at',
 };
 
 async function adminCrud(ctx, table, id, actorId) {
@@ -1256,29 +1242,150 @@ async function adminCrud(ctx, table, id, actorId) {
     return ok(ctx, await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id));
   }
   if (ctx.request.method === 'DELETE') {
-    if (CONTENT_TABLES.has(table)) {
-      // Content uses lifecycle status rather than the boolean `active` flag used by
-      // operational records. DELETE therefore archives the record and keeps its
-      // history/audit trail intact; public endpoints only expose `published` rows.
-      const result = CONTENT_UPDATED_BY_TABLES.has(table)
-        ? await ctx.env.DB.prepare(`UPDATE ${table} SET status='archived', updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND status!='archived'`).bind(actorId, id).run()
-        : await ctx.env.DB.prepare(`UPDATE ${table} SET status='archived', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status!='archived'`).bind(id).run();
-      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود أو مؤرشف مسبقًا.',404,ctx.requestId,ctx.cors);
-      await writeAudit(ctx, actorId, 'archive', table, id, { previousAction: 'delete' });
-      return ok(ctx, { deleted:true, archived:true, status:'archived', id });
+    const existing = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
+    if (!existing) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
+
+    const deleteGenericContentRefs = async (contentType, contentId) => {
+      const comments = await queryAll(ctx.env, 'SELECT id FROM comments WHERE content_type=? AND content_id=?', contentType, contentId);
+      const commentIds = comments.map(r => r.id);
+      const stmts = [];
+      if (commentIds.length) {
+        const marks = commentIds.map(() => '?').join(',');
+        stmts.push(ctx.env.DB.prepare(`DELETE FROM comment_replies WHERE comment_id IN (${marks})`).bind(...commentIds));
+        stmts.push(ctx.env.DB.prepare(`DELETE FROM comments WHERE id IN (${marks})`).bind(...commentIds));
+      }
+      stmts.push(ctx.env.DB.prepare('DELETE FROM reactions WHERE content_type=? AND content_id=?').bind(contentType, contentId));
+      if (stmts.length) await ctx.env.DB.batch(stmts);
+    };
+
+    if (table === 'staff_users') {
+      if (id === actorId) return error('STAFF_SELF_DELETE_FORBIDDEN','لا يمكنك حذف حسابك الحالي.',400,ctx.requestId,ctx.cors);
+      await ctx.env.DB.batch([
+        ctx.env.DB.prepare('DELETE FROM sessions WHERE staff_user_id=?').bind(id),
+        ctx.env.DB.prepare('UPDATE news SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+        ctx.env.DB.prepare('UPDATE activities SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+        ctx.env.DB.prepare('UPDATE achievements SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+        ctx.env.DB.prepare('UPDATE announcements SET created_by=NULL WHERE created_by=?').bind(id),
+        ctx.env.DB.prepare('UPDATE schedules SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+        ctx.env.DB.prepare('UPDATE app_settings SET updated_by=NULL WHERE updated_by=?').bind(id),
+      ]);
+      const result = await ctx.env.DB.prepare('DELETE FROM staff_users WHERE id=?').bind(id).run();
+      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','المستخدم غير موجود.',404,ctx.requestId,ctx.cors);
+      await writeAudit(ctx, actorId, 'delete', 'staff_users', id, { mode: 'hard_delete' });
+      return ok(ctx, { deleted:true, id, mode:'hard_delete' });
     }
 
-    const softDeleteTables = new Set(['materials','schedules','students','subjects','badges']);
-    if (softDeleteTables.has(table)) {
-      const result = await ctx.env.DB.prepare(`UPDATE ${table} SET active=0 WHERE id=? AND active=1`).bind(id).run();
-      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود أو معطل مسبقًا.',404,ctx.requestId,ctx.cors);
-    } else {
+    if (table === 'students') {
+      const commentRows = await queryAll(ctx.env, 'SELECT id FROM comments WHERE student_id=?', id);
+      const commentIds = commentRows.map(r => r.id);
+      const stmts = [];
+      if (commentIds.length) {
+        const marks = commentIds.map(() => '?').join(',');
+        stmts.push(ctx.env.DB.prepare(`DELETE FROM comment_replies WHERE comment_id IN (${marks})`).bind(...commentIds));
+        stmts.push(ctx.env.DB.prepare(`DELETE FROM comments WHERE id IN (${marks})`).bind(...commentIds));
+      }
+      stmts.push(ctx.env.DB.prepare('DELETE FROM notification_dispatch_queue WHERE notification_target_id IN (SELECT id FROM notification_targets WHERE student_id=?)').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM notification_targets WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM notification_devices WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM material_progress_events WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM material_progress WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM student_badges WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM xp_events WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM student_stats WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM interaction_rate_limits WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM sessions WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM reactions WHERE student_id=?').bind(id));
+      await ctx.env.DB.batch(stmts);
+      const result = await ctx.env.DB.prepare('DELETE FROM students WHERE id=?').bind(id).run();
+      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','الطالب غير موجود.',404,ctx.requestId,ctx.cors);
+      await writeAudit(ctx, actorId, 'delete', 'students', id, { mode:'hard_delete', xp_policy:'preserved_history_is_not_applicable_after_student_delete' });
+      return ok(ctx, { deleted:true, id, mode:'hard_delete' });
+    }
+
+    if (table === 'materials') {
+      const fileId = String(existing.drive_file_id || '').trim();
+      if (fileId) {
+        try { await deleteDriveFilesViaAppsScript(ctx, [fileId]); }
+        catch (e) { return error('DRIVE_DELETE_FAILED','تعذّر حذف ملف المادة من Google Drive؛ لم يتم حذف سجل D1.',502,ctx.requestId,ctx.cors); }
+      }
+      await ctx.env.DB.batch([
+        ctx.env.DB.prepare('DELETE FROM material_progress_events WHERE material_id=?').bind(id),
+        ctx.env.DB.prepare('DELETE FROM material_progress WHERE material_id=?').bind(id),
+        ctx.env.DB.prepare('DELETE FROM materials WHERE id=?').bind(id),
+      ]);
+      await writeAudit(ctx, actorId, 'delete', 'materials', id, { mode:'hard_delete', drive_file_id:fileId || null, xp_policy:'preserve_xp_events' });
+      return ok(ctx, { deleted:true, id, mode:'hard_delete', driveDeleted:Boolean(fileId) });
+    }
+
+    if (table === 'subjects') {
+      const materials = await queryAll(ctx.env, 'SELECT id,drive_file_id FROM materials WHERE subject_id=?', id);
+      const fileIds = materials.map(r => r.drive_file_id).filter(Boolean);
+      if (fileIds.length) {
+        try { await deleteDriveFilesViaAppsScript(ctx, fileIds); }
+        catch (e) { return error('DRIVE_DELETE_FAILED','تعذّر حذف ملفات المادة من Google Drive؛ لم يتم حذف بيانات D1.',502,ctx.requestId,ctx.cors); }
+      }
+      const materialIds = materials.map(r => r.id);
+      const stmts = [];
+      if (materialIds.length) {
+        const marks = materialIds.map(() => '?').join(',');
+        stmts.push(ctx.env.DB.prepare(`DELETE FROM material_progress_events WHERE material_id IN (${marks})`).bind(...materialIds));
+        stmts.push(ctx.env.DB.prepare(`DELETE FROM material_progress WHERE material_id IN (${marks})`).bind(...materialIds));
+      }
+      stmts.push(ctx.env.DB.prepare('DELETE FROM materials WHERE subject_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM schedules WHERE subject_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM subjects WHERE id=?').bind(id));
+      await ctx.env.DB.batch(stmts);
+      await writeAudit(ctx, actorId, 'delete', 'subjects', id, { mode:'hard_delete', materials_deleted:materials.length, drive_files_deleted:fileIds.length, xp_policy:'preserve_xp_events' });
+      return ok(ctx, { deleted:true, id, mode:'hard_delete', materialsDeleted:materials.length, driveFilesDeleted:fileIds.length });
+    }
+
+    if (table === 'announcements') {
+      await ctx.env.DB.batch([
+        ctx.env.DB.prepare('DELETE FROM notification_dispatch_queue WHERE notification_target_id IN (SELECT id FROM notification_targets WHERE announcement_id=?)').bind(id),
+        ctx.env.DB.prepare('DELETE FROM notification_targets WHERE announcement_id=?').bind(id),
+      ]);
+      await deleteGenericContentRefs('announcement', id);
+      await ctx.env.DB.prepare('DELETE FROM announcements WHERE id=?').bind(id).run();
+      await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete' });
+      return ok(ctx, { deleted:true, id, mode:'hard_delete' });
+    }
+
+    if (CONTENT_TABLES.has(table)) {
+      await deleteGenericContentRefs(table === 'news' ? 'news' : table === 'activities' ? 'activity' : 'achievement', id);
       const result = await ctx.env.DB.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();
       if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
+      await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete' });
+      return ok(ctx, { deleted:true, id, mode:'hard_delete' });
     }
-    await writeAudit(ctx, actorId, 'delete', table, id);
-    return ok(ctx, { deleted:true, id });
+
+    if (table === 'comments') {
+      await ctx.env.DB.batch([
+        ctx.env.DB.prepare('DELETE FROM comment_replies WHERE comment_id=?').bind(id),
+        ctx.env.DB.prepare('DELETE FROM reactions WHERE content_type=? AND content_id=?').bind('comment', id),
+        ctx.env.DB.prepare('DELETE FROM comments WHERE id=?').bind(id),
+      ]);
+      await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete' });
+      return ok(ctx, { deleted:true, id, mode:'hard_delete' });
+    }
+
+    // Operational records: schedules are hard-deleted. Badges remain an internal system
+    // and are intentionally not exposed through the dashboard CRUD surface.
+    if (table === 'schedules') {
+      await ctx.env.DB.prepare('DELETE FROM schedules WHERE id=?').bind(id).run();
+      await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete' });
+      return ok(ctx, { deleted:true, id, mode:'hard_delete' });
+    }
+
+    if (table === 'badges') {
+      return error('BADGE_ADMIN_DISABLED','الشارات نظام داخلي ثابت ولا تُدار من لوحة التحكم.',403,ctx.requestId,ctx.cors);
+    }
+
+    const result = await ctx.env.DB.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();
+    if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
+    await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete' });
+    return ok(ctx, { deleted:true, id, mode:'hard_delete' });
   }
+
   return error('METHOD_NOT_ALLOWED','الطريقة غير مدعومة.',405,ctx.requestId,ctx.cors);
 }
 
@@ -1366,7 +1473,24 @@ async function adminStaff(ctx, id, actorId) {
     await writeAudit(ctx,actorId,'update','staff_users',id,{fields:sets.map(x=>x.split('=')[0]),passwordChanged});
     return ok(ctx,{updated:true,passwordSessionsRevoked:passwordChanged});
   }
-  if(ctx.request.method==='DELETE'){if(id===actorId)return error('STAFF_SELF_DELETE_FORBIDDEN','لا يمكنك حذف حسابك الحالي.',400,ctx.requestId,ctx.cors);const r=await ctx.env.DB.prepare('UPDATE staff_users SET active=0,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(id).run();if(!r.meta?.changes)return error('ADMIN_NOT_FOUND','المستخدم غير موجود.',404,ctx.requestId,ctx.cors);await writeAudit(ctx,actorId,'deactivate','staff_users',id);return ok(ctx,{deleted:true});}
+  if(ctx.request.method==='DELETE'){
+    if(id===actorId)return error('STAFF_SELF_DELETE_FORBIDDEN','لا يمكنك حذف حسابك الحالي.',400,ctx.requestId,ctx.cors);
+    const existing=await queryOne(ctx.env,'SELECT id FROM staff_users WHERE id=?',id);
+    if(!existing)return error('ADMIN_NOT_FOUND','المستخدم غير موجود.',404,ctx.requestId,ctx.cors);
+    await ctx.env.DB.batch([
+      ctx.env.DB.prepare('DELETE FROM sessions WHERE staff_user_id=?').bind(id),
+      ctx.env.DB.prepare('UPDATE news SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+      ctx.env.DB.prepare('UPDATE activities SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+      ctx.env.DB.prepare('UPDATE achievements SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+      ctx.env.DB.prepare('UPDATE announcements SET created_by=NULL WHERE created_by=?').bind(id),
+      ctx.env.DB.prepare('UPDATE schedules SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+      ctx.env.DB.prepare('UPDATE app_settings SET updated_by=NULL WHERE updated_by=?').bind(id),
+    ]);
+    const r=await ctx.env.DB.prepare('DELETE FROM staff_users WHERE id=?').bind(id).run();
+    if(!r.meta?.changes)return error('ADMIN_NOT_FOUND','المستخدم غير موجود.',404,ctx.requestId,ctx.cors);
+    await writeAudit(ctx,actorId,'delete','staff_users',id,{mode:'hard_delete'});
+    return ok(ctx,{deleted:true,id,mode:'hard_delete'});
+  }
   return error('METHOD_NOT_ALLOWED','الطريقة غير مدعومة.',405,ctx.requestId,ctx.cors);
 }
 
@@ -1736,6 +1860,32 @@ async function fetchAppsScriptIndex(ctx, forceRefresh = false) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function deleteDriveFilesViaAppsScript(ctx, fileIds) {
+  const uniqueIds = [...new Set((Array.isArray(fileIds) ? fileIds : []).map(v => String(v || '').trim()).filter(Boolean))];
+  if (!uniqueIds.length) return { deleted: [], count: 0 };
+  const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
+  const token = String(ctx.env.GOOGLE_APPS_SCRIPT_TOKEN || '').trim();
+  if (!endpoint || !token) throw new Error('Google Apps Script adapter is not configured.');
+  let url;
+  try { url = new URL(endpoint); } catch (e) { throw new Error('GOOGLE_APPS_SCRIPT_URL غير صالح.'); }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ action: 'deleteFiles', token, fileIds: uniqueIds }),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`Apps Script delete failed (${response.status}).`);
+    const data = await response.json();
+    if (!data || data.success !== true || Number(data.failedCount || 0) > 0) {
+      throw new Error(String(data?.error || `فشل حذف ${Number(data?.failedCount || 0)} ملف من Google Drive.`));
+    }
+    return data;
+  } finally { clearTimeout(timeout); }
 }
 
 async function adminDriveSync(ctx) {

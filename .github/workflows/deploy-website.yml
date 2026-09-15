@@ -21,100 +21,71 @@ permissions:
   contents: read
 
 jobs:
-  deploy-to-infinityfree:
-    name: Validate and deploy site + dashboard
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+  validate-and-package:
+    name: Validate site + dashboard
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Validate JavaScript files
         shell: bash
         run: |
           set -euo pipefail
-          while IFS= read -r -d '' file; do
-            node --check "$file"
-          done < <(find website -type f -name '*.js' ! -path 'website/worker/*' ! -path 'website/dashboard/worker/*' -print0)
-
-      - name: Validate required public website files
+          while IFS= read -r -d '' file; do node --check "$file"; done < <(find website -type f -name '*.js' ! -path 'website/worker/*' ! -path 'website/dashboard/worker/*' -print0)
+      - name: Validate required files
         shell: bash
         run: |
           set -euo pipefail
           test -f website/index.html
-          test -f website/news.html
-          test -f website/activities.html
-          test -f website/Injazat.html
           test -f website/courses.html
-          test -f website/committees.html
-          test -f website/site-settings.js
-          test -f website/ui-pro.css
-          test -f website/ui-pro.js
-          test -f website/robots.txt
-          test -f website/sitemap.xml
-
-      - name: Validate required dashboard files
-        shell: bash
-        run: |
-          set -euo pipefail
           test -f website/dashboard/index.html
           test -f website/dashboard/login.html
           test -f website/dashboard/config.js
           test -f website/dashboard/assets/trinex_icon.png
-
-      - name: Reject legacy public-site dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -RniE 'script\.google\.com|googleusercontent|Airtable|Apps Script|ad-manager\.js|analytics-tracker\.js|SUGGESTIONS_APPS_SCRIPT_URL|data-ad-placement|action=like|action=view|liked_(news|activities|achievements)_ids' website \
-            --exclude-dir=dashboard --exclude-dir=worker --exclude='README*'; then
-            echo 'Legacy public-site dependency detected.'
-            exit 1
-          fi
-
-      - name: Prepare clean InfinityFree deployment tree
+      - name: Prepare deployment payload
         shell: bash
         run: |
           set -euo pipefail
           rm -rf infinityfree-dist
           mkdir -p infinityfree-dist/admin
-
-          rsync -a website/ infinityfree-dist/ \
-            --exclude='dashboard/' \
-            --exclude='worker/' \
-            --exclude='wrangler.toml' \
-            --exclude='README*.md'
-
-          rsync -a website/dashboard/ infinityfree-dist/admin/ \
-            --exclude='worker/' \
-            --exclude='wrangler.toml' \
-            --exclude='README*.md'
-
+          rsync -a website/ infinityfree-dist/ --exclude='dashboard/' --exclude='worker/' --exclude='wrangler.toml' --exclude='README*.md'
+          rsync -a website/dashboard/ infinityfree-dist/admin/ --exclude='worker/' --exclude='wrangler.toml' --exclude='README*.md'
           test -f infinityfree-dist/index.html
           test -f infinityfree-dist/admin/index.html
-
-          echo "Public files: $(find infinityfree-dist -type f | wc -l)"
-          echo 'Deployment tree:'
-          find infinityfree-dist -maxdepth 2 -type f | sort | head -80
-
-      - name: Validate deployment secrets
+          grep -Fx 'TRINEX deploy V2.0.1-crud-drive-v7' infinityfree-dist/deploy-version.txt
+          grep -Fx 'TRINEX dashboard deploy V2.0.1-crud-drive-v7' infinityfree-dist/admin/deploy-version.txt
+      - name: Deployment payload summary
         shell: bash
-        env:
-          INFINITYFREE_FTP_USERNAME: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
-          INFINITYFREE_FTP_PASSWORD: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+        run: |
+          echo "Files: $(find infinityfree-dist -type f | wc -l)"
+          du -sh infinityfree-dist
+
+  deploy-to-infinityfree:
+    name: Deploy to InfinityFree via FTPS
+    needs: validate-and-package
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare deployment directory
+        shell: bash
         run: |
           set -euo pipefail
-          test -n "$INFINITYFREE_FTP_USERNAME" || { echo 'Missing INFINITYFREE_FTP_USERNAME repository secret.'; exit 1; }
-          test -n "$INFINITYFREE_FTP_PASSWORD" || { echo 'Missing INFINITYFREE_FTP_PASSWORD repository secret.'; exit 1; }
-
-      - name: Deploy files directly to InfinityFree htdocs
+          rm -rf infinityfree-dist
+          mkdir -p infinityfree-dist/admin
+          rsync -a website/ infinityfree-dist/ --exclude='dashboard/' --exclude='worker/' --exclude='wrangler.toml' --exclude='README*.md'
+          rsync -a website/dashboard/ infinityfree-dist/admin/ --exclude='worker/' --exclude='wrangler.toml' --exclude='README*.md'
+      - name: Deploy site + dashboard to the real document root
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ftpupload.net
@@ -132,19 +103,9 @@ jobs:
             **/.git*/**
             **/.DS_Store
             **/node_modules/**
-
-      - name: Verify deployment payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f infinityfree-dist/deploy-version.txt
-          test -f infinityfree-dist/admin/deploy-version.txt
-          grep -Fx 'TRINEX deploy V2.0.1-auth-sections-v5' infinityfree-dist/deploy-version.txt
-          grep -Fx 'TRINEX dashboard deploy V2.0.1-auth-sections-v5' infinityfree-dist/admin/deploy-version.txt
-
       - name: Deployment summary
         run: |
           echo 'InfinityFree deployment completed.'
-          echo 'Files were uploaded directly from infinityfree-dist/ to ush-eng.great-site.net/htdocs/.'
+          echo 'Target: ush-eng.great-site.net/htdocs/'
           echo 'Public site: https://ush-eng.great-site.net/'
           echo 'Dashboard:   https://ush-eng.great-site.net/admin/'

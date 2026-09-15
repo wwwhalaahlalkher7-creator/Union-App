@@ -295,8 +295,8 @@
   </div>
 </div>
 
-<script src="js/auth.js?v=2.9.3"></script>
-<script src="js/api-adapter.js?v=2.9.3"></script>
+<script src="js/auth.js?v=2.9.4"></script>
+<script src="js/api-adapter.js?v=2.9.4"></script>
 <script src="js/utils.js"></script>
 <script src="js/auth-check-redirect.js"></script>
 <script>
@@ -329,9 +329,6 @@
         document.getElementById("username").value.trim(),
         document.getElementById("password").value
       );
-      if (!window.Auth || typeof window.Auth.save !== "function") {
-        throw new Error("تعذّر تهيئة نظام جلسة لوحة التحكم. أعد تحميل الصفحة وحاول مرة أخرى.");
-      }
       window.Auth.save(session);
 
       // علامة نجاح أنيقة قبل الانتقال — توضّح أن الدخول تمّ فعلاً

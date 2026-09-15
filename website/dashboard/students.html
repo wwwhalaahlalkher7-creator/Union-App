@@ -128,7 +128,7 @@ body[data-page="students"] #pageContent > *{animation:studentsReveal .45s cubic-
     </div>
   </div>
 </template>
-<script src="js/api-adapter.js?v=2.8.0"></script>
+<script src="js/api-adapter.js?v=2.9.4"></script>
 <script src="js/utils.js"></script>
 <script src="js/feedback.js"></script>
 <script src="js/modal.js"></script>
@@ -161,12 +161,14 @@ document.addEventListener("shell:ready",async()=>{
 });
 
 function debounce(fn,ms){let t;return()=>{clearTimeout(t);t=setTimeout(fn,ms)}}
-function fillSelect(id,items,placeholder,labelFn){const el=$(id);el.innerHTML=`<option value="">${placeholder}</option>`+(items||[]).map(x=>`<option value="${Utils.escapeHtml(String(x))}">${Utils.escapeHtml(labelFn?labelFn(x):String(x))}</option>`).join("")}
+function fillSelect(id,items,placeholder,labelFn){const el=$(id);el.innerHTML=`<option value="">${placeholder}</option>`+(items||[]).map(x=>{const value=x?.id??x?.value??x;const label=labelFn?labelFn(x):String(x);return `<option value="${Utils.escapeHtml(String(value))}">${Utils.escapeHtml(String(label))}</option>`}).join("")}
 function setupOptions(){
-  fillSelect("departmentFilter",studentData.departments,"كل الأقسام");
-  fillSelect("semesterFilter",studentData.semesters,"كل الفصول");
-  fillSelect("department",studentData.departments,"اختر القسم");
-  fillSelect("semester",studentData.semesters,"اختر الفصل");
+  const departmentLabel=x=>x?.name_ar||x?.name_en||x?.name||x?.code||x?.id||'';
+  const semesterLabel=x=>x?.name_ar||x?.name_en||x?.name||((x?.number!=null)?`الفصل ${x.number}`:'')||x?.id||'';
+  fillSelect("departmentFilter",studentData.departments,"كل الأقسام",departmentLabel);
+  fillSelect("semesterFilter",studentData.semesters,"كل الفصول",semesterLabel);
+  fillSelect("department",studentData.departments,"اختر القسم",departmentLabel);
+  fillSelect("semester",studentData.semesters,"اختر الفصل",semesterLabel);
 }
 async function loadStudents(){
   const body=$("studentsBody");if(!body)return;
