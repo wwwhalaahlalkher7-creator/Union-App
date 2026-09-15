@@ -5,11 +5,15 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'ci/admin_crud_check.py'
+      - 'ci/auth_hardening_check.py'
       - '.github/workflows/backend.yml'
   pull_request:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'ci/admin_crud_check.py'
+      - 'ci/auth_hardening_check.py'
       - '.github/workflows/backend.yml'
   workflow_dispatch:
 

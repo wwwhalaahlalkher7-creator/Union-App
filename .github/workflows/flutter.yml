@@ -5,13 +5,11 @@ on:
     branches: [main]
     paths:
       - 'flutter/**'
-      - 'ci/**'
       - '.github/workflows/flutter.yml'
   pull_request:
     branches: [main]
     paths:
       - 'flutter/**'
-      - 'ci/**'
       - '.github/workflows/flutter.yml'
 
 concurrency:
