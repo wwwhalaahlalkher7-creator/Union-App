@@ -1458,7 +1458,15 @@ async function eino(ctx) {
   const timeout = setTimeout(() => controller.abort(), 20000);
   const startedAt = Date.now();
   try {
-    const endpoint = `${ctx.env.OMNIROUTE_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`;
+    // Accept both OmniRoute base URL forms:
+    //   https://host.example.com       -> /v1/chat/completions
+    //   https://host.example.com/v1    -> /chat/completions
+    // OmniRoute's documented OpenAI-compatible base URL includes /v1, so
+    // blindly appending /v1 could produce the invalid /v1/v1/... route.
+    const omnirouteBase = String(ctx.env.OMNIROUTE_BASE_URL).trim().replace(/\/+$/, '');
+    const endpoint = /\/v1$/i.test(omnirouteBase)
+      ? `${omnirouteBase}/chat/completions`
+      : `${omnirouteBase}/v1/chat/completions`;
     const requestBody = JSON.stringify({ model: configuredModel, messages, temperature: 0.4, max_tokens: 900 });
     let response;
     let upstreamStatus = null;
