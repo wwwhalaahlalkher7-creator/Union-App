@@ -1,7 +1,18 @@
 window.Auth = Object.freeze((() => {
   const KEY='assoc_admin_session';
-  function save(s){sessionStorage.setItem(KEY,JSON.stringify(s));}
-  function get(){try{const s=JSON.parse(sessionStorage.getItem(KEY)||'null');return s&&s.expiresAt>Date.now()?s:null;}catch{return null;}}
+  const ROLE_ALIASES={
+    'مدير عام':'super_admin',
+    'محرر محتوى':'content_manager',
+    'مسؤول أكاديمي':'academic_manager',
+    'مشرف':'moderator'
+  };
+  function normalizeSession(s){
+    if(!s || typeof s!=='object') return null;
+    const role=ROLE_ALIASES[s.role]||s.role;
+    return role===s.role?s:{...s,role};
+  }
+  function save(s){sessionStorage.setItem(KEY,JSON.stringify(normalizeSession(s)));}
+  function get(){try{const s=JSON.parse(sessionStorage.getItem(KEY)||'null');const normalized=normalizeSession(s);return normalized&&normalized.expiresAt>Date.now()?normalized:null;}catch{return null;}}
   function clear(){sessionStorage.removeItem(KEY);}
   function requireAuth(){const s=get();if(!s){location.replace('login.html');return null;}return s;}
   async function logout(){const s=get();try{if(s?.token) await fetch(window.APP_CONFIG.api.baseUrl+'/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+s.token}});}catch{} clear();location.replace('login.html');}
