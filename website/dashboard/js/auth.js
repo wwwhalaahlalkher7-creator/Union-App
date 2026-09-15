@@ -4,11 +4,26 @@ window.Auth = Object.freeze((() => {
     'مدير عام':'super_admin',
     'محرر محتوى':'content_manager',
     'مسؤول أكاديمي':'academic_manager',
-    'مشرف':'moderator'
+    'مشرف':'moderator',
+    'super admin':'super_admin',
+    'administrator':'super_admin',
+    'admin':'super_admin',
+    'content manager':'content_manager',
+    'academic manager':'academic_manager',
+    'moderator':'moderator',
+    'super_admin':'super_admin',
+    'content_manager':'content_manager',
+    'academic_manager':'academic_manager'
   };
+  function normalizeRole(value){
+    if(value===null || value===undefined) return '';
+    const raw=String(value).normalize('NFKC').replace(/[\u064B-\u065F\u0670]/g,'').replace(/\s+/g,' ').trim();
+    const key=raw.toLowerCase();
+    return ROLE_ALIASES[raw]||ROLE_ALIASES[key]||raw;
+  }
   function normalizeSession(s){
     if(!s || typeof s!=='object') return null;
-    const role=ROLE_ALIASES[s.role]||s.role;
+    const role=normalizeRole(s.role);
     return role===s.role?s:{...s,role};
   }
   function save(s){sessionStorage.setItem(KEY,JSON.stringify(normalizeSession(s)));}

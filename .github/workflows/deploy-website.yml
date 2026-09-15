@@ -125,12 +125,31 @@ jobs:
           security: loose
           local-dir: ./infinityfree-dist/
           server-dir: htdocs/
-          log-level: minimal
+          log-level: verbose
+          dangerously-clean-slate: true
           exclude: |
             **/.git*
             **/.git*/**
             **/.DS_Store
             **/node_modules/**
+
+      - name: Verify deployment payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f infinityfree-dist/deploy-version.txt
+          test -f infinityfree-dist/admin/deploy-version.txt
+          grep -Fx 'TRINEX deploy V2.0.1-auth-sections-v4' infinityfree-dist/deploy-version.txt
+          grep -Fx 'TRINEX dashboard deploy V2.0.1-auth-sections-v4' infinityfree-dist/admin/deploy-version.txt
+
+      - name: Verify remote deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='TRINEX dashboard deploy V2.0.1-auth-sections-v4'
+          remote=$(curl -fsSL --retry 3 --retry-delay 2 "https://ush-eng.great-site.net/admin/deploy-version.txt?run=${GITHUB_RUN_ID}")
+          printf '%s\n' "$remote" | grep -Fx "$expected"
+          echo 'Remote deployment marker verified.'
 
       - name: Deployment summary
         run: |
