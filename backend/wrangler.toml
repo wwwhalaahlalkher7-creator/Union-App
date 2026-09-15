@@ -25,6 +25,8 @@ database_id = "60081adf-6694-4254-9cca-6d6b5fe0022b"
 migrations_dir = "migrations"
 
 # Secrets are intentionally not stored in this file.
-# Configure them with `wrangler secret put` when the corresponding stage is enabled.
+# Required Eino upstream credentials are supplied through Cloudflare/GitHub secrets.
+[secrets]
+required = ["OMNIROUTE_BASE_URL", "OMNIROUTE_API_KEY"]
 
 # Comma-separated production origins. Configure as a secret/var in deployment.
