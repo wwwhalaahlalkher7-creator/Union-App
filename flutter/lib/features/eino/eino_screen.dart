@@ -289,25 +289,126 @@ class _EinoScreenState extends State<EinoScreen> {
     );
   }
 
-  Widget _drawer(ColorScheme cs, AppLocalizations l10n) => Drawer(child: SafeArea(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-    Padding(padding: const EdgeInsets.fromLTRB(18, 18, 18, 12), child: Row(children: [EinoFace(size: 48, mood: EinoMood.happy), const SizedBox(width: 12), Expanded(child: Text(l10n.t('einoHistory'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)))])),
-    Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: FilledButton.icon(onPressed: _newChat, icon: const Icon(Icons.add_rounded), label: Text(l10n.t('newChat')))),
-    const SizedBox(height: 12),
-    if (_history.isEmpty) Expanded(child: Center(child: Text(l10n.t('einoNoHistory'), style: TextStyle(color: cs.onSurfaceVariant))))
-    else Expanded(child: ListView.separated(padding: const EdgeInsets.symmetric(horizontal: 8), itemCount: _history.length, separatorBuilder: (_, _) => const SizedBox(height: 2), itemBuilder: (_, i) => ListTile(leading: const Icon(Icons.chat_bubble_outline_rounded, size: 20), title: Text(_history[i].title, maxLines: 2, overflow: TextOverflow.ellipsis), onTap: () => Navigator.pop(context)))),
-  ])));
+  Widget _drawer(ColorScheme cs, AppLocalizations l10n) {
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+              child: Row(
+                children: [
+                  const EinoFace(size: 48, mood: EinoMood.happy),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n.t('einoHistory'),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: FilledButton.icon(
+                onPressed: _newChat,
+                icon: const Icon(Icons.add_rounded),
+                label: Text(l10n.t('newChat')),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_history.isEmpty)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    l10n.t('einoNoHistory'),
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  itemCount: _history.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 2),
+                  itemBuilder: (_, i) => ListTile(
+                    leading: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                    title: Text(
+                      _history[i].title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
-  Widget _welcome(ColorScheme cs, AppLocalizations l10n) => ListView(padding: const EdgeInsets.fromLTRB(18, 22, 18, 20), children: [
-    Center(child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: cs.primaryContainer.withValues(alpha: .45), shape: BoxShape.circle), child: EinoFace(size: 116, mood: _mood))),
-    const SizedBox(height: 14),
-    Center(child: Text(l10n.t('einoGreeting'), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800))),
-    const SizedBox(height: 6),
-    Center(child: Text(l10n.t('withYou', {'section': _sourceLabel(l10n)}), textAlign: TextAlign.center, style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700))),
-    const SizedBox(height: 10),
-    Text(l10n.t('einoWelcome'), textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant, height: 1.5)),
-    const SizedBox(height: 24),
-    Wrap(spacing: 9, runSpacing: 9, children: _suggestions(l10n).map((text) => ActionChip(label: Text(text), onPressed: _sending ? null : () => _send(text), side: BorderSide(color: cs.outlineVariant.withValues(alpha: .5)), backgroundColor: cs.surfaceContainerHighest)).toList()),
-  ]);
+  Widget _welcome(ColorScheme cs, AppLocalizations l10n) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(18, 22, 18, 20),
+      children: [
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cs.primaryContainer.withValues(alpha: .45),
+              shape: BoxShape.circle,
+            ),
+            child: EinoFace(size: 116, mood: _mood),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Center(
+          child: Text(
+            l10n.t('einoGreeting'),
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Center(
+          child: Text(
+            l10n.t('withYou', {'section': _sourceLabel(l10n)}),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          l10n.t('einoWelcome'),
+          textAlign: TextAlign.center,
+          style: TextStyle(color: cs.onSurfaceVariant, height: 1.5),
+        ),
+        const SizedBox(height: 24),
+        Wrap(
+          spacing: 9,
+          runSpacing: 9,
+          children: _suggestions(l10n)
+              .map(
+                (text) => ActionChip(
+                  label: Text(text),
+                  onPressed: _sending ? null : () => _send(text),
+                  side: BorderSide(
+                    color: cs.outlineVariant.withValues(alpha: .5),
+                  ),
+                  backgroundColor: cs.surfaceContainerHighest,
+                ),
+              )
+              .toList(),
+        ),
+      ],
+    );
+  }
 
   Widget _bubble(BuildContext context, _Message m) {
     final cs = Theme.of(context).colorScheme;
