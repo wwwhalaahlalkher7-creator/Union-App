@@ -12,7 +12,7 @@ EINO_GLOBAL_DAILY_LIMIT = "2000"
 APP_UPDATE_URL = ""
 APP_RELEASE_NOTES = ""
 API_VERSION = "v1"
-EINO_MODEL = "auto"
+EINO_MODEL = "qwen3-8b"
 # Google Drive is accessed through the deployed Google Apps Script adapter.
 GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwjpZhAnx3zWWrVB1nfS07UCBuHwm3nkBuip-kQ6ReO4n9RAPzbji5-H9RHmQqnloIEZw/exec"
 # Browser clients allowed to call the API. Android/native clients do not use CORS.
@@ -27,6 +27,6 @@ migrations_dir = "migrations"
 # Secrets are intentionally not stored in this file.
 # Required Eino upstream credentials are supplied through Cloudflare/GitHub secrets.
 [secrets]
-required = ["OMNIROUTE_BASE_URL", "OMNIROUTE_API_KEY"]
+required = ["FREE_AI_BASE_URL", "FREE_AI_API_KEY"]
 
 # Comma-separated production origins. Configure as a secret/var in deployment.

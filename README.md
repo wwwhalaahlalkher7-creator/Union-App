@@ -36,7 +36,7 @@ TRINEX
 Android Flutter ─┐
                  ├──> TRINEX API (Cloudflare Worker) ──> D1
 Public Website ──┤                                  ├──> Google Drive adapter
-Dashboard ──────┘                                  └──> Leo-OmniRoute → Eino providers
+Dashboard ──────┘                                  └──> Free.ai → Eino models
 ```
 
 المسار العام للتطبيق والموقع هو **TRINEX API**. Google Apps Script موجود حاليًا فقط كـ **adapter للوصول إلى Google Drive**، وليس كـ API تشغيلي مباشر للتطبيق أو الموقع.
@@ -46,7 +46,7 @@ Dashboard ──────┘                                  └──> Leo-
 - Flutter version: `2.0.0+1` من `flutter/VERSION`.
 - Backend API: `v1`.
 - Android Application ID: `com.leoassociation.app`.
-- Eino يمر عبر TRINEX API إلى OmniRoute؛ مفاتيح المزود لا تدخل التطبيق.
+- Eino يمر عبر TRINEX API إلى Free.ai؛ مفاتيح المزود لا تدخل التطبيق.
 - الإعلانات التجارية القديمة غير مفعلة.
 - Student authentication اختياري لبدء التطبيق، بينما الخدمات الدراسية المحمية تتطلب جلسة صالحة.
 
@@ -96,7 +96,7 @@ python3 ci/flutter_secure_storage_check.py
 
 ## النشر
 
-النشر المعتاد يتم عبر GitHub Actions عند الدفع إلى `main`، مع أسرار الإنتاج داخل GitHub Secrets. لا تُرفع ملفات `.env` أو مفاتيح Android أو مفاتيح OmniRoute إلى Git.
+النشر المعتاد يتم عبر GitHub Actions عند الدفع إلى `main`، مع أسرار الإنتاج داخل GitHub Secrets. لا تُرفع ملفات `.env` أو مفاتيح Android أو مفاتيح Free.ai إلى Git.
 
 للتفاصيل: `docs/DEPLOYMENT.md`.
 

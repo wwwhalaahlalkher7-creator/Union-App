@@ -19,8 +19,8 @@
 
 - لا تحفظ prompts أو responses في telemetry.
 - توجد حدود burst وحدود يومية للطالب والزائر والحد العالمي.
-- OmniRoute مسؤول عن provider routing/fallback/cost controls.
-- `OMNIROUTE_API_KEY` لا يصل إلى Flutter.
+- Free.ai هو مزود Eino الحالي؛ طبقة المزود داخل Worker قابلة للاستبدال لاحقًا.
+- `FREE_AI_API_KEY` لا يصل إلى Flutter.
 
 ## Data handling
 

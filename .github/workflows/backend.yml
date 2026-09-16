@@ -114,16 +114,16 @@ jobs:
       # same Worker deployment. The file is removed immediately afterwards.
       - name: Prepare Eino production secrets
         env:
-          OMNIROUTE_BASE_URL: ${{ secrets.OMNIROUTE_BASE_URL }}
-          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+          FREE_AI_BASE_URL: ${{ secrets.FREE_AI_BASE_URL }}
+          FREE_AI_API_KEY: ${{ secrets.FREE_AI_API_KEY }}
         run: |
-          test -n "$OMNIROUTE_BASE_URL" || { echo 'Missing GitHub Secret: OMNIROUTE_BASE_URL'; exit 1; }
-          test -n "$OMNIROUTE_API_KEY" || { echo 'Missing GitHub Secret: OMNIROUTE_API_KEY'; exit 1; }
+          test -n "$FREE_AI_BASE_URL" || { echo 'Missing GitHub Secret: FREE_AI_BASE_URL'; exit 1; }
+          test -n "$FREE_AI_API_KEY" || { echo 'Missing GitHub Secret: FREE_AI_API_KEY'; exit 1; }
           python3 - <<'PY'
           import json, os
           data = {
-              "OMNIROUTE_BASE_URL": os.environ["OMNIROUTE_BASE_URL"],
-              "OMNIROUTE_API_KEY": os.environ["OMNIROUTE_API_KEY"],
+              "FREE_AI_BASE_URL": os.environ["FREE_AI_BASE_URL"],
+              "FREE_AI_API_KEY": os.environ["FREE_AI_API_KEY"],
           }
           with open('.eino.secrets.json', 'w', encoding='utf-8') as f:
               json.dump(data, f)

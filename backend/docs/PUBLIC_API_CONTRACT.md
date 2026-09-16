@@ -65,7 +65,7 @@ Legacy-compatible public content routes `/news`, `/announcements`, `/activities`
 
 - `POST /eino/chat`
 
-The Worker enforces input limits, quota governance and privacy-preserving telemetry before forwarding to OmniRoute.
+The Worker enforces input limits, quota governance and privacy-preserving telemetry before forwarding to Free.ai.
 
 ## Admin
 

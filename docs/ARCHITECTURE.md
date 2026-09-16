@@ -8,7 +8,7 @@ Flutter Android ───────┐
 Website ───────────────┼──> Cloudflare Worker API v1 ──> D1
 Dashboard ─────────────┘              │
                                       ├──> Google Apps Script → Google Drive
-                                      └──> Leo-OmniRoute → Eino providers
+                                      └──> Free.ai → Eino models
 ```
 
 ### القواعد الأساسية
@@ -16,7 +16,7 @@ Dashboard ─────────────┘              │
 1. **TRINEX API هو بوابة التشغيل** للتطبيق والموقع ولوحة الإدارة.
 2. **D1 هو مخزن البيانات التشغيلي** للمحتوى والحسابات والسجلات والعدادات.
 3. Google Apps Script ليس API للتطبيق؛ دوره الحالي هو adapter محدود لفهرسة Google Drive.
-4. Eino لا يحمل أسرار المزود داخل Flutter؛ الطلب يمر عبر Worker ثم OmniRoute.
+4. Eino لا يحمل أسرار المزود داخل Flutter؛ الطلب يمر عبر Worker ثم Free.ai. طبقة المزود تبقى قابلة للاستبدال لاحقًا.
 5. لوحة الإدارة تغيّر البيانات عبر API، وليس عبر اتصال مباشر بقاعدة D1 من المتصفح.
 
 ## 2. Flutter

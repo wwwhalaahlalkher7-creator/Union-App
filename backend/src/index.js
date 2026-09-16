@@ -1531,7 +1531,7 @@ async function adminRouteAuthOnly(ctx, permissionName) {
 }
 
 async function eino(ctx) {
-  if (!ctx.env.OMNIROUTE_BASE_URL || !ctx.env.OMNIROUTE_API_KEY) {
+  if (!ctx.env.FREE_AI_BASE_URL || !ctx.env.FREE_AI_API_KEY) {
     return error('EINO_NOT_CONFIGURED', 'مساعد Eino غير مهيأ حاليًا.', 503, ctx.requestId, ctx.cors);
   }
 
@@ -1570,14 +1570,10 @@ async function eino(ctx) {
     return error(code, message, 429, ctx.requestId, ctx.cors);
   }
 
-  const configuredModel = String(ctx.env.EINO_MODEL || 'auto').trim();
-  // OmniRoute supports the bare "auto" model and chooses a healthy provider/model itself.
-  // Explicit provider/model values remain supported for environments that want a fixed route.
-  const isAutoModel = configuredModel.toLowerCase() === 'auto' || configuredModel.toLowerCase().startsWith('auto/');
-  const isProviderModel = /^[^/\s]+\/[^/\s]+$/.test(configuredModel);
-  if (!isAutoModel && !isProviderModel) {
+  const configuredModel = String(ctx.env.EINO_MODEL || 'qwen3-8b').trim();
+  if (!configuredModel || /[\s]/.test(configuredModel)) {
     await recordEinoTelemetry(ctx, 'config_invalid', actorType);
-    return error('EINO_MODEL_INVALID', 'إعداد نموذج Eino غير صالح. استخدم auto أو provider/model.', 503, ctx.requestId, ctx.cors);
+    return error('EINO_MODEL_INVALID', 'إعداد نموذج Eino غير صالح.', 503, ctx.requestId, ctx.cors);
   }
 
   const systemParts = [
@@ -1598,15 +1594,13 @@ async function eino(ctx) {
   const timeout = setTimeout(() => controller.abort(), 20000);
   const startedAt = Date.now();
   try {
-    // Accept both OmniRoute base URL forms:
-    //   https://host.example.com       -> /v1/chat/completions
-    //   https://host.example.com/v1    -> /chat/completions
-    // OmniRoute's documented OpenAI-compatible base URL includes /v1, so
-    // blindly appending /v1 could produce the invalid /v1/v1/... route.
-    const omnirouteBase = String(ctx.env.OMNIROUTE_BASE_URL).trim().replace(/\/+$/, '');
-    const endpoint = /\/v1$/i.test(omnirouteBase)
-      ? `${omnirouteBase}/chat/completions`
-      : `${omnirouteBase}/v1/chat/completions`;
+    // Free.ai exposes an OpenAI-compatible chat-completions endpoint.
+    // Keep the base URL configurable so the provider can be replaced without
+    // touching Flutter or the Eino API contract.
+    const freeAiBase = String(ctx.env.FREE_AI_BASE_URL).trim().replace(/\/+$/, '');
+    const endpoint = /\/v1$/i.test(freeAiBase)
+      ? `${freeAiBase}/chat/completions`
+      : `${freeAiBase}/v1/chat/completions`;
     const requestBody = JSON.stringify({ model: configuredModel, messages, temperature: 0.4, max_tokens: 900 });
     let response;
     let upstreamStatus = null;
@@ -1616,7 +1610,7 @@ async function eino(ctx) {
     for (let attempt = 0; attempt < 2; attempt++) {
       response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${ctx.env.OMNIROUTE_API_KEY}` },
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${ctx.env.FREE_AI_API_KEY}` },
         body: requestBody,
         signal: controller.signal,
       });
@@ -1647,7 +1641,7 @@ async function eino(ctx) {
       return error('EINO_EMPTY_RESPONSE', 'لم تصل إجابة صالحة من Eino.', 502, ctx.requestId, ctx.cors);
     }
     await recordEinoTelemetry(ctx, 'success', actorType, latencyMs);
-    return ok(ctx, { message: answer.trim(), provider: 'omniroute', model: configuredModel });
+    return ok(ctx, { message: answer.trim(), provider: 'free.ai', model: configuredModel });
   } catch (e) {
     const latencyMs = Date.now() - startedAt;
     if (e?.name === 'AbortError') {

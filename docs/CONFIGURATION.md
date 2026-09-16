@@ -15,7 +15,7 @@
 | `APP_UPDATE_URL` | Variable | صفحة التحديث إن وجدت |
 | `APP_RELEASE_NOTES` | Variable | ملاحظات الإصدار |
 | `API_VERSION` | Variable | عقد API، حاليًا `v1` |
-| `EINO_MODEL` | Variable | نموذج Eino، الافتراضي `auto` |
+| `EINO_MODEL` | Variable | نموذج Eino، الافتراضي `qwen3-8b` |
 | `EINO_*_DAILY_LIMIT` | Variable | حدود Eino اليومية |
 | `GOOGLE_APPS_SCRIPT_URL` | Variable | رابط Drive adapter |
 | `ALLOWED_ORIGINS` | Variable | Origins المسموح بها للمتصفح |
@@ -24,8 +24,8 @@
 
 | Secret | الاستخدام |
 |---|---|
-| `OMNIROUTE_BASE_URL` | عنوان OmniRoute |
-| `OMNIROUTE_API_KEY` | مفتاح OmniRoute |
+| `FREE_AI_BASE_URL` | عنوان Free.ai API، عادة `https://api.free.ai/v1` |
+| `FREE_AI_API_KEY` | مفتاح Free.ai (`sk-free-...`) |
 | `GOOGLE_APPS_SCRIPT_TOKEN` | مصادقة Worker مع Drive adapter |
 | `STAFF_BOOTSTRAP_TOKEN` | تهيئة أول مدير عند الحاجة |
 
@@ -45,7 +45,7 @@
 الأسرار المستخدمة حاليًا تشمل، بحسب workflow:
 
 - Cloudflare: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
-- Eino: `OMNIROUTE_BASE_URL`, `OMNIROUTE_API_KEY`.
+- Eino/Free.ai: `FREE_AI_BASE_URL`, `FREE_AI_API_KEY`.
 - Android signing: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_STORE_PASSWORD`.
 - InfinityFree: `INFINITYFREE_FTP_USERNAME`, `INFINITYFREE_FTP_PASSWORD`, `INFINITYFREE_FTP_REMOTE_DIR`.
 

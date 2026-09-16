@@ -11,7 +11,7 @@ GET /api/v1/health?deep=true
 فرّق بين:
 
 - D1 غير متصل → راجع binding/database/migrations.
-- Eino/OmniRoute غير متاح → راجع `OMNIROUTE_BASE_URL` و`OMNIROUTE_API_KEY` وحالة OmniRoute.
+- Eino/Free.ai غير متاح → راجع `FREE_AI_BASE_URL` و`FREE_AI_API_KEY` وحالة Free.ai.
 - Drive غير مهيأ → راجع `GOOGLE_APPS_SCRIPT_URL` و`GOOGLE_APPS_SCRIPT_TOKEN`.
 
 لا تغيّر Flutter قبل تحديد الطبقة الفاشلة.
@@ -20,10 +20,10 @@ GET /api/v1/health?deep=true
 
 افحص أولًا:
 
-1. `OMNIROUTE_BASE_URL` بدون `/chat/completions`.
+1. `FREE_AI_BASE_URL` مضبوط على `https://api.free.ai/v1` (ولا تضف `/chat/completions` في المتغير).
 2. يمكن أن يحتوي العنوان على `/v1`، والكود يتعامل مع ذلك.
-3. `OMNIROUTE_API_KEY` صحيح داخل GitHub/Cloudflare Secrets.
-4. `EINO_MODEL=auto` أو قيمة `provider/model` صحيحة.
+3. `FREE_AI_API_KEY` صحيح داخل GitHub/Cloudflare Secrets.
+4. `EINO_MODEL` اسم نموذج Free.ai صالح مثل `qwen3-8b`.
 5. راقب telemetry من لوحة الإدارة.
 
 ## 3. Flutter لا يمر CI
