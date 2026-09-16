@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
@@ -179,16 +178,20 @@ class _EinoScreenState extends State<EinoScreen> {
         final mime = _mime(name);
         final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
         final text = await _repository.vision(imageDataUrl: dataUrl);
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _messages.add(_Message(true, '🖼️ $name'));
           _messages.add(_Message(false, text));
-        });
+          });
+        }
       } else {
         final text = await _repository.ocr(bytes: bytes, filename: name, contentType: _mime(name));
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _messages.add(_Message(true, '📄 $name'));
           _messages.add(_Message(false, text));
-        });
+          });
+        }
       }
       _scrollToBottom();
     } catch (e) {
@@ -291,7 +294,7 @@ class _EinoScreenState extends State<EinoScreen> {
     Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: FilledButton.icon(onPressed: _newChat, icon: const Icon(Icons.add_rounded), label: Text(l10n.t('newChat')))),
     const SizedBox(height: 12),
     if (_history.isEmpty) Expanded(child: Center(child: Text(l10n.t('einoNoHistory'), style: TextStyle(color: cs.onSurfaceVariant))))
-    else Expanded(child: ListView.separated(padding: const EdgeInsets.symmetric(horizontal: 8), itemCount: _history.length, separatorBuilder: (_, __) => const SizedBox(height: 2), itemBuilder: (_, i) => ListTile(leading: const Icon(Icons.chat_bubble_outline_rounded, size: 20), title: Text(_history[i].title, maxLines: 2, overflow: TextOverflow.ellipsis), onTap: () => Navigator.pop(context)))),
+    else Expanded(child: ListView.separated(padding: const EdgeInsets.symmetric(horizontal: 8), itemCount: _history.length, separatorBuilder: (_, _) => const SizedBox(height: 2), itemBuilder: (_, i) => ListTile(leading: const Icon(Icons.chat_bubble_outline_rounded, size: 20), title: Text(_history[i].title, maxLines: 2, overflow: TextOverflow.ellipsis), onTap: () => Navigator.pop(context)))),
   ])));
 
   Widget _welcome(ColorScheme cs, AppLocalizations l10n) => ListView(padding: const EdgeInsets.fromLTRB(18, 22, 18, 20), children: [
@@ -308,18 +311,250 @@ class _EinoScreenState extends State<EinoScreen> {
 
   Widget _bubble(BuildContext context, _Message m) {
     final cs = Theme.of(context).colorScheme;
-    if (m.isError) return Align(alignment: AlignmentDirectional.centerStart, child: Container(constraints: const BoxConstraints(maxWidth: 460), margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.fromLTRB(14, 13, 12, 9), decoration: BoxDecoration(color: cs.errorContainer, borderRadius: BorderRadius.circular(20).copyWith(bottomLeft: const Radius.circular(5))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const EinoFace(size: 34, mood: EinoMood.error), const SizedBox(width: 9), Expanded(child: Text(m.text, style: TextStyle(color: cs.onErrorContainer, height: 1.45)))]), if (m.retryPrompt != null) Align(alignment: AlignmentDirectional.centerEnd, child: TextButton.icon(onPressed: _sending ? null : () => _retry(m.retryPrompt!), icon: const Icon(Icons.refresh_rounded, size: 18), label: Text(AppLocalizations.of(context).t('einoRetry'))))]));
-    return Align(alignment: m.user ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart, child: Container(constraints: const BoxConstraints(maxWidth: 620), margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12), decoration: BoxDecoration(color: m.user ? cs.primary : cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(20).copyWith(bottomRight: m.user ? const Radius.circular(5) : null, bottomLeft: !m.user ? const Radius.circular(5) : null)), child: m.user ? Text(m.text, style: TextStyle(color: cs.onPrimary, height: 1.5)) : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const EinoFace(size: 31, mood: EinoMood.happy), const SizedBox(width: 9), Expanded(child: SelectableText(m.text, style: const TextStyle(height: 1.55)))]), const SizedBox(height: 5), Align(alignment: AlignmentDirectional.centerEnd, child: IconButton(onPressed: () => _speak(m), tooltip: AppLocalizations.of(context).t('einoListen'), icon: const Icon(Icons.volume_up_outlined, size: 19))) ]));
+
+    if (m.isError) {
+      return Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 460),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.fromLTRB(14, 13, 12, 9),
+          decoration: BoxDecoration(
+            color: cs.errorContainer,
+            borderRadius: BorderRadius.circular(20).copyWith(
+              bottomLeft: const Radius.circular(5),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const EinoFace(size: 34, mood: EinoMood.error),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      m.text,
+                      style: TextStyle(color: cs.onErrorContainer, height: 1.45),
+                    ),
+                  ),
+                ],
+              ),
+              if (m.retryPrompt != null)
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton.icon(
+                    onPressed: _sending ? null : () => _retry(m.retryPrompt!),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: Text(AppLocalizations.of(context).t('einoRetry')),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Align(
+      alignment: m.user
+          ? AlignmentDirectional.centerEnd
+          : AlignmentDirectional.centerStart,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 620),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        decoration: BoxDecoration(
+          color: m.user ? cs.primary : cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(20).copyWith(
+            bottomRight: m.user ? const Radius.circular(5) : null,
+            bottomLeft: !m.user ? const Radius.circular(5) : null,
+          ),
+        ),
+        child: m.user
+            ? Text(
+                m.text,
+                style: TextStyle(color: cs.onPrimary, height: 1.5),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const EinoFace(size: 31, mood: EinoMood.happy),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: SelectableText(
+                          m.text,
+                          style: const TextStyle(height: 1.55),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: IconButton(
+                      onPressed: () => _speak(m),
+                      tooltip: AppLocalizations.of(context).t('einoListen'),
+                      icon: const Icon(Icons.volume_up_outlined, size: 19),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
   }
 
-  Widget _typingBubble(ColorScheme cs, {required bool uploading}) => Align(alignment: AlignmentDirectional.centerStart, child: Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(20).copyWith(bottomLeft: const Radius.circular(5))), child: Row(mainAxisSize: MainAxisSize.min, children: [const EinoFace(size: 30, mood: EinoMood.thinking), const SizedBox(width: 9), uploading ? Text(AppLocalizations.of(context).t('einoProcessing'), style: TextStyle(color: cs.onSurfaceVariant)) : _TypingDots(color: cs.onSurfaceVariant)]));
+  Widget _typingBubble(ColorScheme cs, {required bool uploading}) {
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(20).copyWith(
+            bottomLeft: const Radius.circular(5),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const EinoFace(size: 30, mood: EinoMood.thinking),
+            const SizedBox(width: 9),
+            uploading
+                ? Text(
+                    AppLocalizations.of(context).t('einoProcessing'),
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  )
+                : _TypingDots(color: cs.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+  }
 
-  Widget _composer(ColorScheme cs, AppLocalizations l10n) => Container(decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(24), border: Border.all(color: cs.outlineVariant.withValues(alpha: .4))), padding: const EdgeInsets.fromLTRB(6, 5, 6, 5), child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [IconButton(tooltip: l10n.t('einoAttach'), onPressed: _sending || _uploading ? null : _pickMedia, icon: const Icon(Icons.add_rounded)), Expanded(child: TextField(controller: _controller, minLines: 1, maxLines: 6, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: l10n.t('einoHint'), border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11)))), IconButton(tooltip: _recording ? l10n.t('einoStopRecording') : l10n.t('einoVoice'), onPressed: _sending || _uploading ? null : _toggleRecording, color: _recording ? cs.error : null, icon: Icon(_recording ? Icons.stop_circle_outlined : Icons.mic_none_rounded)), const SizedBox(width: 2), IconButton.filled(tooltip: l10n.t('send'), onPressed: _sending || _uploading ? null : () => _send(), icon: _sending ? const SizedBox(width: 19, height: 19, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.arrow_upward_rounded))]));
+  Widget _composer(ColorScheme cs, AppLocalizations l10n) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: .4)),
+      ),
+      padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          IconButton(
+            tooltip: l10n.t('einoAttach'),
+            onPressed: _sending || _uploading ? null : _pickMedia,
+            icon: const Icon(Icons.add_rounded),
+          ),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              minLines: 1,
+              maxLines: 6,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                hintText: l10n.t('einoHint'),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 11,
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: _recording
+                ? l10n.t('einoStopRecording')
+                : l10n.t('einoVoice'),
+            onPressed: _sending || _uploading ? null : _toggleRecording,
+            color: _recording ? cs.error : null,
+            icon: Icon(
+              _recording
+                  ? Icons.stop_circle_outlined
+                  : Icons.mic_none_rounded,
+            ),
+          ),
+          const SizedBox(width: 2),
+          IconButton.filled(
+            tooltip: l10n.t('send'),
+            onPressed: _sending || _uploading ? null : () => _send(),
+            icon: _sending
+                ? const SizedBox(
+                    width: 19,
+                    height: 19,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.arrow_upward_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+
 }
 
 class _AnimatedEntry extends StatefulWidget { const _AnimatedEntry({required this.child, super.key}); final Widget child; @override State<_AnimatedEntry> createState() => _AnimatedEntryState(); }
 class _AnimatedEntryState extends State<_AnimatedEntry> with SingleTickerProviderStateMixin { late final AnimationController _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 260))..forward(); @override void dispose() { _controller.dispose(); super.dispose(); } @override Widget build(BuildContext context) { final curved = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic); return AnimatedBuilder(animation: curved, builder: (context, child) => Opacity(opacity: curved.value, child: Transform.translate(offset: Offset(0, (1 - curved.value) * 12), child: child)), child: widget.child); } }
-class _TypingDots extends StatefulWidget { const _TypingDots({required this.color}); final Color color; @override State<_TypingDots> createState() => _TypingDotsState(); }
-class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderStateMixin { late final AnimationController _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(); @override void dispose() { _controller.dispose(); super.dispose(); } @override Widget build(BuildContext context) => AnimatedBuilder(animation: _controller, builder: (context, _) => Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) { final phase = (_controller.value - i * .18) % 1.0; final lift = phase < .5 ? phase * 2 : (1 - phase) * 2; return Padding(padding: const EdgeInsets.symmetric(horizontal: 2), child: Transform.translate(offset: Offset(0, -lift * 4), child: Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color.withValues(alpha: .6 + lift * .4)))); }))); }
+class _TypingDots extends StatefulWidget {
+  const _TypingDots({required this.color});
+  final Color color;
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            final phase = (_controller.value - i * .18) % 1.0;
+            final lift = phase < .5 ? phase * 2 : (1 - phase) * 2;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Transform.translate(
+                offset: Offset(0, -lift * 4),
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: widget.color.withValues(alpha: .6 + lift * .4),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
 class _Message { const _Message(this.user, this.text, {this.isError = false, this.retryPrompt}); final bool user; final String text; final bool isError; final String? retryPrompt; }
 class _ChatPreview { const _ChatPreview(this.title, this.date); final String title; final DateTime date; }
