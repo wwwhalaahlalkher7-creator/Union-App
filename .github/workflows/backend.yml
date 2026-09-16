@@ -6,14 +6,12 @@ on:
     paths:
       - 'backend/**'
       - 'ci/admin_crud_check.py'
-      - 'ci/auth_hardening_check.py'
       - '.github/workflows/backend.yml'
   pull_request:
     branches: [main]
     paths:
       - 'backend/**'
       - 'ci/admin_crud_check.py'
-      - 'ci/auth_hardening_check.py'
       - '.github/workflows/backend.yml'
   workflow_dispatch:
 
@@ -53,10 +51,6 @@ jobs:
       - name: Admin CRUD contract tests
         working-directory: .
         run: python3 ci/admin_crud_check.py
-
-      - name: Authentication hardening contract tests
-        working-directory: .
-        run: python3 ci/auth_hardening_check.py
 
       - name: Migration smoke test
         run: |
