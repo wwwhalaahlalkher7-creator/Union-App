@@ -1,3 +1,5 @@
+import { freeAiChat } from './providers/free_ai.js';
+import { freeAiVision, freeAiOcr, freeAiStt, freeAiTts } from './providers/free_ai_media.js';
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
@@ -114,6 +116,10 @@ export default {
       if (path === '/admin/security/eino-usage' && request.method === 'GET') return adminEinoUsage(ctx);
       if (path.startsWith('/admin/')) return adminRoute(ctx);
       if (path === '/eino/chat' && request.method === 'POST') return eino(ctx);
+      if (path === '/eino/vision' && request.method === 'POST') return einoVision(ctx);
+      if (path === '/eino/ocr' && request.method === 'POST') return einoOcr(ctx);
+      if (path === '/eino/stt' && request.method === 'POST') return einoStt(ctx);
+      if (path === '/eino/tts' && request.method === 'POST') return einoTts(ctx);
 
       return error('NOT_FOUND', 'المسار غير موجود.', 404, requestId, cors);
     } catch (e) {
@@ -1594,35 +1600,24 @@ async function eino(ctx) {
   const timeout = setTimeout(() => controller.abort(), 20000);
   const startedAt = Date.now();
   try {
-    // Free.ai exposes an OpenAI-compatible chat-completions endpoint.
-    // Keep the base URL configurable so the provider can be replaced without
-    // touching Flutter or the Eino API contract.
-    const freeAiBase = String(ctx.env.FREE_AI_BASE_URL).trim().replace(/\/+$/, '');
-    const endpoint = /\/v1$/i.test(freeAiBase)
-      ? `${freeAiBase}/chat/completions`
-      : `${freeAiBase}/v1/chat/completions`;
-    const requestBody = JSON.stringify({ model: configuredModel, messages, temperature: 0.4, max_tokens: 900 });
-    let response;
-    let upstreamStatus = null;
-
-    // A short retry absorbs transient gateway/provider failures without hiding
-    // persistent configuration or authentication errors.
-    for (let attempt = 0; attempt < 2; attempt++) {
-      response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${ctx.env.FREE_AI_API_KEY}` },
-        body: requestBody,
-        signal: controller.signal,
-      });
-      upstreamStatus = response.status;
-      if (response.ok || ![502, 503, 504].includes(response.status) || attempt === 1) break;
-      await new Promise((resolve) => setTimeout(resolve, 350));
-    }
+    const providerResult = await freeAiChat({
+      baseUrl: ctx.env.FREE_AI_BASE_URL,
+      apiKey: ctx.env.FREE_AI_API_KEY,
+      model: configuredModel,
+      messages,
+      temperature: 0.4,
+      maxTokens: 900,
+      signal: controller.signal,
+    });
 
     const latencyMs = Date.now() - startedAt;
-    if (!response.ok) {
-      const status = upstreamStatus ?? 502;
-      await recordEinoTelemetry(ctx, 'provider_error', actorType, latencyMs);
+    await recordEinoTelemetry(ctx, 'success', actorType, latencyMs);
+    return ok(ctx, { message: providerResult.answer, provider: 'free.ai', model: providerResult.model });
+  } catch (e) {
+    const latencyMs = Date.now() - startedAt;
+    if (e?.provider === 'free.ai') {
+      const status = Number(e.status || 502);
+      await recordEinoTelemetry(ctx, status === 429 ? 'provider_limited' : 'provider_error', actorType, latencyMs);
       if (status === 401 || status === 403) {
         return error('EINO_PROVIDER_AUTH', 'تعذر التحقق من اتصال Eino حاليًا. حاول لاحقًا.', 502, ctx.requestId, ctx.cors);
       }
@@ -1634,16 +1629,6 @@ async function eino(ctx) {
       }
       return error('EINO_PROVIDER_ERROR', 'مزود Eino غير متاح حاليًا. أعد المحاولة بعد قليل.', 502, ctx.requestId, ctx.cors);
     }
-    const data = await response.json();
-    const answer = data?.choices?.[0]?.message?.content;
-    if (typeof answer !== 'string' || !answer.trim()) {
-      await recordEinoTelemetry(ctx, 'empty_response', actorType, latencyMs);
-      return error('EINO_EMPTY_RESPONSE', 'لم تصل إجابة صالحة من Eino.', 502, ctx.requestId, ctx.cors);
-    }
-    await recordEinoTelemetry(ctx, 'success', actorType, latencyMs);
-    return ok(ctx, { message: answer.trim(), provider: 'free.ai', model: configuredModel });
-  } catch (e) {
-    const latencyMs = Date.now() - startedAt;
     if (e?.name === 'AbortError') {
       await recordEinoTelemetry(ctx, 'timeout', actorType, latencyMs);
       return error('EINO_TIMEOUT', 'استغرق Eino وقتًا أطول من المتوقع. أعد المحاولة.', 504, ctx.requestId, ctx.cors);
@@ -1654,6 +1639,78 @@ async function eino(ctx) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+
+async function einoMediaActor(ctx) {
+  if (!ctx.env.FREE_AI_BASE_URL || !ctx.env.FREE_AI_API_KEY) {
+    return { response: error('EINO_NOT_CONFIGURED', 'مساعد Eino غير مهيأ حاليًا.', 503, ctx.requestId, ctx.cors) };
+  }
+  const a = await auth(ctx, false);
+  const actorType = a?.session?.student_id ? 'student' : 'guest';
+  const actorKey = a?.session?.student_id
+    ? `student:${a.session.student_id}`
+    : `ip:${await sha256(ctx.request.headers.get('CF-Connecting-IP') || 'unknown')}`;
+  const rate = await consumeEinoQuota(ctx, actorKey);
+  if (!rate.allowed) {
+    await recordEinoTelemetry(ctx, `quota_${rate.scope}`, actorType);
+    return { response: error(rate.scope === 'global' ? 'EINO_GLOBAL_LIMITED' : rate.scope === 'daily' ? 'EINO_DAILY_LIMITED' : 'EINO_RATE_LIMITED', 'وصلت إلى حد استخدام Eino. حاول لاحقًا.', 429, ctx.requestId, ctx.cors) };
+  }
+  return { actorType };
+}
+
+function mediaLimit(request, maxBytes = 10 * 1024 * 1024) {
+  const length = Number(request.headers.get('content-length') || 0);
+  return !length || (Number.isFinite(length) && length <= maxBytes);
+}
+
+async function einoVision(ctx) {
+  const actor = await einoMediaActor(ctx); if (actor.response) return actor.response;
+  const body = await parseJson(ctx.request);
+  const image = String(body?.image || '').trim();
+  if (!image || image.length > 14 * 1024 * 1024) return error('EINO_INPUT_INVALID', 'الصورة غير صالحة أو كبيرة جدًا.', 400, ctx.requestId, ctx.cors);
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 30000); const started = Date.now();
+  try {
+    const result = await freeAiVision({ baseUrl: ctx.env.FREE_AI_BASE_URL, apiKey: ctx.env.FREE_AI_API_KEY, imageDataUrl: image, mode: String(body?.mode || 'describe'), model: body?.model ? String(body.model) : undefined, signal: controller.signal });
+    await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
+    return ok(ctx, { text: String(result?.text || result?.description || result?.caption || result?.result || '').trim(), provider: 'free.ai', raw: result });
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+}
+
+async function einoOcr(ctx) {
+  const actor = await einoMediaActor(ctx); if (actor.response) return actor.response;
+  if (!mediaLimit(ctx.request)) return error('EINO_FILE_TOO_LARGE', 'حجم الملف يتجاوز الحد المسموح.', 413, ctx.requestId, ctx.cors);
+  const form = await ctx.request.formData().catch(() => null); const file = form?.get('file') || form?.get('image');
+  if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق صورة أو مستند.', 400, ctx.requestId, ctx.cors);
+  if (file.size > 10 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الملف يتجاوز 10MB.', 413, ctx.requestId, ctx.cors);
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 60000); const started = Date.now();
+  try { const result = await freeAiOcr({ baseUrl: ctx.env.FREE_AI_BASE_URL, apiKey: ctx.env.FREE_AI_API_KEY, file: await file.arrayBuffer(), filename: file.name, contentType: file.type, model: String(form.get('model') || 'got-ocr2'), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.content || result?.markdown || result?.result || '').trim(), provider: 'free.ai', raw: result }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+}
+
+async function einoStt(ctx) {
+  const actor = await einoMediaActor(ctx); if (actor.response) return actor.response;
+  if (!mediaLimit(ctx.request)) return error('EINO_FILE_TOO_LARGE', 'حجم الصوت يتجاوز الحد المسموح.', 413, ctx.requestId, ctx.cors);
+  const form = await ctx.request.formData().catch(() => null); const file = form?.get('file');
+  if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق ملف صوتي.', 400, ctx.requestId, ctx.cors);
+  if (file.size > 25 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الصوت يتجاوز 25MB.', 413, ctx.requestId, ctx.cors);
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 60000); const started = Date.now();
+  try { const result = await freeAiStt({ baseUrl: ctx.env.FREE_AI_BASE_URL, apiKey: ctx.env.FREE_AI_API_KEY, file: await file.arrayBuffer(), filename: file.name, contentType: file.type, model: String(form.get('model') || 'whisper'), language: String(form.get('language') || 'auto'), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.transcript || result?.result || '').trim(), provider: 'free.ai', raw: result }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+}
+
+async function einoTts(ctx) {
+  const actor = await einoMediaActor(ctx); if (actor.response) return actor.response;
+  const body = await parseJson(ctx.request); const text = String(body?.text || '').trim();
+  if (!text || text.length > 6000) return error('EINO_INPUT_INVALID', 'النص غير صالح أو طويل جدًا.', 400, ctx.requestId, ctx.cors);
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 30000); const started = Date.now();
+  try { const result = await freeAiTts({ baseUrl: ctx.env.FREE_AI_BASE_URL, apiKey: ctx.env.FREE_AI_API_KEY, text, model: String(body?.model || 'kokoro'), voice: String(body?.voice || 'af_heart'), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { audioUrl: result?.audio_url || result?.url || null, provider: 'free.ai', raw: result }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+}
+
+async function einoMediaError(ctx, actorType, e, started) {
+  const latency = Date.now() - started; const status = Number(e?.status || 502); await recordEinoTelemetry(ctx, status === 429 ? 'provider_limited' : 'provider_error', actorType, latency);
+  if (e?.name === 'AbortError') return error('EINO_TIMEOUT', 'استغرق Eino وقتًا أطول من المتوقع. أعد المحاولة.', 504, ctx.requestId, ctx.cors);
+  if (status === 401 || status === 403) return error('EINO_PROVIDER_AUTH', 'تعذر التحقق من اتصال Eino حاليًا.', 502, ctx.requestId, ctx.cors);
+  if (status === 429 || status === 402) return error('EINO_PROVIDER_LIMITED', 'مزود Eino غير متاح للاستخدام حاليًا.', 503, ctx.requestId, ctx.cors);
+  return error('EINO_PROVIDER_ERROR', 'تعذر معالجة الطلب عبر Eino حاليًا.', 502, ctx.requestId, ctx.cors);
 }
 
 async function consumeEinoQuota(ctx, actorKey) {

@@ -23,6 +23,47 @@ class ApiClient {
   Future<Map<String, dynamic>> getJson(String path, {Map<String, String>? query, Duration? cacheTtl, bool forceRefresh = false}) async => _request('GET', path, query: query, cacheTtl: cacheTtl, forceRefresh: forceRefresh);
   Future<Map<String, dynamic>> postJson(String path, {Map<String, dynamic> body = const {}}) async => _request('POST', path, body: body);
   Future<Map<String, dynamic>> deleteJson(String path) async => _request('DELETE', path);
+  Future<Map<String, dynamic>> postMultipartBytes(
+    String path, {
+    required List<int> bytes,
+    required String filename,
+    required String fieldName,
+    String contentType = 'application/octet-stream',
+    Map<String, String> fields = const {},
+  }) async {
+    final uri = _buildUri(path);
+    Future<Map<String, dynamic>> send() async {
+      final request = http.MultipartRequest('POST', uri);
+      request.headers['Accept'] = 'application/json';
+      final token = await authStorage?.accessToken;
+      if (token != null && token.isNotEmpty) request.headers['Authorization'] = 'Bearer $token';
+      request.fields.addAll(fields);
+      request.files.add(http.MultipartFile.fromBytes(fieldName, bytes, filename: filename, contentType: _mediaType(contentType)));
+      final streamed = await request.send().timeout(const Duration(seconds: 90));
+      final response = await http.Response.fromStream(streamed);
+      return _decode(response);
+    }
+    try {
+      final result = await send();
+      return result;
+    } on ApiException catch (e) {
+      if (e.statusCode == 401 && (await authStorage?.refreshToken)?.isNotEmpty == true) {
+        final refreshed = await _refreshSession();
+        if (refreshed) return send();
+      }
+      rethrow;
+    } on TimeoutException catch (e) {
+      throw ApiException('انتهت مهلة معالجة الملف. أعد المحاولة.', cause: e);
+    } on http.ClientException catch (e) {
+      throw ApiException('تعذر رفع الملف حاليًا. تحقق من اتصال الإنترنت ثم أعد المحاولة.', cause: e);
+    }
+  }
+
+  http.MediaType? _mediaType(String value) {
+    final parts = value.split('/');
+    if (parts.length != 2 || parts.any((p) => p.isEmpty)) return null;
+    return http.MediaType(parts[0], parts[1]);
+  }
 
   Future<Map<String, dynamic>> _request(
     String method,
