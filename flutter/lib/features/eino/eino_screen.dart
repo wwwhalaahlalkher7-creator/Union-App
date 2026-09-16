@@ -336,7 +336,7 @@ class _EinoScreenState extends State<EinoScreen> {
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   itemCount: _history.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 2),
+                  separatorBuilder: (_, _) => const SizedBox(height: 2),
                   itemBuilder: (_, i) => ListTile(
                     leading: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
                     title: Text(
