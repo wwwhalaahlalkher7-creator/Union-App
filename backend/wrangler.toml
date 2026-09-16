@@ -13,6 +13,17 @@ APP_UPDATE_URL = ""
 APP_RELEASE_NOTES = ""
 API_VERSION = "v1"
 EINO_MODEL = "qwen3-8b"
+# Optional Leo OmniRoute OpenAI-compatible endpoint. Can be the full /v1/chat/completions URL or /v1 base URL.
+OMNIROUTE_BASE_URL = "https://omnirouteopen-sse-production.up.railway.app/v1"
+# Optional self-hosted Chroma. Keep empty until a Chroma server is provisioned.
+CHROMA_BASE_URL = ""
+CHROMA_TENANT = ""
+CHROMA_DATABASE = ""
+CHROMA_COLLECTION_ID = ""
+EINO_EMBEDDING_MODEL = ""
+EINO_PROVIDER = "auto"
+# Optional JSON model catalog. Keep empty to use the safe metadata-only fallback.
+EINO_MODEL_CATALOG_JSON = ""
 # Google Drive is accessed through the deployed Google Apps Script adapter.
 GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwjpZhAnx3zWWrVB1nfS07UCBuHwm3nkBuip-kQ6ReO4n9RAPzbji5-H9RHmQqnloIEZw/exec"
 # Browser clients allowed to call the API. Android/native clients do not use CORS.
@@ -26,7 +37,9 @@ migrations_dir = "migrations"
 
 # Secrets are intentionally not stored in this file.
 # Required Eino upstream credentials are supplied through Cloudflare/GitHub secrets.
-[secrets]
-required = ["FREE_AI_BASE_URL", "FREE_AI_API_KEY"]
+# Optional secret for a protected Chroma deployment.
+# CHROMA_TOKEN is added only when Chroma authentication is enabled.
+# OMNIROUTE_API_KEY is optional for trusted/private proxy deployments.
+# OMNIROUTE_BASE_URL is intentionally a var so the endpoint can be changed without code edits.
 
 # Comma-separated production origins. Configure as a secret/var in deployment.

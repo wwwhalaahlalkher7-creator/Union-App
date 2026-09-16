@@ -42,7 +42,9 @@ jobs:
         run: node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('backend package.json OK')"
 
       - name: Check Worker syntax
-        run: node --check src/index.js
+        run: |
+          node --check src/index.js
+          node --check src/providers/omniroute.js
 
       - name: Check Dashboard adapter syntax
         working-directory: website/dashboard/js
@@ -110,15 +112,20 @@ jobs:
         env:
           FREE_AI_BASE_URL: ${{ secrets.FREE_AI_BASE_URL }}
           FREE_AI_API_KEY: ${{ secrets.FREE_AI_API_KEY }}
+          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+          CHROMA_TOKEN: ${{ secrets.CHROMA_TOKEN }}
         run: |
-          test -n "$FREE_AI_BASE_URL" || { echo 'Missing GitHub Secret: FREE_AI_BASE_URL'; exit 1; }
-          test -n "$FREE_AI_API_KEY" || { echo 'Missing GitHub Secret: FREE_AI_API_KEY'; exit 1; }
+          echo "Free.ai configured: $([ -n "$FREE_AI_BASE_URL" ] && [ -n "$FREE_AI_API_KEY" ] && echo yes || echo no)"
           python3 - <<'PY'
           import json, os
           data = {
               "FREE_AI_BASE_URL": os.environ["FREE_AI_BASE_URL"],
               "FREE_AI_API_KEY": os.environ["FREE_AI_API_KEY"],
           }
+          if os.environ.get("OMNIROUTE_API_KEY"):
+              data["OMNIROUTE_API_KEY"] = os.environ["OMNIROUTE_API_KEY"]
+          if os.environ.get("CHROMA_TOKEN"):
+              data["CHROMA_TOKEN"] = os.environ["CHROMA_TOKEN"]
           with open('.eino.secrets.json', 'w', encoding='utf-8') as f:
               json.dump(data, f)
           PY

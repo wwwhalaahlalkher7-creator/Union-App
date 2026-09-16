@@ -9,15 +9,12 @@ body[data-page="materials"] .page-content{padding-top:24px}
 .department-picker{margin-bottom:14px}
 .materials-filter-row{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-top:14px}
 .materials-filter-row .semester-wrap{display:flex;align-items:center;gap:8px;flex:1;max-width:330px}
-.materials-filter-row .semester-wrap .form-control{min-height:46px;border-radius:13px}
 @media(max-width:650px){.materials-filter-row{display:block}.materials-filter-row .semester-wrap{max-width:none}}
 </style>
 <script src="config.js"></script><script src="js/theme.js"></script><script src="js/auth.js"></script>
 <style>
-body[data-page="materials"] .page-content{padding-top:24px}
 .materials-select-card{border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--surface) 94%,var(--blueprint-100)),var(--surface));border:1px solid color-mix(in srgb,var(--blueprint-700) 18%,var(--line));box-shadow:0 12px 34px rgba(10,28,52,.16)}
 .materials-select-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.materials-select-grid .form-control{min-height:50px;border-radius:14px;font-size:1rem}
 .materials-selection-note{margin-top:12px;color:var(--ink-500);font-size:.9rem}
 .materials-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 .materials-section-head h2{margin:0;font-size:1.2rem}.materials-section-head p{margin:4px 0 0;color:var(--ink-500)}
@@ -26,9 +23,9 @@ body[data-page="materials"] .page-content{padding-top:24px}
 .material-folder:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--blueprint-700) 40%,var(--line));box-shadow:0 14px 30px rgba(10,28,52,.15)}
 .material-folder-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.material-folder-icon{font-size:1.9rem;color:var(--blueprint-700)}
 .material-folder h3{margin:0;font-size:1rem}.material-folder-meta{color:var(--ink-500);font-size:.82rem;margin-top:4px}
-.material-folder-actions{display:flex;gap:6px}.material-folder-actions .icon-btn{width:34px;height:34px}
+.material-folder-actions{display:flex;gap:6px}.material-folder-actions .icon-btn{width:32px;height:32px;border-radius:10px}
 .material-files{margin-top:14px;border-top:1px solid var(--line);padding-top:10px;display:grid;gap:7px}
-.material-file{display:flex;align-items:center;gap:8px;padding:9px 0}.material-file-icon{color:#c53d3d}.material-file-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.material-file-actions{display:flex;gap:4px}.material-file-actions .icon-btn{width:30px;height:30px}
+.material-file{display:flex;align-items:center;gap:8px;padding:9px 0}.material-file-icon{color:#c53d3d}.material-file-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.material-file-actions{display:flex;gap:4px;flex-shrink:0}.material-file-actions .icon-btn{width:32px;height:32px;border-radius:10px}
 .material-empty{padding:26px;border:1px dashed var(--line-strong);border-radius:16px;text-align:center;color:var(--ink-500)}
 .materials-locked{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:color-mix(in srgb,var(--surface-sunken) 75%,transparent);color:var(--ink-500);font-size:.78rem}
 @media(max-width:700px){.materials-select-grid{grid-template-columns:1fr}.materials-subject-grid{grid-template-columns:1fr}}

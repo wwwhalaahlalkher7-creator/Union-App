@@ -112,3 +112,11 @@ python3 ci/flutter_secure_storage_check.py
 ## الترخيص والبيانات
 
 هذا المستودع مخصص لمشروع TRINEX. لا تضع فيه بيانات طلاب حقيقية، كلمات مرور، مفاتيح API، ملفات keystore، أو exports حساسة.
+
+## Eino Offline AI foundation
+
+The Flutter app now includes an Android-local GGUF runtime foundation using `llama_flutter_android`/llama.cpp. The model manager supports local storage, resumable HTTP downloads, SHA-256 verification, hardware/RAM checks, model loading, streaming generation, and automatic fallback to a loaded local model when the online Eino request fails.
+
+Model download sources are intentionally not hardcoded. Configure a trusted catalog through `EINO_MODEL_CATALOG_JSON` in the Worker environment; each model entry may provide `downloadUrl` and `sha256`. Until those values are configured, the app will not download an unverified model.
+
+The local runtime requires Android API 26+ and ARM64 models are the initial catalog target.

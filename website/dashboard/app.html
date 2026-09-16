@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="favicon.png">
+
+    <title>تحميل التطبيق - رابطة كلية الهندسة والعمارة - جامعة شندي</title>
+
+    <meta name="description" content="حمّل تطبيق رابطة كلية الهندسة والعمارة - جامعة شندي مباشرة (ملف APK) للوصول السريع للأخبار والمواد الدراسية والإشعارات الفورية.">
+    <link rel="canonical" href="https://ush-eng.great-site.net/app.html">
+
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="ar_AR">
+    <meta property="og:site_name" content="رابطة كلية الهندسة والعمارة - جامعة شندي">
+    <meta property="og:title" content="تحميل التطبيق - رابطة كلية الهندسة والعمارة">
+    <meta property="og:description" content="حمّل تطبيق رابطة كلية الهندسة والعمارة - جامعة شندي مباشرة (ملف APK).">
+    <meta property="og:url" content="https://ush-eng.great-site.net/app.html">
+    <meta property="og:image" content="https://ush-eng.great-site.net/favicon.png">
+
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-main: #0a0f14;
+            --bg-surface: #121b24;
+            --bg-surface-glow: #1a2734;
+            --primary: #ff9100;
+            --primary-glow: #ffb45c;
+            --primary-rgb: 255, 145, 0;
+            --accent: #005f73;
+            --text-main: #f4f6f8;
+            --text-muted: #94a3b8;
+            --transition-smooth: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            --whatsapp-color: #22c55e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Cairo', sans-serif;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: -10%;
+            left: -10%;
+            width: 120%;
+            height: 120%;
+            background: radial-gradient(circle at 15% 15%, rgba(255, 145, 0, 0.05) 0%, transparent 45%),
+                        radial-gradient(circle at 85% 85%, rgba(0, 95, 115, 0.07) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            background-color: rgba(18, 27, 36, 0.75);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 100%;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 145, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 8%;
+            transition: var(--transition-smooth);
+        }
+
+        header.scrolled {
+            padding: 12px 8%;
+            background-color: rgba(10, 15, 20, 0.92);
+            border-bottom: 1px solid rgba(255, 145, 0, 0.25);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo h2 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #fff;
+            background: linear-gradient(45deg, #fff, var(--primary-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo p {
+            font-size: 0.8rem;
+            color: var(--primary);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-top: -2px;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: var(--transition-smooth);
+        }
+
+        .back-link:hover { color: var(--primary-glow); }
+
+        .hero {
+            min-height: 92vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 150px 8% 60px 8%;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero-content { max-width: 780px; animation: fadeInHero 1.2s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        .app-icon {
+            width: 96px;
+            height: 96px;
+            margin: 0 auto 26px auto;
+            border-radius: 24px;
+            background: linear-gradient(135deg, var(--accent), var(--primary));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.6rem;
+            color: #fff;
+            box-shadow: 0 12px 30px rgba(255, 145, 0, 0.25);
+        }
+
+        .hero h1 {
+            font-size: 2.6rem;
+            font-weight: 800;
+            margin-bottom: 18px;
+            line-height: 1.4;
+            color: #fff;
+            background: linear-gradient(135deg, #fff 30%, var(--primary-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(255, 145, 0, 0.1);
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            margin-bottom: 34px;
+            line-height: 1.8;
+        }
+
+        .meta-row {
+            display: flex;
+            justify-content: center;
+            gap: 22px;
+            flex-wrap: wrap;
+            margin-bottom: 36px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .meta-row span { display: inline-flex; align-items: center; gap: 8px; }
+        .meta-row i { color: var(--primary); }
+
+        .btn-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 14px;
+            background: linear-gradient(135deg, var(--accent), var(--primary));
+            color: #fff;
+            text-decoration: none;
+            padding: 18px 46px;
+            border-radius: 50px;
+            font-weight: 800;
+            font-size: 1.05rem;
+            box-shadow: 0 4px 20px rgba(255, 145, 0, 0.25);
+            transition: var(--transition-smooth);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .btn-download:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(255, 145, 0, 0.4);
+            background: linear-gradient(135deg, var(--primary), var(--primary-glow));
+        }
+
+        .btn-download i.fa-android { font-size: 1.3rem; }
+
+        .hero-note {
+            margin-top: 16px;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        section:not(.hero) { padding: 70px 8%; }
+
+        section h2 {
+            text-align: center;
+            font-size: 1.9rem;
+            margin-bottom: 46px;
+            position: relative;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        section h2::after {
+            content: '';
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 50px;
+            height: 3px;
+            background-color: var(--primary);
+            border-radius: 2px;
+        }
+
+        .cards-container {
+            max-width: 1150px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 28px;
+        }
+
+        .card {
+            background-color: var(--bg-surface);
+            padding: 36px 26px;
+            border-radius: 18px;
+            text-align: center;
+            border: 1px solid rgba(255, 145, 0, 0.04);
+            transition: var(--transition-smooth);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            border-color: rgba(255, 145, 0, 0.3);
+            box-shadow: 0 18px 35px rgba(255, 145, 0, 0.06);
+            background-color: var(--bg-surface-glow);
+        }
+
+        .card i {
+            font-size: 2.3rem;
+            color: var(--primary);
+            margin-bottom: 20px;
+        }
+
+        .card h3 { font-size: 1.15rem; margin-bottom: 12px; color: #fff; font-weight: 700; }
+        .card p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; }
+
+        .steps-section { background-color: rgba(18, 27, 36, 0.2); }
+
+        .steps-list {
+            max-width: 780px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 18px;
+            background-color: var(--bg-surface);
+            border: 1px solid rgba(255, 145, 0, 0.06);
+            border-radius: 14px;
+            padding: 20px 24px;
+        }
+
+        .step-num {
+            flex-shrink: 0;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--primary));
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+        }
+
+        .step h3 { font-size: 1rem; color: #fff; margin-bottom: 6px; font-weight: 700; }
+        .step p { color: var(--text-muted); font-size: 0.88rem; line-height: 1.7; }
+
+        .safety-note {
+            max-width: 780px;
+            margin: 30px auto 0 auto;
+            background: rgba(255, 145, 0, 0.06);
+            border: 1px solid rgba(255, 145, 0, 0.2);
+            border-radius: 14px;
+            padding: 18px 22px;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            line-height: 1.8;
+        }
+
+        .safety-note i { color: var(--primary); font-size: 1.3rem; margin-top: 2px; }
+
+        footer {
+            background-color: #05080b;
+            padding: 35px 8%;
+            text-align: center;
+            border-top: 1px solid rgba(255, 145, 0, 0.08);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: auto;
+        }
+
+        .developer-credit {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: var(--primary-glow);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        @keyframes fadeInHero {
+            from { opacity: 0; transform: translateY(25px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 768px) {
+            header { padding: 15px 5%; }
+            header.scrolled { padding: 10px 5%; }
+            section:not(.hero) { padding: 55px 5%; }
+            .hero h1 { font-size: 1.9rem; }
+            .hero p { font-size: 1rem; }
+            .btn-download { width: 100%; justify-content: center; padding: 16px 20px; }
+        }
+    </style>
+</head>
+
+<body>
+
+<header id="header">
+    <div class="logo">
+        <h2>رابطة كلية الهندسة والعمارة</h2>
+        <p>جامعة شندي</p>
+    </div>
+    <a href="index.html" class="back-link">
+        <i class="fas fa-arrow-right"></i>
+        العودة للرئيسية
+    </a>
+</header>
+
+<section class="hero">
+    <div class="hero-content">
+        <div class="app-icon"><i class="fas fa-compass-drafting"></i></div>
+        <h1>حمّل تطبيق الرابطة الآن</h1>
+        <p>
+            كل الأخبار والإعلانات الرسمية، المواد الدراسية، والإنجازات في تطبيق واحد على هاتفك،
+            مع إشعارات فورية بكل جديد من أمانة الإعلام دون الحاجة لفتح المتصفح في كل مرة.
+        </p>
+
+        <div class="meta-row">
+            <span><i class="fab fa-android"></i> أندرويد 8.0 فأعلى</span>
+            <span><i class="fas fa-code-branch"></i> الإصدار 1.0.0</span>
+            <span><i class="fas fa-hard-drive"></i> بحجم تقريبي 15 ميجابايت</span>
+        </div>
+
+        <!-- ⬇️ استبدل الرابط أدناه برابط ملف الـ APK الفعلي بعد رفعه على استضافة الموقع -->
+        <a href="app-release.apk" download class="btn-download">
+            <i class="fab fa-android"></i>
+            تحميل ملف APK مباشرة
+        </a>
+        <p class="hero-note">تحميل مباشر وآمن — بدون متجر جوجل بلاي</p>
+    </div>
+</section>
+
+<section>
+    <h2>لماذا تحمّل التطبيق؟</h2>
+    <div class="cards-container">
+        <div class="card">
+            <i class="fas fa-bell"></i>
+            <h3>إشعارات فورية</h3>
+            <p>استلم إشعاراً مباشراً بكل إعلان أو تحديث رسمي جديد من أمانة الإعلام لحظة نشره.</p>
+        </div>
+        <div class="card">
+            <i class="fas fa-bolt"></i>
+            <h3>وصول أسرع</h3>
+            <p>تجربة استخدام أخف وأسرع من المتصفح، مصممة خصيصاً لهاتفك.</p>
+        </div>
+        <div class="card">
+            <i class="fas fa-book-open"></i>
+            <h3>المواد الدراسية دائماً بجانبك</h3>
+            <p>تصفح المراجع والمواد الدراسية لكل الأقسام الثلاثة في أي وقت وبسهولة.</p>
+        </div>
+        <div class="card">
+            <i class="fas fa-shield-halved"></i>
+            <h3>مصدر رسمي وموثوق</h3>
+            <p>تطبيق صادر مباشرة عن رابطة كلية الهندسة والعمارة - جامعة شندي.</p>
+        </div>
+    </div>
+</section>
+
+<section class="steps-section">
+    <h2>خطوات التثبيت على أندرويد</h2>
+    <div class="steps-list">
+        <div class="step">
+            <div class="step-num">1</div>
+            <div>
+                <h3>حمّل ملف التطبيق</h3>
+                <p>اضغط على زر "تحميل ملف APK مباشرة" أعلاه وانتظر اكتمال التنزيل.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div>
+                <h3>فعّل خيار "المصادر غير المعروفة"</h3>
+                <p>عند فتح الملف قد يظهر تنبيه من النظام، اذهب إلى الإعدادات واسمح بالتثبيت من هذا المصدر (يظهر مرة واحدة فقط لكل مصدر).</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div>
+                <h3>ثبّت التطبيق</h3>
+                <p>افتح الملف الذي تم تنزيله من إشعارات الهاتف أو من مجلد التنزيلات، ثم اضغط "تثبيت".</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">4</div>
+            <div>
+                <h3>افتح التطبيق واستمتع</h3>
+                <p>بعد اكتمال التثبيت اضغط "فتح"، وستجد أيقونة التطبيق في قائمة التطبيقات على هاتفك.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="safety-note">
+        <i class="fas fa-circle-info"></i>
+        <p>هذا التطبيق يُوزَّع مباشرة من قِبل الرابطة خارج متجر جوجل بلاي، لذا يطلب منك أندرويد تأكيد الثقة بالمصدر قبل التثبيت — وهذا إجراء أمني طبيعي من النظام وليس خطأً في الملف.</p>
+    </div>
+</section>
+
+<footer>
+    <p>جميع الحقوق محفوظة © أمانة الإعلام و رابطة كلية الهندسة والعمارة - جامعة شندي</p>
+    <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
+</footer>
+
+<script>
+    window.addEventListener('scroll', () => {
+        const header = document.getElementById('header');
+        if (window.scrollY > 40) header.classList.add('scrolled');
+        else header.classList.remove('scrolled');
+    });
+</script>
+
+</body>
+</html>

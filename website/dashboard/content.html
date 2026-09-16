@@ -60,6 +60,23 @@ body[data-page="news"] .card-header h3 {
   letter-spacing: -.01em;
 }
 
+body[data-page="news"] .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+body[data-page="news"] .toolbar .field {
+  flex: 1 1 220px;
+  min-width: 160px;
+}
+@media (max-width: 560px) {
+  body[data-page="news"] .toolbar .field,
+  body[data-page="news"] .toolbar button {
+    width: 100%;
+  }
+}
+
 /* الجداول */
 body[data-page="news"] .data-table th {
   background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);

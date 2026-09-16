@@ -48,12 +48,14 @@ android {
             // CI/local production builds must provide key.properties.
             // Keeping the debug fallback preserves development builds only.
             signingConfig = hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
     defaultConfig {
         applicationId = "com.leoassociation.app"
-        minSdk = flutter.minSdkVersion
+        // llama_flutter_android requires Android API 26+.
+        minSdk = Math.max(flutter.minSdkVersion, 26)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
