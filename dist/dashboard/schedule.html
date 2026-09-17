@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>الجداول الدراسية | لوحة تحكم TRINEX</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/admin.css">
+<style>
+body[data-page="schedule"] .page-content{padding-top:24px}
+.department-picker{margin-bottom:14px}
+.schedule-filter-row{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:14px}
+.schedule-filter-row .semester-wrap{display:flex;align-items:center;gap:8px;flex:1;max-width:330px}
+.schedule-filter-row .semester-wrap .form-control{min-height:46px;border-radius:13px}
+@media(max-width:650px){.schedule-filter-row{display:block}.schedule-filter-row .semester-wrap{max-width:none}}
+</style>
+<script src="config.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/auth.js"></script>
+</head>
+<body data-page="schedule">
+<div id="app-shell"></div>
+<template id="pageTemplate">
+  <div class="department-picker"><div class="tabs premium-tabs" id="departmentTabs"></div></div>
+  <div class="schedule-filter-row">
+    <div class="semester-wrap"><label for="semesterFilter" style="font-weight:600;white-space:nowrap">الفصل</label><select id="semesterFilter" class="form-control"><option value="">كل الفصول</option></select></div>
+    <div class="toolbar-group"><button class="btn btn-secondary" id="refreshBtn" type="button"><i class="fa-solid fa-rotate"></i> تحديث</button><button class="btn btn-primary requires-edit" id="addBtn" type="button"><i class="fa-solid fa-plus"></i> إضافة حصة</button></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div><h3>الجدول الدراسي</h3><span class="card-header-hint" id="resultHint">جارٍ التحميل...</span></div></div>
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>اليوم</th><th>الوقت</th><th>المادة</th><th>القسم</th><th>الفصل</th><th>القاعة</th><th>الدكتور</th><th>الحالة</th><th></th></tr></thead>
+        <tbody id="scheduleBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</template>
+<script src="js/api-adapter.js?v=3.0.0"></script>
+<script src="js/utils.js"></script>
+<script src="js/feedback.js"></script>
+<script src="js/modal.js"></script>
+<script src="js/layout.js"></script>
+<script>
+let scheduleData = { departments: [], semesters: [], entries: [] };
+const DAYS = {1:"الأحد",2:"الإثنين",3:"الثلاثاء",4:"الأربعاء",5:"الخميس",6:"الجمعة",7:"السبت"};
+
+document.addEventListener("shell:ready", async () => {
+  document.getElementById("pageContent").appendChild(document.getElementById("pageTemplate").content.cloneNode(true));
+  document.getElementById("refreshBtn").addEventListener("click", loadSchedule);
+  document.getElementById("semesterFilter").addEventListener("change", loadSchedule);
+  document.getElementById("addBtn").addEventListener("click", () => openForm(null));
+  await loadSchedule();
+});
+
+function fillSelect(id, items, placeholder, valueKey, labelFn) {
+  const el = document.getElementById(id);
+  const first = placeholder ? `<option value="">${Utils.escapeHtml(placeholder)}</option>` : "";
+  el.innerHTML = first + (items || []).map(x => {
+    const value = valueKey ? x?.[valueKey] : (x?.id ?? x?.value ?? x);
+    const label = labelFn ? labelFn(x) : Utils.displayText(x);
+    return `<option value="${Utils.escapeHtml(Utils.displayText(value, ""))}">${Utils.escapeHtml(label)}</option>`;
+  }).join("");
+}
+
+function setupOptions() {
+  const deps = scheduleData.departments || [];
+  renderDepartmentTabs(deps);
+  fillSelect("departmentId", deps, "", "id", x => x.name.ar || x.name.en || x.id);
+  const semesterLabel = x => x?.name_ar || x?.name_en || (x?.number != null ? `الفصل ${x.number}` : '') || x?.id || '—';
+  fillSelect("semesterFilter", scheduleData.semesters || [], "كل الفصول", "id", semesterLabel);
+  fillSelect("semester", scheduleData.semesters || [], "", "id", semesterLabel);
+  const days = Object.keys(DAYS).map(k => ({id:k,name:DAYS[k]}));
+  fillSelect("dayOfWeek", days, "", "id", x => x.name);
+}
+
+function renderDepartmentTabs(deps) {
+  const el = document.getElementById("departmentTabs");
+  const current = window.scheduleDepartmentFilter || "";
+  const allowed = new Set(["electrical-electronics", "architecture", "civil"]);
+  const threeDepartments = deps.filter(d => allowed.has(d.id));
+  if (!window.scheduleDepartmentFilter || !allowed.has(window.scheduleDepartmentFilter)) {
+    window.scheduleDepartmentFilter = threeDepartments[0]?.id || "";
+  }
+  const selected = window.scheduleDepartmentFilter;
+  el.innerHTML = threeDepartments.map(d => ({id:d.id,label:d.name.ar || d.name.en || d.id})).map(x => `<button type="button" class="tab-btn ${x.id === selected ? "is-active" : ""}" data-dept="${Utils.escapeHtml(x.id)}">${Utils.escapeHtml(x.label)}</button>`).join("");
+  el.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => { window.scheduleDepartmentFilter = btn.dataset.dept; loadSchedule(); }));
+}
+
+async function loadSchedule() {
+  const body = document.getElementById("scheduleBody");
+  if (!body) return;
+  body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> جارٍ تحميل الجداول...</div></td></tr>`;
+  try {
+    const filters = {
+      departmentId: window.scheduleDepartmentFilter || "",
+      semester: document.getElementById("semesterFilter")?.value || ""
+    };
+    scheduleData = await Adapter.listScheduleAdmin(filters);
+    const allowed = new Set(["electrical-electronics", "architecture", "civil"]);
+    const availableDepartments = (scheduleData.departments || []).filter(d => allowed.has(d.id));
+    if (!window.scheduleDepartmentFilter || !allowed.has(window.scheduleDepartmentFilter)) {
+      window.scheduleDepartmentFilter = availableDepartments[0]?.id || "";
+    }
+    setupOptions();
+    document.getElementById("semesterFilter").value = filters.semester;
+    renderDepartmentTabs(availableDepartments);
+    const selectedEntries = (scheduleData.entries || []).filter(e => !window.scheduleDepartmentFilter || e.departmentId === window.scheduleDepartmentFilter);
+    renderSchedule(selectedEntries);
+  } catch (e) {
+    body.innerHTML = `<tr><td colspan="9"><div class="empty-state is-error"><i class="fa-solid fa-triangle-exclamation"></i>${Utils.escapeHtml(e.message || "تعذّر تحميل الجداول")}<br><button class="btn btn-secondary" type="button" data-action="retry-load">إعادة المحاولة</button></div></td></tr>`;
+    document.getElementById("resultHint").textContent = "فشل التحميل";
+    Feedback.error(e.message || "تعذّر تحميل الجداول");
+  }
+}
+
+document.getElementById("scheduleBody").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("button[data-action]"); if (!btn) return;
+  const id = btn.dataset.id; const action = btn.dataset.action;
+  if (action === "retry-load") loadSchedule();
+  else if (action === "edit") openForm(id);
+  else if (action === "toggle") toggleEntry(id, btn.dataset.active !== "1", btn);
+  else if (action === "delete") deleteEntry(id, btn);
+});
+
+function renderSchedule(entries) {
+  const body = document.getElementById("scheduleBody");
+  document.getElementById("resultHint").textContent = `${entries.length} حصة`;
+  if (!entries.length) {
+    body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><i class="fa-regular fa-calendar-xmark"></i>لا توجد حصص مطابقة للفلاتر الحالية.</div></td></tr>`;
+    return;
+  }
+  const depMap = Object.fromEntries((scheduleData.departments || []).map(d => [d.id, Utils.displayText(d.name)]));
+  const semesterMap = Object.fromEntries((scheduleData.semesters || []).map(s => [s.id, s.name_ar || s.name_en || (s.number != null ? `الفصل ${s.number}` : s.id)]));
+  body.innerHTML = entries.map(e => `
+    <tr>
+      <td>${DAYS[e.dayOfWeek] || "—"}</td>
+      <td style="direction:ltr">${Utils.escapeHtml(e.startTime || "—")} – ${Utils.escapeHtml(e.endTime || "—")}</td>
+      <td><strong>${Utils.escapeHtml(e.subjectName || "—")}</strong></td>
+      <td>${Utils.escapeHtml(depMap[e.departmentId] || e.departmentId || "—")}</td>
+      <td>${Utils.escapeHtml(semesterMap[e.semester] || Utils.displayText(e.semester))}</td>
+      <td>${Utils.escapeHtml(e.room || "—")}</td>
+      <td>${Utils.escapeHtml(e.instructor || "—")}</td>
+      <td><span class="badge ${e.active === false ? "badge-neutral" : "badge-success"}">${e.active === false ? "معطلة" : "نشطة"}</span></td>
+      <td><div class="row-actions requires-edit">
+        <button class="icon-btn" type="button" title="تعديل" data-action="edit" data-id="${Utils.escapeHtml(String(e.id))}"><i class="fa-solid fa-pen"></i></button>
+        <button class="icon-btn" type="button" title="${e.active === false ? "تفعيل" : "تعطيل"}" data-action="toggle" data-id="${Utils.escapeHtml(String(e.id))}" data-active="${e.active === false ? "0" : "1"}"><i class="fa-solid ${e.active === false ? "fa-toggle-on" : "fa-toggle-off"}"></i></button>
+        <button class="icon-btn is-danger" type="button" title="حذف" data-action="delete" data-id="${Utils.escapeHtml(String(e.id))}"><i class="fa-solid fa-trash"></i></button>
+      </div></td>
+    </tr>`).join("");
+}
+
+function getEntry(id) { return (scheduleData.entries || []).find(e => e.id === id) || null; }
+function openForm(id) {
+  const e = id ? getEntry(id) : null;
+  const bodyHtml = `<form id="scheduleForm" novalidate>
+    <input type="hidden" id="entryId">
+    <div class="schedule-form-grid">
+      <div class="field"><label for="departmentId">القسم</label><select id="departmentId" required></select></div>
+      <div class="field"><label for="semester">الفصل</label><select id="semester" required></select></div>
+      <div class="field"><label for="dayOfWeek">اليوم</label><select id="dayOfWeek" required></select></div>
+      <div class="field"><label for="startTime">وقت البداية</label><input id="startTime" type="time" required></div>
+      <div class="field"><label for="endTime">وقت النهاية</label><input id="endTime" type="time" required></div>
+      <div class="field"><label for="subjectName">اسم المادة</label><input id="subjectName" type="text" required maxlength="150"></div>
+      <div class="field"><label for="subjectId">معرّف المادة <span class="field-hint">اختياري</span></label><input id="subjectId" type="text" maxlength="100"></div>
+      <div class="field"><label for="room">القاعة <span class="field-hint">اختياري</span></label><input id="room" type="text" maxlength="100"></div>
+      <div class="field"><label for="instructor">الدكتور/المحاضر <span class="field-hint">اختياري</span></label><input id="instructor" type="text" maxlength="150"></div>
+    </div>
+    <div id="formError" class="login-feedback is-error" style="display:none"></div>
+  </form>`;
+  Modal.open({
+    title: e ? "تعديل الحصة" : "إضافة حصة",
+    bodyHtml,
+    buttons: [
+      {label:"إلغاء", className:"btn-secondary", onClick:()=>Modal.close()},
+      {label:e ? "حفظ التعديلات" : "حفظ", className:"btn-primary", onClick:(btn)=>saveForm(btn)}
+    ]
+  });
+  setupOptions();
+  document.getElementById("entryId").value = e?.id || "";
+  document.getElementById("departmentId").value = e?.departmentId || scheduleData.departments?.[0]?.id || "";
+  document.getElementById("semester").value = e?.semester ? String(e.semester) : (scheduleData.semesters?.[0]?.id || "");
+  document.getElementById("dayOfWeek").value = e?.dayOfWeek ? String(e.dayOfWeek) : "1";
+  document.getElementById("startTime").value = e?.startTime || "08:00";
+  document.getElementById("endTime").value = e?.endTime || "10:00";
+  document.getElementById("subjectName").value = e?.subjectName || "";
+  document.getElementById("subjectId").value = e?.subjectId || "";
+  document.getElementById("room").value = e?.room || "";
+  document.getElementById("instructor").value = e?.instructor || "";
+}
+function formPayload() { return {
+  departmentId: document.getElementById("departmentId").value,
+  semester: document.getElementById("semester").value,
+  dayOfWeek: document.getElementById("dayOfWeek").value,
+  startTime: document.getElementById("startTime").value,
+  endTime: document.getElementById("endTime").value,
+  subjectId: document.getElementById("subjectId").value.trim(),
+  subjectName: document.getElementById("subjectName").value.trim(),
+  room: document.getElementById("room").value.trim(),
+  instructor: document.getElementById("instructor").value.trim()
+}; }
+async function saveForm(btn) {
+  const form = document.getElementById("scheduleForm");
+  const error = document.getElementById("formError"); error.style.display = "none";
+  if (!form.checkValidity()) { form.reportValidity(); return; }
+  const payload = formPayload();
+  if (payload.startTime >= payload.endTime) { error.textContent = "وقت النهاية يجب أن يكون بعد وقت البداية."; error.style.display = "block"; return; }
+  const id = document.getElementById("entryId").value;
+  try {
+    await Feedback.busy(btn, () => id
+      ? Adapter.updateScheduleEntry(id, payload)
+      : Adapter.createScheduleEntry(payload), {
+      busyLabel: "جارٍ الحفظ...",
+      successMessage: id ? "تم حفظ الحصة" : "تمت إضافة الحصة",
+      errorPrefix: "تعذّر حفظ الحصة"
+    });
+    Modal.close();
+    await loadSchedule();
+  } catch (e) {
+    error.textContent = e.message || "تعذّر حفظ الحصة";
+    error.style.display = "block";
+  }
+}
+async function toggleEntry(id, active, btn) {
+  const ok = await Modal.confirmDialog(active ? "هل تريد تفعيل هذه الحصة؟" : "هل تريد تعطيل هذه الحصة؟", active ? "تفعيل الحصة" : "تعطيل الحصة");
+  if (!ok) return;
+  try {
+    await Feedback.busy(btn, () => Adapter.toggleScheduleEntry(id, active), {
+      busyLabel: "جارٍ التنفيذ...",
+      successMessage: active ? "تم تفعيل الحصة" : "تم تعطيل الحصة",
+      errorPrefix: "تعذّرت العملية"
+    });
+    await loadSchedule();
+  } catch (e) {}
+}
+async function deleteEntry(id, btn) {
+  const ok = await Modal.confirmDialog("سيتم حذف الحصة نهائيًا. هل أنت متأكد؟", "حذف نهائي");
+  if (!ok) return;
+  try {
+    await Feedback.busy(btn, () => Adapter.deleteScheduleEntry(id), {
+      busyLabel: "جارٍ الحذف...",
+      successMessage: "تم حذف الحصة",
+      errorPrefix: "تعذّر حذف الحصة"
+    });
+    await loadSchedule();
+  } catch (e) {}
+}
+</script>
+</body>
+</html>

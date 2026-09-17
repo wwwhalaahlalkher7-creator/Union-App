@@ -119,8 +119,16 @@ class ApiClient {
   }
 
   Uri _buildUri(String path, [Map<String, String>? query]) {
-    final base = Uri.parse(baseUrl); final normalized = path.trim();
-    return base.replace(path: normalized.isEmpty || normalized == '/' ? base.path : '${base.path}${normalized.startsWith('/') ? normalized : '/$normalized'}', queryParameters: {...base.queryParameters, ...?query});
+    final base = Uri.parse(baseUrl);
+    final basePath = base.path.endsWith('/') ? base.path.substring(0, base.path.length - 1) : base.path;
+    final cleanPath = path.trim();
+    final normalizedPath = cleanPath.startsWith('/') ? cleanPath : '/$cleanPath';
+    final rawCombined = '$basePath$normalizedPath';
+    final combined = rawCombined.replaceAll(RegExp(r'/+'), '/');
+    return base.replace(
+      path: combined.isEmpty ? '/' : combined,
+      queryParameters: {...base.queryParameters, ...?query},
+    );
   }
   Map<String, dynamic> _decode(http.Response response) {
     dynamic body; try { body = jsonDecode(response.body); } catch (_) {}

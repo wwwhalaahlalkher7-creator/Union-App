@@ -44,6 +44,31 @@ class AuthStorage {
     }
   }
 
+  Future<String?> get studentName async {
+    final p = await profile;
+    return p?['fullName']?.toString() ?? p?['name']?.toString();
+  }
+
+  Future<String?> get studentNumber async {
+    final p = await profile;
+    return p?['studentNumber']?.toString();
+  }
+
+  Future<String?> get departmentName async {
+    final p = await profile;
+    return p?['departmentName']?.toString();
+  }
+
+  Future<String?> get semesterName async {
+    final p = await profile;
+    return p?['semesterName']?.toString();
+  }
+
+  Future<String?> get currentSemesterId async {
+    final p = await profile;
+    return p?['currentSemesterId']?.toString() ?? p?['semesterId']?.toString();
+  }
+
   Future<void> saveSession(Map<String, dynamic> data) async {
     final token = data['token']?.toString();
     final refresh = data['refreshToken']?.toString();
@@ -59,8 +84,19 @@ class AuthStorage {
       'studentNumber': data['studentNumber'],
       'fullName': data['fullName'],
       'departmentId': data['departmentId'],
+      'departmentName': data['departmentName'],
+      'currentSemesterId': data['currentSemesterId'] ?? data['semesterId'],
+      'semesterName': data['semesterName'],
+      'email': data['email'],
     };
     await _secureStorage.write(key: _profile, value: jsonEncode(profile));
+  }
+
+  Future<void> updateCachedSemester({required String semesterId, required String semesterName}) async {
+    final current = await profile ?? <String, dynamic>{};
+    current['currentSemesterId'] = semesterId;
+    current['semesterName'] = semesterName;
+    await _secureStorage.write(key: _profile, value: jsonEncode(current));
   }
 
   Future<void> saveRefreshedSession(Map<String, dynamic> data) async {

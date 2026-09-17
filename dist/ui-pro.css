@@ -1,0 +1,796 @@
+/* ================================================================
+   Leo UI Pro — Public Website Design System
+   Mobile-first, vanilla CSS, backend/DOM contract preserved.
+   ================================================================ */
+:root {
+  --primary: #ff9100;
+  --primary-glow: #ffb45c;
+  --primary-rgb: 255, 145, 0;
+  --accent: #27d6c1;
+  --bg-main: #070a12;
+  --bg-surface: #0d1220;
+  --bg-surface-2: #11182a;
+  --bg-surface-3: #151e33;
+  --text-main: #f7f8fc;
+  --text-muted: #9aa6bd;
+  --text-soft: #738099;
+  --line: rgba(255,255,255,.085);
+  --line-strong: rgba(255,255,255,.14);
+  --glass: rgba(13,18,32,.68);
+  --shadow-soft: 0 18px 55px rgba(0,0,0,.22);
+  --shadow-glow: 0 18px 70px rgba(var(--primary-rgb),.16);
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 26px;
+  --radius-xl: 34px;
+  --ease: cubic-bezier(.22,1,.36,1);
+  --header-h: 78px;
+  --content-w: 1180px;
+  --font-ui: 'IBM Plex Sans Arabic', 'Cairo', sans-serif;
+}
+
+html { scroll-behavior: auto; }
+body {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(var(--primary-rgb), .10), transparent 34%),
+    radial-gradient(circle at 90% 18%, rgba(39,214,193,.055), transparent 30%),
+    var(--bg-main) !important;
+  color: var(--text-main) !important;
+  font-family: var(--font-ui) !important;
+  line-height: 1.72;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  pointer-events: none;
+}
+body::before {
+  background-image:
+    linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+  opacity: .55;
+}
+body::after {
+  background:
+    radial-gradient(520px circle at 18% 12%, rgba(var(--primary-rgb),.075), transparent 62%),
+    radial-gradient(460px circle at 84% 72%, rgba(39,214,193,.035), transparent 64%);
+  z-index: -2;
+}
+
+/* Header: same information architecture, upgraded visual treatment. */
+header#header {
+  position: fixed !important;
+  top: 12px !important;
+  right: 12px !important;
+  left: 12px !important;
+  width: auto !important;
+  min-height: var(--header-h);
+  padding: 10px 12px 10px 18px !important;
+  border: 1px solid rgba(255,255,255,.09) !important;
+  border-radius: 24px !important;
+  background: rgba(9,13,23,.72) !important;
+  box-shadow: 0 18px 50px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.045) !important;
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  z-index: 1000;
+}
+header#header.scrolled {
+  top: 8px !important;
+  padding: 8px 10px 8px 16px !important;
+  background: rgba(7,10,18,.88) !important;
+  border-color: rgba(var(--primary-rgb),.22) !important;
+  box-shadow: 0 18px 55px rgba(0,0,0,.34), 0 0 0 1px rgba(var(--primary-rgb),.035) !important;
+}
+.logo { min-width: 0; }
+.logo h2, #siteLogoName {
+  font-family: var(--font-ui) !important;
+  font-size: clamp(.86rem, 3vw, 1.08rem) !important;
+  line-height: 1.25 !important;
+  letter-spacing: -.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 58vw;
+  background: linear-gradient(100deg,#fff 18%,var(--primary-glow) 92%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+.logo p { color: var(--primary-glow) !important; font-size: .7rem !important; opacity: .9; }
+.menu-toggle {
+  display: flex !important;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.045);
+  color: #fff !important;
+  transition: transform .35s var(--ease), background .35s var(--ease), color .35s var(--ease);
+}
+.menu-toggle:hover { transform: translateY(-1px); background: rgba(var(--primary-rgb),.15); color: var(--primary-glow) !important; }
+nav#navMenu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  left: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(9,13,23,.94);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px) scale(.98);
+  transform-origin: top center;
+  transition: opacity .3s var(--ease), transform .3s var(--ease), visibility .3s;
+}
+nav#navMenu.active { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+nav#navMenu ul { display: grid !important; gap: 4px !important; }
+nav#navMenu ul li a {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  padding: 0 14px !important;
+  border-radius: 14px;
+  color: var(--text-muted) !important;
+  font-size: .88rem !important;
+  transition: color .25s, background .25s, transform .25s;
+}
+nav#navMenu ul li a::after { display:none !important; }
+nav#navMenu ul li a:hover,
+nav#navMenu ul li a.active {
+  color: #fff !important;
+  background: linear-gradient(90deg, rgba(var(--primary-rgb),.17), rgba(var(--primary-rgb),.04));
+  transform: translateX(-2px);
+}
+nav#navMenu ul li a.active { box-shadow: inset 3px 0 var(--primary); }
+
+/* Shared page framing */
+.hero, .page-title-section, .page-header {
+  position: relative;
+  width: min(var(--content-w), calc(100% - 32px));
+  margin-inline: auto;
+}
+.hero {
+  min-height: 100svh !important;
+  padding: 142px 0 72px !important;
+  display: grid !important;
+  place-items: center;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  width: min(74vw, 560px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: conic-gradient(from 90deg, transparent, rgba(var(--primary-rgb),.15), transparent 55%, rgba(39,214,193,.08), transparent);
+  opacity: .58;
+  animation: orbitGlow 18s linear infinite;
+  pointer-events: none;
+}
+.hero-content { position: relative; z-index: 1; max-width: 860px !important; }
+.hero h1 {
+  font-size: clamp(2.05rem, 8vw, 4.9rem) !important;
+  line-height: 1.16 !important;
+  letter-spacing: -.055em;
+  margin-bottom: 18px !important;
+  background: linear-gradient(145deg,#fff 22%,#d9d7ff 58%,var(--primary-glow) 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
+}
+.hero p { max-width: 720px; margin: 0 auto 28px !important; color: var(--text-muted) !important; font-size: clamp(.98rem,2.8vw,1.14rem) !important; }
+.hero-actions { display:flex; flex-direction:column; gap:10px !important; align-items:stretch; max-width: 520px; margin-inline:auto; }
+.btn, .btn-secondary, .submit-btn, .btn-whatsapp, .btn-email, .btn-facebook {
+  min-height: 52px;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255,255,255,.09) !important;
+  font-weight: 700 !important;
+  letter-spacing: -.01em;
+  display: inline-flex !important;
+  align-items:center;
+  justify-content:center;
+  gap: 9px;
+  position:relative;
+  overflow:hidden;
+  isolation:isolate;
+  transition: transform .35s var(--ease), box-shadow .35s var(--ease), border-color .35s var(--ease), background .35s var(--ease) !important;
+}
+.btn {
+  color:#fff !important;
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 68%, #ffffff)) !important;
+  box-shadow: 0 14px 32px rgba(var(--primary-rgb),.22) !important;
+}
+.btn::after, .btn-secondary::after {
+  content:''; position:absolute; inset:-80% -20%; z-index:-1;
+  background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,.3) 50%, transparent 58%);
+  transform: translateX(-80%) rotate(8deg);
+  transition: transform .75s var(--ease);
+}
+.btn:hover::after, .btn-secondary:hover::after { transform: translateX(80%) rotate(8deg); }
+.btn-secondary { color:#fff !important; background: rgba(255,255,255,.045) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.03); }
+.btn:hover, .btn-secondary:hover, .submit-btn:hover, .btn-whatsapp:hover, .btn-email:hover, .btn-facebook:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(var(--primary-rgb),.16) !important; }
+
+section { position: relative; }
+.cards-container, .statistics-container, .hub-container, .notice-container, .content-container, .committees-grid, .courses-body, .section-wrap {
+  width: min(var(--content-w), calc(100% - 32px));
+  margin-inline: auto;
+}
+.cards-container { display:grid !important; grid-template-columns:1fr !important; gap:14px !important; padding: 44px 0 !important; }
+.card, .form-card, .support-card, .stat-card, .notice, .committee-card, .file-card, .semester-card, .state-card, .news-card, .achievement-card, .activity-card {
+  position:relative;
+  border:1px solid var(--line) !important;
+  border-radius: var(--radius-md) !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018)) !important;
+  box-shadow: 0 14px 45px rgba(0,0,0,.13), inset 0 1px rgba(255,255,255,.035) !important;
+  overflow:hidden;
+  transition: transform .45s var(--ease), border-color .45s, box-shadow .45s, background .45s;
+}
+.card::before, .form-card::before, .support-card::before, .stat-card::before, .notice::before, .committee-card::before, .file-card::before, .semester-card::before, .news-card::before, .achievement-card::before, .activity-card::before { display:none; }
+.card:hover, .form-card:hover, .support-card:hover, .stat-card:hover, .notice:hover, .committee-card:hover, .file-card:hover, .semester-card:hover, .news-card:hover, .achievement-card:hover, .activity-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(var(--primary-rgb),.24) !important;
+  box-shadow: 0 16px 38px rgba(0,0,0,.16) !important;
+}
+.card-link { text-decoration:none !important; color:inherit !important; }
+.card i, .committee-card .icon-wrapper, .notice i, .stat-card i { color:var(--primary) !important; }
+
+/* Page headings */
+.page-title-section, .page-header {
+  padding: 142px 0 28px !important;
+  text-align:center;
+}
+.page-title-section h1, .page-header h1 {
+  font-size: clamp(1.9rem,7vw,3.4rem) !important;
+  line-height:1.18 !important;
+  letter-spacing:-.045em;
+  color:#fff !important;
+  background:linear-gradient(135deg,#fff 30%,var(--primary-glow)) !important;
+  -webkit-background-clip:text !important;
+  background-clip:text !important;
+  -webkit-text-fill-color:transparent !important;
+}
+.page-title-section p, .page-header p { color:var(--text-muted) !important; max-width:720px; margin: 8px auto 0; }
+
+/* Search/filter bars */
+.news-toolbar, .search-bar {
+  width:min(var(--content-w),calc(100% - 32px));
+  margin: 0 auto 18px !important;
+  padding: 10px !important;
+  border:1px solid var(--line) !important;
+  border-radius:20px !important;
+  background:rgba(255,255,255,.035) !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.035), 0 15px 45px rgba(0,0,0,.12) !important;
+}
+.toolbar-row { gap:8px !important; }
+.news-search-box, .search-bar { min-height:52px; }
+.news-search-box input, .search-bar input, .toolbar-dropdown, .toolbar-icon-btn {
+  color:#fff !important;
+  background:rgba(255,255,255,.045) !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+  border-radius:14px !important;
+}
+.news-search-box input::placeholder, .search-bar input::placeholder { color:#68748b !important; }
+.toolbar-icon-btn:hover, .toolbar-dropdown-item:hover, .toolbar-dropdown-item.active { background:rgba(var(--primary-rgb),.13) !important; color:#fff !important; }
+.search-scope-hint { color:var(--text-soft) !important; font-size:.8rem !important; }
+
+/* Dynamic grids from JS */
+.news-container, #news-container, #page-cards-container { width:min(var(--content-w),calc(100% - 32px)); margin-inline:auto; }
+.news-container, .content-container { display:grid; grid-template-columns:1fr; gap:14px; }
+.news-card, .achievement-card, .activity-card { min-width:0; }
+.news-meta, .activity-meta, .file-meta { color:var(--text-soft) !important; }
+.news-tag, .badge, .badge-pill, .act-status-badge, .tab-badge {
+  border:1px solid rgba(var(--primary-rgb),.18) !important;
+  background:rgba(var(--primary-rgb),.10) !important;
+  color:var(--primary-glow) !important;
+  border-radius:999px !important;
+}
+.verified-badge { color:var(--accent) !important; }
+
+/* Courses: dense information made touch-friendly */
+.tabs-container { width:min(var(--content-w),calc(100% - 32px)); margin: 0 auto 20px !important; padding:0 !important; gap:8px !important; justify-content:flex-start !important; overflow-x:auto; scrollbar-width:none; }
+.tabs-container::-webkit-scrollbar { display:none; }
+.tab-button { flex:0 0 auto; border:1px solid var(--line) !important; border-radius:14px !important; background:rgba(255,255,255,.035) !important; color:var(--text-muted) !important; }
+.tab-button.active { background:rgba(var(--primary-rgb),.14) !important; color:#fff !important; border-color:rgba(var(--primary-rgb),.28) !important; box-shadow:0 10px 25px rgba(var(--primary-rgb),.09); }
+.semesters-grid, .files-grid { display:grid !important; grid-template-columns:1fr !important; gap:12px !important; }
+.file-card, .semester-card { padding:18px !important; }
+.update-banner { border:1px solid rgba(var(--primary-rgb),.2) !important; background:linear-gradient(100deg,rgba(var(--primary-rgb),.12),rgba(255,255,255,.025)) !important; border-radius:18px !important; }
+
+/* Form + statistics */
+.hub-container { display:grid !important; grid-template-columns:1fr !important; gap:16px !important; padding:44px 0 !important; }
+.form-card, .support-card { padding:20px !important; }
+.form-group input, .form-group textarea, .form-group select {
+  width:100%; border:1px solid var(--line) !important; background:rgba(0,0,0,.16) !important; color:#fff !important; border-radius:14px !important; padding:13px 14px !important; outline:none;
+  transition:border-color .25s, box-shadow .25s, background .25s;
+}
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color:rgba(var(--primary-rgb),.5) !important; box-shadow:0 0 0 4px rgba(var(--primary-rgb),.09); background:rgba(255,255,255,.035) !important; }
+.statistics-container { display:grid !important; grid-template-columns:repeat(2,1fr) !important; gap:12px !important; padding:40px 0 !important; }
+.stat-card { padding:20px !important; text-align:center; }
+.counter { color:#fff !important; font-variant-numeric:tabular-nums; }
+
+/* Lightbox / modal */
+.lightbox-overlay, .news-modal-overlay, .modal-overlay { background:rgba(2,4,10,.82) !important; backdrop-filter:blur(6px); }
+.lightbox-close, .lightbox-nav, .news-modal-close-btn, .modal-close { border:1px solid var(--line) !important; background:rgba(255,255,255,.07) !important; color:#fff !important; border-radius:14px !important; }
+.news-modal, .modal-box { border:1px solid var(--line-strong) !important; background:#0b1020 !important; border-radius:24px !important; box-shadow:0 30px 90px rgba(0,0,0,.45) !important; }
+
+/* Footer */
+footer {
+  margin-top: 56px !important;
+  padding: 30px 16px 26px !important;
+  border-top:1px solid var(--line) !important;
+  background:linear-gradient(to bottom,rgba(255,255,255,.02),rgba(255,255,255,.005)) !important;
+  color:var(--text-soft) !important;
+  text-align:center;
+}
+.developer-credit { color:var(--text-soft) !important; opacity:.82; }
+
+/* Reveal animation hook used by ui-pro.js */
+.ui-reveal { opacity:0; transform:translateY(10px); transition:opacity .38s ease-out, transform .38s ease-out; }
+.ui-reveal.is-visible { opacity:1; transform:none; }
+
+@keyframes orbitGlow { to { transform:rotate(360deg); } }
+@keyframes uiPulse { 0%,100% { opacity:.55; } 50% { opacity:1; } }
+
+@media (min-width: 680px) {
+  header#header { right:20px !important; left:20px !important; }
+  .hero-actions { flex-direction:row; max-width:none; justify-content:center; }
+  .hero-actions > * { min-width:210px; }
+  .cards-container { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .news-container, .content-container { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .semesters-grid, .files-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .hub-container { grid-template-columns:1.2fr .8fr !important; align-items:start; }
+}
+
+@media (min-width: 920px) {
+  header#header { padding-inline:24px 18px !important; }
+  nav#navMenu { position:static; opacity:1; visibility:visible; transform:none; background:transparent; border:0; box-shadow:none; padding:0; }
+  nav#navMenu ul { display:flex !important; gap:4px !important; }
+  nav#navMenu ul li a { min-height:42px; padding-inline:12px !important; }
+  .menu-toggle { display:none !important; }
+  .cards-container { grid-template-columns:repeat(4,minmax(0,1fr)) !important; }
+  .news-container, .content-container { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .semesters-grid, .files-grid { grid-template-columns:repeat(3,minmax(0,1fr)) !important; }
+  .statistics-container { grid-template-columns:repeat(4,1fr) !important; }
+  .hero { padding-top:170px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+  body::after { display:none; }
+}
+
+/* ================================================================
+   Leo UI Pro — refinement pass
+   ================================================================ */
+:root {
+  --surface-elevated: rgba(17, 24, 42, .78);
+  --focus-ring: 0 0 0 4px rgba(var(--primary-rgb), .14);
+}
+
+html { scrollbar-color: rgba(var(--primary-rgb), .45) transparent; }
+html::-webkit-scrollbar { width: 10px; }
+html::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--primary), rgba(var(--primary-rgb), .45));
+  border-radius: 999px;
+  border: 3px solid var(--bg-main);
+}
+
+
+body.ui-ready { animation:none; }
+
+/* Fine ambient layer: visual only, never blocks clicks. */
+body::marker { display:none; }
+
+section:not(.hero) > h2,
+.notice-board > h2,
+.statistics-section > h2 {
+  width: min(var(--content-w), calc(100% - 32px));
+  margin: 0 auto;
+  padding: 54px 0 8px;
+  text-align: center;
+  font-size: clamp(1.35rem, 4.8vw, 2.15rem);
+  line-height: 1.3;
+  letter-spacing: -.035em;
+  color: #fff;
+}
+section:not(.hero) > h2::after,
+.notice-board > h2::after,
+.statistics-section > h2::after {
+  content:'';
+  display:block;
+  width: 42px;
+  height: 3px;
+  margin: 13px auto 0;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  box-shadow: 0 0 18px rgba(var(--primary-rgb), .45);
+}
+
+.hero::after {
+  content:'';
+  position:absolute;
+  width: 1px;
+  height: 72px;
+  bottom: 16px;
+  left:50%;
+  transform:translateX(-50%);
+  background: linear-gradient(to bottom, rgba(var(--primary-rgb), .65), transparent);
+  opacity:.65;
+  animation: scrollHint 2.4s ease-in-out infinite;
+  pointer-events:none;
+}
+
+.card-link { display:block; min-width:0; }
+.card-link > .card { height:100%; }
+.card h3, .news-card h3, .achievement-card h3, .activity-card h3, .committee-card h3 {
+  color:#fff;
+  line-height:1.45;
+  letter-spacing:-.025em;
+}
+.card p, .news-card p, .achievement-card p, .activity-card p, .committee-card p { color:var(--text-muted); }
+
+.card i, .card > i:first-child {
+  filter: drop-shadow(0 0 14px rgba(var(--primary-rgb), .22));
+}
+
+.facility-tag, .tag, .chip, .filter-chip {
+  border:1px solid rgba(var(--primary-rgb), .15) !important;
+  background:rgba(var(--primary-rgb), .07) !important;
+  color:var(--primary-glow) !important;
+  border-radius:999px !important;
+}
+
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: none !important;
+  box-shadow: var(--focus-ring) !important;
+}
+
+input[type="radio"], input[type="checkbox"] { accent-color: var(--primary); }
+
+.type-toggle {
+  padding: 5px;
+  border:1px solid var(--line);
+  border-radius:15px;
+  background:rgba(255,255,255,.025);
+}
+.type-toggle label {
+  flex:1;
+  justify-content:center;
+  min-height:42px;
+  padding:8px 10px;
+  border-radius:11px;
+  color:var(--text-muted);
+  transition:background .25s, color .25s, transform .25s;
+}
+.type-toggle label:has(input:checked) {
+  color:#fff;
+  background:rgba(var(--primary-rgb), .13);
+  box-shadow:inset 0 0 0 1px rgba(var(--primary-rgb), .18);
+}
+.type-toggle input { margin:0; }
+
+.social-btn, .btn-whatsapp, .btn-facebook, .btn-email {
+  min-height:52px;
+  border-radius:15px !important;
+  border:1px solid var(--line) !important;
+  background:rgba(255,255,255,.035) !important;
+  color:#fff !important;
+  transition:transform .35s var(--ease), background .35s, border-color .35s, box-shadow .35s;
+}
+.social-btn:hover { transform:translateY(-3px); border-color:rgba(var(--primary-rgb),.28) !important; }
+
+.form-feedback:not(:empty) {
+  margin-bottom:14px;
+  padding:11px 13px;
+  border-radius:13px;
+  border:1px solid rgba(var(--primary-rgb), .2);
+  background:rgba(var(--primary-rgb), .07);
+}
+
+/* Media surfaces */
+img { max-width:100%; }
+.news-card img, .achievement-card img, .activity-card img, .card img {
+  transition:transform .35s ease-out;
+}
+.news-card:hover img, .achievement-card:hover img, .activity-card:hover img, .card:hover img {
+  transform:scale(1.015);
+}
+
+/* Dynamic loading/error states stay on-brand without changing JS behavior. */
+.loading, .empty-state, .error-state, .no-results {
+  border:1px dashed rgba(255,255,255,.12) !important;
+  border-radius:20px !important;
+  background:rgba(255,255,255,.025) !important;
+  color:var(--text-muted) !important;
+}
+
+/* Better touch targets and denser mobile rhythm. */
+@media (max-width: 679px) {
+  body { font-size:15px; }
+  header#header { top:8px !important; right:8px !important; left:8px !important; min-height:64px; }
+  .hero { min-height:92svh !important; padding-top:126px !important; }
+  .hero::before { width:88vw; opacity:.5; }
+  .hero::after { height:48px; bottom:7px; }
+  .hero h1 { max-width: 12ch; margin-inline:auto; }
+  .hero p { max-width: 34rem; }
+  section:not(.hero) > h2, .notice-board > h2, .statistics-section > h2 { padding-top:42px; }
+  .cards-container, .hub-container { padding-top:28px !important; padding-bottom:34px !important; }
+  .card, .form-card, .support-card { border-radius:20px !important; }
+  .card:hover, .form-card:hover, .support-card:hover, .stat-card:hover, .notice:hover { transform:none; }
+  .statistics-container { padding-top:26px !important; padding-bottom:30px !important; }
+}
+
+@media (min-width: 920px) {
+  .cards-container { grid-template-columns:repeat(3,minmax(0,1fr)) !important; }
+  .statistics-container { grid-template-columns:repeat(2,minmax(0,1fr)) !important; max-width:760px; }
+  .hero-content { padding-top:8px; }
+}
+
+@media (min-width: 1180px) {
+  .cards-container { grid-template-columns:repeat(3,minmax(0,1fr)) !important; }
+}
+
+@keyframes pageIn { from { opacity:.94; } to { opacity:1; } }
+@keyframes scrollHint { 0%,100% { transform:translate(-50%,0); opacity:.25; } 50% { transform:translate(-50%,10px); opacity:.8; } }
+
+.ui-scroll-progress {
+  position:fixed;
+  top:0;
+  right:0;
+  left:0;
+  height:2px;
+  z-index:2147483646;
+  transform-origin:100% 50%;
+  transform:scaleX(0);
+  background:linear-gradient(90deg, transparent 0%, var(--primary) 35%, var(--primary-glow) 100%);
+  box-shadow:0 0 14px rgba(var(--primary-rgb), .65);
+  pointer-events:none;
+}
+
+
+/* ================================================================
+   Leo UI Pro — final polish pass
+   ================================================================ */
+:root {
+  --primary-soft: rgba(var(--primary-rgb), .10);
+  --primary-border: rgba(var(--primary-rgb), .22);
+  --surface-strong: rgba(15, 21, 37, .86);
+}
+
+/* Prevent horizontal drift from long Arabic strings and dynamic content. */
+html, body { max-width:100%; overflow-x:hidden; }
+*, *::before, *::after { box-sizing:border-box; }
+
+/* A subtle grain-free ambient layer: pure CSS, no image asset required. */
+body::before {
+  background-image:
+    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px),
+    radial-gradient(circle at 50% -10%, rgba(var(--primary-rgb),.09), transparent 42%);
+  background-size:44px 44px, 44px 44px, auto;
+  mask-image:linear-gradient(to bottom, black, transparent 86%);
+}
+
+/* Stronger but still restrained interactive depth. */
+.card, .form-card, .support-card, .stat-card, .notice,
+.committee-card, .file-card, .semester-card, .state-card,
+.news-card, .achievement-card, .activity-card {
+  transform:translateZ(0);
+}
+
+.btn:active, .btn-secondary:active, button:active, .social-btn:active {
+  transform:translateY(1px) scale(.985) !important;
+}
+
+/* Better form controls on small screens. */
+input, select, textarea {
+  min-height:48px;
+  font:inherit;
+}
+textarea { min-height:120px; resize:vertical; }
+
+/* Public content grids: deliberate density at each breakpoint. */
+@media (min-width:680px) {
+  .committees-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .content-container { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (min-width:1040px) {
+  .committees-grid { grid-template-columns:repeat(3,minmax(0,1fr)) !important; }
+  .news-container, .content-container { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+
+/* Course UI gets a more app-like reading rhythm on phones. */
+@media (max-width:679px) {
+  .tabs-container { padding-inline:2px !important; scroll-snap-type:x proximity; }
+  .tab-button { scroll-snap-align:start; min-height:46px; }
+  .file-card, .semester-card { padding:16px !important; }
+  .breadcrumb-bar { margin-inline:16px !important; border-radius:15px !important; }
+  .hero-actions .btn, .hero-actions .btn-secondary { width:100%; }
+}
+
+/* Safe-area support for modern Android/iOS browsers. */
+@supports (padding: max(0px)) {
+  header#header { top:max(8px, env(safe-area-inset-top)); }
+  footer { padding-bottom:max(26px, env(safe-area-inset-bottom) + 18px) !important; }
+}
+
+/* Avoid expensive blur layers when the user/device asks for less motion. */
+@media (prefers-reduced-motion:reduce) {
+  .card, .form-card, .support-card, .stat-card, .notice,
+  .committee-card, .file-card, .semester-card, .state-card,
+  .news-card, .achievement-card, .activity-card { will-change:auto; }
+  .card::after, .form-card::after, .support-card::after, .stat-card::after,
+  .notice::after, .committee-card::after, .file-card::after, .semester-card::after,
+  .state-card::after, .news-card::after, .achievement-card::after, .activity-card::after { display:none; }
+}
+
+
+/* ================================================================
+   Leo UI Pro — QA hardening / final responsive pass
+   ================================================================ */
+
+/* Use the design-system fallback even if color-mix is unavailable. */
+.btn {
+  background: linear-gradient(135deg, var(--primary), var(--primary-glow)) !important;
+}
+@supports (background: color-mix(in srgb, #000 50%, #fff)) {
+  .btn { background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 68%, #fff)) !important; }
+}
+
+/* Let the grid adapt to the actual number/width of dynamic cards. */
+.cards-container,
+.news-container,
+.content-container,
+.committees-grid,
+.semesters-grid,
+.files-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)) !important;
+}
+
+/* Keep interactive content above decorative card layers. */
+.card > *, .news-card > *, .achievement-card > *, .activity-card > *,
+.committee-card > *, .file-card > *, .semester-card > *, .state-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* More reliable Arabic wrapping for dynamic titles and long filenames. */
+.card h3, .card p, .news-card h3, .news-card p,
+.achievement-card h3, .achievement-card p, .activity-card h3, .activity-card p,
+.committee-card h3, .committee-card p, .file-card, .semester-card,
+.notice, .state-card {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+/* Header polish without changing its information architecture. */
+header#header {
+  max-width: calc(100vw - 16px);
+}
+@media (max-width: 919px) {
+  header#header { display:flex !important; align-items:center; gap:10px; }
+  header#header .logo { flex:1 1 auto; }
+  header#header nav#navMenu { max-height: min(70vh, 520px); overflow:auto; }
+  nav#navMenu ul li a { justify-content:flex-start; }
+}
+
+/* A proper mobile touch target and visible keyboard state for the menu button. */
+.menu-toggle:focus-visible {
+  outline:none !important;
+  box-shadow:var(--focus-ring) !important;
+}
+
+/* Avoid hover-only motion on touch devices. */
+@media (hover:none) {
+  .card:hover, .form-card:hover, .support-card:hover, .stat-card:hover,
+  .notice:hover, .committee-card:hover, .file-card:hover, .semester-card:hover,
+  .state-card:hover, .news-card:hover, .achievement-card:hover, .activity-card:hover,
+  .btn:hover, .btn-secondary:hover, .submit-btn:hover, .social-btn:hover {
+    transform:none;
+  }
+  .card:hover::after, .form-card:hover::after, .support-card:hover::after,
+  .stat-card:hover::after, .notice:hover::after, .committee-card:hover::after,
+  .file-card:hover::after, .semester-card:hover::after, .state-card:hover::after,
+  .news-card:hover::after, .achievement-card:hover::after, .activity-card:hover::after {
+    transform:translateX(-120%);
+  }
+}
+
+/* Respect safe areas while retaining the compact header. */
+@supports (padding: max(0px)) {
+  @media (max-width: 679px) {
+    header#header {
+      margin-top: env(safe-area-inset-top);
+      max-width: calc(100vw - 16px);
+    }
+  }
+}
+
+/* Prevent animation hooks from making dynamically inserted hidden content inaccessible. */
+@media (prefers-reduced-motion: reduce) {
+  .ui-reveal { opacity:1 !important; transform:none !important; }
+}
+
+
+/* ================================================================
+   Leo UI Pro — lightweight engineering ambient animation
+   Visual only. No images, no canvas, no pointer tracking.
+   ================================================================ */
+.ui-ambient {
+  position: fixed;
+  width: min(62vw, 560px);
+  aspect-ratio: 1;
+  left: -13vw;
+  top: 22vh;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .32;
+  transform: translate3d(0,0,0);
+  contain: layout paint;
+}
+.ui-ambient::before,
+.ui-ambient::after {
+  content:'';
+  position:absolute;
+  inset:12%;
+  border-radius:50%;
+  pointer-events:none;
+}
+.ui-ambient::before {
+  border:1px solid rgba(var(--primary-rgb),.20);
+  border-right-color:transparent;
+  border-bottom-color:rgba(var(--primary-rgb),.07);
+  animation: ambientSpin 30s linear infinite;
+}
+.ui-ambient::after {
+  inset:25%;
+  border:1px dashed rgba(var(--primary-rgb),.13);
+  border-left-color:transparent;
+  animation: ambientSpinReverse 42s linear infinite;
+}
+.ui-ambient .ambient-core {
+  position:absolute;
+  inset:42%;
+  border-radius:50%;
+  background:rgba(var(--primary-rgb),.09);
+  box-shadow:0 0 34px rgba(var(--primary-rgb),.10);
+  animation: ambientPulse 5s ease-in-out infinite;
+}
+.ui-ambient .ambient-node {
+  position:absolute;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--primary);
+  box-shadow:0 0 14px rgba(var(--primary-rgb),.55);
+  top:17%;
+  left:50%;
+  transform:translateX(-50%);
+}
+@keyframes ambientSpin { to { transform:rotate(360deg); } }
+@keyframes ambientSpinReverse { to { transform:rotate(-360deg); } }
+@keyframes ambientPulse { 0%,100%{opacity:.45;transform:scale(.9)} 50%{opacity:.8;transform:scale(1.08)} }
+@media (max-width:679px) {
+  .ui-ambient { width:360px; left:-190px; top:28vh; opacity:.22; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .ui-ambient { display:none; }
+}

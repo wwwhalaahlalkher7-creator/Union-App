@@ -30,6 +30,74 @@ class DesignTokens {
   static const Duration emphasized = Duration(milliseconds: 360);
 }
 
+class AppAccentColor {
+  const AppAccentColor({
+    required this.id,
+    required this.nameAr,
+    required this.nameEn,
+    required this.primary,
+    required this.primaryDark,
+  });
+
+  final String id;
+  final String nameAr;
+  final String nameEn;
+  final Color primary;
+  final Color primaryDark;
+
+  static const defaultColor = AppAccentColor(
+    id: 'orange',
+    nameAr: 'برتقالي TRINEX',
+    nameEn: 'TRINEX Orange',
+    primary: Color(0xFFF47B20),
+    primaryDark: Color(0xFFFF9848),
+  );
+
+  static const List<AppAccentColor> presets = [
+    defaultColor,
+    AppAccentColor(
+      id: 'teal',
+      nameAr: 'تركوازي زمردي',
+      nameEn: 'Emerald Teal',
+      primary: Color(0xFF0D9488),
+      primaryDark: Color(0xFF2DD4BF),
+    ),
+    AppAccentColor(
+      id: 'sapphire',
+      nameAr: 'أزرق ياقوتي',
+      nameEn: 'Sapphire Blue',
+      primary: Color(0xFF2563EB),
+      primaryDark: Color(0xFF60A5FA),
+    ),
+    AppAccentColor(
+      id: 'purple',
+      nameAr: 'بنفسجي ملكي',
+      nameEn: 'Royal Amethyst',
+      primary: Color(0xFF7C3AED),
+      primaryDark: Color(0xFFA78BFA),
+    ),
+    AppAccentColor(
+      id: 'rose',
+      nameAr: 'وردي مرجاني',
+      nameEn: 'Coral Rose',
+      primary: Color(0xFFE11D48),
+      primaryDark: Color(0xFFFB7185),
+    ),
+    AppAccentColor(
+      id: 'amber',
+      nameAr: 'عنبري دافئ',
+      nameEn: 'Warm Amber',
+      primary: Color(0xFFD97706),
+      primaryDark: Color(0xFFFBBF24),
+    ),
+  ];
+
+  static AppAccentColor fromId(String? id) {
+    if (id == null) return defaultColor;
+    return presets.firstWhere((c) => c.id == id, orElse: () => defaultColor);
+  }
+}
+
 class AppColors {
   AppColors._();
 

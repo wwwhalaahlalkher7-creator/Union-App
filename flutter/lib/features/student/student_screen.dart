@@ -121,7 +121,14 @@ class _StudentScreenState extends State<StudentScreen> {
               const SizedBox(height: 16),
               AppButton(label: l10n.t('signIn'), icon: Icons.login_rounded, onPressed: _loading ? null : _login),
               const SizedBox(height: 8),
-              TextButton(onPressed: () => context.pop(), child: Text(l10n.t('continueAsGuest'))),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(onPressed: () => context.push('/register'), child: Text(l10n.t('createAccount'))),
+                  const Text('•'),
+                  TextButton(onPressed: () => context.pop(), child: Text(l10n.t('continueAsGuest'))),
+                ],
+              ),
             ]),
           ),
         ],
@@ -165,6 +172,7 @@ class _StudentScreenState extends State<StudentScreen> {
             AppSection(title: l10n.t('studyDashboard'), child: Column(children: [
               _link(l10n.t('materials'), l10n.t('materialsStudentSubtitle'), Icons.menu_book_rounded, '/materials'),
               _link(l10n.t('schedule'), l10n.t('scheduleStudentSubtitle'), Icons.calendar_month_rounded, '/schedule'),
+              _link(l10n.t('toolsTitle'), l10n.t('toolsSubtitle'), Icons.handyman_rounded, '/tools'),
               _link(l10n.t('studyProgress'), l10n.t('progressStudentSubtitle'), Icons.insights_rounded, '/progress'),
               _link(l10n.t('xpLevel'), l10n.t('studyProgressSubtitle'), Icons.bolt_rounded, '/xp'),
               _link(l10n.t('achievements'), l10n.t('badgesStudentSubtitle'), Icons.emoji_events_rounded, '/badges'),

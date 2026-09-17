@@ -71,10 +71,21 @@ class _StudentAccessGateState extends State<StudentAccessGate> {
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
                     ),
                     const SizedBox(height: 20),
-                    FilledButton.icon(
-                      onPressed: () => context.push('/student'),
-                      icon: const Icon(Icons.login_rounded),
-                      label: Text(l10n.t('signIn')),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: () => context.push('/login'),
+                          icon: const Icon(Icons.login_rounded, size: 18),
+                          label: Text(l10n.t('signIn')),
+                        ),
+                        const SizedBox(width: 10),
+                        OutlinedButton.icon(
+                          onPressed: () => context.push('/register'),
+                          icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                          label: Text(l10n.t('createAccount')),
+                        ),
+                      ],
                     ),
                   ],
                 ),

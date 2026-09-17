@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="favicon.png">
+
+    <title>الأمانات واللجان - رابطة كلية الهندسة والعمارة</title>
+
+    <!-- SEO: وصف الصفحة والرابط الأساسي -->
+    <meta name="description" content="أمانات ولجان رابطة كلية الهندسة والعمارة التنفيذية – جامعة شندي وأعضاؤها.">
+    <link rel="canonical" href="https://ush-eng.great-site.net/committees.html">
+
+    <!-- Open Graph / مشاركة على وسائل التواصل -->
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="ar_AR">
+    <meta property="og:title" content="الأمانات واللجان - رابطة كلية الهندسة والعمارة">
+    <meta property="og:description" content="أمانات ولجان رابطة كلية الهندسة والعمارة التنفيذية – جامعة شندي وأعضاؤها.">
+    <meta property="og:url" content="https://ush-eng.great-site.net/committees.html">
+    <meta property="og:image" content="https://ush-eng.great-site.net/favicon.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="الأمانات واللجان - رابطة كلية الهندسة والعمارة">
+    <meta name="twitter:description" content="أمانات ولجان رابطة كلية الهندسة والعمارة التنفيذية – جامعة شندي.">
+    <meta name="twitter:image" content="https://ush-eng.great-site.net/favicon.png">
+
+    <!-- مكتبة الأيقونات FontAwesome -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <!-- خط كايرو -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-main: #0a0f14;         
+            --bg-surface: #121b24;      
+            --bg-surface-glow: #1a2734; 
+            --primary: #ff9100;         
+            --primary-glow: #ffb45c;
+        --primary-rgb: 255, 145, 0;    
+            --whatsapp-color: #25d366;
+            --text-main: #f4f6f8;       
+            --text-muted: #94a3b8;      
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Cairo', sans-serif;
+            scroll-behavior: smooth;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: -10%;
+            left: -10%;
+            width: 120%;
+            height: 120%;
+            background: radial-gradient(circle at 50% 15%, rgba(255, 145, 0, 0.04) 0%, transparent 50%),
+                        radial-gradient(circle at 85% 85%, rgba(0, 95, 115, 0.06) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* الهيدر */
+        header {
+            background-color: rgba(18, 27, 36, 0.75);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 100%;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 145, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 8%;
+            transition: var(--transition-smooth);
+        }
+
+        header.scrolled {
+            padding: 12px 8%;
+            background-color: rgba(10, 15, 20, 0.92);
+            border-bottom: 1px solid rgba(255, 145, 0, 0.25);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo h2 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #fff;
+            background: linear-gradient(45deg, #fff, var(--primary-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo p {
+            font-size: 0.8rem;
+            color: var(--primary);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-top: -2px;
+        }
+
+        .menu-toggle {
+            display: none;
+            color: var(--text-main);
+            font-size: 1.4rem;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .menu-toggle:hover {
+            color: var(--primary-glow);
+        }
+
+        nav ul {
+            display: flex;
+            list-style: none;
+            gap: 28px;
+            align-items: center;
+        }
+
+        nav ul li a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: var(--transition-smooth);
+            padding: 6px 0;
+            position: relative;
+        }
+
+        nav ul li a:hover, nav ul li a.active {
+            color: var(--primary-glow);
+        }
+
+        nav ul li a::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 0;
+            height: 2px;
+            background-color: var(--primary);
+            transition: var(--transition-smooth);
+        }
+
+        nav ul li a:hover::after, nav ul li a.active::after {
+            width: 100%;
+        }
+
+        /* ترويسة العنوان الرئيسي */
+        .page-title-section {
+            padding: 140px 8% 40px 8%;
+            text-align: center;
+        }
+
+        .page-title-section h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #fff;
+            background: linear-gradient(135deg, #fff 45%, var(--primary-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+        }
+
+        .page-title-section p {
+            color: var(--text-muted);
+            font-size: 1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* شبكة عرض الأمانات */
+        .committees-grid {
+            max-width: 1200px;
+            margin: 0 auto 80px auto;
+            padding: 0 5%;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 25px;
+            width: 100%;
+        }
+
+        /* كرت الأمانة المنفرد */
+        .committee-card {
+            background-color: var(--bg-surface);
+            border: 1px solid rgba(255, 145, 0, 0.05);
+            border-radius: 18px;
+            padding: 35px 25px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: var(--transition-smooth);
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .committee-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 10%; width: 80%; height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            opacity: 0;
+            transition: var(--transition-smooth);
+        }
+
+        .committee-card:hover {
+            transform: translateY(-5px);
+            background-color: var(--bg-surface-glow);
+            border-color: rgba(255, 145, 0, 0.2);
+            box-shadow: 0 15px 35px rgba(255, 145, 0, 0.05);
+        }
+
+        .committee-card:hover::after {
+            opacity: 1;
+        }
+
+        /* الأيقونات الدائرية المضيئة للجان */
+        .icon-wrapper {
+            width: 70px;
+            height: 70px;
+            background-color: rgba(255, 145, 0, 0.05);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 145, 0, 0.15);
+            transition: var(--transition-smooth);
+        }
+
+        .committee-card:hover .icon-wrapper {
+            background-color: var(--primary);
+            border-color: var(--primary-glow);
+            box-shadow: 0 0 20px rgba(255, 145, 0, 0.4);
+        }
+
+        .icon-wrapper i {
+            font-size: 1.8rem;
+            color: var(--primary);
+            transition: var(--transition-smooth);
+        }
+
+        .committee-card:hover .icon-wrapper i {
+            color: #fff;
+        }
+
+        .committee-card h3 {
+            font-size: 1.3rem;
+            color: #fff;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .committee-card p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 25px;
+            flex-grow: 1;
+        }
+
+        /* زر الواتساب المطور */
+        .btn-whatsapp {
+            background-color: transparent;
+            border: 1.5px solid var(--whatsapp-color);
+            color: var(--whatsapp-color);
+            padding: 10px 24px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: var(--transition-smooth);
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-whatsapp i {
+            font-size: 1.15rem;
+        }
+
+        .btn-whatsapp:hover {
+            background-color: var(--whatsapp-color);
+            color: #fff;
+            box-shadow: 0 5px 20px rgba(37, 211, 102, 0.3);
+            transform: scale(1.02);
+        }
+
+        /* الفوتر */
+        footer {
+            background-color: #05080b; padding: 35px 8%; text-align: center;
+            border-top: 1px solid rgba(255, 145, 0, 0.08); color: var(--text-muted); font-size: 0.9rem; margin-top: auto;
+        }
+        .developer-credit { margin-top: 10px; font-size: 0.85rem; color: var(--primary-glow); font-weight: 600; letter-spacing: 0.5px; }
+
+        /* التجاوب للهواتف */
+        @media (max-width: 768px) {
+            .menu-toggle { display: block; }
+
+            nav {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 100%;
+                background-color: rgba(18, 27, 36, 0.98);
+                backdrop-filter: blur(10px);
+                max-height: 0;
+                overflow: hidden;
+                opacity: 0;
+                visibility: hidden;
+                transform: translateY(-14px);
+                transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                            opacity 0.35s ease,
+                            transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                            visibility 0.45s;
+                border-bottom: 0 solid rgba(255, 145, 0, 0.2);
+                box-shadow: 0 15px 30px rgba(0,0,0,0.4);
+                transform-origin: top center;
+            }
+
+            nav.active {
+                max-height: 500px;
+                opacity: 1;
+                visibility: visible;
+                transform: translateY(0);
+                border-bottom: 1px solid rgba(255, 145, 0, 0.2);
+            }
+
+            nav ul {
+                flex-direction: column;
+                gap: 0;
+                padding: 15px 0;
+            }
+
+            nav ul li { width: 100%; text-align: center; }
+
+            nav ul li a {
+                display: block;
+                padding: 12px 0;
+                width: 100%;
+            }
+
+            nav ul li a::after { display: none; }
+
+            .page-title-section h1 { font-size: 2rem; }
+            .committees-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="ui-pro.css?v=3">
+</head>
+
+<body>
+
+<header id="header">
+    <div class="logo">
+        <h2 id="siteLogoName">رابطة كلية الهندسة والعمارة</h2>
+        <p>جامعة شندي</p>
+    </div>
+    
+    <div class="menu-toggle" id="menuToggle" aria-label="قائمة التنقل" aria-expanded="false">
+        <i class="fas fa-bars"></i>
+    </div>
+
+    <nav id="navMenu">
+        <ul>
+            <li><a href="index.html">الرئيسية</a></li>
+            <li><a href="Injazat.html">الإنجازات</a></li>
+            <li><a href="courses.html">المواد الدراسية</a></li>
+            <li><a href="activities.html">النشاطات</a></li>
+            <li><a href="committees.html" class="active">الأمانات الأخرى</a></li>
+            <li><a href="news.html">آخر الأخبار</a></li>
+        </ul>
+    </nav>
+</header>
+
+<section class="page-title-section">
+    <h1>أمانات الرابطة التنفيذية</h1>
+    <p>تعرّف على الهيكل الإداري واللجان التي تسهر على تلبية احتياجات الطلاب الأكاديمية، والخدمية، والترفيهية داخل الكلية.</p>
+</section>
+
+<main class="committees-grid">
+
+    <!-- 1. الأمانة المالية -->
+    <div class="committee-card">
+        <div class="icon-wrapper">
+            <i class="fas fa-wallet"></i>
+        </div>
+        <h3>الأمانة المالية</h3>
+        <p>إدارة الميزانيات، الاشتراكات السنوية، والتمويل المخصص للمشاريع والفعاليات والأنشطة الهندسية المختلفة للرابطة.</p>
+        <a href="https://wa.me/249960679352?text=مرحباً%20الناير%20الطيب" class="btn-whatsapp" target="_blank">
+            <i class="fab fa-whatsapp"></i> تواصل مع الناير الطيب
+        </a>
+    </div>
+
+    <!-- 2. الأمانة الثقافية -->
+    <div class="committee-card">
+        <div class="icon-wrapper">
+            <i class="fas fa-masks-theater"></i>
+        </div>
+        <h3>الأمانة الثقافية</h3>
+        <p>تنظيم الليالي والمهرجانات الثقافية، المسابقات، الندوات الفكرية، والمعارض الإبداعية التي تعزز مواهب الطلاب.</p>
+        <a href="https://wa.me/249901467455?text=مرحباً%20كمال%20عبد%20الرحمن" class="btn-whatsapp" target="_blank">
+            <i class="fab fa-whatsapp"></i> تواصل مع كمال عبد الرحمن
+        </a>
+    </div>
+
+    <!-- 3. الأمانة الإعلامية -->
+    <div class="committee-card">
+        <div class="icon-wrapper">
+            <i class="fas fa-camera-retro"></i>
+        </div>
+        <h3>الأمانة الإعلامية</h3>
+        <p>تغطية كافة الأحداث وتصميم المحتوى الرقمي وإدارة النوافذ والمنصات الرسمية للرابطة والكلية وإبرازها للجمهور.</p>
+        <a href="https://wa.me/249906507741?text=مرحباً%20وئام%20قرشي" class="btn-whatsapp" target="_blank">
+            <i class="fab fa-whatsapp"></i> تواصل مع وئام قرشي
+        </a>
+    </div>
+
+    <!-- 4. أمانة العلاقات الخارجية -->
+    <div class="committee-card">
+        <div class="icon-wrapper">
+            <i class="fas fa-handshake"></i>
+        </div>
+        <h3>أمانة العلاقات الخارجية</h3>
+        <p>بناء العلاقات والروابط المتينة مع بقية الكليات والكيانات الأكاديمية والمؤسسات داخل الجامعة وخارجها بما يخدم مصلحة طلابنا وينعكس عليهم بالنفع.</p>
+        <a href="https://wa.me/249923638223?text=مرحباً%20عبد%20الملك%20احمد" class="btn-whatsapp" target="_blank">
+            <i class="fab fa-whatsapp"></i> تواصل مع عبد الملك احمد
+        </a>
+    </div>
+
+    <!-- 5. الأمانة الاجتماعية -->
+    <div class="committee-card">
+        <div class="icon-wrapper">
+            <i class="fas fa-users-gear"></i>
+        </div>
+        <h3>الأمانة الاجتماعية</h3>
+        <p>تعزيز التكافل الاجتماعي، دعم الطلاب، وتنظيم رحلات الترفيه ومناسبات المعايدة والتكريم لأسرة الكلية.</p>
+        <a href="https://wa.me/249904951154?text=مرحباً%20صديق%20النور" class="btn-whatsapp" target="_blank">
+            <i class="fab fa-whatsapp"></i> تواصل مع صديق النور
+        </a>
+    </div>
+
+    <!-- 6. الأمانة الأكاديمية -->
+    <div class="committee-card">
+        <div class="icon-wrapper">
+            <i class="fas fa-graduation-cap"></i>
+        </div>
+        <h3>الأمانة الأكاديمية</h3>
+        <p>توفير وتجميع الكورسات، الشيتات، ملازم ومراجعات المناهج الدراسية وحل العقبات الأكاديمية مع الإدارة.</p>
+        <a href="https://wa.me/249962540965?text=مرحباً%20الواثق%20بابكر" class="btn-whatsapp" target="_blank">
+            <i class="fab fa-whatsapp"></i> تواصل مع الواثق بابكر
+        </a>
+    </div>
+
+    <!-- 7. الأمانة الرياضية -->
+    <div class="committee-card">
+        <div class="icon-wrapper">
+            <i class="fas fa-trophy"></i>
+        </div>
+        <h3>الأمانة الرياضية</h3>
+        <p>تنظيم الدوريات الرياضية، بطولات كرة القدم، الرياضات الإلكترونية، وتوفير المعدات والمساحات لتطوير اللياقة البدنية والروح الرياضية.</p>
+        <a href="https://wa.me/249928125849?text=مرحباً%20عمر%20طيفور" class="btn-whatsapp" target="_blank">
+            <i class="fab fa-whatsapp"></i> تواصل مع عمر طيفور
+        </a>
+    </div>
+
+</main>
+
+<footer>
+    <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
+    <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
+</footer>
+
+<script>
+    // تغيير سلوك الهيدر عند التمرير لأسفل
+    window.addEventListener('scroll', () => {
+        const header = document.getElementById('header');
+        if (window.scrollY > 40) header.classList.add('scrolled');
+        else header.classList.remove('scrolled');
+    });
+
+    // قائمة الهامبرغر للهواتف
+    const menuToggle = document.getElementById('menuToggle');
+    const navMenu = document.getElementById('navMenu');
+    menuToggle.addEventListener('click', () => {
+        navMenu.classList.toggle('active');
+        const expanded = navMenu.classList.contains('active');
+        menuToggle.setAttribute('aria-expanded', expanded);
+        const icon = menuToggle.querySelector('i');
+        icon.classList.toggle('fa-bars');
+        icon.classList.toggle('fa-times');
+    });
+
+    // إغلاق القائمة عند الضغط خارجها (للهاتف)
+    window.addEventListener('click', (e) => {
+        if (navMenu && !navMenu.contains(e.target) && !menuToggle.contains(e.target)) {
+            if(navMenu.classList.contains('active')) {
+                menuToggle.click();
+            }
+        }
+    });
+
+    // إغلاق القائمة تلقائياً عند العودة لهذه الصفحة (زر رجوع المتصفح / bfcache)
+    // حتى لا تبقى القائمة مفتوحة كما كانت عليه الحال قبل مغادرة الصفحة
+    window.addEventListener('pageshow', () => {
+        navMenu.classList.remove('active');
+        menuToggle.setAttribute('aria-expanded', 'false');
+        const menuIcon = menuToggle.querySelector('i');
+        if (menuIcon) {
+            menuIcon.classList.add('fa-bars');
+            menuIcon.classList.remove('fa-times');
+        }
+    });
+</script>
+<script src="site-settings.js"></script>
+    <script src="ui-pro.js?v=5"></script>
+</body>
+</html>

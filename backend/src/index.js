@@ -71,6 +71,7 @@ export default {
       if (request.method === 'GET' && path === '/public/materials') return publicMaterials(ctx);
 
       if (path === '/auth/login' && request.method === 'POST') return login(ctx);
+      if (path === '/auth/register' && request.method === 'POST') return registerStudent(ctx);
       if (path === '/auth/staff/login' && request.method === 'POST') return staffLogin(ctx);
       if (path === '/auth/staff/bootstrap' && request.method === 'POST') return staffBootstrap(ctx);
       if (path === '/auth/staff/me' && request.method === 'GET') return staffMe(ctx);
@@ -81,6 +82,7 @@ export default {
 
       if (path === '/student/me' && request.method === 'GET') return studentMe(ctx);
       if (path === '/student/profile' && request.method === 'GET') return studentMe(ctx);
+      if (path === '/student/semester' && request.method === 'POST') return updateStudentSemester(ctx);
       if (path === '/student/stats' && request.method === 'GET') return studentStats(ctx);
       if (path === '/student/notifications' && request.method === 'GET') return studentNotifications(ctx);
       if (path === '/student/notifications/read' && request.method === 'POST') return studentNotificationRead(ctx);
@@ -528,10 +530,10 @@ async function login(ctx) {
   const ipLimit = await authIpRateLimit(ctx, 'student_login', AUTH_IP_LOGIN_LIMIT);
   if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد محاولات تسجيل الدخول مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
   const body = await parseJson(ctx.request);
-  const studentNumber = String(body?.studentNumber || '').trim();
+  const identifier = String(body?.studentNumber || body?.identifier || body?.email || '').trim();
   const secret = String(body?.password || body?.verificationCode || '');
-  if (!studentNumber || !secret || secret.length > 256) return error('AUTH_INPUT_INVALID', 'أدخل رقم الطالب وبيانات التحقق.', 400, ctx.requestId, ctx.cors);
-  const student = await queryOne(ctx.env, 'SELECT * FROM students WHERE student_number = ? AND active = 1 LIMIT 1', studentNumber);
+  if (!identifier || !secret || secret.length > 256) return error('AUTH_INPUT_INVALID', 'أدخل رقم الطالب أو البريد الإلكتروني وبيانات التحقق.', 400, ctx.requestId, ctx.cors);
+  const student = await queryOne(ctx.env, 'SELECT * FROM students WHERE (student_number = ? OR (email IS NOT NULL AND lower(email) = ?)) AND active = 1 LIMIT 1', identifier, identifier.toLowerCase());
   if (!student || !student.auth_secret_hash) return error('AUTH_INVALID_CREDENTIALS', 'بيانات تسجيل الدخول غير صحيحة.', 401, ctx.requestId, ctx.cors);
   if (student.locked_until && new Date(student.locked_until).getTime() > Date.now()) return lockedResponse(ctx);
   const valid = await verifySecret(secret, student.auth_secret_hash, student.auth_secret_salt, student.auth_secret_algo);
@@ -545,6 +547,60 @@ async function login(ctx) {
   if ((student.auth_secret_algo || 'legacy-sha256') === 'legacy-sha256') await upgradeStudentHash(ctx, student, secret);
   else await ctx.env.DB.prepare('UPDATE students SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?').bind(student.id).run();
   await recordAuthEvent(ctx, 'student', student.id, 'login_success');
+  return issueSession(ctx, { studentId: student.id });
+}
+
+async function registerStudent(ctx) {
+  const ipLimit = await authIpRateLimit(ctx, 'student_register', AUTH_IP_LOGIN_LIMIT);
+  if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد محاولات التسجيل مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
+  const body = await parseJson(ctx.request);
+  const studentNumber = String(body?.studentNumber || '').trim();
+  const departmentId = String(body?.departmentId || '').trim();
+  const semesterId = String(body?.semesterId || body?.currentSemesterId || '').trim();
+  const email = String(body?.email || '').trim().toLowerCase();
+  const password = String(body?.password || '');
+  const confirmPassword = String(body?.confirmPassword || '');
+
+  if (!studentNumber || !departmentId || !semesterId || !email || !password) {
+    return error('REGISTER_FIELDS_REQUIRED', 'جميع حقول التسجيل مطلوبة.', 400, ctx.requestId, ctx.cors);
+  }
+  if (!email.includes('@') || email.length > 180) {
+    return error('EMAIL_INVALID', 'يرجى إدخال بريد إلكتروني صالح.', 400, ctx.requestId, ctx.cors);
+  }
+  if (password.length < 6 || password.length > 256) {
+    return error('PASSWORD_TOO_SHORT', 'كلمة المرور يجب ألا تقل عن 6 أحرف.', 400, ctx.requestId, ctx.cors);
+  }
+  if (confirmPassword && password !== confirmPassword) {
+    return error('PASSWORDS_MISMATCH', 'كلمتا المرور غير متطابقتين.', 400, ctx.requestId, ctx.cors);
+  }
+
+  const dept = await queryOne(ctx.env, 'SELECT id, name_ar FROM departments WHERE id = ? AND active = 1', departmentId);
+  if (!dept) return error('DEPARTMENT_NOT_FOUND', 'التخصص المختار غير صالح.', 400, ctx.requestId, ctx.cors);
+
+  const sem = await queryOne(ctx.env, 'SELECT id, name_ar FROM semesters WHERE id = ? AND active = 1', semesterId);
+  if (!sem) return error('SEMESTER_NOT_FOUND', 'الفصل الدراسي المختار غير صالح.', 400, ctx.requestId, ctx.cors);
+
+  const student = await queryOne(ctx.env, 'SELECT * FROM students WHERE student_number = ? AND active = 1 LIMIT 1', studentNumber);
+  if (!student) {
+    return error('STUDENT_NOT_FOUND', 'الرقم الجامعي غير مسجل في قيود الكلية. يرجى مراجعة إدارة الكلية.', 404, ctx.requestId, ctx.cors);
+  }
+  if (student.auth_secret_hash) {
+    return error('ACCOUNT_ALREADY_REGISTERED', 'هذا الحساب مسجل بالفعل. يمكنك تسجيل الدخول مباشرة.', 409, ctx.requestId, ctx.cors);
+  }
+
+  const emailInUse = await queryOne(ctx.env, 'SELECT id FROM students WHERE lower(email) = ? AND id <> ? AND active = 1', email, student.id);
+  if (emailInUse) {
+    return error('EMAIL_ALREADY_IN_USE', 'البريد الإلكتروني مستخدم بالفعل لحساب طالب آخر.', 409, ctx.requestId, ctx.cors);
+  }
+
+  const salt = token(16);
+  const hash = await pbkdf2Hash(password, salt);
+
+  await ctx.env.DB.prepare(
+    'UPDATE students SET email = ?, department_id = ?, current_semester_id = ?, auth_secret_hash = ?, auth_secret_salt = ?, auth_secret_algo = \'pbkdf2-sha256\', failed_login_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  ).bind(email, dept.id, sem.id, hash, salt, student.id).run();
+
+  await recordAuthEvent(ctx, 'student', student.id, 'register_success');
   return issueSession(ctx, { studentId: student.id });
 }
 
@@ -723,6 +779,17 @@ async function studentAuth(ctx) {
 }
 
 async function studentMe(ctx) { const a = await studentAuth(ctx); if (a.response) return a.response; const row = await queryOne(ctx.env, `SELECT st.id AS studentId, st.student_number AS studentNumber, st.full_name AS fullName, st.department_id AS departmentId, d.name_ar AS departmentName, st.current_semester_id AS currentSemesterId, se.name_ar AS semesterName FROM students st LEFT JOIN departments d ON d.id = st.department_id LEFT JOIN semesters se ON se.id = st.current_semester_id WHERE st.id = ? AND st.active = 1`, a.session.student_id); return ok(ctx, row || sanitizeSession(a.session)); }
+
+async function updateStudentSemester(ctx) {
+  const a = await studentAuth(ctx); if (a.response) return a.response;
+  const body = await parseJson(ctx.request);
+  const semesterId = String(body?.semesterId || body?.currentSemesterId || '').trim();
+  if (!semesterId) return error('SEMESTER_REQUIRED', 'معرّف الفصل الدراسي مطلوب.', 400, ctx.requestId, ctx.cors);
+  const sem = await queryOne(ctx.env, 'SELECT id, name_ar FROM semesters WHERE id = ? AND active = 1', semesterId);
+  if (!sem) return error('SEMESTER_NOT_FOUND', 'الفصل الدراسي غير صالح.', 404, ctx.requestId, ctx.cors);
+  await ctx.env.DB.prepare('UPDATE students SET current_semester_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(semesterId, a.session.student_id).run();
+  return ok(ctx, { updated: true, currentSemesterId: semesterId, semesterName: sem.name_ar });
+}
 
 async function studentStats(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;

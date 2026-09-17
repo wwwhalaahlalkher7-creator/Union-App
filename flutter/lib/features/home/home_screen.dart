@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/network/api_client.dart';
 import '../../core/storage/auth_storage.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../data/repositories/student_repository.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/pressable.dart';
 import '../../shared/widgets/responsive_content.dart';
@@ -21,6 +25,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _signedIn = false;
   bool _sessionLoaded = false;
+  String? _studentName;
+  String? _studentNumber;
+  String? _departmentName;
+  String? _semesterName;
+  String? _semesterId;
+
+  ApiClient? _client;
+  AuthStorage? _storage;
+  StudentRepository? _studentRepo;
 
   @override
   void initState() {
@@ -28,62 +41,197 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadSession();
   }
 
+  @override
+  void dispose() {
+    _client?.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadSession() async {
     final storage = await AuthStorage.create();
-    if (!mounted) return;
+    _storage = storage;
     final signedIn = await storage.isLoggedIn;
+
+    String? name;
+    String? number;
+    String? dept;
+    String? sem;
+    String? semId;
+
+    if (signedIn) {
+      final client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: storage);
+      _client = client;
+      _studentRepo = StudentRepository(client);
+
+      name = await storage.studentName;
+      number = await storage.studentNumber;
+      dept = await storage.departmentName;
+      sem = await storage.semesterName;
+      semId = await storage.currentSemesterId;
+
+      // Also try to refresh profile cache if fields are missing
+      if (dept == null || sem == null) {
+        try {
+          final profile = await _studentRepo!.profile();
+          name = profile.name;
+          number = profile.studentNumber;
+          dept = profile.departmentName;
+          sem = profile.semesterName;
+          semId = profile.semesterId;
+        } catch (_) {}
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _signedIn = signedIn;
+      _studentName = name;
+      _studentNumber = number;
+      _departmentName = dept;
+      _semesterName = sem;
+      _semesterId = semId;
       _sessionLoaded = true;
     });
+  }
+
+  Future<void> _openSemesterPicker() async {
+    final repo = _studentRepo;
+    final storage = _storage;
+    if (repo == null || storage == null) return;
+    final l10n = AppLocalizations.of(context);
+
+    try {
+      final semesters = await repo.semesters();
+      if (!mounted) return;
+
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (ctx) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Theme.of(ctx).colorScheme.outline.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    l10n.t('updateSemesterTitle'),
+                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 12),
+                  ...semesters.map((s) {
+                    final sid = s['id']?.toString() ?? '';
+                    final sname = s['name']?.toString() ?? '';
+                    final isCurrent = sid == _semesterId;
+                    return ListTile(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      selected: isCurrent,
+                      selectedTileColor: Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.1),
+                      leading: Icon(
+                        isCurrent ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                        color: isCurrent ? Theme.of(ctx).colorScheme.primary : null,
+                      ),
+                      title: Text(sname, style: TextStyle(fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal)),
+                      onTap: () async {
+                        Navigator.of(ctx).pop();
+                        try {
+                          await repo.updateSemester(sid);
+                          await storage.updateCachedSemester(sid, sname);
+                          if (!mounted) return;
+                          setState(() {
+                            _semesterId = sid;
+                            _semesterName = sname;
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(l10n.t('semesterUpdatedSuccess')),
+                              backgroundColor: Theme.of(context).colorScheme.primary,
+                            ),
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+                          );
+                        }
+                      },
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
     return CustomScrollView(
       physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
       slivers: [
+        // App Bar
         SliverAppBar(
           pinned: true,
-          toolbarHeight: 70,
-          backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+          toolbarHeight: 66,
+          backgroundColor: theme.colorScheme.surfaceContainerLowest,
           surfaceTintColor: Colors.transparent,
           titleSpacing: DesignTokens.space16,
-          title: const TrinexLogo(width: 132),
+          title: const TrinexLogo(width: 128),
           actions: [
-            _HeaderIcon(
+            _HeaderIconButton(
               icon: Icons.notifications_none_rounded,
               onTap: () => context.push('/notifications'),
               tooltip: l10n.t('notifications'),
             ),
             const SizedBox(width: 8),
+            _HeaderIconButton(
+              icon: Icons.settings_outlined,
+              onTap: () => context.push('/settings'),
+              tooltip: l10n.t('settings'),
+            ),
+            const SizedBox(width: 12),
           ],
         ),
+
+        // Body Content
         SliverToBoxAdapter(
           child: ResponsiveContent(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 38),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 42),
             child: StaggeredFadeIn(
-              delay: const Duration(milliseconds: 45),
+              delay: const Duration(milliseconds: 35),
               children: [
-                _WelcomeBlock(signedIn: _signedIn, loaded: _sessionLoaded),
-                const SizedBox(height: 16),
-                _SearchBar(onTap: () => context.push('/materials')),
-                const SizedBox(height: 22),
-                _SectionHeader(title: l10n.t('quickAccess'), action: l10n.t('allServices'), onTap: () => context.push('/more')),
-                const SizedBox(height: 10),
-                _QuickGrid(),
-                const SizedBox(height: 24),
-                _StudyProgressCard(signedIn: _signedIn),
-                const SizedBox(height: 26),
-                _SectionHeader(title: l10n.t('latestUpdates'), action: l10n.t('viewAll'), onTap: () => context.push('/news')),
-                const SizedBox(height: 10),
-                _UpdatesRow(),
-                const SizedBox(height: 26),
-                const _EinoHero(),
-                const SizedBox(height: 24),
-                _ServicesCard(),
+                if (!_sessionLoaded)
+                  const _LoadingSkeleton()
+                else if (_signedIn)
+                  _buildRegisteredStudentExperience(context, l10n)
+                else
+                  _buildGuestExperience(context, l10n),
               ],
             ),
           ),
@@ -91,10 +239,281 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+
+  // -------------------------------------------------------------
+  // Registered Student Flow (Academic Focus)
+  // -------------------------------------------------------------
+  Widget _buildRegisteredStudentExperience(BuildContext context, AppLocalizations l10n) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Personal Academic Banner Card
+        AppCard(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: primary.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.school_rounded, color: primary, size: 26),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _studentName ?? _studentNumber ?? l10n.t('studentFallback'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _departmentName ?? 'كلية الهندسة والعمارة',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Semester Badge with Change Button
+                  InkWell(
+                    onTap: _openSemesterPicker,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: primary.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.tune_rounded, size: 14, color: primary),
+                          const SizedBox(width: 4),
+                          Text(
+                            _semesterName ?? l10n.t('semester'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Quick Academic Actions
+        _SectionHeader(
+          title: l10n.t('quickAccess'),
+          action: l10n.t('allServices'),
+          onTap: () => context.push('/more'),
+        ),
+        const SizedBox(height: 10),
+        _AcademicQuickGrid(onSemesterTap: _openSemesterPicker),
+        const SizedBox(height: 22),
+
+        // Progress & XP Card
+        _StudyProgressCard(signedIn: true),
+        const SizedBox(height: 22),
+
+        // Eino Academic Helper Card
+        const _EinoAcademicCard(),
+        const SizedBox(height: 24),
+
+        // Engineering Tools Shortcut
+        _EngineeringToolsBanner(),
+        const SizedBox(height: 24),
+
+        // Latest Updates from Association & College
+        _SectionHeader(
+          title: l10n.t('latestUpdates'),
+          action: l10n.t('viewAll'),
+          onTap: () => context.push('/news'),
+        ),
+        const SizedBox(height: 10),
+        _UpdatesRow(),
+      ],
+    );
+  }
+
+  // -------------------------------------------------------------
+  // Guest Flow (General & Onboarding Focus)
+  // -------------------------------------------------------------
+  Widget _buildGuestExperience(BuildContext context, AppLocalizations l10n) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Guest Welcome Hero Card
+        AppCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'وضع الزائر',
+                      style: TextStyle(
+                        color: primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                l10n.t('guestWelcomeTitle'),
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.t('guestWelcomeSubtitle'),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => context.push('/login'),
+                      icon: const Icon(Icons.login_rounded, size: 18),
+                      label: Text(l10n.t('signIn')),
+                      style: FilledButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push('/register'),
+                      icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                      label: Text(l10n.t('createAccount')),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Locked Academic Materials Card (Polite callout explaining locked state)
+        AppCard(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer.withValues(alpha: 0.4),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.lock_outline_rounded, color: theme.colorScheme.error, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.t('studentLockedCardTitle'),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.t('studentLockedCardDesc'),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+
+        // Engineering Tools (Available to everyone, including guests!)
+        _SectionHeader(
+          title: l10n.t('toolsTitle'),
+          action: l10n.t('viewAll'),
+          onTap: () => context.push('/tools'),
+        ),
+        const SizedBox(height: 10),
+        _EngineeringToolsBanner(),
+        const SizedBox(height: 24),
+
+        // Eino Chat Hero for Visitors
+        const _EinoHero(),
+        const SizedBox(height: 24),
+
+        // College & Association News / Events
+        _SectionHeader(
+          title: l10n.t('latestUpdates'),
+          action: l10n.t('viewAll'),
+          onTap: () => context.push('/news'),
+        ),
+        const SizedBox(height: 10),
+        _UpdatesRow(),
+      ],
+    );
+  }
 }
 
-class _HeaderIcon extends StatelessWidget {
-  const _HeaderIcon({required this.icon, required this.onTap, required this.tooltip});
+// -------------------------------------------------------------
+// Component Widgets
+// -------------------------------------------------------------
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({required this.icon, required this.onTap, required this.tooltip});
   final IconData icon;
   final VoidCallback onTap;
   final String tooltip;
@@ -103,74 +522,18 @@ class _HeaderIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      width: 44,
-      height: 44,
+      width: 42,
+      height: 42,
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.outline.withValues(alpha: .55)),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.35)),
       ),
-      child: IconButton(tooltip: tooltip, onPressed: onTap, icon: Icon(icon, size: 21)),
-    );
-  }
-}
-
-class _WelcomeBlock extends StatelessWidget {
-  const _WelcomeBlock({required this.signedIn, required this.loaded});
-  final bool signedIn;
-  final bool loaded;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    if (!loaded) {
-      return const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [ShimmerBox(width: 190, height: 24, radius: 8), SizedBox(height: 8), ShimmerBox(width: 250, height: 16, radius: 7)],
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(signedIn ? l10n.t('welcomeBack') : l10n.t('welcome'), style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 5),
-        Text(
-          signedIn ? l10n.t('studySpaceReady') : l10n.t('homeSubtitle'),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-        ),
-      ],
-    );
-  }
-}
-
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final cs = Theme.of(context).colorScheme;
-    return Pressable(
-      onTap: onTap,
-      scaleDown: .99,
-      child: Container(
-        height: 54,
-        padding: const EdgeInsetsDirectional.only(start: 15, end: 8),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: cs.outline.withValues(alpha: .55)),
-          boxShadow: [BoxShadow(color: AppColors.navy.withValues(alpha: .04), blurRadius: 18, offset: const Offset(0, 7))],
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.search_rounded, color: cs.onSurfaceVariant),
-            const SizedBox(width: 10),
-            Expanded(child: Text(l10n.t('searchHint'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: cs.onSurfaceVariant))),
-            IconButton(tooltip: l10n.t('searchFilters'), onPressed: onTap, icon: Icon(Icons.tune_rounded, size: 20, color: cs.primary)),
-          ],
-        ),
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onTap,
+        icon: Icon(icon, size: 20),
+        padding: EdgeInsets.zero,
       ),
     );
   }
@@ -183,31 +546,50 @@ class _SectionHeader extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Container(width: 4, height: 20, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(8))),
-          const SizedBox(width: 8),
-          Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-          TextButton(onPressed: onTap, child: Text(action)),
-        ],
-      );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+        ),
+        TextButton(onPressed: onTap, child: Text(action)),
+      ],
+    );
+  }
 }
 
-class _QuickGrid extends StatelessWidget {
+class _AcademicQuickGrid extends StatelessWidget {
+  const _AcademicQuickGrid({required this.onSemesterTap});
+  final VoidCallback onSemesterTap;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final items = [
       (Icons.menu_book_rounded, l10n.t('materials'), l10n.t('lecturesFiles'), '/materials'),
       (Icons.calendar_month_rounded, l10n.t('schedule'), l10n.t('upcomingClasses'), '/schedule'),
-      (Icons.notifications_none_rounded, l10n.t('notifications'), l10n.t('latestAlerts'), '/notifications'),
-      (Icons.storefront_rounded, l10n.t('market'), l10n.t('engineeringTools'), '/market'),
+      (Icons.handyman_outlined, l10n.t('toolsTitle'), l10n.t('engineeringTools'), '/tools'),
+      (Icons.emoji_events_outlined, l10n.t('badgesTitle'), l10n.t('xpLevel'), '/badges'),
     ];
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final twoColumns = constraints.maxWidth < 560;
+        final twoCols = constraints.maxWidth < 560;
         const gap = 10.0;
-        final cardWidth = twoColumns
+        final cardWidth = twoCols
             ? (constraints.maxWidth - gap) / 2
             : (constraints.maxWidth - (gap * 3)) / 4;
 
@@ -218,24 +600,24 @@ class _QuickGrid extends StatelessWidget {
             for (final item in items)
               SizedBox(
                 width: cardWidth,
-                height: twoColumns ? 116 : 136,
+                height: twoCols ? 114 : 128,
                 child: AppCard(
                   onTap: () => context.push(item.$4),
-                  padding: const EdgeInsets.all(13),
+                  padding: const EdgeInsets.all(14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: 42,
-                        height: 42,
+                        width: 38,
+                        height: 38,
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: .11),
-                          borderRadius: BorderRadius.circular(13),
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(item.$1, color: AppColors.primary, size: 21),
+                        child: Icon(item.$1, color: Theme.of(context).colorScheme.primary, size: 20),
                       ),
-                      const SizedBox(height: 9),
+                      const SizedBox(height: 8),
                       Text(
                         item.$2,
                         maxLines: 1,
@@ -260,6 +642,62 @@ class _QuickGrid extends StatelessWidget {
   }
 }
 
+class _EngineeringToolsBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+
+    return AppCard(
+      onTap: () => context.push('/tools'),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.handyman_rounded, color: primary, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.t('toolsTitle'),
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  l10n.t('toolsSubtitle'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            Directionality.of(context) == TextDirection.rtl
+                ? Icons.arrow_back_ios_rounded
+                : Icons.arrow_forward_ios_rounded,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StudyProgressCard extends StatelessWidget {
   const _StudyProgressCard({required this.signedIn});
   final bool signedIn;
@@ -268,30 +706,215 @@ class _StudyProgressCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
+
     return AppCard(
-      onTap: () => context.push(signedIn ? '/progress' : '/student'),
-      padding: EdgeInsets.zero,
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd, colors: [cs.surface, cs.surfaceContainerLow]),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Container(width: 52, height: 52, decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .12), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.auto_graph_rounded, color: AppColors.primary)),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(signedIn ? l10n.t('studyProgress') : l10n.t('startStudy'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                const SizedBox(height: 4),
-                Text(signedIn ? l10n.t('studyProgressSubtitle') : l10n.t('startStudySubtitle'), style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 10),
-                ClipRRect(borderRadius: BorderRadius.circular(99), child: LinearProgressIndicator(value: signedIn ? .68 : 0, minHeight: 6, backgroundColor: cs.surfaceContainerHighest)),
-              ]),
+      onTap: () => context.push(signedIn ? '/progress' : '/login'),
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(width: 8),
-            Icon(Directionality.of(context) == TextDirection.rtl ? Icons.arrow_back_ios_rounded : Icons.arrow_forward_ios_rounded, size: 16),
+            child: Icon(Icons.auto_graph_rounded, color: cs.primary),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  signedIn ? l10n.t('studyProgress') : l10n.t('startStudy'),
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  signedIn ? l10n.t('studyProgressSubtitle') : l10n.t('startStudySubtitle'),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    value: signedIn ? 0.72 : 0,
+                    minHeight: 6,
+                    backgroundColor: cs.surfaceContainerHighest,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            Directionality.of(context) == TextDirection.rtl
+                ? Icons.arrow_back_ios_rounded
+                : Icons.arrow_forward_ios_rounded,
+            size: 16,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EinoAcademicCard extends StatelessWidget {
+  const _EinoAcademicCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+
+    return AppCard(
+      onTap: () => context.push('/eino?from=home'),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: primary.withValues(alpha: 0.3), width: 1.5),
+            ),
+            child: const EinoFace(size: 52, mood: EinoMood.happy),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      l10n.t('eino'),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'AI',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  l10n.t('quickPromptEino'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.tonal(
+            onPressed: () => context.push('/eino?from=home'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: Text(l10n.t('startChat')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EinoHero extends StatelessWidget {
+  const _EinoHero();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        height: 180,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: AlignmentDirectional.topStart,
+            end: AlignmentDirectional.bottomEnd,
+            colors: [
+              AppColors.navy,
+              const Color(0xFF1B3B59),
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            const PositionedDirectional(
+              end: 10,
+              bottom: -6,
+              child: EinoFace(size: 146, mood: EinoMood.happy),
+            ),
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(20, 20, 140, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: primary,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'EINO AI',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    l10n.t('einoCardTitle'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      height: 1.3,
+                    ),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: () => context.push('/eino?from=home'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: primary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 38),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(l10n.t('startChat')),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -304,16 +927,31 @@ class _UpdatesRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return SizedBox(
-      height: 132,
+      height: 126,
       child: ListView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         children: [
-          _UpdateCard(icon: Icons.campaign_rounded, title: l10n.t('announcements'), subtitle: l10n.t('announcementsSubtitle'), route: '/announcements'),
+          _UpdateCard(
+            icon: Icons.campaign_rounded,
+            title: l10n.t('announcements'),
+            subtitle: l10n.t('announcementsSubtitle'),
+            route: '/announcements',
+          ),
           const SizedBox(width: 10),
-          _UpdateCard(icon: Icons.article_rounded, title: l10n.t('news'), subtitle: l10n.t('newsSubtitle'), route: '/news'),
+          _UpdateCard(
+            icon: Icons.article_rounded,
+            title: l10n.t('news'),
+            subtitle: l10n.t('newsSubtitle'),
+            route: '/news',
+          ),
           const SizedBox(width: 10),
-          _UpdateCard(icon: Icons.event_available_rounded, title: l10n.t('activities'), subtitle: l10n.t('activitiesSubtitle'), route: '/activities'),
+          _UpdateCard(
+            icon: Icons.event_available_rounded,
+            title: l10n.t('activities'),
+            subtitle: l10n.t('activitiesSubtitle'),
+            route: '/activities',
+          ),
         ],
       ),
     );
@@ -321,103 +959,89 @@ class _UpdatesRow extends StatelessWidget {
 }
 
 class _UpdateCard extends StatelessWidget {
-  const _UpdateCard({required this.icon, required this.title, required this.subtitle, required this.route});
+  const _UpdateCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.route,
+  });
+
   final IconData icon;
   final String title;
   final String subtitle;
   final String route;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 238,
-        child: AppCard(
-          onTap: () => context.push(route),
-          padding: const EdgeInsets.all(15),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Container(width: 34, height: 34, decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .12), borderRadius: BorderRadius.circular(11)), child: Icon(icon, size: 18, color: AppColors.primary)), const Spacer(), Icon(Directionality.of(context) == TextDirection.rtl ? Icons.north_west_rounded : Icons.north_east_rounded, size: 17)]),
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return SizedBox(
+      width: 228,
+      child: AppCard(
+        onTap: () => context.push(route),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 17, color: primary),
+                ),
+                const Spacer(),
+                Icon(
+                  Directionality.of(context) == TextDirection.rtl
+                      ? Icons.north_west_rounded
+                      : Icons.north_east_rounded,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
             const Spacer(),
             Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
             const SizedBox(height: 2),
-            Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
-          ]),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
         ),
-      );
-}
-
-class _EinoHero extends StatefulWidget {
-  const _EinoHero();
-
-  @override
-  State<_EinoHero> createState() => _EinoHeroState();
-}
-
-class _EinoHeroState extends State<_EinoHero> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
-    final card = ClipRRect(
-      borderRadius: BorderRadius.circular(26),
-      child: Container(
-        height: 186,
-        decoration: const BoxDecoration(gradient: LinearGradient(begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd, colors: [AppColors.navy, Color(0xFF173E5C)])),
-        child: Stack(children: [
-          const PositionedDirectional(top: -45, end: -25, child: CircuitDecoration(opacity: .45)),
-          const PositionedDirectional(end: -4, bottom: -8, child: EinoFace(size: 158, mood: EinoMood.happy)),
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(18, 18, 145, 16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [Container(width: 34, height: 34, decoration: const BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.all(Radius.circular(11))), child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 19)), const SizedBox(width: 9), Text(l10n.t('eino'), style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900))]),
-              const SizedBox(height: 10),
-              Text(l10n.t('einoCardTitle'), style: TextStyle(color: Colors.white.withValues(alpha: .84), height: 1.35)),
-              const Spacer(),
-              FilledButton(onPressed: () => context.push('/eino?from=home'), style: FilledButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 16)), child: Text(l10n.t('startChat'))),
-            ]),
-          ),
-        ]),
       ),
     );
-    return TickerMode(
-      enabled: !reduceMotion,
-      child: reduceMotion ? card : AnimatedBuilder(animation: _controller, child: card, builder: (context, child) => Transform.translate(offset: Offset(0, -2 * _controller.value), child: child)),
-    );
   }
 }
 
-class _ServicesCard extends StatelessWidget {
+class _LoadingSkeleton extends StatelessWidget {
+  const _LoadingSkeleton();
+
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return AppCard(
-      padding: const EdgeInsets.all(18),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(l10n.t('everythingYouNeed'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 12),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          _ServiceChip(icon: Icons.emoji_events_rounded, text: l10n.t('achievements'), route: '/achievements'),
-          _ServiceChip(icon: Icons.favorite_rounded, text: l10n.t('favorites'), route: '/favorites'),
-          _ServiceChip(icon: Icons.history_rounded, text: l10n.t('recentShort'), route: '/recent'),
-          _ServiceChip(icon: Icons.settings_rounded, text: l10n.t('settings'), route: '/settings'),
-        ]),
-      ]),
+    return Column(
+      children: [
+        Container(
+          height: 120,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 140,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+      ],
     );
   }
-}
-
-class _ServiceChip extends StatelessWidget {
-  const _ServiceChip({required this.icon, required this.text, required this.route});
-  final IconData icon;
-  final String text;
-  final String route;
-
-  @override
-  Widget build(BuildContext context) => ActionChip(avatar: Icon(icon, size: 17), label: Text(text), onPressed: () => context.push(route));
 }

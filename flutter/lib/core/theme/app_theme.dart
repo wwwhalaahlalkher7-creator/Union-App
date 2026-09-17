@@ -4,9 +4,10 @@ import 'design_tokens.dart';
 class AppTheme {
   AppTheme._();
 
-  static ThemeData _build(Brightness brightness) {
+  static ThemeData _build(Brightness brightness, {AppAccentColor? accent}) {
     final isDark = brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primaryDark : AppColors.primary;
+    final selectedAccent = accent ?? AppAccentColor.defaultColor;
+    final primary = isDark ? selectedAccent.primaryDark : selectedAccent.primary;
     final scheme = ColorScheme.fromSeed(
       seedColor: primary,
       brightness: brightness,
@@ -121,8 +122,8 @@ class AppTheme {
     );
   }
 
-  static ThemeData light() => _build(Brightness.light);
-  static ThemeData dark() => _build(Brightness.dark);
+  static ThemeData light({AppAccentColor? accent}) => _build(Brightness.light, accent: accent);
+  static ThemeData dark({AppAccentColor? accent}) => _build(Brightness.dark, accent: accent);
 }
 
 class _FadeThroughTransitionsBuilder extends PageTransitionsBuilder {

@@ -5,11 +5,18 @@ class AppPreferences {
   static const _themeKey = 'theme_mode';
   static const _localeKey = 'locale';
   static const _onboardingKey = 'onboarding_completed';
+  static const _accentKey = 'accent_color_id';
 
   late SharedPreferences _prefs;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+  }
+
+  String get accentColorId => _prefs.getString(_accentKey) ?? 'orange';
+
+  Future<void> setAccentColorId(String id) async {
+    await _prefs.setString(_accentKey, id);
   }
 
   ThemeMode get themeMode {

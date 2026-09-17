@@ -8,6 +8,9 @@ import '../features/about/about_screen.dart';
 import '../features/activities/activities_screen.dart';
 import '../features/announcements/announcements_screen.dart';
 import '../features/achievements/achievements_screen.dart';
+import '../features/auth/login_screen.dart';
+import '../features/auth/register_screen.dart';
+import '../features/eino/eino_face.dart';
 import '../features/eino/eino_screen.dart';
 import '../features/favorites/favorites_screen.dart';
 import '../features/home/home_screen.dart';
@@ -15,6 +18,7 @@ import '../features/market/market_screen.dart';
 import '../features/materials/materials_screen.dart';
 import '../features/news/news_screen.dart';
 import '../features/notifications/notifications_screen.dart';
+import '../features/onboarding/onboarding_screen.dart';
 import '../features/progress/progress_screen.dart';
 import '../features/recent/recent_screen.dart';
 import '../features/schedule/schedule_screen.dart';
@@ -22,6 +26,7 @@ import '../features/settings/settings_screen.dart';
 import '../features/student/badges_screen.dart';
 import '../features/student/student_screen.dart';
 import '../features/splash/splash_screen.dart';
+import '../features/tools/tools_screen.dart';
 import '../features/xp/xp_screen.dart';
 import '../shared/widgets/pressable.dart';
 import '../shared/widgets/student_access_gate.dart';
@@ -32,12 +37,18 @@ GoRouter buildRouter({
   required ThemeMode Function() themeMode,
   required Locale? Function() locale,
   required Future<void> startupFuture,
+  ValueChanged<String>? onAccentColorChanged,
+  String Function()? accentColorId,
   String initialLocation = '/splash',
 }) {
   return GoRouter(
     initialLocation: initialLocation,
     routes: [
       GoRoute(path: '/splash', builder: (_, _) => SplashScreen(startupFuture: startupFuture)),
+      GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
+      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+      GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
       ShellRoute(
         builder: (context, state, child) => AppShell(location: state.uri.path, child: child),
         routes: [
@@ -68,6 +79,8 @@ GoRouter buildRouter({
           onThemeModeChanged: onThemeModeChanged,
           locale: locale(),
           onLocaleChanged: onLocaleChanged,
+          accentColorId: accentColorId?.call(),
+          onAccentColorChanged: onAccentColorChanged,
         ),
       ),
     ],
@@ -113,33 +126,18 @@ class AppShell extends StatelessWidget {
         bottom: false,
         child: child,
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 92,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: NavigationBar(
-                  selectedIndex: currentIndex,
-                  destinations: destinations,
-                  onDestinationSelected: (index) {
-                    HapticFeedback.selectionClick();
-                    context.go(['/home', '/materials', '/schedule', '/notifications', '/student'][index]);
-                  },
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 54,
-                child: Center(child: _EinoFab(onTap: () => context.push('/eino?from=$_einoSource'))),
-              ),
-            ],
-          ),
-        ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 74),
+        child: _EinoFab(onTap: () => context.push('/eino?from=$_einoSource')),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: currentIndex,
+        destinations: destinations,
+        onDestinationSelected: (index) {
+          HapticFeedback.selectionClick();
+          context.go(['/home', '/materials', '/schedule', '/notifications', '/student'][index]);
+        },
       ),
     );
   }
@@ -176,29 +174,32 @@ class _EinoFabState extends State<_EinoFab> with SingleTickerProviderStateMixin 
           builder: (context, child) {
             final ring = reduceMotion ? 0.0 : _pulse.value;
             return SizedBox(
-              width: 68,
-              height: 68,
+              width: 66,
+              height: 66,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
                   Opacity(
-                    opacity: (1 - ring) * .22,
+                    opacity: (1 - ring) * .25,
                     child: Transform.scale(
-                      scale: 1 + ring * .48,
-                      child: Container(width: 60, height: 60, decoration: BoxDecoration(shape: BoxShape.circle, color: primary)),
+                      scale: 1 + ring * .45,
+                      child: Container(width: 58, height: 58, decoration: BoxDecoration(shape: BoxShape.circle, color: primary)),
                     ),
                   ),
                   Material(
-                    elevation: 8,
+                    elevation: 6,
                     shadowColor: AppColors.navy.withValues(alpha: .28),
                     shape: const CircleBorder(),
-                    color: primary,
+                    color: Theme.of(context).colorScheme.surface,
                     child: Container(
-                      width: 58,
-                      height: 58,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: .25), width: 1.5)),
-                      child: const _EinoMiniFace(),
+                      width: 54,
+                      height: 54,
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: primary, width: 2),
+                      ),
+                      child: const EinoFace(size: 48, mood: EinoMood.happy),
                     ),
                   ),
                 ],
@@ -211,34 +212,6 @@ class _EinoFabState extends State<_EinoFab> with SingleTickerProviderStateMixin 
   }
 }
 
-class _EinoMiniFace extends StatelessWidget {
-  const _EinoMiniFace();
-
-  @override
-  Widget build(BuildContext context) => const SizedBox(width: 40, height: 40, child: CustomPaint(painter: _MiniPainter()));
-}
-
-class _MiniPainter extends CustomPainter {
-  const _MiniPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width * .34;
-    canvas.drawCircle(center, radius, paint);
-    canvas.drawCircle(Offset(center.dx - radius * .4, center.dy - radius * .1), radius * .08, paint);
-    canvas.drawCircle(Offset(center.dx + radius * .4, center.dy - radius * .1), radius * .08, paint);
-    final mouth = Path()
-      ..moveTo(center.dx - radius * .22, center.dy + radius * .22)
-      ..quadraticBezierTo(center.dx, center.dy + radius * .4, center.dx + radius * .22, center.dy + radius * .22);
-    canvas.drawPath(mouth, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _MiniPainter oldDelegate) => false;
-}
-
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
@@ -246,6 +219,7 @@ class MoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final items = [
+      (Icons.handyman_outlined, l10n.t('toolsTitle'), '/tools'),
       (Icons.storefront_outlined, l10n.t('market'), '/market'),
       (Icons.school_outlined, l10n.t('student'), '/student'),
       (Icons.insights_rounded, l10n.t('studyProgress'), '/progress'),

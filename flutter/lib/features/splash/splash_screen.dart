@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_version.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/storage/app_preferences.dart';
 import '../../core/theme/design_tokens.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -49,7 +50,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     }
     if (!mounted || _navigated) return;
     _navigated = true;
-    context.go('/home');
+    final prefs = AppPreferences();
+    await prefs.init();
+    if (!mounted) return;
+    if (!prefs.onboardingCompleted) {
+      context.go('/onboarding');
+    } else {
+      context.go('/home');
+    }
   }
 
   @override

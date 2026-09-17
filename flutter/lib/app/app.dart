@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../core/app_version.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_theme.dart';
+import '../core/theme/design_tokens.dart';
 import '../core/storage/app_preferences.dart';
 import '../core/update/update_service.dart';
 import '../core/update/update_info.dart';
@@ -33,6 +34,7 @@ class _TrinexAppState extends State<TrinexApp> {
   final AppPreferences _preferences = AppPreferences();
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
+  String _accentColorId = 'orange';
   late final Future<void> _preferencesFuture =
       widget.startupFutureOverride ?? _loadPreferences();
   late final GoRouter _router;
@@ -44,6 +46,8 @@ class _TrinexAppState extends State<TrinexApp> {
       startupFuture: _preferencesFuture,
       onThemeModeChanged: setThemeMode,
       onLocaleChanged: setLocale,
+      onAccentColorChanged: setAccentColor,
+      accentColorId: () => _accentColorId,
       themeMode: () => _themeMode,
       locale: () => _locale,
       initialLocation: widget.initialLocationOverride ?? '/splash',
@@ -57,6 +61,7 @@ class _TrinexAppState extends State<TrinexApp> {
     setState(() {
       _themeMode = _preferences.themeMode;
       _locale = _preferences.locale;
+      _accentColorId = _preferences.accentColorId;
     });
   }
 
@@ -127,15 +132,20 @@ class _TrinexAppState extends State<TrinexApp> {
     setState(() => _locale = locale);
   }
 
+  Future<void> setAccentColor(String colorId) async {
+    await _preferences.setAccentColorId(colorId);
+    if (!mounted) return;
+    setState(() => _accentColorId = colorId);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final accent = AppAccentColor.fromId(_accentColorId);
     return MaterialApp.router(
-      title: AppLocalizations.supportedLocales.first.languageCode == 'ar'
-          ? 'TRINEX'
-          : 'TRINEX',
+      title: 'TRINEX',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: AppTheme.light(accent: accent),
+      darkTheme: AppTheme.dark(accent: accent),
       themeMode: _themeMode,
       locale: _locale,
       supportedLocales: AppLocalizations.supportedLocales,
