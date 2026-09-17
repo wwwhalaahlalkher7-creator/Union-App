@@ -11,46 +11,58 @@
 <script src="js/theme.js"></script>
 <script src="js/auth.js"></script>
 <style>
-/* خاص بصفحة الطلاب فقط — الأزرار والحقول والأشرطة تعتمد على نظام admin.css الموحّد */
-body[data-page="students"] .page-content { padding-top: 28px; }
-body[data-page="students"] #pageContent > * {
-  animation: studentsReveal .45s cubic-bezier(.2,.75,.3,1) both;
+body[data-page="students"] .page-content{padding-top:28px}
+body[data-page="students"] .card{border-radius:18px;border-color:rgba(20,85,142,.13);box-shadow:0 7px 24px rgba(16,24,38,.045)}
+body[data-page="students"] .data-table tbody tr{transition:background .16s ease}
+body[data-page="students"] .data-table tbody tr:hover{background:color-mix(in srgb,var(--blueprint-100) 34%,transparent)}
+body[data-page="students"] #pageContent > *{animation:studentsReveal .45s cubic-bezier(.2,.75,.3,1) both}
+@keyframes studentsReveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+body[data-page="students"] .page-content{padding-top:28px}
+body[data-page="students"] .card{border-radius:20px;border:1px solid color-mix(in srgb,var(--blueprint-700) 18%,var(--line));box-shadow:0 12px 34px rgba(10,28,52,.18)}
+body[data-page="students"] .data-table tbody tr{transition:background .16s ease,transform .16s ease}
+body[data-page="students"] .data-table tbody tr:hover{background:color-mix(in srgb,var(--blueprint-100) 38%,transparent)}
+body[data-page="students"] #pageContent > *{animation:studentsReveal .45s cubic-bezier(.2,.75,.3,1) both}
+@keyframes studentsReveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.students-controls{display:grid;gap:12px}
+.students-search-row{display:grid;grid-template-columns:minmax(0,1fr);width:100%}
+.students-search{width:100%;min-height:50px!important;font-size:1rem!important;padding:0 16px!important;border-radius:15px!important;background:color-mix(in srgb,var(--surface) 88%,var(--blueprint-100))!important;border:1px solid var(--line-strong)!important;box-shadow:0 4px 16px rgba(10,28,52,.08)}
+.students-filter-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;direction:ltr}
+.students-filter-card{display:flex;align-items:center;gap:10px;min-height:62px;padding:10px 12px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--surface) 92%,var(--blueprint-100));box-shadow:0 5px 18px rgba(10,28,52,.07)}
+.students-filter-card .filter-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:color-mix(in srgb,var(--blueprint-100) 70%,var(--surface));color:var(--blueprint-700);flex:0 0 auto}
+.students-filter-card .form-control{min-height:44px;border:0!important;box-shadow:none!important;background:transparent!important;border-radius:11px;flex:1;min-width:0;direction:rtl}
+.students-sort-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;direction:ltr}
+.students-sort-row .students-filter-card:last-child{direction:rtl}
+.students-sort-row .btn-sort-direction{width:100%;min-height:44px;border:0;background:transparent;color:var(--ink-700);padding:0}
+.students-actions-row{display:flex;justify-content:flex-start;gap:10px;direction:rtl}
+.students-actions-row .btn{min-height:46px;border-radius:13px;padding-inline:18px}
+.students-id{direction:ltr;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media(max-width:700px){.students-filter-row,.students-sort-row{grid-template-columns:1fr 1fr}.students-actions-row{display:grid;grid-template-columns:1fr 1fr}.students-actions-row .btn{width:100%}}
+@media(max-width:480px){body[data-page="students"] .page-content{padding:14px}.students-filter-row,.students-sort-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.students-filter-card{min-width:0;padding:9px 8px}.students-filter-card .form-control{font-size:.9rem}.students-filter-card .filter-icon{width:32px;height:32px;flex-basis:32px}.students-actions-row{grid-template-columns:1fr 1fr}}
+
+/* UI/UX PASS 5 — أزرار الطلاب + وضوح الوضع الداكن */
+.students-actions-row .btn {
+  min-height: 50px; border-radius: 14px; font-weight: 700; letter-spacing: -.01em;
+  box-shadow: 0 6px 16px rgba(0,0,0,.08); transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
 }
-@keyframes studentsReveal {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+.students-actions-row .btn i { font-size: 1rem; }
+.students-actions-row .btn-primary { background: linear-gradient(135deg, var(--blueprint-600), var(--blueprint-500)); }
+.students-actions-row .btn-secondary { background: var(--surface-sunken); border: 1px solid var(--line-strong); color: var(--ink-900); }
+.students-actions-row .btn:hover { transform: translateY(-1px); box-shadow: 0 9px 20px rgba(0,0,0,.12); }
+.students-filter-card { border: 1px solid var(--line-strong) !important; background: var(--surface) !important; box-shadow: var(--shadow-sm); }
+.students-filter-card .form-control, .students-filter-card select, .students-filter-card .btn-sort-direction { color: var(--ink-900) !important; }
+.students-filter-card select option { color: #10161F; background: #fff; }
+@media (prefers-color-scheme: dark) {
+  .students-filter-card { background: #243247 !important; border-color: #4B6078 !important; }
+  .students-filter-card .form-control, .students-filter-card select, .students-filter-card .btn-sort-direction { color: #F8FAFC !important; }
+  .students-filter-card select option { color: #F8FAFC; background: #243247; }
+  .students-filter-card .filter-icon { background: rgba(255,255,255,.10); color: #B9D8F4; }
+  .students-actions-row .btn-secondary { color: #F8FAFC; background: #26364C; border-color: #4B6078; }
 }
-.students-id {
-  direction: ltr;
-  text-align: right;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+@media(max-width:480px){
+  .students-actions-row { gap: 9px; }
+  .students-actions-row .btn { min-height: 52px; padding-inline: 10px; font-size: .9rem; }
 }
 
-/* حرية حركة أدوات شريط الطلاب: يسمح لها بالالتفاف بدل التكدّس/القطع
-   على الشاشات الضيقة، ويمنح البحث مساحة تكبر مع توفر العرض */
-body[data-page="students"] .toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-body[data-page="students"] .toolbar .field {
-  flex: 1 1 200px;
-  min-width: 160px;
-}
-body[data-page="students"] .toolbar .field:first-child {
-  flex: 2 1 240px;
-}
-@media (max-width: 700px) {
-  body[data-page="students"] .toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  body[data-page="students"] .toolbar .field,
-  body[data-page="students"] .toolbar button {
-    width: 100%;
-  }
-}
 </style>
 </head>
 <body data-page="students">
@@ -63,19 +75,27 @@ body[data-page="students"] .toolbar .field:first-child {
     </div>
   </div>
 
-  <div class="card">
-    <div class="toolbar">
-      <div class="field"><input id="searchInput" type="search" placeholder="ابحث بالرقم الجامعي أو اسم الطالب"></div>
-      <div class="field"><select id="departmentFilter" aria-label="القسم"><option value="">كل الأقسام</option></select></div>
-      <div class="field"><select id="semesterFilter" aria-label="الفصل"><option value="">كل الفصول</option></select></div>
-      <div class="field"><select id="sortFilter" aria-label="ترتيب حسب">
-        <option value="name">الاسم — أبجدي</option>
-        <option value="department">القسم — ثم الاسم</option>
-        <option value="studentId">الرقم الجامعي</option>
-      </select></div>
-      <button class="icon-btn" id="sortDirectionBtn" type="button" title="عكس الترتيب" aria-label="عكس الترتيب"><i class="fa-solid fa-arrow-down-a-z"></i></button>
-      <button class="btn btn-primary requires-edit" id="addBtn" type="button"><i class="fa-solid fa-user-plus"></i> إضافة طالب</button>
-      <button class="btn btn-secondary" id="refreshBtn" type="button"><i class="fa-solid fa-rotate"></i> تحديث القائمة</button>
+  <div class="card students-controls-card">
+    <div class="students-controls">
+      <div class="students-search-row">
+        <input id="searchInput" class="form-control students-search" type="search" placeholder="ابحث بالرقم الجامعي أو اسم الطالب">
+      </div>
+      <div class="students-filter-row">
+        <div class="students-filter-card"><span class="filter-icon"><i class="fa-solid fa-building-columns"></i></span><select id="departmentFilter" class="form-control"><option value="">كل الأقسام</option></select></div>
+        <div class="students-filter-card"><span class="filter-icon"><i class="fa-solid fa-layer-group"></i></span><select id="semesterFilter" class="form-control"><option value="">كل الفصول</option></select></div>
+      </div>
+      <div class="students-sort-row">
+        <div class="students-filter-card"><span class="filter-icon"><i class="fa-solid fa-arrows-up-down"></i></span><button class="btn-sort-direction" id="sortDirectionBtn" type="button" title="عكس الترتيب" aria-label="عكس الترتيب"><i class="fa-solid fa-arrow-down-a-z"></i> <span>الاتجاه</span></button></div>
+        <div class="students-filter-card"><span class="filter-icon"><i class="fa-solid fa-arrow-down-a-z"></i></span><select id="sortFilter" class="form-control" aria-label="ترتيب حسب">
+          <option value="name">الاسم — أبجدي</option>
+          <option value="department">القسم — ثم الاسم</option>
+          <option value="studentId">الرقم الجامعي</option>
+        </select></div>
+      </div>
+      <div class="students-actions-row">
+        <button class="btn btn-primary requires-edit" id="addBtn" type="button"><i class="fa-solid fa-user-plus"></i> إضافة طالب</button>
+        <button class="btn btn-secondary" id="refreshBtn" type="button"><i class="fa-solid fa-rotate"></i> تحديث القائمة</button>
+      </div>
     </div>
   </div>
 
