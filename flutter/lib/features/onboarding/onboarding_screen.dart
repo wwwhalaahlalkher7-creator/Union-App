@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/storage/app_preferences.dart';
+import '../../core/theme/design_tokens.dart';
 import '../eino/eino_face.dart';
 
 class OnboardingScreen extends StatefulWidget {

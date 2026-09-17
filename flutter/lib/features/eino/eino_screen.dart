@@ -408,14 +408,14 @@ class _EinoScreenState extends State<EinoScreen> {
         final cs = Theme.of(sheetContext).colorScheme;
         return StatefulBuilder(builder: (context, setSheetState) {
           Future<void> handleModel(EinoLocalModel model) async {
+            final messenger = ScaffoldMessenger.of(context);
             final url = model.downloadUrl;
             if (url == null || url.trim().isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('einoModelSourcePending'))));
+              messenger.showSnackBar(SnackBar(content: Text(l10n.t('einoModelSourcePending'))));
               return;
             }
-            final device = hardware;
-            if (device != null && device.freeRamBytes > 0 && device.freeRamBytes < model.recommendedRamGb * 1024 * 1024 * 1024) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('einoModelRamWarning'))));
+            if (hardware != null && hardware.freeRamBytes > 0 && hardware.freeRamBytes < model.recommendedRamGb * 1024 * 1024 * 1024) {
+              messenger.showSnackBar(SnackBar(content: Text(l10n.t('einoModelRamWarning'))));
               return;
             }
             try {
@@ -425,14 +425,14 @@ class _EinoScreenState extends State<EinoScreen> {
                   await _localStore.remove(model);
                   installed.remove(model.id);
                   setSheetState(() {});
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('einoModelIntegrityFailed'))));
+                  messenger.showSnackBar(SnackBar(content: Text(l10n.t('einoModelIntegrityFailed'))));
                   return;
                 }
                 final file = await _localStore.fileFor(model);
                 await _localEngine.load(model, file);
                 _loadedLocalModel = model;
                 if (mounted) setState(() {});
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('einoModelLoaded'))));
+                messenger.showSnackBar(SnackBar(content: Text(l10n.t('einoModelLoaded'))));
                 return;
               }
               final progressNotifier = ValueNotifier<double>(0);
@@ -493,14 +493,14 @@ class _EinoScreenState extends State<EinoScreen> {
                 const SizedBox(height: 12),
                 Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .7), borderRadius: BorderRadius.circular(16)), child: Row(children: [
                   Icon(Icons.offline_bolt_rounded, color: cs.primary), const SizedBox(width: 10),
-                  Expanded(child: Text(hardware == null ? l10n.t('einoModelAndroidOnly') : '${l10n.t('einoModelHardwareReady')} • ${hardware?.gpuName}')),
+                  Expanded(child: Text(hardware == null ? l10n.t('einoModelAndroidOnly') : '${l10n.t('einoModelHardwareReady')} • ${hardware.gpuName}')),
                 ])),
                 const SizedBox(height: 12),
                 Flexible(child: ListView.separated(shrinkWrap: true, itemCount: models.length, separatorBuilder: (context, index) => const SizedBox(height: 8), itemBuilder: (_, index) {
                   final model = models[index];
                   final isInstalled = installed.contains(model.id);
                   return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant.withValues(alpha: .5)), borderRadius: BorderRadius.circular(18)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [const CircleAvatar(child: Icon(Icons.memory_rounded)), const SizedBox(width: 10), Expanded(child: Text(model.name, style: const TextStyle(fontWeight: FontWeight.w800))), Text(model.quantization, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant))]),
+                    Row(children: [CircleAvatar(child: const Icon(Icons.memory_rounded)), const SizedBox(width: 10), Expanded(child: Text(model.name, style: const TextStyle(fontWeight: FontWeight.w800))), Text(model.quantization, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant))]),
                     const SizedBox(height: 8),
                     Text('${model.approximateSizeGb.toStringAsFixed(1)} GB  •  ${l10n.t('einoRam')} ${model.recommendedRamGb} GB  •  ${model.format}'),
                     const SizedBox(height: 6), Text(model.capabilities.join(' • '), style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),

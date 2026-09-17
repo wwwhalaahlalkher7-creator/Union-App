@@ -413,7 +413,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Icon(Icons.info_outline_rounded, color: primary, size: 20),
               ),
               title: Text(l10n.t('about'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('v${AppVersion.current}'),
+              subtitle: Text('v${AppVersion.current}'),
               trailing: const Icon(Icons.chevron_left_rounded),
               onTap: () => context.push('/about'),
             ),

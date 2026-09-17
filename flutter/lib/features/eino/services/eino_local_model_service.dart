@@ -44,9 +44,7 @@ class EinoLocalModelStore {
   Future<String> _sha256(File file) async {
     final sink = AccumulatorSink<Digest>();
     final converter = sha256.startChunkedConversion(sink);
-    await for (final chunk in file.openRead()) {
-      converter.add(chunk);
-    }
+    await for (final chunk in file.openRead()) converter.add(chunk);
     converter.close();
     return sink.events.single.toString();
   }

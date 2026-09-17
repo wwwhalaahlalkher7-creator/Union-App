@@ -42,7 +42,7 @@ class StudentRepository {
       'semesterId': semesterId,
       'email': email,
       'password': password,
-      'confirmPassword': ?confirmPassword,
+      if (confirmPassword != null) 'confirmPassword': confirmPassword,
     });
     final d = j['data'];
     if (d is Map) return Map<String, dynamic>.from(d);
