@@ -96,7 +96,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: false
 
       - name: Install Backend Dependencies
         run: npm install --no-audit --no-fund
@@ -155,7 +154,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: false
 
       - name: Install Root Dependencies
         run: npm install --no-audit --no-fund
