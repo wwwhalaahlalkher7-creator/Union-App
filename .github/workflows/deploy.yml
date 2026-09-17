@@ -63,19 +63,38 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
+      # Build and publish the APK first. The AAB build starts only after
+      # this upload completes, so a usable APK artifact is available even
+      # if the later AAB build fails.
       - name: Build Android APK
         run: flutter build apk --release
 
+      - name: Package APK as ZIP
+        run: |
+          cd build/app/outputs/flutter-apk
+          zip -j app-release-apk.zip app-release.apk
+
+      - name: Upload APK ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: trinex-android-apk
+          path: flutter/build/app/outputs/flutter-apk/app-release-apk.zip
+          if-no-files-found: error
+
+      # Only after the APK ZIP has been uploaded do we start the AAB build.
       - name: Build Android App Bundle (AAB)
         run: flutter build appbundle --release
 
-      - name: Upload Release Artifacts
+      - name: Package AAB as ZIP
+        run: |
+          cd build/app/outputs/bundle/release
+          zip -j app-release-aab.zip app-release.aab
+
+      - name: Upload AAB ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: trinex-android-release
-          path: |
-            flutter/build/app/outputs/flutter-apk/app-release.apk
-            flutter/build/app/outputs/bundle/release/app-release.aab
+          name: trinex-android-aab
+          path: flutter/build/app/outputs/bundle/release/app-release-aab.zip
           if-no-files-found: error
 
   # -------------------------------------------------------------
