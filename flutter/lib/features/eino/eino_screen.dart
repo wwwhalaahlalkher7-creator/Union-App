@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:llama_flutter_android/llama_flutter_android.dart';
 import 'package:record/record.dart';
 
 import '../../core/localization/app_localizations.dart';
@@ -441,7 +442,7 @@ class _EinoScreenState extends State<EinoScreen> {
                   title: Text(l10n.t('einoModelDownloading')),
                   content: ValueListenableBuilder<double>(
                     valueListenable: progressNotifier,
-                    builder: (_, progress, __) => Column(mainAxisSize: MainAxisSize.min, children: [
+                    builder: (context, progress, child) => Column(mainAxisSize: MainAxisSize.min, children: [
                       LinearProgressIndicator(value: progress == 0 ? null : progress),
                       const SizedBox(height: 12),
                       Text('${(progress * 100).toStringAsFixed(0)}%'),
@@ -466,9 +467,19 @@ class _EinoScreenState extends State<EinoScreen> {
                 if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
                 await dialogFuture.catchError((_) {});
                 progressNotifier.dispose();
-                if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(e.toString())));
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(content: Text(e.toString())),
+                  );
+                }
               }
-          }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(content: Text(e.toString())),
+                );
+              }
+            }
           }
 
           return SafeArea(
@@ -484,7 +495,7 @@ class _EinoScreenState extends State<EinoScreen> {
                   Expanded(child: Text(hardware == null ? l10n.t('einoModelAndroidOnly') : '${l10n.t('einoModelHardwareReady')} • ${hardware!.gpuName}')),
                 ])),
                 const SizedBox(height: 12),
-                Flexible(child: ListView.separated(shrinkWrap: true, itemCount: models.length, separatorBuilder: (_, __) => const SizedBox(height: 8), itemBuilder: (_, index) {
+                Flexible(child: ListView.separated(shrinkWrap: true, itemCount: models.length, separatorBuilder: (context, index) => const SizedBox(height: 8), itemBuilder: (_, index) {
                   final model = models[index];
                   final isInstalled = installed.contains(model.id);
                   return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant.withValues(alpha: .5)), borderRadius: BorderRadius.circular(18)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

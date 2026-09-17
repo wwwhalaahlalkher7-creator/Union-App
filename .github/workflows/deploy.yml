@@ -92,15 +92,14 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js (v20)
+      - name: Setup Node.js (v24)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: backend/package.json
+          node-version: 24
+          cache: false
 
       - name: Install Backend Dependencies
-        run: npm ci || npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Validate Syntax (Node Check)
         run: node --check src/index.js
@@ -152,14 +151,14 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js (v20)
+      - name: Setup Node.js (v24)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 24
+          cache: false
 
       - name: Install Root Dependencies
-        run: npm ci || npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Package & Validate Distribution (dist/)
         run: node build.js

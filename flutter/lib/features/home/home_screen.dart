@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
@@ -9,7 +8,6 @@ import '../../core/storage/auth_storage.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/repositories/student_repository.dart';
 import '../../shared/widgets/app_card.dart';
-import '../../shared/widgets/pressable.dart';
 import '../../shared/widgets/responsive_content.dart';
 import '../../shared/widgets/staggered_fade_in.dart';
 import '../../shared/widgets/trinex_brand.dart';
@@ -150,8 +148,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () async {
                         Navigator.of(ctx).pop();
                         try {
-                          await repo.updateSemester(sid);
-                          await storage.updateCachedSemester(sid, sname);
+                          await repo.updateSemester(semesterId: sid);
+                          await storage.updateCachedSemester(semesterId: sid, semesterName: sname);
                           if (!mounted) return;
                           setState(() {
                             _semesterId = sid;

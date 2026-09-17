@@ -115,9 +115,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final result = await repo.register(
         studentNumber: _studentNumberController.text.trim(),
         departmentId: _selectedDepartmentId!,
-        currentSemesterId: _selectedSemesterId!,
+        semesterId: _selectedSemesterId!,
         password: _passwordController.text,
-        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        email: _emailController.text.trim(),
       );
 
       await _storage?.saveSession(result);
@@ -187,7 +187,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 border:
                                     Border.all(color: primary.withValues(alpha: 0.3), width: 2),
                               ),
-                              child: const EinoFace(size: 80, mood: EinoMood.excited),
+                              child: const EinoFace(size: 80, mood: EinoMood.happy),
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -263,7 +263,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                 // Department Dropdown
                                 DropdownButtonFormField<String>(
-                                  value: _selectedDepartmentId,
+                                  initialValue: _selectedDepartmentId,
                                   decoration: InputDecoration(
                                     labelText: l10n.t('selectDepartment'),
                                     helperText: l10n.t('departmentLockedHelp'),
@@ -286,7 +286,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                 // Semester Dropdown
                                 DropdownButtonFormField<String>(
-                                  value: _selectedSemesterId,
+                                  initialValue: _selectedSemesterId,
                                   decoration: InputDecoration(
                                     labelText: l10n.t('selectSemester'),
                                     helperText: l10n.t('semesterFlexibleHelp'),
