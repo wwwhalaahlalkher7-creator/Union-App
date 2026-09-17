@@ -425,14 +425,20 @@ class _EinoScreenState extends State<EinoScreen> {
                   await _localStore.remove(model);
                   installed.remove(model.id);
                   setSheetState(() {});
-                  messenger.showSnackBar(SnackBar(content: Text(l10n.t('einoModelIntegrityFailed'))));
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(content: Text(l10n.t('einoModelIntegrityFailed'))),
+                  );
                   return;
                 }
                 final file = await _localStore.fileFor(model);
                 await _localEngine.load(model, file);
                 _loadedLocalModel = model;
-                if (mounted) setState(() {});
-                messenger.showSnackBar(SnackBar(content: Text(l10n.t('einoModelLoaded'))));
+                if (!mounted) return;
+                setState(() {});
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(content: Text(l10n.t('einoModelLoaded'))),
+                );
                 return;
               }
               final progressNotifier = ValueNotifier<double>(0);

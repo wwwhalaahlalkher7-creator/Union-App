@@ -337,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 22),
 
         // Progress & XP Card
-        _StudyProgressCard(signedIn: true),
+        const _StudyProgressCard(signedIn: true),
         const SizedBox(height: 22),
 
         // Eino Academic Helper Card
@@ -846,13 +846,13 @@ class _EinoHero extends StatelessWidget {
       borderRadius: BorderRadius.circular(24),
       child: Container(
         height: 180,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: AlignmentDirectional.topStart,
             end: AlignmentDirectional.bottomEnd,
             colors: [
               AppColors.navy,
-              const Color(0xFF1B3B59),
+              Color(0xFF1B3B59),
             ],
           ),
         ),
