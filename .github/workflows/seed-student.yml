@@ -24,10 +24,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
       - name: Validate required secrets
         env:
           STUDENT_NAME: ${{ secrets.SEED_STUDENT_NAME }}
@@ -145,7 +141,7 @@ jobs:
       - name: Apply student seed to D1
         working-directory: backend
         run: |
-          npx wrangler d1 execute leo-association-db \
+          npx --yes wrangler@4 d1 execute leo-association-db \
             --remote \
             --file "${RUNNER_TEMP}/seed-student.sql"
 
