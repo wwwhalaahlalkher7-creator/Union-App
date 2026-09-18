@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class ContentItem {
   const ContentItem({
     required this.id,
@@ -11,6 +13,9 @@ class ContentItem {
     this.publisher,
     this.eventAt,
     this.location,
+    this.commentCount = 0,
+    this.likeCount = 0,
+    this.images = const <String>[],
   });
 
   final String id;
@@ -24,6 +29,9 @@ class ContentItem {
   final String? publisher;
   final DateTime? eventAt;
   final String? location;
+  final int commentCount;
+  final int likeCount;
+  final List<String> images;
 
   factory ContentItem.fromJson(Map<String, dynamic> json) {
     final fields = json['fields'] is Map
@@ -63,6 +71,25 @@ class ContentItem {
       publisher: fields['publisher']?.toString(),
       eventAt: parseDate(fields['eventAt'] ?? fields['event_at']),
       location: fields['location']?.toString(),
+      commentCount: _toInt(fields['commentCount'] ?? fields['comment_count']),
+      likeCount: _toInt(fields['likeCount'] ?? fields['like_count']),
+      images: _toImages(fields['images'] ?? fields['images_json']),
     );
   }
+}
+
+List<String> _toImages(dynamic value) {
+  if (value is List) return value.map((v) => v is Map ? '${v['url'] ?? ''}' : '$v').where((v) => v.trim().isNotEmpty).toList();
+  if (value is String && value.trim().isNotEmpty) {
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is List) return decoded.map((v) => v is Map ? '${v['url'] ?? ''}' : '$v').where((v) => v.trim().isNotEmpty).toList();
+    } catch (_) {}
+  }
+  return const <String>[];
+}
+
+int _toInt(dynamic value) {
+  if (value is int) return value;
+  return int.tryParse(value?.toString() ?? '') ?? 0;
 }

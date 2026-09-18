@@ -56,7 +56,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     if (!prefs.onboardingCompleted) {
       context.go('/onboarding');
     } else {
-      context.go('/news');
+      context.go('/media');
     }
   }
 

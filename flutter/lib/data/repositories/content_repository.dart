@@ -11,8 +11,17 @@ class ContentRepository {
   Future<List<ContentItem>> announcements() =>
       _list('/api/v1/public/announcements');
 
+  Future<List<ContentItem>> events() => _list('/api/v1/public/events');
+
   Future<List<ContentItem>> activities() =>
       _list('/api/v1/public/activities');
+
+  Future<ContentItem> detail(String type, String id) async {
+    final json = await _client.getJson('/api/v1/public/$type/$id', cacheTtl: const Duration(seconds: 20), forceRefresh: true);
+    final data = json['data'];
+    if (data is! Map) throw const ApiException('استجابة المحتوى غير صالحة.');
+    return ContentItem.fromJson(Map<String, dynamic>.from(data));
+  }
 
   Future<List<ContentItem>> achievements() =>
       _list('/api/v1/public/achievements');

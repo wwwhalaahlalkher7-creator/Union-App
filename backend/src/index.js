@@ -53,20 +53,23 @@ export default {
       if (request.method === 'GET' && path === '/health') return health(ctx);
       if (request.method === 'GET' && path === '/version') return publicVersion(ctx);
       if (request.method === 'GET' && path === '/app/update') return appUpdate(ctx);
-      if (request.method === 'GET' && (path === '/' || path === '/news' || path === '/announcements' || path === '/activities' || path === '/achievements')) {
+      if (request.method === 'GET' && (path === '/' || path === '/news' || path === '/announcements' || path === '/activities' || path === '/events' || path === '/achievements')) {
         const actionMap = {
           '/news': 'news',
           '/announcements': 'announcements',
           '/activities': 'activities',
+          '/events': 'events',
           '/achievements': 'achievements',
         };
         const action = actionMap[path] || String(url.searchParams.get('action') || '').trim().toLowerCase();
-        if (['news', 'announcements', 'activities', 'achievements'].includes(action)) return publicList(ctx, action);
+        if (['news', 'announcements', 'events', 'activities', 'achievements'].includes(action)) return publicList(ctx, action);
       }
       if (request.method === 'GET' && path === '/public/news') return publicList(ctx, 'news');
       if (request.method === 'GET' && path === '/public/announcements') return publicList(ctx, 'announcements');
       if (request.method === 'GET' && path === '/public/activities') return publicList(ctx, 'activities');
+      if (request.method === 'GET' && path === '/public/events') return publicList(ctx, 'events');
       if (request.method === 'GET' && path === '/public/achievements') return publicList(ctx, 'achievements');
+      if (request.method === 'GET' && /^\/public\/(news|events|activities)\/[^/]+$/.test(path)) return publicContentDetail(ctx);
       if (request.method === 'GET' && path === '/public/settings') return publicSettings(ctx);
       if (request.method === 'GET' && path === '/public/materials') return publicMaterials(ctx);
 
@@ -106,6 +109,7 @@ export default {
       if (/^\/comments\/[^/]+\/replies$/.test(path) && request.method === 'GET') return replies(ctx);
       if (/^\/comments\/[^/]+\/replies$/.test(path) && request.method === 'POST') return createReply(ctx);
       if (/^\/content\/[^/]+\/[^/]+\/reactions$/.test(path) && request.method === 'POST') return reaction(ctx);
+      if (/^\/comments\/[^/]+\/reactions$/.test(path) && request.method === 'POST') return commentReaction(ctx);
       if (/^\/comments\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteComment(ctx, path.split('/')[2]);
 
       if (path === '/admin/drive/sync' && request.method === 'POST') return adminDriveSync(ctx);
@@ -240,48 +244,56 @@ function parseJsonValue(value, fallback = null) {
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
+async function publicContentDetail(ctx) {
+  const parts = ctx.path.split('/');
+  const table = parts[2];
+  const id = parts[3];
+  if (!['news', 'events', 'activities'].includes(table) || !id) return error('CONTENT_NOT_FOUND','المحتوى غير موجود.',404,ctx.requestId,ctx.cors);
+  const dateColumn = ['events','activities'].includes(table) ? 'event_at' : 'publish_at';
+  const expiryClause = table === 'news' ? " AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)" : '';
+  const row = await queryOne(ctx.env, `SELECT ${table}.*,
+      (SELECT COUNT(*) FROM comments c WHERE c.content_type=? AND c.content_id=${table}.id AND c.status='visible') AS comment_count,
+      (SELECT COUNT(*) FROM reactions r WHERE r.content_type=? AND r.content_id=${table}.id) AS like_count
+    FROM ${table} WHERE id=? AND status='published' AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP) ${expiryClause}`,
+    table === 'news' ? 'news' : 'activity', table === 'news' ? 'news' : 'activity', id);
+  if (!row) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح حاليًا.',404,ctx.requestId,ctx.cors);
+  return ok(ctx, serializePublicContent(table, row), {source:'d1'});
+}
+
+function serializePublicContent(table, row) {
+  const images = parseJsonValue(row.images_json, []);
+  const normalizedImages = Array.isArray(images) ? images.map(v => typeof v === 'string' ? v : (v?.url || '')).filter(Boolean) : [];
+  if (row.image_url && !normalizedImages.includes(row.image_url)) normalizedImages.unshift(row.image_url);
+  const common = { id: row.id, title: row.title, body: row.body || null, imageUrl: normalizedImages[0] || null, images: normalizedImages, category: row.category || null, publisher: row.publisher || null, createdAt: row.created_at || null, updatedAt: row.updated_at || null, commentCount: Number(row.comment_count || 0), likeCount: Number(row.like_count || 0) };
+  if (['events','activities'].includes(table)) Object.assign(common, {eventAt: row.event_at || null, endAt: row.end_at || null, location: row.location || null});
+  else Object.assign(common, {publishAt: row.publish_at || null, expiresAt: row.expires_at || null});
+  return common;
+}
+
 async function publicList(ctx, table) {
   const limit = clampInt(ctx.url.searchParams.get('limit'), 20);
-  const dateColumn = table === 'activities' ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
+  const dateColumn = ['events','activities'].includes(table) ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
   const order = `${dateColumn} DESC`;
   const expiryClause = ['news', 'announcements'].includes(table)
     ? " AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)"
     : '';
   const rows = await queryAll(
     ctx.env,
-    `SELECT * FROM ${table}
+    `SELECT ${table}.*,
+       (SELECT COUNT(*) FROM comments c WHERE c.content_type = ? AND c.content_id = ${table}.id AND c.status = 'visible') AS comment_count,
+       (SELECT COUNT(*) FROM reactions r WHERE r.content_type = ? AND r.content_id = ${table}.id) AS like_count
+     FROM ${table}
      WHERE status = 'published'
        AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)
        ${expiryClause}
      ORDER BY ${order} LIMIT ?`,
+    table === 'news' ? 'news' : table === 'announcements' ? 'announcement' : table === 'events' ? 'event' : table === 'activities' ? 'activity' : 'achievement',
+    table === 'news' ? 'news' : table === 'announcements' ? 'announcement' : table === 'events' ? 'event' : table === 'activities' ? 'activity' : 'achievement',
     limit
   );
 
   const data = rows.map(row => {
-    if (table === 'news') return {
-      id: row.id,
-      title: row.title,
-      body: row.body,
-      imageUrl: row.image_url || null,
-      publishAt: row.publish_at || null,
-      expiresAt: row.expires_at || null,
-      createdAt: row.created_at || null,
-      updatedAt: row.updated_at || null,
-      category: row.category || null,
-      publisher: row.publisher || null,
-    };
-    if (table === 'activities') return {
-      id: row.id,
-      title: row.title,
-      body: row.body,
-      imageUrl: row.image_url || null,
-      eventAt: row.event_at || null,
-      endAt: row.end_at || null,
-      location: row.location || null,
-      publisher: row.publisher || null,
-      createdAt: row.created_at || null,
-      updatedAt: row.updated_at || null,
-    };
+    if (table === 'news' || table === 'events' || table === 'activities') return serializePublicContent(table, row);
     if (table === 'achievements') return {
       id: row.id,
       title: row.title,
@@ -1097,7 +1109,7 @@ async function evaluateBadges(ctx, studentId) {
 
 const INTERACTION_RULES = { comment: { limit: 10, minutes: 10 }, reply: { limit: 15, minutes: 10 }, reaction: { limit: 40, minutes: 10 } };
 const ALLOWED_REACTIONS = new Set(['like','helpful','love','celebrate']);
-const ALLOWED_CONTENT_TYPES = new Set(['news','announcement','activity','achievement']);
+const ALLOWED_CONTENT_TYPES = new Set(['news','event','activity','announcement','achievement']);
 async function interactionAllowed(ctx, studentId, action) {
   const rule = INTERACTION_RULES[action]; const now = Date.now(); const windowMs = rule.minutes * 60 * 1000;
   const bucket = new Date(Math.floor(now / windowMs) * windowMs).toISOString(); const id = await sha256(`${studentId}:${action}:${bucket}`);
@@ -1108,7 +1120,7 @@ async function interactionAllowed(ctx, studentId, action) {
 async function comments(ctx) {
   const [, type, id] = ctx.path.split('/'); if (!ALLOWED_CONTENT_TYPES.has(type)) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
   const limit = clampInt(ctx.url.searchParams.get('limit'),20,1,50); const offset = clampInt(ctx.url.searchParams.get('offset'),0,0,10000);
-  const rows = await queryAll(ctx.env, `SELECT c.*, s.full_name FROM comments c JOIN students s ON s.id=c.student_id WHERE c.content_type=? AND c.content_id=? AND c.status='visible' ORDER BY c.created_at DESC LIMIT ? OFFSET ?`, type,id,limit,offset);
+  const rows = await queryAll(ctx.env, `SELECT c.*, s.full_name, (SELECT COUNT(*) FROM comment_reactions cr WHERE cr.comment_id=c.id) AS reaction_count FROM comments c JOIN students s ON s.id=c.student_id WHERE c.content_type=? AND c.content_id=? AND c.status='visible' ORDER BY c.created_at DESC LIMIT ? OFFSET ?`, type,id,limit,offset);
   const total = await queryOne(ctx.env, `SELECT COUNT(*) AS count FROM comments WHERE content_type=? AND content_id=? AND status='visible'`, type,id);
   return ok(ctx,rows,{count:rows.length,total:Number(total?.count||0),offset,limit});
 }
@@ -1138,6 +1150,19 @@ async function reaction(ctx) {
   if(!(await interactionAllowed(ctx,a.session.student_id,'reaction'))) return error('RATE_LIMITED','تم تجاوز حد التفاعلات مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
   await ctx.env.DB.prepare('INSERT INTO reactions (id,student_id,content_type,content_id,reaction) VALUES (?,?,?,?,?) ON CONFLICT(student_id,content_type,content_id) DO UPDATE SET reaction=excluded.reaction').bind(crypto.randomUUID(),a.session.student_id,parts[2],parts[3],value).run(); return ok(ctx,{reaction:value});
 }
+async function commentReaction(ctx) {
+  const a = await auth(ctx); if (a.response) return a.response;
+  const id = ctx.path.split('/')[2];
+  const body = await parseJson(ctx.request);
+  const value = String(body?.reaction || 'like').trim().toLowerCase();
+  if (!ALLOWED_REACTIONS.has(value)) return error('REACTION_INVALID','نوع التفاعل غير مدعوم.',400,ctx.requestId,ctx.cors);
+  const comment = await queryOne(ctx.env, "SELECT id FROM comments WHERE id=? AND status='visible'", id);
+  if (!comment) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors);
+  if (!(await interactionAllowed(ctx, a.session.student_id, 'reaction'))) return error('RATE_LIMITED','تم تجاوز حد التفاعلات مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
+  await ctx.env.DB.prepare('INSERT INTO comment_reactions (id,student_id,comment_id,reaction) VALUES (?,?,?,?) ON CONFLICT(student_id,comment_id) DO UPDATE SET reaction=excluded.reaction,updated_at=CURRENT_TIMESTAMP').bind(crypto.randomUUID(), a.session.student_id, id, value).run();
+  return ok(ctx, {reaction:value});
+}
+
 async function deleteComment(ctx,id) { const a=await auth(ctx); if(a.response) return a.response; const result=await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=? AND status='visible'").bind(id,a.session.student_id).run(); if(!result.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود أو لا يمكنك حذفه.',404,ctx.requestId,ctx.cors); return ok(ctx,{deleted:true}); }
 async function adminModerationComments(ctx) { const a=await requireAdminPermission(ctx, 'moderation.read'); if(a.response) return a.response; const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,'SELECT c.*,s.full_name,s.student_number FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?',status,limit); return ok(ctx,rows,{count:rows.length}); }
 async function adminModerationComment(ctx,id) { const a=await requireAdminPermission(ctx, 'moderation.write'); if(a.response) return a.response; const body=await parseJson(ctx.request); const status=String(body?.status||'').trim(); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const r=await ctx.env.DB.prepare('UPDATE comments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run(); if(!r.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,a.session.staff_user_id,'status_update','comment',id,{status}); return ok(ctx,{id,status}); }
@@ -1222,14 +1247,15 @@ function adminPermission(path, method) {
 }
 
 function adminResourceTable(resource) {
-  const map = { news:'news', announcements:'announcements', activities:'activities', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', badges:'badges', comments:'comments' };
+  const map = { news:'news', announcements:'announcements', events:'events', activities:'activities', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', badges:'badges', comments:'comments' };
   return map[resource] || null;
 }
 
 const ADMIN_FIELDS = {
-  news: ['title','body','image_url','publish_at','expires_at','status','category','publisher'],
+  news: ['title','body','image_url','images_json','publish_at','expires_at','status','category','publisher'],
   announcements: ['title','body','type','target_department_id','target_semester_id','publish_at','expires_at','status'],
-  activities: ['title','body','image_url','event_at','end_at','location','publisher','status'],
+  events: ['title','body','image_url','images_json','category','event_at','end_at','location','publisher','status'],
+  activities: ['title','body','image_url','images_json','category','event_at','end_at','location','publisher','status'],
   achievements: ['title','description','intro','highlights_title','highlights','badge','publisher','image_url','images_json','achieved_at','status'],
   subjects: ['semester_id','department_id','code','name_ar','name_en','active','sort_order'],
   materials: ['subject_id','title','description','drive_file_id','drive_url','mime_type','size_bytes','active','sort_order','drive_parent_id','drive_modified_at','drive_web_view_url','pinned','source'],
@@ -1240,8 +1266,8 @@ const ADMIN_FIELDS = {
 };
 
 const CONTENT_STATUS_VALUES = Object.freeze(new Set(['draft', 'published', 'archived']));
-const CONTENT_TABLES = Object.freeze(new Set(['news', 'activities', 'announcements', 'achievements']));
-const CONTENT_UPDATED_BY_TABLES = Object.freeze(new Set(['news', 'activities', 'achievements']));
+const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'announcements', 'achievements']));
+const CONTENT_UPDATED_BY_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'achievements']));
 
 function cleanAdminPayload(table, body) {
   const out = {};
@@ -1257,9 +1283,10 @@ async function writeAudit(ctx, actorId, action, resourceType, resourceId, metada
 }
 
 const ADMIN_SELECT_COLUMNS = {
-  news: 'id,title,body,image_url,publish_at,expires_at,status,category,publisher,created_by,updated_by,created_at,updated_at',
+  news: 'id,title,body,image_url,images_json,publish_at,expires_at,status,category,publisher,created_by,updated_by,created_at,updated_at',
   announcements: 'id,title,body,type,target_department_id,target_semester_id,publish_at,expires_at,status,created_by,created_at,updated_at',
-  activities: 'id,title,body,image_url,event_at,end_at,location,publisher,status,created_by,updated_by,created_at,updated_at',
+  events: 'id,title,body,image_url,images_json,category,event_at,end_at,location,publisher,status,created_by,updated_by,created_at,updated_at',
+  activities: 'id,title,body,image_url,images_json,category,event_at,end_at,location,publisher,status,created_by,updated_by,created_at,updated_at',
   achievements: 'id,title,description,intro,highlights_title,highlights,badge,publisher,image_url,images_json,achieved_at,status,created_by,updated_by,created_at,updated_at',
   subjects: 'id,semester_id,department_id,code,name_ar,name_en,active,sort_order',
   materials: 'id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,created_at,updated_at',
@@ -1293,7 +1320,7 @@ async function adminCrud(ctx, table, id, actorId) {
     if (table === 'materials' && (!fields.subject_id || !fields.title)) return error('MATERIAL_INPUT_INVALID','المادة والعنوان مطلوبان.',400,ctx.requestId,ctx.cors);
     if (table === 'schedules' && (!fields.semester_id || !fields.department_id || fields.day_of_week == null || !fields.start_time || !fields.end_time)) return error('SCHEDULE_INPUT_INVALID','بيانات الجدول الأساسية مطلوبة.',400,ctx.requestId,ctx.cors);
     const cols = ['id', ...Object.keys(fields)]; const vals = [id, ...Object.values(fields)];
-    if (table === 'news' || table === 'activities' || table === 'announcements' || table === 'achievements') { cols.push('created_by'); vals.push(actorId); }
+    if (table === 'news' || table === 'events' || table === 'activities' || table === 'announcements' || table === 'achievements') { cols.push('created_by'); vals.push(actorId); }
     if (table === 'schedules') { cols.push('created_by','updated_by'); vals.push(actorId,actorId); }
     const marks = cols.map(()=>'?').join(',');
     await ctx.env.DB.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${marks})`).bind(...vals.map(sqlValue)).run();
@@ -1330,6 +1357,7 @@ async function adminCrud(ctx, table, id, actorId) {
       const stmts = [];
       if (commentIds.length) {
         const marks = commentIds.map(() => '?').join(',');
+        stmts.push(ctx.env.DB.prepare(`DELETE FROM comment_reactions WHERE comment_id IN (${marks})`).bind(...commentIds));
         stmts.push(ctx.env.DB.prepare(`DELETE FROM comment_replies WHERE comment_id IN (${marks})`).bind(...commentIds));
         stmts.push(ctx.env.DB.prepare(`DELETE FROM comments WHERE id IN (${marks})`).bind(...commentIds));
       }
@@ -1342,6 +1370,7 @@ async function adminCrud(ctx, table, id, actorId) {
       await ctx.env.DB.batch([
         ctx.env.DB.prepare('DELETE FROM sessions WHERE staff_user_id=?').bind(id),
         ctx.env.DB.prepare('UPDATE news SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+        ctx.env.DB.prepare('UPDATE events SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
         ctx.env.DB.prepare('UPDATE activities SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
         ctx.env.DB.prepare('UPDATE achievements SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
         ctx.env.DB.prepare('UPDATE announcements SET created_by=NULL WHERE created_by=?').bind(id),
@@ -1360,6 +1389,7 @@ async function adminCrud(ctx, table, id, actorId) {
       const stmts = [];
       if (commentIds.length) {
         const marks = commentIds.map(() => '?').join(',');
+        stmts.push(ctx.env.DB.prepare(`DELETE FROM comment_reactions WHERE comment_id IN (${marks})`).bind(...commentIds));
         stmts.push(ctx.env.DB.prepare(`DELETE FROM comment_replies WHERE comment_id IN (${marks})`).bind(...commentIds));
         stmts.push(ctx.env.DB.prepare(`DELETE FROM comments WHERE id IN (${marks})`).bind(...commentIds));
       }
@@ -1373,6 +1403,7 @@ async function adminCrud(ctx, table, id, actorId) {
       stmts.push(ctx.env.DB.prepare('DELETE FROM student_stats WHERE student_id=?').bind(id));
       stmts.push(ctx.env.DB.prepare('DELETE FROM interaction_rate_limits WHERE student_id=?').bind(id));
       stmts.push(ctx.env.DB.prepare('DELETE FROM sessions WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM comment_reactions WHERE student_id=?').bind(id));
       stmts.push(ctx.env.DB.prepare('DELETE FROM reactions WHERE student_id=?').bind(id));
       await ctx.env.DB.batch(stmts);
       const result = await ctx.env.DB.prepare('DELETE FROM students WHERE id=?').bind(id).run();
@@ -1430,7 +1461,7 @@ async function adminCrud(ctx, table, id, actorId) {
     }
 
     if (CONTENT_TABLES.has(table)) {
-      await deleteGenericContentRefs(table === 'news' ? 'news' : table === 'activities' ? 'activity' : 'achievement', id);
+      await deleteGenericContentRefs(table === 'news' ? 'news' : table === 'events' ? 'event' : table === 'activities' ? 'activity' : 'achievement', id);
       const result = await ctx.env.DB.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();
       if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
       await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete' });
@@ -1559,7 +1590,8 @@ async function adminStaff(ctx, id, actorId) {
     await ctx.env.DB.batch([
       ctx.env.DB.prepare('DELETE FROM sessions WHERE staff_user_id=?').bind(id),
       ctx.env.DB.prepare('UPDATE news SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
-      ctx.env.DB.prepare('UPDATE activities SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+      ctx.env.DB.prepare('UPDATE events SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
+        ctx.env.DB.prepare('UPDATE activities SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
       ctx.env.DB.prepare('UPDATE achievements SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
       ctx.env.DB.prepare('UPDATE announcements SET created_by=NULL WHERE created_by=?').bind(id),
       ctx.env.DB.prepare('UPDATE schedules SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),

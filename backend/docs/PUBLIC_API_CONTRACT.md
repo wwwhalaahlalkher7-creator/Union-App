@@ -15,13 +15,17 @@ Base:
 ### Public content
 
 - `GET /public/news`
+- `GET /public/events`
 - `GET /public/announcements`
 - `GET /public/activities`
+- `GET /public/news/:id`
+- `GET /public/events/:id`
+- `GET /public/activities/:id`
 - `GET /public/achievements`
 - `GET /public/settings`
 - `GET /public/materials`
 
-Legacy-compatible public content routes `/news`, `/announcements`, `/activities`, `/achievements` remain implemented for compatibility.
+Legacy-compatible public content routes `/news`, `/events`, `/announcements`, `/activities`, `/achievements` remain implemented for compatibility.
 
 ## Authentication endpoints
 
@@ -59,6 +63,7 @@ Legacy-compatible public content routes `/news`, `/announcements`, `/activities`
 - `GET/POST /content/:type/:id/comments`
 - `GET/POST /comments/:id/replies`
 - `POST /content/:type/:id/reactions`
+- `POST /comments/:id/reactions`
 - `DELETE /comments/:id`
 
 ## Eino

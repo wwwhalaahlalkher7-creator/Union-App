@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
-import '../../core/storage/auth_storage.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/student_profile.dart';
 import '../../data/repositories/student_repository.dart';
@@ -51,25 +50,6 @@ class _StudentScreenState extends State<StudentScreen> {
     super.dispose();
   }
 
-  Future<void> _logout() async {
-    final storage = await AuthStorage.create();
-    final token = await storage.accessToken;
-
-    if (token?.isNotEmpty == true) {
-      try {
-        final client = await AuthenticatedClient.create();
-        await client.postJson('/api/v1/auth/logout');
-        client.dispose();
-      } catch (_) {}
-    }
-
-    await storage.clear();
-
-    if (mounted) {
-      context.go('/login');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -84,11 +64,20 @@ class _StudentScreenState extends State<StudentScreen> {
           }
 
           if (snapshot.hasError) {
+            final e = snapshot.error;
             return Center(
-              child: Text(
-                snapshot.error is ApiException
-                    ? (snapshot.error as ApiException).message
-                    : AppLocalizations.of(context).t('connectionFailed'),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(e is ApiException ? e.message : AppLocalizations.of(context).t('connectionFailed'), textAlign: TextAlign.center),
+                    if (e is! ApiException || e.retryable) ...[
+                      const SizedBox(height: 12),
+                      FilledButton.icon(onPressed: _reload, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry'))),
+                    ],
+                  ],
+                ),
               ),
             );
           }
@@ -211,15 +200,6 @@ class _StudentScreenState extends State<StudentScreen> {
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 10),
-              FilledButton.icon(
-                onPressed: _logout,
-                icon: const Icon(
-                  Icons.logout_rounded,
-                  size: 16,
-                ),
-                label: const Text('تسجيل الخروج'),
               ),
             ],
           );

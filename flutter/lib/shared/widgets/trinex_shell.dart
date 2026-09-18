@@ -26,7 +26,7 @@ class _TrinexShellState extends State<TrinexShell> with SingleTickerProviderStat
     if (widget.location.startsWith('/system')) return 1;
     if (widget.location.startsWith('/schedule')) return 2;
     if (widget.location.startsWith('/materials')) return 3;
-    if (widget.location.startsWith('/news')) return 4;
+    if (widget.location.startsWith('/news') || widget.location.startsWith('/media')) return 4;
     return 4;
   }
 
@@ -83,10 +83,9 @@ class _TopHeader extends StatelessWidget {
           return Row(
             children: [
               _HeaderIcon(
-                icon: Icons.logout_rounded,
-                color: AppColors.danger,
+                icon: Icons.storefront_outlined,
                 size: button,
-                onTap: () => context.push('/login'),
+                onTap: () => context.push('/market'),
               ),
               SizedBox(width: gap),
               _Avatar(size: avatar, onTap: () => context.go('/student')),
@@ -143,11 +142,11 @@ class _MainNav extends StatelessWidget {
   final int selected;
 
   static const items = [
-    ('الملف', Icons.person_outline_rounded, '/student'),
+    ('السوق', Icons.storefront_outlined, '/market'),
     ('نظام', Icons.workspace_premium_outlined, '/system'),
     ('الجداول', Icons.calendar_month_outlined, '/schedule'),
     ('المواد', Icons.menu_book_outlined, '/materials'),
-    ('أخبار', Icons.article_outlined, '/news'),
+    ('الإعلام', Icons.campaign_outlined, '/media'),
   ];
 
   @override
@@ -228,13 +227,10 @@ class _Avatar extends StatelessWidget {
           border: Border.all(color: context.colors.outline, width: 2),
         ),
         child: Center(
-          child: Text(
-            'ع',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              fontSize: size * .4,
-              fontWeight: FontWeight.w900,
-            ),
+          child: Icon(
+            Icons.account_circle_rounded,
+            color: Theme.of(context).colorScheme.primary,
+            size: size * .62,
           ),
         ),
       ),

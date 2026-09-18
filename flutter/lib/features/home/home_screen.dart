@@ -85,13 +85,10 @@ class _HomeScreenState extends State<HomeScreen> {
           }
 
           if (snapshot.hasError) {
+            final e = snapshot.error;
             return _StateMessage(
-              message: snapshot.error is ApiException
-                  ? (snapshot.error as ApiException).message
-                  : l10n.t('connectionFailed'),
-              retry: () => setState(
-                () => _future = _load(),
-              ),
+              message: e is ApiException ? e.message : l10n.t('connectionFailed'),
+              retry: e is ApiException && !e.retryable ? null : () => setState(() => _future = _load()),
             );
           }
 
@@ -107,25 +104,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
           return ListView(
             padding: const EdgeInsetsDirectional.fromSTEB(
-              18.4,
-              16.56,
-              18.4,
+              20,
+              18,
+              20,
               92,
             ),
             children: [
               AppCard(
-                padding: const EdgeInsets.all(18.4),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
                       'مرحباً ${data.profile.name.split(' ').first} 👋',
                       style: const TextStyle(
-                        fontSize: 20.2,
+                        fontSize: 22,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 7),
                     Text(
                       data.profile.departmentName ?? 'TRINEX',
                       style: TextStyle(
@@ -133,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
@@ -143,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             context.colors.primary,
                           ),
                         ),
-                        const SizedBox(width: 9),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _QuickStat(
                             'XP',
@@ -151,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             context.colors.secondary,
                           ),
                         ),
-                        const SizedBox(width: 9),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _QuickStat(
                             'الفصل',
@@ -164,16 +161,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
               const Text(
                 'الوصول السريع',
                 textAlign: TextAlign.end,
                 style: TextStyle(
-                  fontSize: 19.3,
+                  fontSize: 20.5,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
@@ -184,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       () => context.go('/materials'),
                     ),
                   ),
-                  const SizedBox(width: 9),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _Tile(
                       'الجداول',
@@ -193,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       () => context.go('/schedule'),
                     ),
                   ),
-                  const SizedBox(width: 9),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _Tile(
                       'نظام XP',
@@ -211,7 +208,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Text(
                     'أحدث الأخبار',
                     style: TextStyle(
-                      fontSize: 19.3,
+                      fontSize: 20.5,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -223,7 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               if (data.news.isEmpty)
                 AppCard(
                   child: Text(
@@ -303,7 +300,7 @@ class _QuickStat extends StatelessWidget {
             label,
             style: TextStyle(
               color: context.colors.onSurfaceVariant,
-              fontSize: 10.5,
+              fontSize: 11,
             ),
           ),
         ],
@@ -329,12 +326,12 @@ class _Tile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        height: 76,
+        height: 88,
         decoration: BoxDecoration(
           color: context.colors.surface,
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: context.colors.outline,
           ),
@@ -345,14 +342,14 @@ class _Tile extends StatelessWidget {
             Icon(
               icon,
               color: color,
-              size: 24,
+              size: 27,
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 7),
             Text(
               title,
               style: const TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 10.5,
+                fontSize: 11,
               ),
             ),
           ],
@@ -373,59 +370,55 @@ class _NewsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
-      child: AppCard(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: context.colors.primary.withValues(
-                  alpha: .12,
-                ),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Icon(
-                Icons.campaign_rounded,
-                color: context.colors.primary,
-                size: 21,
-              ),
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: context.colors.primary.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12.5,
-                    ),
-                  ),
-                  if (item.summary?.isNotEmpty == true)
-                    Text(
-                      item.summary!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        color: context.colors.onSurfaceVariant,
-                        fontSize: 10.5,
+            child: Icon(Icons.campaign_rounded, color: context.colors.primary, size: 23),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        item.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
                       ),
-                    ),
-                ],
+                      if (item.summary?.isNotEmpty == true) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          item.summary!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 11),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -438,7 +431,7 @@ class _StateMessage extends StatelessWidget {
   });
 
   final String message;
-  final VoidCallback retry;
+  final VoidCallback? retry;
 
   @override
   Widget build(BuildContext context) {
@@ -453,19 +446,19 @@ class _StateMessage extends StatelessWidget {
               size: 50,
               color: context.colors.primary,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
               message,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: retry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text(
-                AppLocalizations.of(context).t('retry'),
+            if (retry != null) ...[
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: retry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text(AppLocalizations.of(context).t('retry')),
               ),
-            ),
+            ],
           ],
         ),
       ),

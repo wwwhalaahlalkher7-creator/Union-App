@@ -34,7 +34,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const _Loading();
-          if (snapshot.hasError) return _StateMessage(icon: Icons.cloud_off_outlined, message: l10n.t('connectionFailed'), onRetry: _retry);
+          if (snapshot.hasError) { final e = snapshot.error; final retryable = e is ApiException ? e.retryable : true; return _StateMessage(icon: e is ApiException && e.kind == ApiErrorKind.server ? Icons.cloud_off_outlined : Icons.wifi_off_outlined, message: e is ApiException ? e.message : l10n.t('connectionFailed'), onRetry: retryable ? _retry : null); }
           final items = snapshot.data ?? const <ContentItem>[];
           if (items.isEmpty) return _StateMessage(icon: widget.icon, message: l10n.t('noData'));
           return RefreshIndicator(

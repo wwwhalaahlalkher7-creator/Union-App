@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
-import '../../core/theme/design_tokens.dart';
+import '../../core/network/authenticated_client.dart';
+import '../../data/repositories/interactions_repository.dart';
 import '../../data/models/content_item.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../shared/widgets/app_card.dart';
+import 'news_detail_screen.dart';
 
 class NewsScreen extends StatefulWidget {
   const NewsScreen({super.key});
@@ -17,13 +19,8 @@ class NewsScreen extends StatefulWidget {
 }
 
 class _NewsScreenState extends State<NewsScreen> {
-  late final ApiClient _client = ApiClient(
-    baseUrl: AppConstants.apiBaseUrl,
-  );
-
-  late final ContentRepository _repo =
-      ContentRepository(_client);
-
+  late final ApiClient _client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
+  late final ContentRepository _repo = ContentRepository(_client);
   late Future<List<ContentItem>> _future = _repo.news();
 
   String _filter = 'all';
@@ -36,12 +33,22 @@ class _NewsScreenState extends State<NewsScreen> {
 
   Future<void> _refresh() async {
     final future = _repo.news();
-
-    setState(() {
-      _future = future;
-    });
-
+    setState(() => _future = future);
     await future;
+  }
+
+  void _openDetails(ContentItem item) {
+    context.push('/news/detail', extra: item);
+  }
+
+  Future<void> _openComments(ContentItem item) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => NewsCommentsSheet(item: item),
+    );
   }
 
   @override
@@ -53,11 +60,8 @@ class _NewsScreenState extends State<NewsScreen> {
       child: FutureBuilder<List<ContentItem>>(
         future: _future,
         builder: (context, snapshot) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
@@ -65,83 +69,59 @@ class _NewsScreenState extends State<NewsScreen> {
               message: snapshot.error is ApiException
                   ? (snapshot.error as ApiException).message
                   : l10n.t('connectionFailed'),
-              retry: () => setState(
-                () => _future = _repo.news(),
-              ),
+              retry: () => setState(() => _future = _repo.news()),
             );
           }
 
-          final items =
-              snapshot.data ?? const <ContentItem>[];
-
+          final items = snapshot.data ?? const <ContentItem>[];
           final visible = _filter == 'all'
               ? items
               : items
-                  .where(
-                    (item) =>
-                        (item.category ?? '')
-                            .toLowerCase() ==
-                        _filter,
-                  )
+                  .where((item) =>
+                      (item.category ?? '').toLowerCase() == _filter)
                   .toList();
 
           return ListView(
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              14.72,
-              12,
-              14.72,
-              92,
-            ),
+            padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 12, 88),
             children: [
-              const Text(
-                'الأخبار',
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  fontSize: 20.2,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 4),
               Text(
-                'آخر الأخبار المنشورة من الرابطة',
-                textAlign: TextAlign.end,
+                l10n.t('news'),
+                textAlign: TextAlign.start,
+                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                l10n.t('newsSubtitle'),
+                textAlign: TextAlign.start,
                 style: TextStyle(
                   color: context.colors.onSurfaceVariant,
-                  fontSize: 11.5,
+                  fontSize: 10.5,
                 ),
               ),
-              const SizedBox(height: 11),
+              const SizedBox(height: 9),
               SizedBox(
-                height: 38,
+                height: 34,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
-                    _Chip('الكل', 'all'),
-                    _Chip('بيانات رسمية', 'official'),
-                    _Chip('فعاليات', 'event'),
-                    _Chip('أنشطة', 'activity'),
+                    _Chip(l10n.t('all'), 'all', _filter, (value) => setState(() => _filter = value)),
+                    _Chip(l10n.t('officialNews'), 'official', _filter, (value) => setState(() => _filter = value)),
+                    _Chip(l10n.t('events'), 'event', _filter, (value) => setState(() => _filter = value)),
+                    _Chip(l10n.t('activities'), 'activity', _filter, (value) => setState(() => _filter = value)),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               if (visible.isEmpty)
-                AppCard(
-                  child: Text(
-                    l10n.t('noData'),
-                    textAlign: TextAlign.center,
-                  ),
-                )
+                AppCard(child: Text(l10n.t('noData'), textAlign: TextAlign.center))
               else
                 for (final item in visible)
                   Padding(
-                    padding:
-                        const EdgeInsets.only(bottom: 10),
-                    child: _Card(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _NewsCard(
                       item: item,
-                      onTap: () => context.push(
-                        '/news/detail',
-                        extra: item,
-                      ),
+                      onDetails: () => _openDetails(item),
+                      onComments: () => _openComments(item),
                     ),
                   ),
             ],
@@ -150,121 +130,247 @@ class _NewsScreenState extends State<NewsScreen> {
       ),
     );
   }
+}
 
-  Widget _Chip(
-    String label,
-    String value,
-  ) {
+class _Chip extends StatelessWidget {
+  const _Chip(this.label, this.value, this.selectedValue, this.onChanged);
+
+  final String label;
+  final String value;
+  final String selectedValue;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding:
-          const EdgeInsetsDirectional.only(start: 6),
+      padding: const EdgeInsetsDirectional.only(end: 6),
       child: ChoiceChip(
-        label: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10.5,
-          ),
-        ),
-        selected: _filter == value,
-        onSelected: (_) {
-          setState(() => _filter = value);
-        },
+        label: Text(label, style: const TextStyle(fontSize: 9.5)),
+        selected: selectedValue == value,
+        onSelected: (_) => onChanged(value),
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       ),
     );
   }
 }
 
-class _Card extends StatelessWidget {
-  const _Card({
-    required this.item,
-    required this.onTap,
-  });
+class _NewsCard extends StatefulWidget {
+  const _NewsCard({required this.item, required this.onDetails, required this.onComments});
 
   final ContentItem item;
-  final VoidCallback onTap;
+  final VoidCallback onDetails;
+  final VoidCallback onComments;
+
+  @override
+  State<_NewsCard> createState() => _NewsCardState();
+}
+
+class _NewsCardState extends State<_NewsCard> {
+  ApiClient? _client;
+  bool _liked = false;
+  bool _reacting = false;
+
+  Future<void> _toggleLike() async {
+    if (_reacting || _liked) return;
+    setState(() => _reacting = true);
+    try {
+      _client ??= await AuthenticatedClient.create();
+      await InteractionsRepository(_client!).react('news', widget.item.id, 'like');
+      if (mounted) setState(() => _liked = true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(context).t('likeFailed'))),
+      );
+    } finally {
+      if (mounted) setState(() => _reacting = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _client?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AppCard(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.end,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    item.category ?? 'خبر',
-                    style: TextStyle(
-                      color: context.colors.primary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                Text(
-                  _date(
-                    item.createdAt ?? item.updatedAt,
-                  ),
-                  style: TextStyle(
-                    color:
-                        context.colors.onSurfaceVariant,
-                    fontSize: 9.5,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 7),
-            Text(
-              item.title,
-              textAlign: TextAlign.end,
-              style: const TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w900,
-                height: 1.3,
+    final l10n = AppLocalizations.of(context);
+    final item = widget.item;
+    final imageUrl = item.imageUrl?.trim();
+    final category = item.category?.trim().isNotEmpty == true
+        ? item.category!.trim()
+        : l10n.t('news');
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 7.8,
+                child: imageUrl == null || imageUrl.isEmpty
+                    ? Container(
+                        color: context.colors.surfaceContainerHigh,
+                        alignment: Alignment.center,
+                        child: Icon(Icons.article_rounded, size: 46, color: context.colors.primary),
+                      )
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: context.colors.surfaceContainerHigh,
+                          alignment: Alignment.center,
+                          child: Icon(Icons.image_not_supported_outlined, size: 42, color: context.colors.onSurfaceVariant),
+                        ),
+                        loadingBuilder: (context, child, progress) => progress == null
+                            ? child
+                            : Container(
+                                color: context.colors.surfaceContainerHigh,
+                                alignment: Alignment.center,
+                                child: const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
+                              ),
+                      ),
               ),
-            ),
-            if (item.summary?.isNotEmpty == true) ...[
-              const SizedBox(height: 5),
-              Text(
-                item.summary!,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  color:
-                      context.colors.onSurfaceVariant,
-                  fontSize: 10.8,
-                  height: 1.45,
+              PositionedDirectional(
+                start: 10,
+                bottom: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: .82),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Text(
+                    category,
+                    style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w900),
+                  ),
                 ),
               ),
             ],
-            const SizedBox(height: 7),
-            Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.end,
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(12, 9, 12, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 12,
-                  color: context.colors.primary,
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today_outlined, size: 14, color: context.colors.onSurfaceVariant),
+                    const SizedBox(width: 5),
+                    Text(
+                      _date(item.createdAt ?? item.updatedAt),
+                      style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 9.5),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  'فتح الخبر',
-                  style: TextStyle(
-                    color: context.colors.primary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
+                const SizedBox(height: 7),
+                // Only the news text opens the details screen. The surrounding card does not.
+                Semantics(
+                  button: true,
+                  label: l10n.t('openNews'),
+                  child: InkWell(
+                    onTap: widget.onDetails,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            item.title,
+                            textAlign: TextAlign.start,
+                            style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, height: 1.35),
+                          ),
+                          if (item.summary?.trim().isNotEmpty == true) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              item.summary!.trim(),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.start,
+                              style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 10.5, height: 1.45),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-          ],
+          ),
+          Divider(height: 1, color: context.colors.outline),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(8, 2, 8, 3),
+            child: Row(
+              children: [
+                _ActionButton(
+                  tooltip: l10n.t('like'),
+                  count: widget.item.likeCount,
+                  onPressed: _reacting ? null : _toggleLike,
+                  icon: _liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined,
+                  active: _liked,
+                ),
+                _ActionButton(
+                  tooltip: l10n.t('comments'),
+                  count: widget.item.commentCount,
+                  onPressed: widget.onComments,
+                  icon: Icons.chat_bubble_outline_rounded,
+                ),
+                const Spacer(),
+                if (item.publisher?.trim().isNotEmpty == true)
+                  Flexible(
+                    child: Text(
+                      item.publisher!.trim(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 9),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({required this.tooltip, required this.count, required this.onPressed, required this.icon, this.active = false});
+
+  final String tooltip;
+  final int count;
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? context.colors.primary : context.colors.onSurfaceVariant;
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(9),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(7, 5, 7, 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: color),
+              if (count > 0) ...[
+                const SizedBox(width: 4),
+                Text('$count', style: TextStyle(fontSize: 9.5, color: color, fontWeight: FontWeight.w700)),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -273,17 +379,13 @@ class _Card extends StatelessWidget {
 
 String _date(DateTime? date) {
   if (date == null) return '';
-
-  return '${date.day.toString().padLeft(2, '0')}/'
-      '${date.month.toString().padLeft(2, '0')}/'
-      '${date.year}';
+  return '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 }
 
 class _Message extends StatelessWidget {
-  const _Message({
-    required this.message,
-    required this.retry,
-  });
+  const _Message({required this.message, required this.retry});
 
   final String message;
   final VoidCallback retry;
@@ -294,19 +396,12 @@ class _Message extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            message,
-            textAlign: TextAlign.center,
-          ),
+          Text(message, textAlign: TextAlign.center),
           const SizedBox(height: 10),
           FilledButton.icon(
             onPressed: retry,
-            icon: const Icon(
-              Icons.refresh_rounded,
-            ),
-            label: Text(
-              AppLocalizations.of(context).t('retry'),
-            ),
+            icon: const Icon(Icons.refresh_rounded),
+            label: Text(AppLocalizations.of(context).t('retry')),
           ),
         ],
       ),

@@ -15,7 +15,7 @@
 | المجموعة | أمثلة | المصادقة |
 |---|---|---|
 | Health / version | `/health`, `/version`, `/app/update` | عامة |
-| Public content | `/public/news`, `/public/activities`, `/public/announcements`, `/public/achievements`, `/public/materials` | عامة |
+| Public content | `/public/news`, `/public/events`, `/public/activities`, `/public/announcements`, `/public/achievements`, `/public/materials` | عامة |
 | Auth | `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/staff/login` | حسب المسار |
 | Student | `/student/me`, `/student/stats`, `/student/notifications` | Student session |
 | Academic | `/semesters`, `/departments`, `/subjects`, `/materials`, `/schedule` | بعض المسارات محمية |

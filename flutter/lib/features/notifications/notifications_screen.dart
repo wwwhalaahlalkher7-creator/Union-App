@@ -91,7 +91,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           if (snapshot.hasError) {
             return _StateView(
               icon: Icons.cloud_off_rounded,
-              title: l10n.t('connectionFailed'),
+              title: snapshot.error is ApiException ? (snapshot.error as ApiException).message : l10n.t('connectionFailed'),
               action: l10n.t('retry'),
               onAction: _reload,
             );

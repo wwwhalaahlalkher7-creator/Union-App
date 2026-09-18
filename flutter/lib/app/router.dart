@@ -12,8 +12,8 @@ import '../features/home/home_screen.dart';
 import '../features/market/market_screen.dart';
 import '../features/more/more_screen.dart';
 import '../features/materials/materials_screen.dart';
-import '../features/news/news_screen.dart';
-import '../features/news/news_detail_screen.dart';
+import '../features/news/media_screen.dart';
+import '../features/news/content_detail_screen.dart';
 import '../data/models/content_item.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
@@ -50,8 +50,10 @@ GoRouter buildRouter({
       GoRoute(path: '/system', builder: (_, _) => const SystemScreen()),
       GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
       GoRoute(path: '/materials', builder: (_, _) => const MaterialsScreen()),
-      GoRoute(path: '/news', builder: (_, _) => const NewsScreen()),
-      GoRoute(path: '/news/detail', builder: (_, state) => NewsDetailScreen(item: state.extra! as ContentItem)),
+      GoRoute(path: '/news', redirect: (_, _) => '/media'),
+      GoRoute(path: '/media', builder: (_, _) => const MediaScreen()),
+      GoRoute(path: '/media/detail', builder: (_, state) { final data = state.extra! as Map<String, dynamic>; return ContentDetailScreen(item: data['item'] as ContentItem, type: data['type'] as String); }),
+      GoRoute(path: '/news/detail', builder: (_, state) => ContentDetailScreen(item: state.extra! as ContentItem, type: 'news')),
     ]),
     GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
     GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),

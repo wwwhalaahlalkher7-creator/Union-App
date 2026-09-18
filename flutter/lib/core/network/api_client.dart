@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../storage/auth_storage.dart';
@@ -9,9 +10,11 @@ class _CachedResponse {
   final DateTime expiresAt;
 }
 
+enum ApiErrorKind { offline, timeout, server, response, auth, client }
+
 class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode, this.cause});
-  final String message; final int? statusCode; final Object? cause;
+  const ApiException(this.message, {this.statusCode, this.cause, this.kind = ApiErrorKind.client, this.retryable = false});
+  final String message; final int? statusCode; final Object? cause; final ApiErrorKind kind; final bool retryable;
   @override String toString() => 'ApiException($statusCode): $message';
 }
 
@@ -53,9 +56,11 @@ class ApiClient {
       }
       rethrow;
     } on TimeoutException catch (e) {
-      throw ApiException('انتهت مهلة معالجة الملف. أعد المحاولة.', cause: e);
+      throw ApiException('انتهت مهلة معالجة الملف. أعد المحاولة.', cause: e, kind: ApiErrorKind.timeout, retryable: true);
+    } on SocketException catch (e) {
+      throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true);
     } on http.ClientException catch (e) {
-      throw ApiException('تعذر رفع الملف حاليًا. تحقق من اتصال الإنترنت ثم أعد المحاولة.', cause: e);
+      throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true);
     }
   }
 
@@ -102,8 +107,9 @@ class ApiClient {
       }
       return decoded;
     } on ApiException { rethrow; }
-      on TimeoutException catch (e) { throw ApiException('انتهت مهلة الاتصال بالخدمة. أعد المحاولة.', cause: e); }
-      on http.ClientException catch (e) { throw ApiException('تعذر الاتصال بالخدمة حاليًا. تحقق من اتصال الإنترنت ثم أعد المحاولة.', cause: e); }
+      on TimeoutException catch (e) { throw ApiException('انتهت مهلة الاتصال بالخدمة. أعد المحاولة.', cause: e, kind: ApiErrorKind.timeout, retryable: true); }
+      on SocketException catch (e) { throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true); }
+      on http.ClientException catch (e) { throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true); }
   }
 
   Future<bool> _refreshSession() async {
@@ -132,9 +138,14 @@ class ApiClient {
   }
   Map<String, dynamic> _decode(http.Response response) {
     dynamic body; try { body = jsonDecode(response.body); } catch (_) {}
-    if (response.statusCode < 200 || response.statusCode >= 300) throw ApiException(_extractErrorMessage(body) ?? 'حدث خطأ في الخادم', statusCode: response.statusCode);
-    if (body is! Map<String, dynamic>) throw const ApiException('استجابة غير صالحة من الخادم');
-    if (body['success'] == false) throw ApiException(_extractErrorMessage(body) ?? 'تعذر تنفيذ الطلب');
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final status = response.statusCode;
+      final server = status >= 500;
+      final message = server ? 'هناك خطأ في السيرفر. حاول مرة أخرى.' : (_extractErrorMessage(body) ?? 'تعذر تنفيذ الطلب.');
+      throw ApiException(message, statusCode: status, kind: server ? ApiErrorKind.server : (status == 401 ? ApiErrorKind.auth : ApiErrorKind.response), retryable: server || status == 408 || status == 429);
+    }
+    if (body is! Map<String, dynamic>) throw const ApiException('استجابة غير صالحة من السيرفر.', kind: ApiErrorKind.response);
+    if (body['success'] == false) throw ApiException(_extractErrorMessage(body) ?? 'تعذر تنفيذ الطلب.');
     return body;
   }
   String? _extractErrorMessage(dynamic body) {

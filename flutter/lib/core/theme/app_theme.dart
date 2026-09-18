@@ -29,10 +29,10 @@ class AppTheme {
 
   static ThemeData _base(ColorScheme scheme, Brightness brightness) {
     final dark = brightness == Brightness.dark;
-    final base = ThemeData(useMaterial3: true, colorScheme: scheme, brightness: brightness, visualDensity: VisualDensity.compact);
+    final base = ThemeData(useMaterial3: true, colorScheme: scheme, brightness: brightness, visualDensity: VisualDensity.standard);
     return base.copyWith(
       scaffoldBackgroundColor: dark ? AppColors.background : const Color(0xFFF6F8FC),
-      textTheme: base.textTheme.apply(fontSizeFactor: .92, bodyColor: dark ? AppColors.text : const Color(0xFF172033), displayColor: dark ? AppColors.text : const Color(0xFF172033)),
+      textTheme: base.textTheme.apply(fontSizeFactor: .95, bodyColor: dark ? AppColors.text : const Color(0xFF172033), displayColor: dark ? AppColors.text : const Color(0xFF172033)),
       appBarTheme: AppBarTheme(backgroundColor: dark ? AppColors.background : Colors.white, foregroundColor: scheme.onSurface, surfaceTintColor: Colors.transparent, elevation: 0, centerTitle: false),
       cardTheme: CardThemeData(color: dark ? AppColors.surface : Colors.white, elevation: 0, margin: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: dark ? AppColors.border : const Color(0xFFE2E8F0)))),
       dividerTheme: DividerThemeData(color: dark ? AppColors.border : const Color(0xFFE2E8F0), thickness: 1),
