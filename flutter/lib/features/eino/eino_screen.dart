@@ -506,7 +506,7 @@ class _EinoScreenState extends State<EinoScreen> {
                   final model = models[index];
                   final isInstalled = installed.contains(model.id);
                   return Container(padding: const EdgeInsets.all(11.04), decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant.withValues(alpha: .5)), borderRadius: BorderRadius.circular(16.2)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [CircleAvatar(child: const Icon(Icons.memory_rounded)), const SizedBox(width: 10), Expanded(child: Text(model.name, style: const TextStyle(fontWeight: FontWeight.w800))), Text(model.quantization, style: TextStyle(fontSize: 10.1, color: cs.onSurfaceVariant))]),
+                    Row(children: [const CircleAvatar(child: Icon(Icons.memory_rounded)), const SizedBox(width: 10), Expanded(child: Text(model.name, style: const TextStyle(fontWeight: FontWeight.w800))), Text(model.quantization, style: TextStyle(fontSize: 10.1, color: cs.onSurfaceVariant))]),
                     const SizedBox(height: 8),
                     Text('${model.approximateSizeGb.toStringAsFixed(1)} GB  •  ${l10n.t('einoRam')} ${model.recommendedRamGb} GB  •  ${model.format}'),
                     const SizedBox(height: 6), Text(model.capabilities.join(' • '), style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),

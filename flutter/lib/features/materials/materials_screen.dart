@@ -205,7 +205,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                     SizedBox(
                       width: 118,
                       child: DropdownButtonFormField<String>(
-                        value: _semesterId,
+                        initialValue: _semesterId,
                         items: [
                           for (final semester in _semesters)
                             DropdownMenuItem(

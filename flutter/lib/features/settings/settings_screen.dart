@@ -410,7 +410,7 @@ class _LogoutTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.logout_rounded, color: AppColors.danger, size: 20),
+            const Icon(Icons.logout_rounded, color: AppColors.danger, size: 20),
             const SizedBox(width: 9),
             Expanded(child: Text(l10n.t('logout'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
             if (loading)

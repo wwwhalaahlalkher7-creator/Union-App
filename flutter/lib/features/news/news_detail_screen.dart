@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
@@ -67,7 +66,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                     child: Image.network(
                       imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (_, _, _) => Container(
                         color: cs.surfaceContainerHigh,
                         alignment: Alignment.center,
                         child: Icon(Icons.image_not_supported_outlined, size: 42, color: cs.onSurfaceVariant),
@@ -235,7 +234,7 @@ class _NewsCommentsSheetState extends State<NewsCommentsSheet> {
                   return ListView.separated(
                     padding: const EdgeInsets.all(12),
                     itemCount: list.length,
-                    separatorBuilder: (_, __) => Divider(height: 12, color: cs.outline),
+                    separatorBuilder: (_, _) => Divider(height: 12, color: cs.outline),
                     itemBuilder: (_, index) {
                       final comment = list[index];
                       return ListTile(

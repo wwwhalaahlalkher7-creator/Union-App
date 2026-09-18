@@ -222,7 +222,7 @@ class _NewsCardState extends State<_NewsCard> {
                     : Image.network(
                         imageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                        errorBuilder: (_, _, _) => Container(
                           color: context.colors.surfaceContainerHigh,
                           alignment: Alignment.center,
                           child: Icon(Icons.image_not_supported_outlined, size: 42, color: context.colors.onSurfaceVariant),

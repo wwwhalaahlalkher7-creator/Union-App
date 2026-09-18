@@ -161,7 +161,7 @@ class _Gallery extends StatelessWidget {
             images.first,
             width: double.infinity,
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const _Fallback(label: '', icon: Icons.broken_image_outlined),
+            errorBuilder: (_, _, _) => const _Fallback(label: '', icon: Icons.broken_image_outlined),
           ),
         ),
         if (images.length > 1)
@@ -181,7 +181,7 @@ class _Gallery extends StatelessWidget {
                 child: Image.network(
                   images[index + 1],
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                     color: Theme.of(context).colorScheme.surfaceContainerHigh,
                     child: const Icon(Icons.broken_image_outlined),
                   ),
@@ -369,7 +369,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
                     controller: scrollController,
                     padding: const EdgeInsets.all(12),
                     itemCount: list.length,
-                    separatorBuilder: (_, __) => Divider(height: 16, color: cs.outline),
+                    separatorBuilder: (_, _) => Divider(height: 16, color: cs.outline),
                     itemBuilder: (context, index) {
                       final comment = list[index];
                       return Column(
