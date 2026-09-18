@@ -87,8 +87,6 @@ jobs:
           const content = `
           PRAGMA foreign_keys = ON;
 
-          BEGIN;
-
           INSERT INTO students (
             id,
             student_number,
@@ -114,8 +112,6 @@ jobs:
               FROM students s
               WHERE s.student_number = ${sql(number)}
             );
-
-          COMMIT;
 
           SELECT
             s.id,
