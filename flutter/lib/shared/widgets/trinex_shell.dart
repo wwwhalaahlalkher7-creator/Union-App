@@ -111,7 +111,7 @@ class _TopHeader extends StatelessWidget {
                     style: TextStyle(color: context.colors.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 11),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
               ],
               Text(
                 'TRINEX',
@@ -165,7 +165,7 @@ class _MainNav extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(items[i].$2, size: 20, color: i == selected ? primary : context.colors.onSurfaceVariant),
-                    SizedBox(height: 5),
+                    const SizedBox(height: 5),
                     Text(
                       items[i].$1,
                       style: TextStyle(
@@ -185,9 +185,8 @@ class _MainNav extends StatelessWidget {
 }
 
 class _HeaderIcon extends StatelessWidget {
-  const _HeaderIcon({required this.icon, this.color, this.onTap, this.size = 48});
+  const _HeaderIcon({required this.icon, this.onTap, this.size = 48});
   final IconData icon;
-  final Color? color;
   final VoidCallback? onTap;
   final double size;
 
@@ -201,7 +200,7 @@ class _HeaderIcon extends StatelessWidget {
         child: SizedBox(
           width: size,
           height: size,
-          child: Icon(icon, color: color ?? context.colors.onSurface, size: size * .55),
+          child: Icon(icon, color: context.colors.onSurface, size: size * .55),
         ),
       ),
     );

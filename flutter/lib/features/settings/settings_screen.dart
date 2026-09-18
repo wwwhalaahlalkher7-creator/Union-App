@@ -39,9 +39,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_checkingUpdate) return;
     setState(() => _checkingUpdate = true);
     try {
-      final info = await const UpdateService().check();
+      const service = UpdateService();
+      final info = await service.check();
       if (!mounted) return;
-      final service = const UpdateService();
       final l10n = AppLocalizations.of(context);
       final message = info == null
           ? l10n.t('updateCheckFailed')
@@ -99,7 +99,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final dark = Theme.of(context).brightness == Brightness.dark;
     final selected = AppAccentColor.presets
         .firstWhere(
           (color) => color.primary == context.colors.primary,
