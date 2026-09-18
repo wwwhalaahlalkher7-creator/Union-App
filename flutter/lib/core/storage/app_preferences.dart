@@ -13,7 +13,7 @@ class AppPreferences {
     _prefs = await SharedPreferences.getInstance();
   }
 
-  String get accentColorId => _prefs.getString(_accentKey) ?? 'purple';
+  String get accentColorId => _prefs.getString(_accentKey) ?? 'amber';
 
   Future<void> setAccentColorId(String id) async {
     await _prefs.setString(_accentKey, id);

@@ -1,223 +1,125 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/design_tokens.dart';
-import '../../data/mock_data.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_localizations.dart';
+import '../../core/network/api_client.dart';
+import '../../core/network/authenticated_client.dart';
+import '../../data/models/material_item.dart';
+import '../../data/repositories/materials_repository.dart';
+import '../../data/repositories/progress_repository.dart';
+import '../../shared/widgets/app_card.dart';
 
 class MaterialsScreen extends StatefulWidget {
   const MaterialsScreen({super.key});
-  @override
-  State<MaterialsScreen> createState() => _MaterialsScreenState();
+  @override State<MaterialsScreen> createState() => _MaterialsScreenState();
 }
 
 class _MaterialsScreenState extends State<MaterialsScreen> {
-  String query = '';
-  int selectedSemester = 8;
+  ApiClient? _client;
+  late Future<List<MaterialItem>> _future;
+  List<Map<String, dynamic>> _semesters = [];
+  String? _semesterId;
+  String _query = '';
+
+  @override void initState() { super.initState(); _future = _load(); }
+
+  Future<List<MaterialItem>> _load() async {
+    _client ??= await AuthenticatedClient.create();
+    final repo = MaterialsRepository(_client!);
+    final semesters = await repo.semesters();
+    if (mounted && _semesters.isEmpty) {
+      setState(() {
+        _semesters = semesters;
+        _semesterId ??= semesters.isEmpty ? null : semesters.first['id']?.toString();
+      });
+    }
+    return repo.list(semesterId: _semesterId);
+  }
+
+  Future<void> _reload() async { final future = _load(); setState(() => _future = future); await future; }
+
+  @override void dispose() { _client?.dispose(); super.dispose(); }
+
+  Future<void> _openMaterial(MaterialItem material) async {
+    final url = material.url?.trim();
+    if (url == null || url.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('رابط الملف غير متاح حاليًا')));
+      return;
+    }
+    try {
+      _client ??= await AuthenticatedClient.create();
+      await ProgressRepository(_client!).record(materialId: material.id, eventType: 'open', progressPercent: 0);
+    } catch (_) {}
+    final uri = Uri.tryParse(url);
+    if (uri == null || !await canLaunchUrl(uri)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح الملف')));
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final grouped = <String, List<MockMaterial>>{};
-    for (final material in MockData.materials) {
-      final haystack = '${material.subject} ${material.title}'.toLowerCase();
-      if (query.isEmpty || haystack.contains(query.toLowerCase())) {
-        grouped.putIfAbsent(material.subject, () => <MockMaterial>[]).add(material);
-      }
-    }
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
-      children: [
-        const _Header(
-          title: 'المواد الدراسية',
-          subtitle: 'الفصل 8 • الهندسة • المواد المرتبطة بتخصصك',
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _Selector(
-                label: 'الفصل $selectedSemester',
-                icon: Icons.calendar_month_outlined,
-                onTap: _pickSemester,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                onChanged: (value) => setState(() => query = value),
-                decoration: const InputDecoration(
-                  hintText: 'ابحث عن مادة أو ملف',
-                  prefixIcon: Icon(Icons.search_rounded),
+    final l10n = AppLocalizations.of(context);
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: FutureBuilder<List<MaterialItem>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError) return _State(message: snapshot.error is ApiException ? (snapshot.error as ApiException).message : l10n.t('connectionFailed'), retry: _reload);
+          final all = snapshot.data ?? const <MaterialItem>[];
+          final filtered = all.where((m) => _query.isEmpty || '${m.name} ${m.subject ?? ''} ${m.subjectCode ?? ''}'.toLowerCase().contains(_query.toLowerCase())).toList();
+          final groups = <String, List<MaterialItem>>{};
+          for (final material in filtered) groups.putIfAbsent(material.subject ?? 'مواد', () => <MaterialItem>[]).add(material);
+          return ListView(
+            padding: const EdgeInsetsDirectional.fromSTEB(14.72, 12, 14.72, 92),
+            children: [
+              const Text('المواد الدراسية', textAlign: TextAlign.end, style: TextStyle(fontSize: 20.2, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('المواد المتاحة حسب تخصصك وفصلك الدراسي', textAlign: TextAlign.end, style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 11.5)),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(child: TextField(onChanged: (value) => setState(() => _query = value), decoration: const InputDecoration(hintText: 'بحث', prefixIcon: Icon(Icons.search_rounded)))),
+                if (_semesters.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  SizedBox(width: 118, child: DropdownButtonFormField<String>(
+                    value: _semesterId,
+                    items: [for (final semester in _semesters) DropdownMenuItem(value: semester['id']?.toString(), child: Text(semester['name_ar']?.toString() ?? 'فصل', overflow: TextOverflow.ellipsis)),],
+                    onChanged: (value) { if (value == null) return; setState(() => _semesterId = value); _reload(); },
+                    decoration: const InputDecoration(prefixIcon: Icon(Icons.calendar_month_rounded)),
+                  )),
+                ],
+              ]),
+              const SizedBox(height: 12),
+              if (groups.isEmpty) AppCard(child: Text(l10n.t('noData'), textAlign: TextAlign.center))
+              else for (final entry in groups.entries) Padding(
+                padding: const EdgeInsets.only(bottom: 9),
+                child: AppCard(
+                  padding: EdgeInsets.zero,
+                  child: ExpansionTile(
+                    title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                    subtitle: Text('${entry.value.length} ملفات', style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 10)),
+                    children: [for (final material in entry.value) ListTile(
+                      dense: true,
+                      title: Text(material.name, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                      subtitle: Text(material.size == null ? '' : '${material.size} bytes', style: TextStyle(fontSize: 9, color: context.colors.onSurfaceVariant)),
+                      trailing: const Icon(Icons.open_in_new_rounded, size: 15),
+                      onTap: () => _openMaterial(material),
+                    )],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        if (grouped.isEmpty)
-          const _EmptyState()
-        else
-          for (final entry in grouped.entries)
-            _Subject(
-              subject: entry.key,
-              code: entry.value.first.code,
-              items: entry.value,
-            ),
-      ],
-    );
-  }
-
-  Future<void> _pickSemester() async {
-    final value = await showDialog<int>(
-      context: context,
-      builder: (dialogContext) => SimpleDialog(
-        title: const Text('اختر الفصل الدراسي'),
-        children: [
-          for (var semester = 1; semester <= 10; semester++)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(dialogContext, semester),
-              child: Text('الفصل $semester'),
-            ),
-        ],
-      ),
-    );
-    if (value != null && mounted) {
-      setState(() => selectedSemester = value);
-    }
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.title, required this.subtitle});
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          title,
-          textAlign: TextAlign.right,
-          style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 5),
-        Text(
-          subtitle,
-          textAlign: TextAlign.right,
-          style: const TextStyle(color: AppColors.muted, fontSize: 14),
-        ),
-      ],
-    );
-  }
-}
-
-class _Selector extends StatelessWidget {
-  const _Selector({required this.label, required this.icon, required this.onTap});
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        height: 50,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: AppColors.cyan, size: 21),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                textAlign: TextAlign.right,
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-              ),
-            ),
-            const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.muted, size: 20),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-class _Subject extends StatelessWidget {
-  const _Subject({required this.subject, required this.code, required this.items});
-  final String subject;
-  final String code;
-  final List<MockMaterial> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-        childrenPadding: const EdgeInsets.only(bottom: 6),
-        leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: primary.withValues(alpha: .14),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(Icons.menu_book_rounded, color: primary, size: 21),
-        ),
-        title: Text(subject, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-        subtitle: Text('$code • ${items.length} ملفات', style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-        children: [
-          for (final item in items)
-            ListTile(
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 18),
-              leading: Icon(item.icon, color: AppColors.cyan, size: 21),
-              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              subtitle: Text('${item.pages} صفحات • Mock', style: const TextStyle(color: AppColors.muted, fontSize: 11)),
-              trailing: const Icon(Icons.arrow_back_ios_new_rounded, size: 13),
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('تم فتح ${item.title}')),
-                );
-              },
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: const Column(
-        children: [
-          Icon(Icons.search_off_rounded, size: 42, color: AppColors.muted),
-          SizedBox(height: 10),
-          Text('لا توجد نتائج', style: TextStyle(fontWeight: FontWeight.w800)),
-        ],
-      ),
-    );
-  }
+class _State extends StatelessWidget {
+  const _State({required this.message, required this.retry});
+  final String message; final VoidCallback retry;
+  @override Widget build(BuildContext context) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(message, textAlign: TextAlign.center), const SizedBox(height: 10), FilledButton.icon(onPressed: retry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))]));
 }

@@ -103,7 +103,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             onRefresh: _reload,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
+              padding: const EdgeInsetsDirectional.fromSTEB(14.72, 7.36, 14.72, 33.12),
               children: [
                 _UnreadSummary(items: all),
                 const SizedBox(height: 14),
@@ -150,13 +150,13 @@ class _UnreadSummary extends StatelessWidget {
     final unread = items.where((item) => !item.isRead).length;
     final cs = Theme.of(context).colorScheme;
     return AppCard(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16.56),
       child: Row(
         children: [
           Container(
             width: 52,
             height: 52,
-            decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(17)),
+            decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(15.3)),
             child: Icon(Icons.notifications_active_rounded, color: cs.onPrimaryContainer),
           ),
           const SizedBox(width: 14),
@@ -186,7 +186,7 @@ class _NotificationCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return AppCard(
       onTap: onTap,
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(13.8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -195,7 +195,7 @@ class _NotificationCard extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               color: item.isRead ? cs.surfaceContainerHighest : cs.primaryContainer,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12.6),
             ),
             child: Icon(
               item.isRead ? Icons.notifications_none_rounded : Icons.notifications_active_rounded,
@@ -239,7 +239,7 @@ class _StateView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: Padding(
-          padding: const EdgeInsets.all(28),
+          padding: const EdgeInsets.all(25.76),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

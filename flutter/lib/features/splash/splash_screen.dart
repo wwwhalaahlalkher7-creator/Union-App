@@ -102,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         Container(
                           width: 132,
                           height: 132,
-                          padding: const EdgeInsets.all(18),
+                          padding: const EdgeInsets.all(16.56),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: Colors.white.withValues(alpha: .06),
@@ -112,14 +112,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                           child: Image.asset('assets/icons/trinex_icon.png', fit: BoxFit.contain, filterQuality: FilterQuality.high),
                         ),
                         const SizedBox(height: 24),
-                        Text(l10n.t('appName'), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: 4)),
+                        Text(l10n.t('appName'), style: const TextStyle(color: Colors.white, fontSize: 27.6, fontWeight: FontWeight.w900, letterSpacing: 4)),
                         const SizedBox(height: 8),
-                        Text(l10n.t('splashTagline'), style: TextStyle(color: Colors.white.withValues(alpha: .72), fontSize: 13, fontWeight: FontWeight.w600)),
+                        Text(l10n.t('splashTagline'), style: TextStyle(color: Colors.white.withValues(alpha: .72), fontSize: 12, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 26),
                         SizedBox(
                           width: 120,
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(99),
+                            borderRadius: BorderRadius.circular(89.1),
                             child: LinearProgressIndicator(
                               minHeight: 3,
                               value: reduceMotion ? 1 : _controller.value.clamp(.05, .95),
@@ -128,7 +128,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Text('v${AppVersion.name}', style: TextStyle(color: Colors.white.withValues(alpha: .42), fontSize: 11)),
+                        Text('v${AppVersion.name}', style: TextStyle(color: Colors.white.withValues(alpha: .42), fontSize: 10.1)),
                       ],
                     ),
                   ),

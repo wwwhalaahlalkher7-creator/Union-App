@@ -43,9 +43,9 @@ class _StudentAccessGateState extends State<StudentAccessGate> {
           appBar: AppBar(title: Text(l10n.t('studentServices'))),
           body: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18.4),
               child: AppCard(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(22.08),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [

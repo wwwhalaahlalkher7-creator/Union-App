@@ -62,10 +62,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 36),
+          padding: const EdgeInsetsDirectional.fromSTEB(14.72, 9.2, 14.72, 33.12),
           children: [
             AppCard(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(16.56),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -81,7 +81,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         _StatCard(label: l10n.t('filesCompleted'), value: '$completed', icon: Icons.check_circle_outline_rounded),
                         _StatCard(label: l10n.t('activeMinutes'), value: '${seconds ~/ 60}', icon: Icons.timer_outlined),
                       ];
-                      if (wide) return Row(children: [for (var i = 0; i < cards.length; i++) Expanded(child: Padding(padding: EdgeInsetsDirectional.only(end: i == cards.length - 1 ? 0 : 8), child: cards[i]))]);
+                      if (wide) return Row(children: [for (var i = 0; i < cards.length; i++) Expanded(child: Padding(padding: EdgeInsetsDirectional.only(end: i == cards.length - 0.92 ? 0 : 7.36), child: cards[i]))]);
                       return Wrap(spacing: 8, runSpacing: 8, children: cards.map((card) => SizedBox(width: (constraints.maxWidth - 8) / 2, child: card)).toList());
                     },
                   ),
@@ -113,8 +113,8 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   @override
   Widget build(BuildContext context) => AppCard(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-        child: Column(children: [Icon(icon, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 6), Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)), const SizedBox(height: 2), Text(label, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall)],),
+        padding: const EdgeInsets.symmetric(vertical: 12.88, horizontal: 7.36),
+        child: Column(children: [Icon(icon, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 6), Text(value, style: const TextStyle(fontSize: 20.2, fontWeight: FontWeight.w900)), const SizedBox(height: 2), Text(label, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall)],),
       );
 }
 
@@ -131,7 +131,7 @@ class _ProgressTile extends StatelessWidget {
         Row(children: [Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800))), Text('$percent%', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary))]),
         if (item.subjectName?.isNotEmpty == true) ...[const SizedBox(height: 4), Text(item.subjectName!, style: Theme.of(context).textTheme.bodySmall)],
         const SizedBox(height: 11),
-        LinearProgressIndicator(value: percent.toDouble() / 100, minHeight: 8, borderRadius: BorderRadius.circular(8)),
+        LinearProgressIndicator(value: percent.toDouble() / 100, minHeight: 8, borderRadius: BorderRadius.circular(7.2)),
         const SizedBox(height: 8),
         Row(children: [Icon(item.completed ? Icons.check_circle_rounded : Icons.schedule_rounded, size: 16, color: item.completed ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 5), Text(item.completed ? l10n.t('completed') : l10n.t('inProgress'), style: Theme.of(context).textTheme.bodySmall)]),
       ]),
@@ -144,5 +144,5 @@ class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback retry;
   @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.cloud_off_outlined, size: 56, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 12), Text(message, textAlign: TextAlign.center), const SizedBox(height: 14), FilledButton.icon(onPressed: retry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))])));
+  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(22.08), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.cloud_off_outlined, size: 56, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 12), Text(message, textAlign: TextAlign.center), const SizedBox(height: 14), FilledButton.icon(onPressed: retry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))])));
 }

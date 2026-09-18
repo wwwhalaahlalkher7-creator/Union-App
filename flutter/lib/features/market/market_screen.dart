@@ -17,39 +17,39 @@ class MarketScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.t('market')),
-        actions: [IconButton(onPressed: null, tooltip: l10n.t('favorites'), icon: const Icon(Icons.bookmark_border_rounded))],
+        actions: [IconButton(onPressed: null, tooltip: l10n.t('favorites'), icon: Icon(Icons.bookmark_border_rounded))],
       ),
       body: ResponsiveContent(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        padding: const EdgeInsetsDirectional.fromSTEB(14.72, 7.36, 14.72, 29.44),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
               enabled: false,
-              decoration: InputDecoration(hintText: l10n.t('marketSearch'), prefixIcon: const Icon(Icons.search_rounded)),
+              decoration: InputDecoration(hintText: l10n.t('marketSearch'), prefixIcon: Icon(Icons.search_rounded)),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             AppCard(
-              padding: const EdgeInsets.all(22),
+              padding: const EdgeInsets.all(20.24),
               child: Column(
                 children: [
-                  Container(width: 72, height: 72, decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .11), shape: BoxShape.circle), child: Icon(Icons.storefront_rounded, size: 34, color: cs.primary)),
-                  const SizedBox(height: 16),
+                  Container(width: 66, height: 66, decoration: BoxDecoration(color: context.colors.primary.withValues(alpha: .11), shape: BoxShape.circle), child: Icon(Icons.storefront_rounded, size: 34, color: cs.primary)),
+                  SizedBox(height: 16),
                   Text(l10n.t('marketComingSoon'), textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(l10n.t('marketComingSoonSubtitle'), textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant, height: 1.5)),
-                  const SizedBox(height: 18),
+                  SizedBox(height: 18),
                   Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(16)),
-                    child: Row(children: [Icon(Icons.verified_user_outlined, color: cs.primary), const SizedBox(width: 10), Expanded(child: Text(l10n.t('marketTrustNote'), style: Theme.of(context).textTheme.bodySmall))]),
+                    padding: const EdgeInsets.all(12.88),
+                    decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(14.4)),
+                    child: Row(children: [Icon(Icons.verified_user_outlined, color: cs.primary), SizedBox(width: 10), Expanded(child: Text(l10n.t('marketTrustNote'), style: Theme.of(context).textTheme.bodySmall))]),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             Text(l10n.t('marketPlanTitle'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             for (final item in [
               (Icons.dashboard_customize_outlined, l10n.t('marketPlanDashboard')),
               (Icons.sync_rounded, l10n.t('marketPlanApi')),

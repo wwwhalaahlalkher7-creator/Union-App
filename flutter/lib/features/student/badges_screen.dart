@@ -54,10 +54,10 @@ class _BadgesScreenState extends State<BadgesScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 36),
+          padding: const EdgeInsetsDirectional.fromSTEB(14.72, 9.2, 14.72, 33.12),
           children: [
             AppCard(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18.4),
               child: Column(children: [
                 Container(width: 68, height: 68, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, shape: BoxShape.circle), child: Icon(Icons.emoji_events_rounded, size: 36, color: Theme.of(context).colorScheme.onPrimaryContainer)),
                 const SizedBox(height: 12),
@@ -65,7 +65,7 @@ class _BadgesScreenState extends State<BadgesScreen> {
                 const SizedBox(height: 4),
                 Text(l10n.t('badgesEarned', {'earned': '${snapshot.earnedCount}', 'total': '${snapshot.totalCount}'})),
                 const SizedBox(height: 15),
-                LinearProgressIndicator(value: ratio, minHeight: 8, borderRadius: BorderRadius.circular(8)),
+                LinearProgressIndicator(value: ratio, minHeight: 8, borderRadius: BorderRadius.circular(7.2)),
               ]),
             ),
             const SizedBox(height: 22),
@@ -99,7 +99,7 @@ class _BadgeCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final languageCode = Localizations.localeOf(context).languageCode;
     return AppCard(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(11.04),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Container(width: 52, height: 52, decoration: BoxDecoration(color: badge.earned ? cs.primaryContainer : cs.surfaceContainerHighest, shape: BoxShape.circle), child: Icon(badge.earned ? Icons.emoji_events_rounded : Icons.lock_outline_rounded, color: badge.earned ? cs.onPrimaryContainer : cs.onSurfaceVariant)),
         const SizedBox(height: 9),
@@ -118,5 +118,5 @@ class _BadgeError extends StatelessWidget {
   final String message;
   final VoidCallback retry;
   @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.emoji_events_outlined, size: 58, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 12), Text(message, textAlign: TextAlign.center), const SizedBox(height: 14), FilledButton.icon(onPressed: retry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))])));
+  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(25.76), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.emoji_events_outlined, size: 58, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 12), Text(message, textAlign: TextAlign.center), const SizedBox(height: 14), FilledButton.icon(onPressed: retry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))])));
 }

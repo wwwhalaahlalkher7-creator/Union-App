@@ -10,9 +10,11 @@ import '../features/eino/eino_screen.dart';
 import '../features/favorites/favorites_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/market/market_screen.dart';
+import '../features/more/more_screen.dart';
 import '../features/materials/materials_screen.dart';
 import '../features/news/news_screen.dart';
 import '../features/news/news_detail_screen.dart';
+import '../data/models/content_item.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/progress/progress_screen.dart';
@@ -23,7 +25,6 @@ import '../features/student/badges_screen.dart';
 import '../features/student/student_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/system/system_screen.dart';
-import '../data/mock_data.dart';
 import '../features/tools/tools_screen.dart';
 import '../features/xp/xp_screen.dart';
 import '../shared/widgets/trinex_shell.dart';
@@ -50,7 +51,7 @@ GoRouter buildRouter({
       GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
       GoRoute(path: '/materials', builder: (_, _) => const MaterialsScreen()),
       GoRoute(path: '/news', builder: (_, _) => const NewsScreen()),
-      GoRoute(path: '/news/detail', builder: (_, state) => NewsDetailScreen(item: state.extra! as MockNewsItem)),
+      GoRoute(path: '/news/detail', builder: (_, state) => NewsDetailScreen(item: state.extra! as ContentItem)),
     ]),
     GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
     GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),
@@ -68,9 +69,4 @@ GoRouter buildRouter({
     GoRoute(path: '/about', builder: (_, _) => const AboutScreen()),
     GoRoute(path: '/settings', builder: (_, _) => SettingsScreen(currentThemeMode: themeMode(), onThemeModeChanged: onThemeModeChanged, locale: locale(), onLocaleChanged: onLocaleChanged, accentColorId: accentColorId?.call(), onAccentColorChanged: onAccentColorChanged)),
   ]);
-}
-
-class MoreScreen extends StatelessWidget {
-  const MoreScreen({super.key});
-  @override Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('TRINEX')));
 }

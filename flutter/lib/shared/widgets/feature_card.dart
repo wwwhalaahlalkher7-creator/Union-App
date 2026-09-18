@@ -61,13 +61,13 @@ class _FeatureCardState extends State<FeatureCard> {
             child: Row(
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                      begin: AlignmentDirectional.topStart,
+                      end: AlignmentDirectional.bottomEnd,
                       colors: [
                         cs.primary.withValues(alpha: .20),
                         cs.primary.withValues(alpha: .08),
@@ -86,7 +86,7 @@ class _FeatureCardState extends State<FeatureCard> {
                           Flexible(
                             child: Text(
                               widget.title,
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.8),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -94,14 +94,14 @@ class _FeatureCardState extends State<FeatureCard> {
                           if (widget.badge != null) ...[
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 6.44, vertical: 1.84),
                               decoration: BoxDecoration(
                                 color: cs.primary,
                                 borderRadius: BorderRadius.circular(DesignTokens.radius20),
                               ),
                               child: Text(
                                 widget.badge!,
-                                style: TextStyle(color: cs.onPrimary, fontSize: 10, fontWeight: FontWeight.w700),
+                                style: TextStyle(color: cs.onPrimary, fontSize: 9.2, fontWeight: FontWeight.w700),
                               ),
                             ),
                           ],
@@ -112,7 +112,7 @@ class _FeatureCardState extends State<FeatureCard> {
                         widget.subtitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5, height: 1.3),
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11.5, height: 1.3),
                       ),
                     ],
                   ),

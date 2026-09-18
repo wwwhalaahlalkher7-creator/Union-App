@@ -67,10 +67,10 @@ class _XpScreenState extends State<XpScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 36),
+          padding: const EdgeInsetsDirectional.fromSTEB(14.72, 9.2, 14.72, 33.12),
           children: [
             AppCard(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18.4),
               child: Column(
                 children: [
                   Container(
@@ -85,7 +85,7 @@ class _XpScreenState extends State<XpScreen> {
                   Text(l10n.t('levelValue', {'level': '${snapshot.level}'}), style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 18),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10.8),
                     child: LinearProgressIndicator(value: progress, minHeight: 10),
                   ),
                   const SizedBox(height: 8),
@@ -142,7 +142,7 @@ class _EventTile extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: AppCard(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12.88),
                 child: Row(
                   children: [
                     Icon(Icons.add_circle_rounded, color: cs.primary),
@@ -178,7 +178,7 @@ class _XpError extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: Padding(
-          padding: const EdgeInsets.all(28),
+          padding: const EdgeInsets.all(25.76),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

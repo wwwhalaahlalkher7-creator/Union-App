@@ -43,4 +43,4 @@ python3 tool/sync_version.py
 
 ## TRINEX UI validation / Mock phase
 
-The main TRINEX surfaces currently run from `lib/data/mock_data.dart` so the visual redesign can be validated without a backend dependency. `MockData.enabled` is the single switch for this phase. After the UI is accepted, replace the mock providers with the existing repositories/API contract and set the switch off.
+The main TRINEX student surfaces now load through the existing repository/API layer. Public content uses the public API, while student profile, materials, schedule, XP, badges, progress and notifications use authenticated endpoints. The UI no longer depends on the previous `lib/data/mock_data.dart` fixtures.

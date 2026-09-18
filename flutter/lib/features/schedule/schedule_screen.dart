@@ -1,35 +1,69 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/design_tokens.dart';
-import '../../data/mock_data.dart';
+import '../../core/localization/app_localizations.dart';
+import '../../core/network/api_client.dart';
+import '../../core/network/authenticated_client.dart';
+import '../../data/models/schedule_item.dart';
+import '../../data/repositories/schedule_repository.dart';
 
-class ScheduleScreen extends StatefulWidget { const ScheduleScreen({super.key}); @override State<ScheduleScreen> createState() => _ScheduleScreenState(); }
+class ScheduleScreen extends StatefulWidget {
+  const ScheduleScreen({super.key});
+  @override State<ScheduleScreen> createState() => _ScheduleScreenState();
+}
+
 class _ScheduleScreenState extends State<ScheduleScreen> {
-  int selectedDay = 0;
-  bool showWeek = false;
-  final days = const ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
-  @override Widget build(BuildContext context) {
-    final day = days[selectedDay];
-    final items = MockData.schedule.where((e) => e.day == day).toList();
-    return ListView(padding: const EdgeInsets.fromLTRB(24, 22, 24, 100), children: [
-      const _ScheduleHeader(),
-      const SizedBox(height: 24),
-      Container(height: 58, padding: const EdgeInsets.all(5), decoration: BoxDecoration(color: AppColors.elevated, borderRadius: BorderRadius.circular(30), border: Border.all(color: AppColors.border)), child: Row(children: [Expanded(child: GestureDetector(onTap: () => setState(() => showWeek = false), child: _Toggle('عرض اليوم', !showWeek))), Expanded(child: GestureDetector(onTap: () => setState(() => showWeek = true), child: _Toggle('عرض الأسبوع', showWeek)))])),
-      const SizedBox(height: 22),
-      SizedBox(height: 112, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: days.length, separatorBuilder: (_, _) => const SizedBox(width: 14), itemBuilder: (_, i) => GestureDetector(onTap: () => setState(() => selectedDay = i), child: Container(width: 150, padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: i == selectedDay ? AppColors.cyan : AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: i == selectedDay ? AppColors.cyan : AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(days[i], style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: i == selectedDay ? Colors.white : AppColors.text)), const SizedBox(height: 8), Text('${MockData.schedule.where((e) => e.day == days[i]).length} محاضرات', style: TextStyle(color: i == selectedDay ? Colors.white.withValues(alpha: .8) : AppColors.muted))]))))),
-      const SizedBox(height: 24),
-      if (showWeek)
-        for (final weekDay in days) ...[
-          Padding(padding: const EdgeInsets.only(bottom: 10, top: 4), child: Text(weekDay, textAlign: TextAlign.right, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900))),
-          for (final item in MockData.schedule.where((e) => e.day == weekDay)) Padding(padding: const EdgeInsets.only(bottom: 14), child: _Lecture(item: item)),
-          if (MockData.schedule.every((e) => e.day != weekDay)) const Padding(padding: EdgeInsets.only(bottom: 14), child: Text('لا توجد محاضرات.', textAlign: TextAlign.right, style: TextStyle(color: AppColors.muted))),
-        ]
-      else if (items.isEmpty) Container(height: 300, alignment: Alignment.center, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(28), border: Border.all(color: AppColors.border)), child: const Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.event_busy_rounded, size: 64, color: AppColors.muted), SizedBox(height: 14), Text('لا توجد محاضرات مجدولة لهذا اليوم.', style: TextStyle(color: AppColors.muted, fontSize: 17))]))
-      else for (final item in items) Padding(padding: const EdgeInsets.only(bottom: 14), child: _Lecture(item: item)),
-      const SizedBox(height: 14),
-      const Text('بيانات تجريبية محلية • سيتم استبدالها بجدول الطالب الفعلي بعد ربط Backend', textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
-    ]);
+  ApiClient? _client;
+  late Future<ScheduleData> _future;
+  int? _selectedDay;
+  bool _week = false;
+
+  @override void initState() { super.initState(); _future = _load(); }
+  Future<ScheduleData> _load() async { _client ??= await AuthenticatedClient.create(); return ScheduleRepository(_client!).getSchedule(); }
+  Future<void> _reload() async { final future = _load(); setState(() => _future = future); await future; }
+  @override void dispose() { _client?.dispose(); super.dispose(); }
+
+  String _day(int number) => const {0:'الأحد',1:'الإثنين',2:'الثلاثاء',3:'الأربعاء',4:'الخميس',5:'الجمعة',6:'السبت'}[number] ?? 'اليوم';
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: FutureBuilder<ScheduleData>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError) return _Msg(message: snapshot.error is ApiException ? (snapshot.error as ApiException).message : AppLocalizations.of(context).t('connectionFailed'), retry: _reload);
+          final data = snapshot.data!;
+          final days = data.days.isEmpty ? (data.items.map((e) => e.dayOfWeek).toSet().toList()..sort()) : data.days;
+          if (_selectedDay == null && days.isNotEmpty) _selectedDay = days.first;
+          final shown = _week ? data.items : data.items.where((e) => e.dayOfWeek == _selectedDay).toList();
+          return ListView(
+            padding: const EdgeInsetsDirectional.fromSTEB(14.72, 12, 14.72, 92),
+            children: [
+              const Text('الجدول الدراسي', textAlign: TextAlign.end, style: TextStyle(fontSize: 20.2, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('${data.department?['name_ar'] ?? ''} • ${data.semester?['name_ar'] ?? ''}', textAlign: TextAlign.end, style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 11.5)),
+              const SizedBox(height: 10),
+              SegmentedButton<bool>(segments: const [ButtonSegment(value: false, label: Text('اليوم')), ButtonSegment(value: true, label: Text('الأسبوع'))], selected: {_week}, onSelectionChanged: (values) => setState(() => _week = values.first)),
+              const SizedBox(height: 10),
+              if (days.isNotEmpty) SizedBox(height: 62, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: days.length, separatorBuilder: (_, __) => const SizedBox(width: 6), itemBuilder: (context, index) {
+                final day = days[index];
+                return ChoiceChip(label: Text(_day(day), style: const TextStyle(fontSize: 10)), selected: !_week && day == _selectedDay, onSelected: (_) => setState(() => _selectedDay = day));
+              })),
+              const SizedBox(height: 12),
+              if (shown.isEmpty) Container(height: 180, alignment: Alignment.center, decoration: BoxDecoration(color: context.colors.surface, borderRadius: BorderRadius.circular(15), border: Border.all(color: context.colors.outline)), child: Text('لا توجد محاضرات مجدولة.', style: TextStyle(color: context.colors.onSurfaceVariant)))
+              else for (final item in shown) Padding(padding: const EdgeInsets.only(bottom: 8), child: _Lecture(item: item)),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
-class _ScheduleHeader extends StatelessWidget { const _ScheduleHeader(); @override Widget build(BuildContext context) => const Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Row(mainAxisAlignment: MainAxisAlignment.end, children: [Flexible(child: Text('الجدول الدراسي الأسبوعي', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900)),), SizedBox(width: 14), Icon(Icons.calendar_month_rounded, color: AppColors.cyan, size: 36)]), SizedBox(height: 7), Text('الهندسة • الفصل 8 (الفصل الدراسي المعتمد)', style: TextStyle(color: AppColors.muted, fontSize: 16))]); }
-class _Toggle extends StatelessWidget { const _Toggle(this.label, this.selected); final String label; final bool selected; @override Widget build(BuildContext context) => Container(alignment: Alignment.center, decoration: BoxDecoration(color: selected ? AppColors.navy : Colors.transparent, borderRadius: BorderRadius.circular(24)), child: Text(label, style: TextStyle(fontWeight: FontWeight.w800, color: selected ? Colors.white : AppColors.muted))); }
-class _Lecture extends StatelessWidget { const _Lecture({required this.item}); final MockLecture item; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)), child: Row(children: [Container(width: 58, height: 58, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .14), borderRadius: BorderRadius.circular(17)), child: Icon(item.icon, color: Theme.of(context).colorScheme.primary, size: 29)), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(item.subject, textAlign: TextAlign.right, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)), const SizedBox(height: 5), Text(item.room, style: const TextStyle(color: AppColors.muted))])), Text(item.time, style: const TextStyle(color: AppColors.cyan, fontSize: 20, fontWeight: FontWeight.w900))])); }
+
+class _Lecture extends StatelessWidget {
+  const _Lecture({required this.item});
+  final ScheduleItem item;
+  @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: context.colors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.colors.outline)), child: Row(children: [Container(width: 46, height: 46, decoration: BoxDecoration(color: context.colors.primary.withValues(alpha: .12), borderRadius: BorderRadius.circular(11)), child: Icon(Icons.menu_book_rounded, color: context.colors.primary, size: 22)), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(item.subjectName, textAlign: TextAlign.end, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)), Text([if (item.room?.isNotEmpty == true) 'قاعة ${item.room}', if (item.lecturer?.isNotEmpty == true) item.lecturer!].join(' • '), textAlign: TextAlign.end, style: TextStyle(fontSize: 9.5, color: context.colors.onSurfaceVariant))])), Text('${item.startTime}\n${item.endTime}', textAlign: TextAlign.center, style: TextStyle(color: context.colors.primary, fontSize: 10.5, fontWeight: FontWeight.w900))]));
+}
+
+class _Msg extends StatelessWidget { const _Msg({required this.message, required this.retry}); final String message; final VoidCallback retry; @override Widget build(BuildContext context) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(message, textAlign: TextAlign.center), const SizedBox(height: 10), FilledButton.icon(onPressed: retry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))])); }

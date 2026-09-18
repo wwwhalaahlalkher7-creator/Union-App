@@ -38,7 +38,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21.6)),
         icon: Container(
           width: 56,
           height: 56,
@@ -69,8 +69,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               _completeAndGo('/news');
             },
             style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              padding: const EdgeInsets.symmetric(horizontal: 25.76, vertical: 11.04),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.4)),
             ),
             child: Text(l10n.t('understood')),
           ),
@@ -112,17 +112,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           children: [
             // Top Bar: Skip button
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 18.4, vertical: 11.04),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 9.2, vertical: 3.68),
                         decoration: BoxDecoration(
                           color: primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10.8),
                         ),
                         child: Text(
                           'TRINEX',
@@ -130,7 +130,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             color: primary,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.2,
-                            fontSize: 13,
+                            fontSize: 12,
                           ),
                         ),
                       ),
@@ -156,7 +156,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 itemBuilder: (context, index) {
                   final slide = slides[index];
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 29.44),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -182,15 +182,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                         // Pill Badge
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                          padding: const EdgeInsets.symmetric(horizontal: 12.88, vertical: 4.6),
                           decoration: BoxDecoration(
                             color: theme.colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(18),
                           ),
                           child: Text(
                             slide.badgeText,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 10.1,
                               fontWeight: FontWeight.w800,
                               color: primary,
                               letterSpacing: 0.8,
@@ -236,12 +236,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 slides.length,
                 (i) => AnimatedContainer(
                   duration: const Duration(milliseconds: 260),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  margin: const EdgeInsets.symmetric(horizontal: 3.68),
                   width: _currentPage == i ? 24 : 8,
                   height: 8,
                   decoration: BoxDecoration(
                     color: _currentPage == i ? primary : theme.colorScheme.outline.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(3.6),
                   ),
                 ),
               ),
@@ -250,7 +250,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             // Bottom Actions
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 22.08, vertical: 11.04),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -266,10 +266,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       icon: const Icon(Icons.person_add_alt_1_rounded),
                       label: Text(
                         l10n.t('createAccount'),
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontSize: 13.8, fontWeight: FontWeight.bold),
                       ),
                       style: FilledButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.4)),
                       ),
                     ),
                   ),
@@ -287,10 +287,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       icon: const Icon(Icons.login_rounded),
                       label: Text(
                         l10n.t('signIn'),
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                        style: const TextStyle(fontSize: 13.8, fontWeight: FontWeight.w700),
                       ),
                       style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.4)),
                       ),
                     ),
                   ),
@@ -304,7 +304,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       l10n.t('continueAsGuest'),
                       style: TextStyle(
                         color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

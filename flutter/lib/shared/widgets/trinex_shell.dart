@@ -32,11 +32,8 @@ class _TrinexShellState extends State<TrinexShell> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: dark ? AppColors.background : const Color(0xFFF5F7FC),
+    return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           bottom: false,
           child: Column(
@@ -58,8 +55,7 @@ class _TrinexShellState extends State<TrinexShell> with SingleTickerProviderStat
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -69,18 +65,18 @@ class _TopHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 68,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 9.2),
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
-        border: const Border(bottom: BorderSide(color: AppColors.border)),
+        border: Border(bottom: BorderSide(color: context.colors.outline)),
       ),
       child: LayoutBuilder(
         builder: (context, box) {
           final compact = box.maxWidth < 600;
-          final button = compact ? 34.0 : 38.0;
-          final avatar = compact ? 36.0 : 40.0;
-          final logo = compact ? 42.0 : 46.0;
+          final button = compact ? 32.0 : 36.0;
+          final avatar = compact ? 32.0 : 36.0;
+          final logo = compact ? 38.0 : 42.0;
           final gap = compact ? 4.0 : 6.0;
           final primary = Theme.of(context).colorScheme.primary;
 
@@ -104,19 +100,19 @@ class _TopHeader extends StatelessWidget {
               if (!compact) ...[
                 Container(
                   height: button,
-                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  padding: const EdgeInsets.symmetric(horizontal: 6.44),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AppColors.elevated,
-                    border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(11),
+                    color: context.colors.surfaceContainerHigh,
+                    border: Border.all(color: context.colors.outline),
+                    borderRadius: BorderRadius.circular(9.9),
                   ),
                   child: Text(
                     'V${AppVersion.name}',
-                    style: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w700, fontSize: 12),
+                    style: TextStyle(color: context.colors.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 11),
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
               ],
               Text(
                 'TRINEX',
@@ -126,10 +122,10 @@ class _TopHeader extends StatelessWidget {
               Container(
                 width: logo,
                 height: logo,
-                padding: const EdgeInsets.all(7),
+                padding: const EdgeInsets.all(6.44),
                 decoration: BoxDecoration(
                   color: primary,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12.6),
                   boxShadow: [BoxShadow(color: primary.withValues(alpha: .25), blurRadius: 18)],
                 ),
                 child: Image.asset('assets/icons/trinex_icon.png'),
@@ -158,8 +154,8 @@ class _MainNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
     return Container(
-      height: 78,
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+      height: 64,
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.colors.outline))),
       child: Row(
         children: [
           for (var i = 0; i < items.length; i++)
@@ -169,14 +165,14 @@ class _MainNav extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(items[i].$2, size: 24, color: i == selected ? primary : AppColors.muted),
-                    const SizedBox(height: 5),
+                    Icon(items[i].$2, size: 20, color: i == selected ? primary : context.colors.onSurfaceVariant),
+                    SizedBox(height: 5),
                     Text(
                       items[i].$1,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: i == selected ? FontWeight.w800 : FontWeight.w500,
-                        color: i == selected ? primary : AppColors.muted,
+                        color: i == selected ? primary : context.colors.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -201,12 +197,12 @@ class _HeaderIcon extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12.6),
         onTap: onTap,
         child: SizedBox(
           width: size,
           height: size,
-          child: Icon(icon, color: color ?? AppColors.text, size: size * .55),
+          child: Icon(icon, color: color ?? context.colors.onSurface, size: size * .55),
         ),
       ),
     );
@@ -228,8 +224,8 @@ class _Avatar extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: AppColors.elevated,
-          border: Border.all(color: AppColors.border, width: 2),
+          color: context.colors.surfaceContainerHigh,
+          border: Border.all(color: context.colors.outline, width: 2),
         ),
         child: Center(
           child: Text(
@@ -259,15 +255,15 @@ class _EinoButton extends StatelessWidget {
         final glow = .18 + (.10 * (0.5 + 0.5 * (animation.value * 2 - 1).abs()));
         return InkWell(
           onTap: () => context.push('/eino?from=shell'),
-          borderRadius: BorderRadius.circular(60),
+          borderRadius: BorderRadius.circular(54),
           child: Container(
-            width: 62,
-            height: 62,
-            padding: const EdgeInsets.all(4),
+            width: 56,
+            height: 56,
+            padding: const EdgeInsets.all(3.68),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.surface,
-              border: Border.all(color: AppColors.cyan, width: 3),
+              color: context.colors.surface,
+              border: Border.all(color: context.colors.secondary, width: 3),
               boxShadow: [BoxShadow(color: primary.withValues(alpha: glow), blurRadius: 20)],
             ),
             child: const EinoFace(size: 52, mood: EinoMood.happy),

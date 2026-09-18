@@ -110,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 22.08, vertical: 18.4),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
@@ -119,7 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Eino Welcome Avatar
                   Center(
                     child: Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(3.68),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(color: primary.withValues(alpha: 0.3), width: 2),
@@ -146,17 +146,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Login Form Card
                   AppCard(
-                    padding: const EdgeInsets.all(22),
+                    padding: const EdgeInsets.all(20.24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // Error Message Display
                         if (_errorMessage != null) ...[
                           Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(11.04),
                             decoration: BoxDecoration(
                               color: theme.colorScheme.errorContainer,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10.8),
                             ),
                             child: Row(
                               children: [
@@ -168,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     _errorMessage!,
                                     style: TextStyle(
                                       color: theme.colorScheme.onErrorContainer,
-                                      fontSize: 13,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -188,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             labelText: l10n.t('studentNumber'),
                             hintText: l10n.t('academicIdHint'),
                             prefixIcon: const Icon(Icons.badge_outlined),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.6)),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -211,7 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onPressed: () =>
                                   setState(() => _obscurePassword = !_obscurePassword),
                             ),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.6)),
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -223,7 +223,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: _isLoading ? null : _performLogin,
                             style: FilledButton.styleFrom(
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
+                                  borderRadius: BorderRadius.circular(12.6)),
                             ),
                             child: _isLoading
                                 ? const SizedBox(
@@ -237,7 +237,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : Text(
                                     l10n.t('signIn'),
                                     style: const TextStyle(
-                                        fontSize: 16, fontWeight: FontWeight.bold),
+                                        fontSize: 14.7, fontWeight: FontWeight.bold),
                                   ),
                           ),
                         ),

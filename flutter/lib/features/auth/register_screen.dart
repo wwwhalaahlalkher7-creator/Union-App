@@ -170,7 +170,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ? const Center(child: CircularProgressIndicator())
             : Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 22.08, vertical: 14.72),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 460),
                     child: Form(
@@ -181,7 +181,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           // Header with Eino
                           Center(
                             child: Container(
-                              padding: const EdgeInsets.all(4),
+                              padding: const EdgeInsets.all(3.68),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border:
@@ -210,17 +210,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           // Form Card
                           AppCard(
-                            padding: const EdgeInsets.all(22),
+                            padding: const EdgeInsets.all(20.24),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 // Error Message Display
                                 if (_errorMessage != null) ...[
                                   Container(
-                                    padding: const EdgeInsets.all(12),
+                                    padding: const EdgeInsets.all(11.04),
                                     decoration: BoxDecoration(
                                       color: theme.colorScheme.errorContainer,
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(10.8),
                                     ),
                                     child: Row(
                                       children: [
@@ -232,7 +232,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             _errorMessage!,
                                             style: TextStyle(
                                               color: theme.colorScheme.onErrorContainer,
-                                              fontSize: 13,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
@@ -256,7 +256,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     helperText: l10n.t('academicIdHelp'),
                                     prefixIcon: const Icon(Icons.badge_outlined),
                                     border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(14)),
+                                        borderRadius: BorderRadius.circular(12.6)),
                                   ),
                                 ),
                                 const SizedBox(height: 16),
@@ -270,7 +270,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     helperMaxLines: 2,
                                     prefixIcon: const Icon(Icons.account_tree_outlined),
                                     border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(14)),
+                                        borderRadius: BorderRadius.circular(12.6)),
                                   ),
                                   items: _departments.map((dept) {
                                     final name = dept['name']?.toString() ?? dept['code'] ?? '';
@@ -292,7 +292,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     helperText: l10n.t('semesterFlexibleHelp'),
                                     prefixIcon: const Icon(Icons.calendar_today_outlined),
                                     border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(14)),
+                                        borderRadius: BorderRadius.circular(12.6)),
                                   ),
                                   items: _semesters.map((sem) {
                                     final name = sem['name']?.toString() ?? sem['id']?.toString() ?? '';
@@ -316,7 +316,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     hintText: l10n.t('emailHint'),
                                     prefixIcon: const Icon(Icons.email_outlined),
                                     border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(14)),
+                                        borderRadius: BorderRadius.circular(12.6)),
                                   ),
                                 ),
                                 const SizedBox(height: 16),
@@ -345,7 +345,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           () => _obscurePassword = !_obscurePassword),
                                     ),
                                     border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(14)),
+                                        borderRadius: BorderRadius.circular(12.6)),
                                   ),
                                 ),
                                 const SizedBox(height: 16),
@@ -375,7 +375,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           setState(() => _obscureConfirm = !_obscureConfirm),
                                     ),
                                     border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(14)),
+                                        borderRadius: BorderRadius.circular(12.6)),
                                   ),
                                 ),
                                 const SizedBox(height: 24),
@@ -387,7 +387,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     onPressed: _isLoading ? null : _performRegister,
                                     style: FilledButton.styleFrom(
                                       shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(14)),
+                                          borderRadius: BorderRadius.circular(12.6)),
                                     ),
                                     child: _isLoading
                                         ? const SizedBox(
@@ -401,7 +401,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         : Text(
                                             l10n.t('createAccount'),
                                             style: const TextStyle(
-                                                fontSize: 16, fontWeight: FontWeight.bold),
+                                                fontSize: 14.7, fontWeight: FontWeight.bold),
                                           ),
                                   ),
                                 ),

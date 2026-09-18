@@ -6,6 +6,11 @@ class ContentItem {
     this.body,
     this.createdAt,
     this.updatedAt,
+    this.imageUrl,
+    this.category,
+    this.publisher,
+    this.eventAt,
+    this.location,
   });
 
   final String id;
@@ -14,6 +19,11 @@ class ContentItem {
   final String? body;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? imageUrl;
+  final String? category;
+  final String? publisher;
+  final DateTime? eventAt;
+  final String? location;
 
   factory ContentItem.fromJson(Map<String, dynamic> json) {
     final fields = json['fields'] is Map
@@ -48,6 +58,11 @@ class ContentItem {
       updatedAt: parseDate(
         fields['updatedAt'] ?? fields['updated_at'] ?? fields['UpdatedAt'],
       ),
+      imageUrl: (fields['imageUrl'] ?? fields['image_url'])?.toString(),
+      category: fields['category']?.toString(),
+      publisher: fields['publisher']?.toString(),
+      eventAt: parseDate(fields['eventAt'] ?? fields['event_at']),
+      location: fields['location']?.toString(),
     );
   }
 }

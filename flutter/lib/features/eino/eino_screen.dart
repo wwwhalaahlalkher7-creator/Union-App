@@ -330,19 +330,19 @@ class _EinoScreenState extends State<EinoScreen> {
         final l10n = AppLocalizations.of(sheetContext);
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            padding: const EdgeInsetsDirectional.fromSTEB(14.72, 3.68, 14.72, 18.4),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(l10n.t('einoMemoryTitle'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                Text(l10n.t('einoMemoryTitle'), style: const TextStyle(fontSize: 20.2, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
                 Text(l10n.t('einoMemorySubtitle'), style: TextStyle(color: cs.onSurfaceVariant)),
                 const SizedBox(height: 10),
                 Align(alignment: AlignmentDirectional.centerEnd, child: FilledButton.tonalIcon(onPressed: _addMemory, icon: const Icon(Icons.add_rounded), label: Text(l10n.t('einoMemoryAdd')))),
                 const SizedBox(height: 8),
                 if (memories.isEmpty)
-                  Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Center(child: Text(l10n.t('einoMemoryEmpty'))))
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 22.08), child: Center(child: Text(l10n.t('einoMemoryEmpty'))))
                 else
                   Flexible(
                     child: ListView.separated(
@@ -352,7 +352,7 @@ class _EinoScreenState extends State<EinoScreen> {
                       itemBuilder: (context, index) {
                         final memory = memories[index];
                         return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 3.68),
                           leading: CircleAvatar(child: Icon(_memoryIcon(memory.category))),
                           title: Text(memory.content),
                           subtitle: Text(memory.category),
@@ -491,13 +491,13 @@ class _EinoScreenState extends State<EinoScreen> {
 
           return SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+              padding: const EdgeInsetsDirectional.fromSTEB(14.72, 3.68, 14.72, 18.4),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(l10n.t('einoModelsTitle'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                Text(l10n.t('einoModelsTitle'), style: const TextStyle(fontSize: 20.2, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
                 Text(l10n.t('einoModelsSubtitle'), style: TextStyle(color: cs.onSurfaceVariant)),
                 const SizedBox(height: 12),
-                Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .7), borderRadius: BorderRadius.circular(16)), child: Row(children: [
+                Container(padding: const EdgeInsets.all(11.04), decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .7), borderRadius: BorderRadius.circular(14.4)), child: Row(children: [
                   Icon(Icons.offline_bolt_rounded, color: cs.primary), const SizedBox(width: 10),
                   Expanded(child: Text(hardware == null ? l10n.t('einoModelAndroidOnly') : '${l10n.t('einoModelHardwareReady')} • ${hardware.gpuName}')),
                 ])),
@@ -505,11 +505,11 @@ class _EinoScreenState extends State<EinoScreen> {
                 Flexible(child: ListView.separated(shrinkWrap: true, itemCount: models.length, separatorBuilder: (context, index) => const SizedBox(height: 8), itemBuilder: (_, index) {
                   final model = models[index];
                   final isInstalled = installed.contains(model.id);
-                  return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant.withValues(alpha: .5)), borderRadius: BorderRadius.circular(18)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [CircleAvatar(child: const Icon(Icons.memory_rounded)), const SizedBox(width: 10), Expanded(child: Text(model.name, style: const TextStyle(fontWeight: FontWeight.w800))), Text(model.quantization, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant))]),
+                  return Container(padding: const EdgeInsets.all(11.04), decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant.withValues(alpha: .5)), borderRadius: BorderRadius.circular(16.2)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [CircleAvatar(child: const Icon(Icons.memory_rounded)), const SizedBox(width: 10), Expanded(child: Text(model.name, style: const TextStyle(fontWeight: FontWeight.w800))), Text(model.quantization, style: TextStyle(fontSize: 10.1, color: cs.onSurfaceVariant))]),
                     const SizedBox(height: 8),
                     Text('${model.approximateSizeGb.toStringAsFixed(1)} GB  •  ${l10n.t('einoRam')} ${model.recommendedRamGb} GB  •  ${model.format}'),
-                    const SizedBox(height: 6), Text(model.capabilities.join(' • '), style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                    const SizedBox(height: 6), Text(model.capabilities.join(' • '), style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
                     const SizedBox(height: 10),
                     SizedBox(width: double.infinity, child: FilledButton.tonalIcon(onPressed: () => handleModel(model), icon: Icon(isInstalled ? Icons.play_arrow_rounded : Icons.download_outlined), label: Text(isInstalled ? l10n.t('einoModelUse') : l10n.t('einoModelDownload')))),
                     if (_loadedLocalModel?.id == model.id) ...[
@@ -606,11 +606,11 @@ class _EinoScreenState extends State<EinoScreen> {
     final online = data?.online == true;
     final offline = data?.offlineAvailable == true;
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      margin: const EdgeInsetsDirectional.fromSTEB(14.72, 7.36, 14.72, 3.68),
+      padding: const EdgeInsetsDirectional.fromSTEB(12.88, 11.04, 9.2, 11.04),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest.withValues(alpha: .72),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16.2),
         border: Border.all(color: cs.outlineVariant.withValues(alpha: .45)),
       ),
       child: Row(
@@ -625,7 +625,7 @@ class _EinoScreenState extends State<EinoScreen> {
                 const SizedBox(height: 2),
                 Text(
                   data == null ? l10n.t('einoCheckingCapabilities') : offline ? l10n.t('einoOfflineReady') : (data.model.isNotEmpty ? '${l10n.t('einoModel')}: ${data.model}' : l10n.t('einoCheckingCapabilities')),
-                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                  style: TextStyle(fontSize: 10.1, color: cs.onSurfaceVariant),
                 ),
               ],
             ),
@@ -648,17 +648,17 @@ class _EinoScreenState extends State<EinoScreen> {
       appBar: AppBar(
         leading: Builder(builder: (context) => IconButton(icon: const Icon(Icons.menu_rounded), tooltip: l10n.t('einoHistory'), onPressed: () => Scaffold.of(context).openDrawer())),
         titleSpacing: 4,
-        title: Row(children: [EinoFace(size: 32, mood: _mood), const SizedBox(width: 8), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l10n.t('einoTitle'), style: const TextStyle(fontWeight: FontWeight.w800)), Text(_capabilities?.online == true ? l10n.t('einoOnlineReady') : l10n.t('einoOfflineMode'), style: TextStyle(fontSize: 11, color: _capabilities?.online == true ? cs.primary : cs.onSurfaceVariant, fontWeight: FontWeight.w700))])]),
+        title: Row(children: [EinoFace(size: 32, mood: _mood), const SizedBox(width: 8), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l10n.t('einoTitle'), style: const TextStyle(fontWeight: FontWeight.w800)), Text(_capabilities?.online == true ? l10n.t('einoOnlineReady') : l10n.t('einoOfflineMode'), style: TextStyle(fontSize: 10.1, color: _capabilities?.online == true ? cs.primary : cs.onSurfaceVariant, fontWeight: FontWeight.w700))])]),
         actions: [IconButton(tooltip: l10n.t('newChat'), onPressed: _messages.isEmpty || _sending || _uploading ? null : _newChat, icon: const Icon(Icons.edit_square)), const SizedBox(width: 4)],
       ),
       body: Column(children: [
         _capabilityCard(cs, l10n),
-        Expanded(child: _messages.isEmpty ? _welcome(cs, l10n) : ListView.builder(controller: _scroll, padding: const EdgeInsets.fromLTRB(14, 12, 14, 24), itemCount: _messages.length + (_sending || _uploading ? 1 : 0), itemBuilder: (_, i) {
+        Expanded(child: _messages.isEmpty ? _welcome(cs, l10n) : ListView.builder(controller: _scroll, padding: const EdgeInsetsDirectional.fromSTEB(12.88, 11.04, 12.88, 22.08), itemCount: _messages.length + (_sending || _uploading ? 1 : 0), itemBuilder: (_, i) {
           if (i == _messages.length) return _typingBubble(cs, uploading: _uploading);
           final message = _messages[i];
           return _AnimatedEntry(key: ValueKey('${message.text}-$i'), child: _bubble(context, message));
         })),
-        SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(10, 4, 10, 10), child: _composer(cs, l10n))),
+        SafeArea(top: false, child: Padding(padding: const EdgeInsetsDirectional.fromSTEB(9.2, 3.68, 9.2, 9.2), child: _composer(cs, l10n))),
       ]),
     );
   }
@@ -670,7 +670,7 @@ class _EinoScreenState extends State<EinoScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+              padding: const EdgeInsetsDirectional.fromSTEB(16.56, 16.56, 16.56, 11.04),
               child: Row(
                 children: [
                   const EinoFace(size: 48, mood: EinoMood.happy),
@@ -679,7 +679,7 @@ class _EinoScreenState extends State<EinoScreen> {
                     child: Text(
                       l10n.t('einoHistory'),
                       style: const TextStyle(
-                        fontSize: 20,
+                        fontSize: 18.4,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -688,7 +688,7 @@ class _EinoScreenState extends State<EinoScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 11.04),
               child: FilledButton.icon(
                 onPressed: _newChat,
                 icon: const Icon(Icons.add_rounded),
@@ -708,7 +708,7 @@ class _EinoScreenState extends State<EinoScreen> {
             else
               Expanded(
                 child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 7.36),
                   itemCount: _history.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 2),
                   itemBuilder: (_, i) => ListTile(
@@ -730,11 +730,11 @@ class _EinoScreenState extends State<EinoScreen> {
 
   Widget _welcome(ColorScheme cs, AppLocalizations l10n) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 22, 18, 20),
+      padding: const EdgeInsetsDirectional.fromSTEB(16.56, 20.24, 16.56, 18.4),
       children: [
         Center(
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14.72),
             decoration: BoxDecoration(
               color: cs.primaryContainer.withValues(alpha: .45),
               shape: BoxShape.circle,
@@ -746,7 +746,7 @@ class _EinoScreenState extends State<EinoScreen> {
         Center(
           child: Text(
             l10n.t('einoGreeting'),
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 25.8, fontWeight: FontWeight.w800),
           ),
         ),
         const SizedBox(height: 6),
@@ -793,10 +793,10 @@ class _EinoScreenState extends State<EinoScreen> {
         child: Container(
           constraints: const BoxConstraints(maxWidth: 460),
           margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.fromLTRB(14, 13, 12, 9),
+          padding: const EdgeInsetsDirectional.fromSTEB(12.88, 11.96, 11.04, 8.28),
           decoration: BoxDecoration(
             color: cs.errorContainer,
-            borderRadius: BorderRadius.circular(20).copyWith(
+            borderRadius: BorderRadius.circular(18).copyWith(
               bottomLeft: const Radius.circular(5),
             ),
           ),
@@ -838,10 +838,10 @@ class _EinoScreenState extends State<EinoScreen> {
       child: Container(
         constraints: const BoxConstraints(maxWidth: 620),
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 13.8, vertical: 11.04),
         decoration: BoxDecoration(
           color: m.user ? cs.primary : cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(20).copyWith(
+          borderRadius: BorderRadius.circular(18).copyWith(
             bottomRight: m.user ? const Radius.circular(5) : null,
             bottomLeft: !m.user ? const Radius.circular(5) : null,
           ),
@@ -887,10 +887,10 @@ class _EinoScreenState extends State<EinoScreen> {
       alignment: AlignmentDirectional.centerStart,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14.72, vertical: 12.88),
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(20).copyWith(
+          borderRadius: BorderRadius.circular(18).copyWith(
             bottomLeft: const Radius.circular(5),
           ),
         ),
@@ -915,10 +915,10 @@ class _EinoScreenState extends State<EinoScreen> {
     return Container(
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(21.6),
         border: Border.all(color: cs.outlineVariant.withValues(alpha: .4)),
       ),
-      padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+      padding: const EdgeInsetsDirectional.fromSTEB(5.52, 4.6, 5.52, 4.6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -940,8 +940,8 @@ class _EinoScreenState extends State<EinoScreen> {
                 focusedBorder: InputBorder.none,
                 filled: false,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 11,
+                  horizontal: 7.36,
+                  vertical: 10.12,
                 ),
               ),
             ),
@@ -1012,7 +1012,7 @@ class _TypingDotsState extends State<_TypingDots>
             final phase = (_controller.value - i * .18) % 1.0;
             final lift = phase < .5 ? phase * 2 : (1 - phase) * 2;
             return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 1.84),
               child: Transform.translate(
                 offset: Offset(0, -lift * 4),
                 child: Container(

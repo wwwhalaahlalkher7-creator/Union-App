@@ -41,7 +41,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
             onRefresh: () async { final future = widget.loader(_repository); setState(() => _future = future); await future; },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              padding: const EdgeInsetsDirectional.fromSTEB(14.72, 11.04, 14.72, 29.44),
               children: [
                 AppSection(
                   title: l10n.t(widget.titleKey),
@@ -80,10 +80,10 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
 class _Loading extends StatelessWidget {
   const _Loading();
-  @override Widget build(BuildContext context) => const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()));
+  @override Widget build(BuildContext context) => const Center(child: Padding(padding: EdgeInsets.all(36.8), child: CircularProgressIndicator()));
 }
 class _StateMessage extends StatelessWidget {
   const _StateMessage({required this.icon, required this.message, this.onRetry});
   final IconData icon; final String message; final VoidCallback? onRetry;
-  @override Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 60), const SizedBox(height: 14), Text(message, textAlign: TextAlign.center), if (onRetry != null) ...[const SizedBox(height: 14), FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))]])));
+  @override Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(25.76), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 60), const SizedBox(height: 14), Text(message, textAlign: TextAlign.center), if (onRetry != null) ...[const SizedBox(height: 14), FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))]])));
 }

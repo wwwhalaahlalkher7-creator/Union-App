@@ -41,7 +41,7 @@ class AboutScreen extends StatelessWidget {
       appBar: AppBar(title: Text(l10n.t('about'))),
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(22.08),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

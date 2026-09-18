@@ -137,7 +137,7 @@ class _UnitConverterTabState extends State<_UnitConverterTab> {
     final units = _conversionFactors[_category]!.keys.toList();
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14.72),
       children: [
         // Category Selector Chips
         SingleChildScrollView(
@@ -146,7 +146,7 @@ class _UnitConverterTabState extends State<_UnitConverterTab> {
             children: _conversionFactors.keys.map((cat) {
               final selected = cat == _category;
               return Padding(
-                padding: const EdgeInsetsDirectional.only(end: 8),
+                padding: const EdgeInsetsDirectional.only(end: 7.36),
                 child: FilterChip(
                   label: Text(cat),
                   selected: selected,
@@ -159,7 +159,7 @@ class _UnitConverterTabState extends State<_UnitConverterTab> {
         const SizedBox(height: 16),
 
         AppCard(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(18.4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -169,7 +169,7 @@ class _UnitConverterTabState extends State<_UnitConverterTab> {
                 onChanged: (_) => _recalculate(),
                 decoration: InputDecoration(
                   labelText: l10n.t('value'),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.8)),
                 ),
               ),
               const SizedBox(height: 16),
@@ -181,7 +181,7 @@ class _UnitConverterTabState extends State<_UnitConverterTab> {
                       initialValue: _fromUnit,
                       decoration: InputDecoration(
                         labelText: l10n.t('from'),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.8)),
                       ),
                       items: units
                           .map((u) => DropdownMenuItem(value: u, child: Text(u)))
@@ -210,7 +210,7 @@ class _UnitConverterTabState extends State<_UnitConverterTab> {
                       initialValue: _toUnit,
                       decoration: InputDecoration(
                         labelText: l10n.t('to'),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.8)),
                       ),
                       items: units
                           .map((u) => DropdownMenuItem(value: u, child: Text(u)))
@@ -229,10 +229,10 @@ class _UnitConverterTabState extends State<_UnitConverterTab> {
 
               // Result Display
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14.72),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14.4),
                   border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2)),
                 ),
                 child: Column(
@@ -328,11 +328,11 @@ class _GpaCalculatorTabState extends State<_GpaCalculatorTab> {
     final gpa = _calculatedGpa;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14.72),
       children: [
         // Live GPA Badge
         AppCard(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16.56),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -353,11 +353,11 @@ class _GpaCalculatorTabState extends State<_GpaCalculatorTab> {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14.72, vertical: 7.36),
                 decoration: BoxDecoration(
                   color: (gpa >= 3.0 ? Colors.green : (gpa >= 2.0 ? Colors.orange : Colors.red))
                       .withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14.4),
                 ),
                 child: Text(
                   _standingText(gpa),
@@ -378,7 +378,7 @@ class _GpaCalculatorTabState extends State<_GpaCalculatorTab> {
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: AppCard(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12.88, vertical: 9.2),
               child: Row(
                 children: [
                   Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -389,8 +389,8 @@ class _GpaCalculatorTabState extends State<_GpaCalculatorTab> {
                       initialValue: course.credits,
                       decoration: InputDecoration(
                         labelText: l10n.t('credits'),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 9.2, vertical: 7.36),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
                       ),
                       items: [1.0, 2.0, 3.0, 4.0, 5.0]
                           .map((c) => DropdownMenuItem(value: c, child: Text('${c.toInt()}')))
@@ -408,8 +408,8 @@ class _GpaCalculatorTabState extends State<_GpaCalculatorTab> {
                       initialValue: course.gradePoints,
                       decoration: InputDecoration(
                         labelText: l10n.t('grade'),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 9.2, vertical: 7.36),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
                       ),
                       items: _gradeScale.entries
                           .map((e) => DropdownMenuItem(value: e.value, child: Text(e.key)))
@@ -505,18 +505,18 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
     final theme = Theme.of(context);
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14.72),
       children: [
         // Resistor Visual Simulation
         AppCard(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(22.08),
           child: Column(
             children: [
               Container(
                 height: 56,
                 decoration: BoxDecoration(
                   color: const Color(0xFFF0E5D8),
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(25.2),
                   border: Border.all(color: const Color(0xFFD4C2AB), width: 2),
                 ),
                 child: Row(
@@ -569,7 +569,7 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
 
         // Tolerance
         AppCard(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(11.04),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -603,7 +603,7 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
     required ValueChanged<int> onChanged,
   }) {
     return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12.88, vertical: 7.36),
       child: DropdownButtonFormField<int>(
         initialValue: value,
         decoration: InputDecoration(
@@ -683,14 +683,14 @@ class _EngineeringReferencesTab extends StatelessWidget {
     ];
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14.72),
       itemCount: references.length,
       itemBuilder: (context, index) {
         final ref = references[index];
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: AppCard(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14.72),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -701,10 +701,10 @@ class _EngineeringReferencesTab extends StatelessWidget {
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 11.04, vertical: 7.36),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(7.2),
                   ),
                   child: Text(
                     ref['formula']!,
@@ -712,7 +712,7 @@ class _EngineeringReferencesTab extends StatelessWidget {
                       fontFamily: 'monospace',
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.primary,
-                      fontSize: 13,
+                      fontSize: 12,
                     ),
                   ),
                 ),

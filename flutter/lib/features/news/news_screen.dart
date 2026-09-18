@@ -1,110 +1,36 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/design_tokens.dart';
-import '../../data/mock_data.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_localizations.dart';
+import '../../core/network/api_client.dart';
+import '../../data/models/content_item.dart';
+import '../../data/repositories/content_repository.dart';
+import '../../shared/widgets/app_card.dart';
 
-class NewsScreen extends StatefulWidget {
-  const NewsScreen({super.key});
-  @override State<NewsScreen> createState() => _NewsScreenState();
-}
-
+class NewsScreen extends StatefulWidget { const NewsScreen({super.key}); @override State<NewsScreen> createState()=>_NewsScreenState(); }
 class _NewsScreenState extends State<NewsScreen> {
-  String filter = 'all';
-  final Set<String> liked = <String>{};
-
-  @override
-  Widget build(BuildContext context) {
-    final visible = MockData.news.where((item) => filter == 'all' || item.category == filter).toList();
-    return _PageScroll(children: [
-      const _SectionHeader(icon: Icons.article_outlined, title: 'أخبار رابطة كلية الهندسة والعمارة', subtitle: 'منصة رابطة كلية الهندسة والعمارة • الإعلانات المعتمدة والأنشطة الطلابية'),
-      const SizedBox(height: 14),
-      SizedBox(height: 46, child: ListView(scrollDirection: Axis.horizontal, children: [
-        _FilterChip('جميع الأخبار', filter == 'all', () => setState(() => filter = 'all')),
-        _FilterChip('بيانات رسمية', filter == 'official', () => setState(() => filter = 'official')),
-        _FilterChip('معارض ومؤتمرات', filter == 'event', () => setState(() => filter = 'event')),
-        _FilterChip('أنشطة طلابية', filter == 'activity', () => setState(() => filter = 'activity')),
-      ])),
-      const SizedBox(height: 16),
-      if (visible.isEmpty)
-        const Padding(padding: EdgeInsets.all(40), child: Text('لا توجد أخبار في هذا التصنيف.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted, fontSize: 15)))
-      else
-        for (final item in visible)
-          Padding(padding: const EdgeInsets.only(bottom: 18), child: _NewsCard(
-            item: item,
-            liked: liked.contains(item.title),
-            onRead: () => context.push('/news/detail', extra: item),
-            onLike: () => setState(() => liked.add(item.title)),
-            onComments: () => _showComments(item),
-          )),
-    ]);
+  late final ApiClient _client=ApiClient(baseUrl:AppConstants.apiBaseUrl);
+  late final ContentRepository _repo=ContentRepository(_client);
+  late Future<List<ContentItem>> _future=_repo.news();
+  String _filter='all';
+  @override void dispose(){_client.dispose();super.dispose();}
+  Future<void> _refresh() async { final f=_repo.news(); setState(()=>_future=f); await f; }
+  @override Widget build(BuildContext context){
+    final l10n=AppLocalizations.of(context);
+    return RefreshIndicator(onRefresh:_refresh,child:FutureBuilder<List<ContentItem>>(future:_future,builder:(context,s){
+      if(s.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator());
+      if(s.hasError)return _Message(message:s.error is ApiException?(s.error as ApiException).message:l10n.t('connectionFailed'),retry:()=>setState(()=>_future=_repo.news()));
+      final items=s.data??const[]; final visible=_filter=='all'?items:items.where((e)=>(e.category??'').toLowerCase()==_filter).toList();
+      return ListView(padding:const EdgeInsetsDirectional.fromSTEB(14.72,12,14.72,92),children:[
+        const Text('الأخبار',textAlign:TextAlign.end,style:TextStyle(fontSize:20.2,fontWeight:FontWeight.w900)),const SizedBox(height:4),
+        Text('آخر الأخبار المنشورة من الرابطة',textAlign:TextAlign.end,style:TextStyle(color:context.colors.onSurfaceVariant,fontSize:11.5)),const SizedBox(height:11),
+        SizedBox(height:38,child:ListView(scrollDirection:Axis.horizontal,children:[_Chip('الكل','all'),_Chip('بيانات رسمية','official'),_Chip('فعاليات','event'),_Chip('أنشطة','activity')])),const SizedBox(height:12),
+        if(visible.isEmpty)AppCard(child:Text(l10n.t('noData'),textAlign:TextAlign.center)) else for(final item in visible)Padding(padding:const EdgeInsets.only(bottom:10),child:_Card(item:item,onTap:()=>context.push('/news/detail',extra:item))),
+      ]);
+    }));
   }
-
-  void _showComments(MockNewsItem item) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text('التعليقات (${item.comments})', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 16),
-          const Text('هذه تعليقات تجريبية محلية. سيتم تفعيل الردود عند ربط Backend.', textAlign: TextAlign.right, style: TextStyle(color: AppColors.muted)),
-          const SizedBox(height: 18),
-          SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('إغلاق'))),
-        ]),
-      ),
-    );
-  }
+  Widget _Chip(String label,String value)=>Padding(padding:const EdgeInsetsDirectional.only(start:6),child:ChoiceChip(label:Text(label,style:const TextStyle(fontSize:10.5)),selected:_filter==value,onSelected:(_)=>setState(()=>_filter=value)));
 }
-
-class _NewsCard extends StatelessWidget {
-  const _NewsCard({required this.item, required this.liked, required this.onRead, required this.onLike, required this.onComments});
-  final MockNewsItem item;
-  final bool liked;
-  final VoidCallback onRead;
-  final VoidCallback onLike;
-  final VoidCallback onComments;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final tagColor = item.category == 'official' ? AppColors.gold : item.category == 'event' ? AppColors.cyan : AppColors.purple;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        onTap: onRead,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: item.pinned ? AppColors.gold.withValues(alpha: .45) : AppColors.border, width: item.pinned ? 1.5 : 1)),
-          clipBehavior: Clip.antiAlias,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Container(height: 210, decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF29344A), Color(0xFF0A101F)])), child: Stack(children: [
-          PositionedDirectional(top: 22, end: 20, child: Container(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9), decoration: BoxDecoration(color: tagColor.withValues(alpha: .18), borderRadius: BorderRadius.circular(14), border: Border.all(color: tagColor.withValues(alpha: .45))), child: Text(item.category, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)))),
-          Center(child: Icon(item.category == 'event' ? Icons.event_available_rounded : item.category == 'official' ? Icons.campaign_rounded : Icons.groups_rounded, size: 82, color: accent.withValues(alpha: .22))),
-        ])),
-        Padding(padding: const EdgeInsets.fromLTRB(20, 14, 20, 18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Text(item.date, style: const TextStyle(color: AppColors.muted, fontSize: 13)), const SizedBox(width: 8), const Icon(Icons.calendar_month_outlined, size: 16, color: AppColors.muted), const Spacer(), if (item.pinned) Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: const Color(0xFF5B2A08), borderRadius: BorderRadius.circular(10)), child: const Text('إعلان مثبت 📌', style: TextStyle(color: Color(0xFFFFB629), fontWeight: FontWeight.w800)))]),
-          const SizedBox(height: 18),
-          Text(item.title, textAlign: TextAlign.right, style: const TextStyle(fontSize: 19, height: 1.35, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 14),
-          Text(item.summary, textAlign: TextAlign.right, style: const TextStyle(color: AppColors.muted, fontSize: 14, height: 1.55)),
-          const SizedBox(height: 18),
-          Row(children: [
-            const Spacer(),
-            Text('${item.likes + (liked ? 1 : 0)}', style: const TextStyle(color: AppColors.muted)), const SizedBox(width: 7),
-            InkWell(onTap: liked ? null : onLike, borderRadius: BorderRadius.circular(18), child: Icon(liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, color: AppColors.cyan)),
-            const SizedBox(width: 24), Text('${item.comments}', style: const TextStyle(color: AppColors.muted)), const SizedBox(width: 7),
-            InkWell(onTap: onComments, borderRadius: BorderRadius.circular(18), child: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.muted)),
-          ]),
-        ])),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _PageScroll extends StatelessWidget { const _PageScroll({required this.children}); final List<Widget> children; @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.fromLTRB(24, 22, 24, 100), physics: const BouncingScrollPhysics(), children: children); }
-class _SectionHeader extends StatelessWidget { const _SectionHeader({required this.icon, required this.title, required this.subtitle}); final IconData icon; final String title, subtitle; @override Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Row(mainAxisAlignment: MainAxisAlignment.end, children: [Flexible(child: Text(title, textAlign: TextAlign.right, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900))), const SizedBox(width: 14), Icon(icon, color: AppColors.cyan, size: 34)]), const SizedBox(height: 8), Text(subtitle, textAlign: TextAlign.right, style: const TextStyle(color: AppColors.muted, fontSize: 14))]); }
-class _FilterChip extends StatelessWidget { const _FilterChip(this.label, this.selected, this.onTap); final String label; final bool selected; final VoidCallback onTap; @override Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(28), child: Container(margin: const EdgeInsetsDirectional.only(start: 10), padding: const EdgeInsets.symmetric(horizontal: 26), alignment: Alignment.center, decoration: BoxDecoration(color: selected ? Colors.white : AppColors.elevated, borderRadius: BorderRadius.circular(28), border: Border.all(color: selected ? Colors.white : AppColors.border)), child: Text(label, style: TextStyle(color: selected ? const Color(0xFF111827) : AppColors.muted, fontSize: 14, fontWeight: FontWeight.w800)))); }
+class _Card extends StatelessWidget { const _Card({required this.item,required this.onTap}); final ContentItem item; final VoidCallback onTap; @override Widget build(BuildContext c)=>InkWell(onTap:onTap,borderRadius:BorderRadius.circular(16),child:AppCard(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.end,children:[Row(children:[Expanded(child:Text(item.category??'خبر',style:TextStyle(color:c.colors.primary,fontSize:10,fontWeight:FontWeight.w800))),Text(_date(item.createdAt??item.updatedAt),style:TextStyle(color:c.colors.onSurfaceVariant,fontSize:9.5))]),const SizedBox(height:7),Text(item.title,textAlign:TextAlign.end,style:const TextStyle(fontSize:13.5,fontWeight:FontWeight.w900,height:1.3)),if(item.summary?.isNotEmpty==true)...[const SizedBox(height:5),Text(item.summary!,maxLines:3,overflow:TextOverflow.ellipsis,textAlign:TextAlign.end,style:TextStyle(color:c.colors.onSurfaceVariant,fontSize:10.8,height:1.45))],const SizedBox(height:7),Row(mainAxisAlignment:MainAxisAlignment.end,children:[Icon(Icons.arrow_back_ios_new_rounded,size:12,color:c.colors.primary),const SizedBox(width:5),Text('فتح الخبر',style:TextStyle(color:c.colors.primary,fontSize:10,fontWeight:FontWeight.w800))])]))); }
+String _date(DateTime? d)=>d==null?'': '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}/${d.year}';
+class _Message extends StatelessWidget{const _Message({required this.message,required this.retry});final String message;final VoidCallback retry;@override Widget build(BuildContext c)=>Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Text(message,textAlign:TextAlign.center),const SizedBox(height:10),FilledButton.icon(onPressed:retry,icon:const Icon(Icons.refresh_rounded),label:Text(AppLocalizations.of(c).t('retry')))]));}

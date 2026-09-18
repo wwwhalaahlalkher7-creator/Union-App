@@ -35,7 +35,7 @@ class TrinexMark extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.all(2.76),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
         boxShadow: [
@@ -47,7 +47,7 @@ class TrinexMark extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius - 3),
+        borderRadius: BorderRadius.circular(radius - 2.7),
         child: Image.asset('assets/icons/trinex_icon.png', fit: BoxFit.cover),
       ),
     );
@@ -63,7 +63,7 @@ class CircuitDecoration extends StatelessWidget {
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: CustomPaint(
-        painter: _CircuitPainter(opacity),
+        painter: _CircuitPainter(opacity, Theme.of(context).colorScheme.primary),
         size: const Size(160, 160),
       ),
     );
@@ -71,13 +71,14 @@ class CircuitDecoration extends StatelessWidget {
 }
 
 class _CircuitPainter extends CustomPainter {
-  const _CircuitPainter(this.opacity);
+  const _CircuitPainter(this.opacity, this.color);
   final double opacity;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final orange = Paint()
-      ..color = AppColors.primary.withValues(alpha: opacity)
+      ..color = color.withValues(alpha: opacity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
