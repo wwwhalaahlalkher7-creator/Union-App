@@ -34,7 +34,7 @@ class _TrinexAppState extends State<TrinexApp> {
   final AppPreferences _preferences = AppPreferences();
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
-  String _accentColorId = 'orange';
+  String _accentColorId = 'purple';
   late final Future<void> _preferencesFuture =
       widget.startupFutureOverride ?? _loadPreferences();
   late final GoRouter _router;

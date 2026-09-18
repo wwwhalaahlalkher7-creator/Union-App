@@ -1,124 +1,45 @@
 import 'package:flutter/material.dart';
 
-/// TRINEX visual language. Keep shared spacing, radii and brand colors here.
 class DesignTokens {
   DesignTokens._();
-
-  static const double space2 = 2;
-  static const double space4 = 4;
-  static const double space6 = 6;
-  static const double space8 = 8;
-  static const double space12 = 12;
-  static const double space16 = 16;
-  static const double space20 = 20;
-  static const double space24 = 24;
-  static const double space32 = 32;
-  static const double space40 = 40;
-
-  static const double radius12 = 12;
-  static const double radius16 = 16;
-  static const double radius20 = 20;
-  static const double radius24 = 24;
-  static const double radius32 = 32;
-
-  static const double controlHeight = 52;
-  static const double iconButtonSize = 48;
-  static const double maxContentWidth = 760;
-
-  static const Duration fast = Duration(milliseconds: 140);
-  static const Duration normal = Duration(milliseconds: 220);
-  static const Duration emphasized = Duration(milliseconds: 360);
+  static const double space4 = 4, space8 = 8, space12 = 12, space16 = 16, space20 = 20, space24 = 24, space32 = 32, space40 = 40;
+  static const double radius12 = 12, radius16 = 16, radius20 = 20, radius24 = 24, radius32 = 32;
+  static const double controlHeight = 52, iconButtonSize = 48, maxContentWidth = 860;
+  static const Duration fast = Duration(milliseconds: 140), normal = Duration(milliseconds: 220), emphasized = Duration(milliseconds: 360);
 }
 
 class AppAccentColor {
-  const AppAccentColor({
-    required this.id,
-    required this.nameAr,
-    required this.nameEn,
-    required this.primary,
-    required this.primaryDark,
-  });
+  const AppAccentColor({required this.id, required this.nameAr, required this.nameEn, required this.primary, required this.primaryDark});
+  final String id, nameAr, nameEn;
+  final Color primary, primaryDark;
 
-  final String id;
-  final String nameAr;
-  final String nameEn;
-  final Color primary;
-  final Color primaryDark;
-
-  static const defaultColor = AppAccentColor(
-    id: 'orange',
-    nameAr: 'برتقالي TRINEX',
-    nameEn: 'TRINEX Orange',
-    primary: Color(0xFFF47B20),
-    primaryDark: Color(0xFFFF9848),
-  );
-
-  static const List<AppAccentColor> presets = [
+  static const defaultColor = AppAccentColor(id: 'purple', nameAr: 'أرجواني تقني', nameEn: 'Amethyst', primary: Color(0xFF8B3DFF), primaryDark: Color(0xFFB36BFF));
+  static const presets = <AppAccentColor>[
+    AppAccentColor(id: 'cyan', nameAr: 'أزرق هندسي', nameEn: 'Cyan', primary: Color(0xFF079DDA), primaryDark: Color(0xFF24C8FF)),
+    AppAccentColor(id: 'emerald', nameAr: 'أخضر زمردي', nameEn: 'Emerald', primary: Color(0xFF00A87A), primaryDark: Color(0xFF21D9A4)),
+    AppAccentColor(id: 'amber', nameAr: 'عمارة وتصميم', nameEn: 'Amber / Terracotta', primary: Color(0xFFE78100), primaryDark: Color(0xFFFFAA25)),
+    AppAccentColor(id: 'sapphire', nameAr: 'كحلي صناعي', nameEn: 'Sapphire', primary: Color(0xFF2865E8), primaryDark: Color(0xFF6A8CFF)),
     defaultColor,
-    AppAccentColor(
-      id: 'teal',
-      nameAr: 'تركوازي زمردي',
-      nameEn: 'Emerald Teal',
-      primary: Color(0xFF0D9488),
-      primaryDark: Color(0xFF2DD4BF),
-    ),
-    AppAccentColor(
-      id: 'sapphire',
-      nameAr: 'أزرق ياقوتي',
-      nameEn: 'Sapphire Blue',
-      primary: Color(0xFF2563EB),
-      primaryDark: Color(0xFF60A5FA),
-    ),
-    AppAccentColor(
-      id: 'purple',
-      nameAr: 'بنفسجي ملكي',
-      nameEn: 'Royal Amethyst',
-      primary: Color(0xFF7C3AED),
-      primaryDark: Color(0xFFA78BFA),
-    ),
-    AppAccentColor(
-      id: 'rose',
-      nameAr: 'وردي مرجاني',
-      nameEn: 'Coral Rose',
-      primary: Color(0xFFE11D48),
-      primaryDark: Color(0xFFFB7185),
-    ),
-    AppAccentColor(
-      id: 'amber',
-      nameAr: 'عنبري دافئ',
-      nameEn: 'Warm Amber',
-      primary: Color(0xFFD97706),
-      primaryDark: Color(0xFFFBBF24),
-    ),
   ];
-
-  static AppAccentColor fromId(String? id) {
-    if (id == null) return defaultColor;
-    return presets.firstWhere((c) => c.id == id, orElse: () => defaultColor);
-  }
+  static AppAccentColor fromId(String? id) => presets.firstWhere((c) => c.id == id, orElse: () => defaultColor);
 }
 
 class AppColors {
   AppColors._();
-
-  // TRINEX brand palette from the approved visual direction.
-  static const Color primary = Color(0xFFF47B20);
-  static const Color primaryDark = Color(0xFFFF9848);
-  static const Color navy = Color(0xFF0D2B45);
-  static const Color blue = Color(0xFF4E6B8A);
-  static const Color background = Color(0xFFF5F7FA);
-  static const Color text = Color(0xFF1F2937);
-  static const Color border = Color(0xFFDDE4EA);
-
-  static const Color lightBackground = background;
-  static const Color darkBackground = Color(0xFF081D2F);
-  static const Color lightSurface = Colors.white;
-  static const Color darkSurface = Color(0xFF102E46);
-
-  static const Color success = Color(0xFF2E9B68);
-  static const Color warning = Color(0xFFE3A52F);
-  static const Color danger = Color(0xFFD95757);
-  static const Color info = blue;
+  static const background = Color(0xFF03081A);
+  static const surface = Color(0xFF0D1529);
+  static const elevated = Color(0xFF16233A);
+  static const border = Color(0xFF1D2B43);
+  static const text = Color(0xFFF5F7FF);
+  static const muted = Color(0xFF94A3BD);
+  static const cyan = Color(0xFF08B8F6);
+  static const purple = Color(0xFF8B3DFF);
+  static const gold = Color(0xFFF5A400);
+  static const success = Color(0xFF00C993);
+  static const danger = Color(0xFFF43F67);
+  static const navy = Color(0xFF091328);
+  static const primary = purple;
+  static const primaryDark = Color(0xFFB36BFF);
 }
 
 extension DesignThemeX on BuildContext {

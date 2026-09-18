@@ -134,7 +134,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
-      context.go('/home');
+      context.go('/news');
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -160,7 +160,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/home');
+              context.go('/news');
             }
           },
         ),

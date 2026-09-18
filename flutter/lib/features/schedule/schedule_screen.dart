@@ -1,263 +1,28 @@
 import 'package:flutter/material.dart';
-
-import '../../core/localization/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
-import '../../data/models/schedule_item.dart';
-import '../../data/repositories/schedule_repository.dart';
-import '../../shared/widgets/list_skeleton.dart';
-import '../../shared/widgets/responsive_content.dart';
+import '../../data/mock_data.dart';
 
-class ScheduleScreen extends StatefulWidget {
-  const ScheduleScreen({super.key});
-
-  @override
-  State<ScheduleScreen> createState() => _ScheduleScreenState();
-}
-
+class ScheduleScreen extends StatefulWidget { const ScheduleScreen({super.key}); @override State<ScheduleScreen> createState() => _ScheduleScreenState(); }
 class _ScheduleScreenState extends State<ScheduleScreen> {
-  ApiClient? _client;
-  ScheduleRepository? _repository;
-  Future<ScheduleData>? _future;
-  Future<List<Map<String, dynamic>>>? _semestersFuture;
-  String? _semesterId;
-  int? _selectedDay;
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-  }
-
-  Future<void> _init() async {
-    try {
-      _client = await AuthenticatedClient.create();
-      _repository = ScheduleRepository(_client!);
-      _semestersFuture = _repository!.semesters();
-      final future = _repository!.getSchedule(semesterId: _semesterId);
-      if (mounted) setState(() => _future = future);
-    } catch (_) {}
-  }
-
-  Future<ScheduleData> _load() {
-    final repository = _repository;
-    if (repository == null) {
-      return Future.error(ApiException(AppLocalizations.of(context).t('sessionInitializing')));
-    }
-    return repository.getSchedule(semesterId: _semesterId);
-  }
-
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _reload() async {
-    final future = _load();
-    if (mounted) setState(() => _future = future);
-    await future;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('schedule'))),
-      body: ResponsiveContent(
-        padding: EdgeInsets.zero,
-        child: FutureBuilder<ScheduleData>(
-        future: _future ?? Future.error(ApiException(AppLocalizations.of(context).t('sessionInitializing'))),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const ListSkeleton();
-          }
-          if (snapshot.hasError) {
-            return _ScheduleMessage(
-              icon: Icons.cloud_off_outlined,
-              text: snapshot.error is ApiException
-                  ? (snapshot.error! as ApiException).message
-                  : l10n.t('connectionFailed'),
-              retry: _reload,
-            );
-          }
-          final data = snapshot.data!;
-          final days = data.days.isNotEmpty ? data.days : _groupByDay(data.items).keys.toList()..sort();
-          final selected = _selectedDay != null && days.contains(_selectedDay) ? _selectedDay! : (days.isNotEmpty ? days.first : null);
-          if (_selectedDay != selected && mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) setState(() => _selectedDay = selected);
-            });
-          }
-          final items = selected == null ? const <ScheduleItem>[] : data.items.where((e) => e.dayOfWeek == selected).toList();
-          return RefreshIndicator(
-            onRefresh: _reload,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-              children: [
-                _HeaderCard(data: data, locale: locale),
-                const SizedBox(height: 14),
-                FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _semestersFuture ??= _repository?.semesters() ?? Future.value(const <Map<String, dynamic>>[]),
-                  builder: (context, semestersSnapshot) {
-                    final semesters = semestersSnapshot.data ?? const <Map<String, dynamic>>[];
-                    if (semesters.isEmpty) return const SizedBox.shrink();
-                    return DropdownButtonFormField<String>(
-                      initialValue: _semesterId ?? data.semester?['id']?.toString(),
-                      decoration: InputDecoration(labelText: l10n.t('semester'), border: const OutlineInputBorder()),
-                      items: semesters.map((semester) {
-                        final id = semester['id']?.toString();
-                        final name = _localizedName(locale, semester['name_fr'], semester['name_en'], semester['name_ar']);
-                        return DropdownMenuItem(value: id, child: Text(name.isNotEmpty ? name : (id ?? '')));
-                      }).toList(),
-                      onChanged: (value) { _semesterId = value; _selectedDay = null; _reload(); },
-                    );
-                  },
-                ),
-                const SizedBox(height: 14),
-                if (days.isNotEmpty) _DayPicker(days: days, selected: selected, onChanged: (day) => setState(() => _selectedDay = day)),
-                const SizedBox(height: 16),
-                if (items.isEmpty)
-                  _ScheduleMessage(icon: Icons.event_busy_outlined, text: l10n.t('scheduleEmpty'))
-                else
-                  ...items.map((item) => _ClassCard(item: item, locale: locale)),
-              ],
-            ),
-          );
-        },
-      ),
-      ),
-    );
-  }
-
-  Map<int, List<ScheduleItem>> _groupByDay(List<ScheduleItem> items) {
-    final grouped = <int, List<ScheduleItem>>{};
-    for (final item in items) {
-      grouped.putIfAbsent(item.dayOfWeek, () => []).add(item);
-    }
-    return grouped;
+  int selectedDay = 0;
+  final days = const ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+  @override Widget build(BuildContext context) {
+    final day = days[selectedDay];
+    final items = MockData.schedule.where((e) => e.day == day).toList();
+    return ListView(padding: const EdgeInsets.fromLTRB(36, 30, 36, 120), children: [
+      const _ScheduleHeader(),
+      const SizedBox(height: 24),
+      Container(height: 58, padding: const EdgeInsets.all(5), decoration: BoxDecoration(color: AppColors.elevated, borderRadius: BorderRadius.circular(30), border: Border.all(color: AppColors.border)), child: Row(children: [Expanded(child: _Toggle('عرض اليوم', true)), Expanded(child: _Toggle('عرض الأسبوع', false))])),
+      const SizedBox(height: 22),
+      SizedBox(height: 112, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: days.length, separatorBuilder: (_, _) => const SizedBox(width: 14), itemBuilder: (_, i) => GestureDetector(onTap: () => setState(() => selectedDay = i), child: Container(width: 150, padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: i == selectedDay ? AppColors.cyan : AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: i == selectedDay ? AppColors.cyan : AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(days[i], style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: i == selectedDay ? Colors.white : AppColors.text)), const SizedBox(height: 8), Text('${MockData.schedule.where((e) => e.day == days[i]).length} محاضرات', style: TextStyle(color: i == selectedDay ? Colors.white.withValues(alpha: .8) : AppColors.muted))]))))),
+      const SizedBox(height: 24),
+      if (items.isEmpty) Container(height: 300, alignment: Alignment.center, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(28), border: Border.all(color: AppColors.border)), child: const Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.event_busy_rounded, size: 64, color: AppColors.muted), SizedBox(height: 14), Text('لا توجد محاضرات مجدولة لهذا اليوم.', style: TextStyle(color: AppColors.muted, fontSize: 17))]))
+      else for (final item in items) Padding(padding: const EdgeInsets.only(bottom: 14), child: _Lecture(item: item)),
+      const SizedBox(height: 14),
+      const Text('بيانات تجريبية محلية • سيتم استبدالها بجدول الطالب الفعلي بعد ربط Backend', textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
+    ]);
   }
 }
-
-String _localizedName(Locale locale, dynamic fr, dynamic en, dynamic ar) {
-  final candidates = locale.languageCode == 'fr' ? [fr, en, ar] : locale.languageCode == 'en' ? [en, ar, fr] : [ar, en, fr];
-  for (final value in candidates) {
-    if (value != null && value.toString().trim().isNotEmpty) return value.toString();
-  }
-  return '—';
-}
-
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({required this.data, required this.locale});
-  final ScheduleData data;
-  final Locale locale;
-
-  @override
-  Widget build(BuildContext context) {
-    final semesterName = _localizedName(locale, data.semester?['name_fr'], data.semester?['name_en'], data.semester?['name_ar']);
-    final departmentName = _localizedName(locale, data.department?['name_fr'], data.department?['name_en'], data.department?['name_ar']);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(children: [
-          Container(width: 48, height: 48, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(15)), child: Icon(Icons.calendar_month_rounded, color: Theme.of(context).colorScheme.onPrimaryContainer)),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(departmentName, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 3),
-            Text(semesterName, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          ])),
-        ]),
-      ),
-    );
-  }
-}
-
-class _DayPicker extends StatelessWidget {
-  const _DayPicker({required this.days, required this.selected, required this.onChanged});
-  final List<int> days;
-  final int? selected;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        height: 52,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: days.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 8),
-          itemBuilder: (_, index) {
-            final day = days[index];
-            return ChoiceChip(label: Text(_dayName(context, day)), selected: day == selected, onSelected: (_) => onChanged(day));
-          },
-        ),
-      );
-
-  String _dayName(BuildContext context, int day) {
-    final keys = ['daySunday', 'dayMonday', 'dayTuesday', 'dayWednesday', 'dayThursday', 'dayFriday', 'daySaturday'];
-    if (day < 0 || day >= keys.length) return AppLocalizations.of(context).t('dayUnknown', {'day': '$day'});
-    return AppLocalizations.of(context).t(keys[day]);
-  }
-}
-
-class _ClassCard extends StatelessWidget {
-  const _ClassCard({required this.item, required this.locale});
-  final ScheduleItem item;
-  final Locale locale;
-
-  @override
-  Widget build(BuildContext context) {
-    final subject = locale.languageCode == 'en' && (item.subjectNameEn?.isNotEmpty ?? false) ? item.subjectNameEn! : item.subjectName;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              width: 76,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .10), borderRadius: BorderRadius.circular(14)),
-              child: Column(children: [
-                Icon(Icons.schedule_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(height: 5),
-                Text(item.startTime, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900)),
-                Text(item.endTime, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall),
-              ]),
-            ),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(subject.isEmpty ? '—' : subject, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              if (item.subjectCode?.isNotEmpty == true) ...[const SizedBox(height: 3), Text(item.subjectCode!, style: Theme.of(context).textTheme.labelMedium)],
-              const SizedBox(height: 9),
-              Wrap(spacing: 10, runSpacing: 6, children: [
-                if (item.room?.isNotEmpty == true) _Meta(icon: Icons.location_on_outlined, text: item.room!),
-                if (item.lecturer?.isNotEmpty == true) _Meta(icon: Icons.person_outline_rounded, text: item.lecturer!),
-              ]),
-            ])),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _Meta extends StatelessWidget {
-  const _Meta({required this.icon, required this.text});
-  final IconData icon;
-  final String text;
-  @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 5), Text(text, style: Theme.of(context).textTheme.bodySmall)]);
-}
-
-class _ScheduleMessage extends StatelessWidget {
-  const _ScheduleMessage({required this.icon, required this.text, this.retry});
-  final IconData icon;
-  final String text;
-  final VoidCallback? retry;
-  @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 56), const SizedBox(height: 14), Text(text, textAlign: TextAlign.center), if (retry != null) ...[const SizedBox(height: 14), OutlinedButton(onPressed: retry, child: Text(AppLocalizations.of(context).t('retry')))]])));
-}
+class _ScheduleHeader extends StatelessWidget { const _ScheduleHeader(); @override Widget build(BuildContext context) => const Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Row(mainAxisAlignment: MainAxisAlignment.end, children: [Flexible(child: Text('الجدول الدراسي الأسبوعي', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),), SizedBox(width: 14), Icon(Icons.calendar_month_rounded, color: AppColors.cyan, size: 36)]), SizedBox(height: 7), Text('الهندسة • الفصل 8 (الفصل الدراسي المعتمد)', style: TextStyle(color: AppColors.muted, fontSize: 16))]); }
+class _Toggle extends StatelessWidget { const _Toggle(this.label, this.selected); final String label; final bool selected; @override Widget build(BuildContext context) => Container(alignment: Alignment.center, decoration: BoxDecoration(color: selected ? AppColors.navy : Colors.transparent, borderRadius: BorderRadius.circular(24)), child: Text(label, style: TextStyle(fontWeight: FontWeight.w800, color: selected ? Colors.white : AppColors.muted))); }
+class _Lecture extends StatelessWidget { const _Lecture({required this.item}); final MockLecture item; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)), child: Row(children: [Container(width: 58, height: 58, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .14), borderRadius: BorderRadius.circular(17)), child: Icon(item.icon, color: Theme.of(context).colorScheme.primary, size: 29)), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(item.subject, textAlign: TextAlign.right, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)), const SizedBox(height: 5), Text(item.room, style: const TextStyle(color: AppColors.muted))])), Text(item.time, style: const TextStyle(color: AppColors.cyan, fontSize: 20, fontWeight: FontWeight.w900))])); }

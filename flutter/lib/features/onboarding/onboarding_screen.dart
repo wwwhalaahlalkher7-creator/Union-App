@@ -66,7 +66,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              _completeAndGo('/home');
+              _completeAndGo('/news');
             },
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),

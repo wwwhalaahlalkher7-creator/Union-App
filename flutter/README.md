@@ -40,3 +40,7 @@ python3 tool/sync_version.py
 - `test/` — focused automated tests.
 
 للمعمارية وسياسة الإصدار راجع `../docs/ARCHITECTURE.md` و`../docs/RELEASE.md`.
+
+## TRINEX UI validation / Mock phase
+
+The main TRINEX surfaces currently run from `lib/data/mock_data.dart` so the visual redesign can be validated without a backend dependency. `MockData.enabled` is the single switch for this phase. After the UI is accepted, replace the mock providers with the existing repositories/API contract and set the switch off.

@@ -1,27 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../core/app_version.dart';
-import '../../core/constants/app_constants.dart';
-import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/storage/auth_storage.dart';
 import '../../core/theme/design_tokens.dart';
-import '../../data/repositories/student_repository.dart';
-import '../../shared/widgets/app_card.dart';
 
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({
-    required this.currentThemeMode,
-    required this.onThemeModeChanged,
-    required this.locale,
-    required this.onLocaleChanged,
-    this.accentColorId,
-    this.onAccentColorChanged,
-    super.key,
-  });
-
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({required this.currentThemeMode, required this.onThemeModeChanged, required this.locale, required this.onLocaleChanged, this.accentColorId, this.onAccentColorChanged, super.key});
   final ThemeMode currentThemeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final Locale? locale;
@@ -30,437 +13,125 @@ class SettingsScreen extends StatefulWidget {
   final ValueChanged<String>? onAccentColorChanged;
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final selected = accentColorId ?? 'purple';
+    return Scaffold(
+      backgroundColor: dark ? AppColors.background : const Color(0xFFF5F7FC),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 860),
+              child: Container(
+                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(34), border: Border.all(color: AppColors.border), boxShadow: [BoxShadow(color: AppColors.purple.withValues(alpha: .13), blurRadius: 40)]),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    Container(height: 4, decoration: const BoxDecoration(gradient: LinearGradient(colors: [AppColors.purple, Color(0xFFB24DFF)]))),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(30, 24, 24, 22),
+                      child: Row(
+                        children: [
+                          IconButton(onPressed: () => context.pop(), icon: const Icon(Icons.close_rounded, size: 34, color: AppColors.muted)),
+                          const Spacer(),
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text('الإعدادات', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+                              SizedBox(height: 5),
+                              Text('تخصيص الواجهة والسمات وخيارات العرض', style: TextStyle(color: AppColors.muted, fontSize: 16)),
+                            ],
+                          ),
+                          const SizedBox(width: 18),
+                          Container(width: 66, height: 66, decoration: BoxDecoration(color: AppColors.purple, borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.palette_outlined, color: Colors.white, size: 34)),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(38, 22, 38, 34),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _Label('نمط العرض'),
+                          const SizedBox(height: 12),
+                          Row(children: [
+                            Expanded(child: _ModeCard('الوضع الداكن', Icons.dark_mode_outlined, currentThemeMode == ThemeMode.dark || (currentThemeMode == ThemeMode.system && dark), () => onThemeModeChanged(ThemeMode.dark))),
+                            const SizedBox(width: 16),
+                            Expanded(child: _ModeCard('الوضع الفاتح', Icons.light_mode_outlined, currentThemeMode == ThemeMode.light, () => onThemeModeChanged(ThemeMode.light))),
+                          ]),
+                          const SizedBox(height: 30),
+                          const _Label('اللون المميز (ACCENT COLOR)'),
+                          const SizedBox(height: 14),
+                          SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
+                            for (final color in AppAccentColor.presets)
+                              Padding(padding: const EdgeInsetsDirectional.only(end: 12), child: _AccentCard(color: color, selected: selected == color.id, onTap: onAccentColorChanged == null ? null : () => onAccentColorChanged!(color.id))),
+                          ])),
+                          const SizedBox(height: 30),
+                          const _Label('اللغة / LANGUAGE'),
+                          const SizedBox(height: 14),
+                          Row(children: [
+                            Expanded(child: _LanguageCard('العربية (RTL)', const Locale('ar'), locale?.languageCode == 'ar', onLocaleChanged)),
+                            const SizedBox(width: 16),
+                            Expanded(child: _LanguageCard('English (LTR)', const Locale('en'), locale?.languageCode == 'en', onLocaleChanged)),
+                          ]),
+                          const SizedBox(height: 28),
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(color: AppColors.elevated, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
+                            child: Column(
+                              children: [
+                                Row(children: [
+                                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                    const Text('TRINEX Engine', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                                    const SizedBox(height: 7),
+                                    Text('v${AppVersion.name}  •  Build #${AppVersion.build}  •  2026-09-17', style: const TextStyle(color: AppColors.muted)),
+                                  ])),
+                                  OutlinedButton.icon(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا توجد تحديثات جديدة — Mock Data'))), icon: const Icon(Icons.refresh_rounded), label: const Text('فحص التحديثات')),
+                                ]),
+                                const SizedBox(height: 20),
+                                const Divider(),
+                                const SizedBox(height: 16),
+                                const Row(children: [Expanded(child: Text('كلية الهندسة والعمارة', style: TextStyle(color: AppColors.muted))), Text('رابطة الطلاب الرسمية', style: TextStyle(color: AppColors.muted))]),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  bool _signedIn = false;
-  String? _studentName;
-  String? _studentNumber;
-  String? _departmentName;
-  String? _semesterName;
-  String? _semesterId;
+class _Label extends StatelessWidget {
+  const _Label(this.text);
+  final String text;
+  @override Widget build(BuildContext context) => Text(text, textAlign: TextAlign.right, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800));
+}
 
-  AuthStorage? _storage;
-  ApiClient? _client;
-  StudentRepository? _studentRepo;
+class _ModeCard extends StatelessWidget {
+  const _ModeCard(this.label, this.icon, this.selected, this.onTap);
+  final String label; final IconData icon; final bool selected; final VoidCallback onTap;
+  @override Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(24), child: Container(height: 76, decoration: BoxDecoration(color: selected ? AppColors.elevated : Colors.transparent, borderRadius: BorderRadius.circular(24), border: Border.all(color: selected ? AppColors.cyan : AppColors.border, width: selected ? 2 : 1)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(width: 10), Icon(icon, color: selected ? AppColors.purple : AppColors.muted)])));
+}
 
-  @override
-  void initState() {
-    super.initState();
-    _loadStudentContext();
-  }
+class _AccentCard extends StatelessWidget {
+  const _AccentCard({required this.color, required this.selected, required this.onTap});
+  final AppAccentColor color; final bool selected; final VoidCallback? onTap;
+  @override Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(22), child: Container(width: 128, height: 164, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: selected ? AppColors.elevated : Colors.transparent, borderRadius: BorderRadius.circular(22), border: Border.all(color: selected ? AppColors.cyan : AppColors.border, width: selected ? 2 : 1)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Container(width: 54, height: 54, decoration: BoxDecoration(shape: BoxShape.circle, color: color.primary), child: selected ? const Icon(Icons.check_rounded, color: Colors.white, size: 30) : null), const SizedBox(height: 12), Text(color.nameAr, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.35)), Text('(${color.nameEn})', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted, fontSize: 12))])));
+}
 
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadStudentContext() async {
-    final storage = await AuthStorage.create();
-    _storage = storage;
-    final signedIn = await storage.isLoggedIn;
-    if (!mounted) return;
-
-    if (signedIn) {
-      final client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: storage);
-      _client = client;
-      _studentRepo = StudentRepository(client);
-
-      final name = await storage.studentName;
-      final number = await storage.studentNumber;
-      final dept = await storage.departmentName;
-      final sem = await storage.semesterName;
-      final semId = await storage.currentSemesterId;
-
-      if (!mounted) return;
-      setState(() {
-        _signedIn = true;
-        _studentName = name;
-        _studentNumber = number;
-        _departmentName = dept;
-        _semesterName = sem;
-        _semesterId = semId;
-      });
-    } else {
-      setState(() => _signedIn = false);
-    }
-  }
-
-  Future<void> _changeSemester() async {
-    final repo = _studentRepo;
-    final storage = _storage;
-    if (repo == null || storage == null) return;
-    final l10n = AppLocalizations.of(context);
-
-    try {
-      final semesters = await repo.semesters();
-      if (!mounted) return;
-
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        builder: (ctx) {
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Theme.of(ctx).colorScheme.outline.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.t('updateSemesterTitle'),
-                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 12),
-                  ...semesters.map((s) {
-                    final sid = s['id']?.toString() ?? '';
-                    final sname = s['name']?.toString() ?? '';
-                    final isCurrent = sid == _semesterId;
-                    return ListTile(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      selected: isCurrent,
-                      selectedTileColor: Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.1),
-                      leading: Icon(
-                        isCurrent ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                        color: isCurrent ? Theme.of(ctx).colorScheme.primary : null,
-                      ),
-                      title: Text(sname, style: TextStyle(fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal)),
-                      onTap: () async {
-                        Navigator.of(ctx).pop();
-                        try {
-                          await repo.updateSemester(semesterId: sid);
-                          await storage.updateCachedSemester(semesterId: sid, semesterName: sname);
-                          if (!mounted) return;
-                          setState(() {
-                            _semesterId = sid;
-                            _semesterName = sname;
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(l10n.t('semesterUpdatedSuccess')),
-                              backgroundColor: Theme.of(context).colorScheme.primary,
-                            ),
-                          );
-                        } catch (e) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-                          );
-                        }
-                      },
-                    );
-                  }),
-                  const SizedBox(height: 12),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final primary = theme.colorScheme.primary;
-
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('settings'))),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        children: [
-          // Account Status Card
-          AppCard(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: primary.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _signedIn ? Icons.school_rounded : Icons.person_outline_rounded,
-                    color: primary,
-                    size: 26,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _signedIn
-                            ? (_studentName ?? _studentNumber ?? l10n.t('studentFallback'))
-                            : l10n.t('guestWelcomeTitle'),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _signedIn
-                            ? '${_departmentName ?? ''} • ${_semesterName ?? ''}'
-                            : l10n.t('signInToStudy'),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    if (_signedIn) {
-                      context.push('/student');
-                    } else {
-                      context.push('/login');
-                    }
-                  },
-                  child: Text(_signedIn ? l10n.t('studentProfile') : l10n.t('signIn')),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // If signed in, Semester Change Option
-          if (_signedIn) ...[
-            AppCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(Icons.calendar_month_rounded, color: primary, size: 20),
-                ),
-                title: Text(l10n.t('updateSemesterTitle'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(_semesterName ?? l10n.t('semester')),
-                trailing: TextButton(
-                  onPressed: _changeSemester,
-                  child: Text(l10n.t('changeSemester')),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-
-          // Appearance Card: Theme Mode & Accent Colors
-          AppCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.palette_outlined, color: primary, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      l10n.t('appearance'),
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Theme Mode Segment
-                SegmentedButton<ThemeMode>(
-                  segments: [
-                    ButtonSegment(value: ThemeMode.system, label: Text(l10n.t('system')), icon: const Icon(Icons.brightness_auto)),
-                    ButtonSegment(value: ThemeMode.light, label: Text(l10n.t('light')), icon: const Icon(Icons.light_mode_outlined)),
-                    ButtonSegment(value: ThemeMode.dark, label: Text(l10n.t('dark')), icon: const Icon(Icons.dark_mode_outlined)),
-                  ],
-                  selected: {widget.currentThemeMode},
-                  onSelectionChanged: (set) {
-                    HapticFeedback.selectionClick();
-                    widget.onThemeModeChanged(set.first);
-                  },
-                ),
-                const SizedBox(height: 18),
-
-                // Accent Color Presets
-                Text(
-                  l10n.t('accentColor'),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: AppAccentColor.presets.map((colorPreset) {
-                    final isSelected = (widget.accentColorId ?? 'orange') == colorPreset.id;
-                    return InkWell(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        widget.onAccentColorChanged?.call(colorPreset.id);
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: colorPreset.primary,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? Colors.white : Colors.transparent,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            if (isSelected)
-                              BoxShadow(
-                                color: colorPreset.primary.withValues(alpha: 0.5),
-                                blurRadius: 8,
-                                spreadRadius: 2,
-                              ),
-                          ],
-                        ),
-                        child: isSelected
-                            ? const Icon(Icons.check, color: Colors.white, size: 20)
-                            : null,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Language Setting
-          AppCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.language_rounded, color: primary, size: 20),
-              ),
-              title: Text(l10n.t('language'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(_languageLabel(l10n, widget.locale)),
-              trailing: const Icon(Icons.chevron_left_rounded),
-              onTap: () => _showLanguagePicker(context, l10n),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Replay Onboarding
-          AppCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.slideshow_rounded, color: primary, size: 20),
-              ),
-              title: Text(l10n.t('replayOnboarding'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              trailing: const Icon(Icons.chevron_left_rounded),
-              onTap: () => context.push('/onboarding'),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // About & Version
-          AppCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.info_outline_rounded, color: primary, size: 20),
-              ),
-              title: Text(l10n.t('about'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('v${AppVersion.current}'),
-              trailing: const Icon(Icons.chevron_left_rounded),
-              onTap: () => context.push('/about'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _languageLabel(AppLocalizations l10n, Locale? value) {
-    if (value == null) return l10n.t('automatic');
-    return switch (value.languageCode) {
-      'en' => l10n.t('english'),
-      'fr' => l10n.t('french'),
-      _ => l10n.t('arabic'),
-    };
-  }
-
-  Future<void> _showLanguagePicker(BuildContext context, AppLocalizations l10n) async {
-    final selected = await showModalBottomSheet<Locale?>(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            ListTile(
-              title: Text(l10n.t('arabic')),
-              trailing: widget.locale?.languageCode == 'ar' ? const Icon(Icons.check, color: Colors.blue) : null,
-              onTap: () => Navigator.pop(ctx, const Locale('ar')),
-            ),
-            ListTile(
-              title: Text(l10n.t('english')),
-              trailing: widget.locale?.languageCode == 'en' ? const Icon(Icons.check, color: Colors.blue) : null,
-              onTap: () => Navigator.pop(ctx, const Locale('en')),
-            ),
-            ListTile(
-              title: Text(l10n.t('french')),
-              trailing: widget.locale?.languageCode == 'fr' ? const Icon(Icons.check, color: Colors.blue) : null,
-              onTap: () => Navigator.pop(ctx, const Locale('fr')),
-            ),
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
-    );
-    if (selected != null) widget.onLocaleChanged(selected);
-  }
+class _LanguageCard extends StatelessWidget {
+  const _LanguageCard(this.label, this.value, this.selected, this.onChanged);
+  final String label; final Locale value; final bool selected; final ValueChanged<Locale?> onChanged;
+  @override Widget build(BuildContext context) => InkWell(onTap: () => onChanged(value), borderRadius: BorderRadius.circular(24), child: Container(height: 70, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? const Color(0xFF0C3851) : Colors.transparent, borderRadius: BorderRadius.circular(24), border: Border.all(color: selected ? AppColors.cyan : AppColors.border, width: selected ? 2 : 1)), child: Text(label, style: TextStyle(color: selected ? Colors.white : AppColors.muted, fontWeight: FontWeight.w800, fontSize: 16))));
 }

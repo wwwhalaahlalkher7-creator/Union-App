@@ -1,216 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
-import '../../data/repositories/progress_repository.dart';
-import '../../data/models/material_item.dart';
-import '../../data/repositories/materials_repository.dart';
-import '../../shared/widgets/app_card.dart';
-import '../../shared/widgets/list_skeleton.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../data/mock_data.dart';
 
-class MaterialsScreen extends StatefulWidget {
-  const MaterialsScreen({super.key});
-  @override State<MaterialsScreen> createState() => _MaterialsScreenState();
-}
-
+class MaterialsScreen extends StatefulWidget { const MaterialsScreen({super.key}); @override State<MaterialsScreen> createState() => _MaterialsScreenState(); }
 class _MaterialsScreenState extends State<MaterialsScreen> {
-  ApiClient? _client;
-  MaterialsRepository? _repository;
-  ProgressRepository? _progress;
-  String? _semesterId;
-  Future<List<Map<String, dynamic>>>? _semestersFuture;
-  List<Map<String, dynamic>> _semesters = const [];
-  List<Map<String, dynamic>> _subjects = const [];
-  List<MaterialItem> _materials = const [];
-  bool _loading = true;
-  String? _error;
-  String _query = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-  }
-
-  @override
-  void dispose() { _client?.dispose(); super.dispose(); }
-
-  Future<void> _init() async {
-    try {
-      _client = await AuthenticatedClient.create();
-      _repository = MaterialsRepository(_client!);
-      _progress = ProgressRepository(_client!);
-      await _load();
-    } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
-    }
-  }
-
-  Future<void> _load({String? semesterId}) async {
-    setState(() { _loading = true; _error = null; });
-    try {
-      final repo = _repository;
-      if (repo == null) return;
-      final semesters = await (_semestersFuture ??= repo.semesters());
-      final selected = semesterId ?? _semesterId ?? _currentSemester(semesters);
-      final subjects = selected == null ? <Map<String, dynamic>>[] : await repo.subjects(semesterId: selected);
-      final materials = selected == null ? <MaterialItem>[] : await repo.list(semesterId: selected);
-      if (!mounted) return;
-      setState(() { _semesters = semesters; _semesterId = selected; _subjects = subjects; _materials = materials; _loading = false; });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() { _loading = false; _error = e.toString(); });
-    }
-  }
-
-  String? _currentSemester(List<Map<String, dynamic>> items) {
-    for (final item in items) { if (item['is_current'] == 1 || item['is_current'] == true) return item['id']?.toString(); }
-    return items.isEmpty ? null : items.first['id']?.toString();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    if (_loading && _semesters.isEmpty) return Scaffold(appBar: AppBar(title: Text(l10n.t('materials'))), body: const ListSkeleton());
-    if (_error != null && _semesters.isEmpty) return Scaffold(appBar: AppBar(title: Text(l10n.t('materials'))), body: _Message(icon: Icons.cloud_off_outlined, text: l10n.t('materialsLoadError', {'error': _error ?? ''}), retry: _load));
-
-    final subjectGroups = <String, List<MaterialItem>>{};
-    for (final material in _materials) { subjectGroups.putIfAbsent(material.subjectId ?? material.subject ?? 'other', () => []).add(material); }
-
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('materials')), actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded))]),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: _semesterId,
-              decoration: InputDecoration(labelText: l10n.t('semester'), prefixIcon: const Icon(Icons.calendar_month_outlined)),
-              items: _semesters.map((s) => DropdownMenuItem(value: s['id']?.toString(), child: Text(_localizedSemesterName(context, s, l10n)))).toList(),
-              onChanged: (value) { if (value != null) _load(semesterId: value); },
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
-              decoration: InputDecoration(hintText: l10n.t('materialSearch'), prefixIcon: const Icon(Icons.search_rounded), suffixIcon: _query.isEmpty ? null : IconButton(onPressed: () => setState(() => _query = ''), icon: const Icon(Icons.close_rounded))),
-            ),
-            const SizedBox(height: 18),
-            if (_loading) const LinearProgressIndicator(minHeight: 3),
-            if (!_loading && _subjects.isEmpty) const _EmptySubjects(),
-            ..._subjects.map((subject) {
-              final id = subject['id']?.toString() ?? '';
-              final allItems = subjectGroups[id] ?? [];
-              final items = _query.isEmpty ? allItems : allItems.where((m) => m.name.toLowerCase().contains(_query)).toList();
-              if (_query.isNotEmpty && items.isEmpty) return const SizedBox.shrink();
-              return _SubjectCard(subject: subject, materials: items, progress: _progress);
-            }),
-            if (!_loading && _subjects.isNotEmpty && _materials.isEmpty) const Padding(padding: EdgeInsets.all(24), child: _EmptyMaterials()),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-Future<void> _openMaterial(BuildContext context, MaterialItem material, ProgressRepository? progress) async {
-  if (progress != null) {
-    try { await progress.record(materialId: material.id, eventType: 'open'); } catch (_) {}
-  }
-  if (!context.mounted) return;
-  final url = Uri.tryParse(material.url ?? '');
-  if (url == null) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).t('cannotOpenMaterial'))));
-    return;
-  }
-  final canOpen = await canLaunchUrl(url);
-  if (!context.mounted) return;
-  if (!canOpen) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).t('cannotOpenMaterial'))));
-    return;
-  }
-  await launchUrl(url, mode: LaunchMode.externalApplication);
-  if (!context.mounted) return;
-  _showProgressSheet(context, material, progress);
-}
-
-void _showProgressSheet(BuildContext context, MaterialItem material, ProgressRepository? progress) {
-  showModalBottomSheet(context: context, showDragHandle: true, builder: (sheetContext) => SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-    const Icon(Icons.picture_as_pdf_rounded, size: 44), const SizedBox(height: 10),
-    Text(material.name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-    const SizedBox(height: 8),
-    if (material.url != null) Text(AppLocalizations.of(context).t('materialOpenedExternally'), textAlign: TextAlign.center),
-    const SizedBox(height: 14),
-    Text(AppLocalizations.of(context).t('progressNote'), textAlign: TextAlign.center),
-    const SizedBox(height: 12),
-    Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
-      for (final value in [25, 50, 75, 100]) OutlinedButton(onPressed: progress == null ? null : () async { try { await progress.record(materialId: material.id, eventType: value == 100 ? 'complete' : 'progress', progressPercent: value); if (sheetContext.mounted) Navigator.pop(sheetContext); } catch (e) { if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(sheetContext).t('progressSaveError')))); } }, child: Text('$value%'))
-    ]),
-  ]))));
-}
-
-String _localizedSemesterName(BuildContext context, Map<String, dynamic> value, AppLocalizations l10n) {
-  final code = Localizations.localeOf(context).languageCode;
-  final candidates = code == 'fr'
-      ? [value['name_fr'], value['name_en'], value['name_ar']]
-      : code == 'en'
-          ? [value['name_en'], value['name_ar']]
-          : [value['name_ar'], value['name_en']];
-  for (final candidate in candidates) {
-    if (candidate != null && candidate.toString().trim().isNotEmpty) return candidate.toString();
-  }
-  return l10n.t('semesterFallback', {'number': '${value['number'] ?? ''}'});
-}
-
-String _localizedSubjectName(BuildContext context, Map<String, dynamic> value, AppLocalizations l10n) {
-  final code = Localizations.localeOf(context).languageCode;
-  final candidates = code == 'fr'
-      ? [value['name_fr'], value['name_en'], value['name_ar'], value['name']]
-      : code == 'en'
-          ? [value['name_en'], value['name_ar'], value['name']]
-          : [value['name_ar'], value['name_en'], value['name']];
-  for (final candidate in candidates) {
-    if (candidate != null && candidate.toString().trim().isNotEmpty) return candidate.toString();
-  }
-  return l10n.t('subjectFallback');
-}
-
-class _SubjectCard extends StatelessWidget {
-  const _SubjectCard({required this.subject, required this.materials, required this.progress});
-  final Map<String, dynamic> subject;
-  final List<MaterialItem> materials;
-  final ProgressRepository? progress;
+  String query = '';
   @override Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final name = _localizedSubjectName(context, subject, l10n);
-    final code = (subject['code'] ?? '').toString();
-    return AppCard(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ExpansionTile(
-        leading: const CircleAvatar(child: Icon(Icons.menu_book_outlined)),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(code.isEmpty ? l10n.t('fileCount', {'count': '${materials.length}'}) : '$code • ${l10n.t('fileCount', {'count': '${materials.length}'})}'),
-        children: materials.isEmpty
-            ? [Padding(padding: const EdgeInsets.all(20), child: Text(l10n.t('noMaterialFiles')))]
-            : materials.map((m) => ListTile(
-                leading: Icon(m.pinned ? Icons.push_pin_rounded : Icons.picture_as_pdf_outlined),
-                title: Text(m.name),
-                subtitle: m.size == null || m.size == 0 ? null : Text(_formatSize(m.size!)),
-                trailing: const Icon(Icons.chevron_left),
-                onTap: m.url == null ? null : () => _openMaterial(context, m, progress),
-              )).toList(),
-      ),
-    );
-  }
-  static String _formatSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    final grouped = <String, List<MockMaterial>>{};
+    for (final m in MockData.materials) { if (query.isEmpty || '${m.subject} ${m.title}'.toLowerCase().contains(query.toLowerCase())) grouped.putIfAbsent(m.subject, () => []).add(m); }
+    return ListView(padding: const EdgeInsets.fromLTRB(36, 30, 36, 120), children: [
+      const _Header(title: 'المواد الدراسية', subtitle: 'الفصل 8 • الهندسة • المواد المرتبطة بتخصصك'),
+      const SizedBox(height: 20),
+      Row(children: [Expanded(child: _Selector(label: 'الفصل 8 (الفصل الدراسي المعتمد)', icon: Icons.calendar_month_outlined)), const SizedBox(width: 12), Expanded(child: TextField(onChanged: (v) => setState(() => query = v), decoration: const InputDecoration(hintText: 'ابحث عن مادة أو ملف', prefixIcon: Icon(Icons.search_rounded))))]),
+      const SizedBox(height: 24),
+      for (final entry in grouped.entries) _Subject(subject: entry.key, code: entry.value.first.code, items: entry.value),
+      const SizedBox(height: 20),
+      const _Footer(),
+    ]);
   }
 }
-
-class _EmptySubjects extends StatelessWidget { const _EmptySubjects(); @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.all(30), child: Column(children: [const Icon(Icons.school_outlined, size: 56), const SizedBox(height: 12), Text(AppLocalizations.of(context).t('noSubjects'), textAlign: TextAlign.center)])); }
-class _EmptyMaterials extends StatelessWidget { const _EmptyMaterials(); @override Widget build(BuildContext context) => Column(children: [const Icon(Icons.folder_open_outlined, size: 48), const SizedBox(height: 10), Text(AppLocalizations.of(context).t('noPublishedFiles'), textAlign: TextAlign.center)]); }
-class _Message extends StatelessWidget { const _Message({required this.icon, required this.text, this.retry}); final IconData icon; final String text; final VoidCallback? retry; @override Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 60), const SizedBox(height: 14), Text(text, textAlign: TextAlign.center), if (retry != null) ...[const SizedBox(height: 14), OutlinedButton(onPressed: retry, child: Text(AppLocalizations.of(context).t('retry')))]]))); }
+class _Header extends StatelessWidget { const _Header({required this.title, required this.subtitle}); final String title, subtitle; @override Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(title, textAlign: TextAlign.right, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900)), const SizedBox(height: 7), Text(subtitle, textAlign: TextAlign.right, style: const TextStyle(color: AppColors.muted, fontSize: 16))]); }
+class _Selector extends StatelessWidget { const _Selector({required this.label, required this.icon}); final String label; final IconData icon; @override Widget build(BuildContext context) => Container(height: 56, padding: const EdgeInsets.symmetric(horizontal: 18), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Row(children: [Icon(icon, color: AppColors.cyan), const SizedBox(width: 12), Expanded(child: Text(label, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700))), const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.muted)])); }
+class _Subject extends StatelessWidget { const _Subject({required this.subject, required this.code, required this.items}); final String subject, code; final List<MockMaterial> items; @override Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 16), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)), child: ExpansionTile(leading: Container(width: 48, height: 48, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .14), borderRadius: BorderRadius.circular(14)), child: Icon(Icons.menu_book_rounded, color: Theme.of(context).colorScheme.primary)), title: Text(subject, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)), subtitle: Text('$code • ${items.length} ملفات', style: const TextStyle(color: AppColors.muted)), children: [for (final item in items) ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4), leading: Icon(item.icon, color: AppColors.cyan), title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${item.pages} صفحات • بيانات تجريبية'), trailing: const Icon(Icons.arrow_back_ios_new_rounded, size: 16), onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم فتح ${item.title} — Mock Data'))))])); }
+class _Footer extends StatelessWidget { const _Footer(); @override Widget build(BuildContext context) => const Padding(padding: EdgeInsets.only(top: 18), child: Text('TRINEX • بيانات تجريبية محلية حتى اكتمال ربط Backend', textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted))); }

@@ -73,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
       HapticFeedback.mediumImpact();
-      context.go('/home');
+      context.go('/news');
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -102,7 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/home');
+              context.go('/news');
             }
           },
         ),
@@ -272,7 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: TextButton(
                       onPressed: () {
                         HapticFeedback.selectionClick();
-                        context.go('/home');
+                        context.go('/news');
                       },
                       child: Text(
                         l10n.t('continueAsGuest'),
