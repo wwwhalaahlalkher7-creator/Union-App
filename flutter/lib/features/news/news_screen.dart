@@ -26,7 +26,7 @@ class _NewsCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(height: 250, decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF29344A), Color(0xFF0A101F)])), child: Stack(children: [
-          PositionedDirectional(top: 22, end: 20, child: Container(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9), decoration: BoxDecoration(color: Colors.black.withValues(alpha: .48), borderRadius: BorderRadius.circular(14)), child: Text(item.category, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)))),
+          PositionedDirectional(top: 22, end: 20, child: Container(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9), decoration: BoxDecoration(color: tagColor.withValues(alpha: .18), borderRadius: BorderRadius.circular(14), border: Border.all(color: tagColor.withValues(alpha: .45))), child: Text(item.category, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)))),
           Center(child: Icon(item.category == 'event' ? Icons.event_available_rounded : item.category == 'official' ? Icons.campaign_rounded : Icons.groups_rounded, size: 82, color: accent.withValues(alpha: .22))),
         ])),
         Padding(padding: const EdgeInsets.fromLTRB(28, 18, 28, 22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

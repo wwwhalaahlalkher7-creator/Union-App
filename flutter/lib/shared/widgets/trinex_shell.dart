@@ -26,7 +26,6 @@ class _TrinexShellState extends State<TrinexShell> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Directionality(
       textDirection: TextDirection.rtl,

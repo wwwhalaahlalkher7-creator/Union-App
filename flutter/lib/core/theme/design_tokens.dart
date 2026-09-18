@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class DesignTokens {
   DesignTokens._();
-  static const double space4 = 4, space8 = 8, space12 = 12, space16 = 16, space20 = 20, space24 = 24, space32 = 32, space40 = 40;
+  static const double space4 = 4, space6 = 6, space8 = 8, space12 = 12, space16 = 16, space20 = 20, space24 = 24, space32 = 32, space40 = 40;
   static const double radius12 = 12, radius16 = 16, radius20 = 20, radius24 = 24, radius32 = 32;
   static const double controlHeight = 52, iconButtonSize = 48, maxContentWidth = 860;
   static const Duration fast = Duration(milliseconds: 140), normal = Duration(milliseconds: 220), emphasized = Duration(milliseconds: 360);
