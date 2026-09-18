@@ -53,31 +53,27 @@ class _TopHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      height: 88,
+      height: 76,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor, border: Border(bottom: BorderSide(color: AppColors.border))),
       child: LayoutBuilder(builder: (context, box) {
         final compact = box.maxWidth < 600;
-        final button = compact ? 40.0 : 48.0;
-        final avatar = compact ? 42.0 : 48.0;
-        final logo = compact ? 54.0 : 62.0;
-        final gap = compact ? 5.0 : 10.0;
+        final button = compact ? 36.0 : 42.0;
+        final avatar = compact ? 38.0 : 44.0;
+        final logo = compact ? 46.0 : 52.0;
+        final gap = compact ? 4.0 : 7.0;
         return Row(children: [
           _HeaderIcon(icon: Icons.logout_rounded, color: AppColors.danger, size: button, onTap: () => context.push('/login')),
           SizedBox(width: gap),
-          _Avatar(size: avatar),
+          _Avatar(size: avatar, onTap: () => context.go('/student')),
           const Spacer(),
           _HeaderIcon(icon: Icons.settings_outlined, size: button, onTap: () => context.push('/settings')),
           SizedBox(width: gap),
-          _HeaderIcon(icon: Icons.light_mode_outlined, size: button, color: AppColors.gold, onTap: () => context.push('/settings')),
-          SizedBox(width: gap),
-          Container(height: button, width: compact ? 42 : 54, alignment: Alignment.center, decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(15)), child: const Text('EN', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
-          SizedBox(width: gap),
-          if (!compact) Container(height: button, padding: const EdgeInsets.symmetric(horizontal: 11), alignment: Alignment.center, decoration: BoxDecoration(color: AppColors.elevated, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)), child: Text('V${AppVersion.name}', style: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w700))),
+          if (!compact) Container(height: button, padding: const EdgeInsets.symmetric(horizontal: 8), alignment: Alignment.center, decoration: BoxDecoration(color: AppColors.elevated, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(12)), child: Text('V${AppVersion.name}', style: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w700))),
           if (!compact) const SizedBox(width: 10),
-          Text('TRINEX', style: TextStyle(fontSize: compact ? 21 : 27, fontWeight: FontWeight.w900, letterSpacing: compact ? .4 : 1)),
-          SizedBox(width: compact ? 8 : 12),
-          Container(width: logo, height: logo, padding: compact ? const EdgeInsets.all(8) : const EdgeInsets.all(10), decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(compact ? 17 : 20), boxShadow: [BoxShadow(color: cs.primary.withValues(alpha: .28), blurRadius: 22)]), child: Image.asset('assets/icons/trinex_icon.png')),
+          Text('TRINEX', style: TextStyle(fontSize: compact ? 18 : 22, fontWeight: FontWeight.w900, letterSpacing: compact ? .4 : 1)),
+          SizedBox(width: compact ? 6 : 8),
+          Container(width: logo, height: logo, padding: compact ? const EdgeInsets.all(7) : const EdgeInsets.all(8), decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(compact ? 14 : 16), boxShadow: [BoxShadow(color: cs.primary.withValues(alpha: .28), blurRadius: 22)]), child: Image.asset('assets/icons/trinex_icon.png')),
         ]);
       }),
     );
@@ -98,11 +94,11 @@ class _MainNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
     return Container(
-      height: 118,
+      height: 92,
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
       child: LayoutBuilder(builder: (context, constraints) {
         final itemWidth = constraints.maxWidth / items.length;
-        return Row(children: [for (var i = 0; i < items.length; i++) SizedBox(width: itemWidth, child: InkWell(onTap: () => context.go(items[i].$3), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(items[i].$2, size: 34, color: i == selected ? primary : AppColors.muted), const SizedBox(height: 8), Text(items[i].$1, style: TextStyle(fontSize: 17, fontWeight: i == selected ? FontWeight.w800 : FontWeight.w500, color: i == selected ? primary : AppColors.muted))])))]);
+        return Row(children: [for (var i = 0; i < items.length; i++) SizedBox(width: itemWidth, child: InkWell(onTap: () => context.go(items[i].$3), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(items[i].$2, size: 27, color: i == selected ? primary : AppColors.muted), const SizedBox(height: 8), Text(items[i].$1, style: TextStyle(fontSize: 14, fontWeight: i == selected ? FontWeight.w800 : FontWeight.w500, color: i == selected ? primary : AppColors.muted))])))]);
       }),
     );
   }
@@ -115,9 +111,10 @@ class _HeaderIcon extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({this.size = 50});
+  const _Avatar({this.size = 50, this.onTap});
   final double size;
-  @override Widget build(BuildContext context) => Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.elevated, border: Border.all(color: AppColors.border, width: 2)), child: Center(child: Text('ع', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: size * .42, fontWeight: FontWeight.w900))));
+  final VoidCallback? onTap;
+  @override Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(size), child: Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.elevated, border: Border.all(color: AppColors.border, width: 2)), child: Center(child: Text('ع', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: size * .42, fontWeight: FontWeight.w900))));
 }
 
 class _EinoButton extends StatelessWidget {
@@ -127,7 +124,7 @@ class _EinoButton extends StatelessWidget {
     final primary = Theme.of(context).colorScheme.primary;
     return AnimatedBuilder(animation: animation, builder: (context, _) {
       final glow = .18 + (.10 * (0.5 + 0.5 * (animation.value * 2 - 1).abs()));
-      return InkWell(onTap: () => context.push('/eino?from=shell'), borderRadius: BorderRadius.circular(60), child: Container(width: 82, height: 82, padding: const EdgeInsets.all(4), decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.surface, border: Border.all(color: AppColors.cyan, width: 4), boxShadow: [BoxShadow(color: primary.withValues(alpha: glow), blurRadius: 24)]), child: const EinoFace(size: 70, mood: EinoMood.happy)));
+      return InkWell(onTap: () => context.push('/eino?from=shell'), borderRadius: BorderRadius.circular(60), child: Container(width: 68, height: 68, padding: const EdgeInsets.all(4), decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.surface, border: Border.all(color: AppColors.cyan, width: 4), boxShadow: [BoxShadow(color: primary.withValues(alpha: glow), blurRadius: 24)]), child: const EinoFace(size: 58, mood: EinoMood.happy)));
     });
   }
 }

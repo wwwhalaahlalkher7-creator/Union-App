@@ -21,7 +21,7 @@ class SettingsScreen extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(18),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 860),
               child: Container(
@@ -39,9 +39,9 @@ class SettingsScreen extends StatelessWidget {
                           const Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text('الإعدادات', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+                              Text('الإعدادات', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
                               SizedBox(height: 5),
-                              Text('تخصيص الواجهة والسمات وخيارات العرض', style: TextStyle(color: AppColors.muted, fontSize: 16)),
+                              Text('تخصيص الواجهة والسمات وخيارات العرض', style: TextStyle(color: AppColors.muted, fontSize: 14)),
                             ],
                           ),
                           const SizedBox(width: 18),
@@ -79,7 +79,7 @@ class SettingsScreen extends StatelessWidget {
                           ]),
                           const SizedBox(height: 28),
                           Container(
-                            padding: const EdgeInsets.all(24),
+                            padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(color: AppColors.elevated, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
                             child: Column(
                               children: [
@@ -91,10 +91,6 @@ class SettingsScreen extends StatelessWidget {
                                   ])),
                                   OutlinedButton.icon(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا توجد تحديثات جديدة — Mock Data'))), icon: const Icon(Icons.refresh_rounded), label: const Text('فحص التحديثات')),
                                 ]),
-                                const SizedBox(height: 20),
-                                const Divider(),
-                                const SizedBox(height: 16),
-                                const Row(children: [Expanded(child: Text('كلية الهندسة والعمارة', style: TextStyle(color: AppColors.muted))), Text('رابطة الطلاب الرسمية', style: TextStyle(color: AppColors.muted))]),
                               ],
                             ),
                           ),
@@ -121,17 +117,17 @@ class _Label extends StatelessWidget {
 class _ModeCard extends StatelessWidget {
   const _ModeCard(this.label, this.icon, this.selected, this.onTap);
   final String label; final IconData icon; final bool selected; final VoidCallback onTap;
-  @override Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(24), child: Container(height: 76, decoration: BoxDecoration(color: selected ? AppColors.elevated : Colors.transparent, borderRadius: BorderRadius.circular(24), border: Border.all(color: selected ? AppColors.cyan : AppColors.border, width: selected ? 2 : 1)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(width: 10), Icon(icon, color: selected ? AppColors.purple : AppColors.muted)])));
+  @override Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(24), child: Container(height: 64, decoration: BoxDecoration(color: selected ? AppColors.elevated : Colors.transparent, borderRadius: BorderRadius.circular(24), border: Border.all(color: selected ? AppColors.cyan : AppColors.border, width: selected ? 2 : 1)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)), const SizedBox(width: 10), Icon(icon, color: selected ? AppColors.purple : AppColors.muted)])));
 }
 
 class _AccentCard extends StatelessWidget {
   const _AccentCard({required this.color, required this.selected, required this.onTap});
   final AppAccentColor color; final bool selected; final VoidCallback? onTap;
-  @override Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(22), child: Container(width: 128, height: 164, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: selected ? AppColors.elevated : Colors.transparent, borderRadius: BorderRadius.circular(22), border: Border.all(color: selected ? AppColors.cyan : AppColors.border, width: selected ? 2 : 1)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Container(width: 54, height: 54, decoration: BoxDecoration(shape: BoxShape.circle, color: color.primary), child: selected ? const Icon(Icons.check_rounded, color: Colors.white, size: 30) : null), const SizedBox(height: 12), Text(color.nameAr, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.35)), Text('(${color.nameEn})', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted, fontSize: 12))])));
+  @override Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(22), child: Container(width: 112, height: 146, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: selected ? AppColors.elevated : Colors.transparent, borderRadius: BorderRadius.circular(22), border: Border.all(color: selected ? AppColors.cyan : AppColors.border, width: selected ? 2 : 1)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Container(width: 48, height: 48, decoration: BoxDecoration(shape: BoxShape.circle, color: color.primary), child: selected ? const Icon(Icons.check_rounded, color: Colors.white, size: 26) : null), const SizedBox(height: 12), Text(color.nameAr, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.35)), Text('(${color.nameEn})', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted, fontSize: 12))])));
 }
 
 class _LanguageCard extends StatelessWidget {
   const _LanguageCard(this.label, this.value, this.selected, this.onChanged);
   final String label; final Locale value; final bool selected; final ValueChanged<Locale?> onChanged;
-  @override Widget build(BuildContext context) => InkWell(onTap: () => onChanged(value), borderRadius: BorderRadius.circular(24), child: Container(height: 70, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? const Color(0xFF0C3851) : Colors.transparent, borderRadius: BorderRadius.circular(24), border: Border.all(color: selected ? AppColors.cyan : AppColors.border, width: selected ? 2 : 1)), child: Text(label, style: TextStyle(color: selected ? Colors.white : AppColors.muted, fontWeight: FontWeight.w800, fontSize: 16))));
+  @override Widget build(BuildContext context) => InkWell(onTap: () => onChanged(value), borderRadius: BorderRadius.circular(24), child: Container(height: 60, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? const Color(0xFF0C3851) : Colors.transparent, borderRadius: BorderRadius.circular(24), border: Border.all(color: selected ? AppColors.cyan : AppColors.border, width: selected ? 2 : 1)), child: Text(label, style: TextStyle(color: selected ? Colors.white : AppColors.muted, fontWeight: FontWeight.w800, fontSize: 14))));
 }

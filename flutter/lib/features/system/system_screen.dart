@@ -10,7 +10,7 @@ class SystemScreen extends StatelessWidget {
     final s = MockData.student;
     final progress = s.xp / (s.xp + s.xpToNext);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(36, 34, 36, 120),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
       children: [
         Container(
           padding: const EdgeInsets.fromLTRB(30, 28, 30, 26),
@@ -31,7 +31,7 @@ class SystemScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const Text('رتبة المهندس:', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
+                        const Text('رتبة المهندس:', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
                         Text(s.levelName, style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)),
                         const SizedBox(height: 7),
                         Text('${s.name} • ${s.department}', style: const TextStyle(color: AppColors.muted, fontSize: 15)),
@@ -90,7 +90,7 @@ class SystemScreen extends StatelessWidget {
         const SizedBox(height: 16),
         for (var i = 0; i < MockData.badges.length; i++) Padding(
           padding: const EdgeInsets.only(bottom: 14),
-          child: _Badge(item: MockData.badges[i], index: i),
+          child: _Badge(item: MockData.badges[i], index: i, onTap: () => showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(title: Text(MockData.badges[i].title), content: Text(MockData.badges[i].description), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق'))]))),
         ),
       ],
     );
@@ -98,14 +98,15 @@ class SystemScreen extends StatelessWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge({required this.item, required this.index});
+  const _Badge({required this.item, required this.index, required this.onTap});
   final MockBadge item;
   final int index;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final color = index == 0 ? AppColors.cyan : index == 1 ? const Color(0xFFFF8B00) : AppColors.success;
-    return Container(
+    return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(25), child: Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(25), border: Border.all(color: AppColors.border)),
       child: Row(
@@ -126,6 +127,6 @@ class _Badge extends StatelessWidget {
           const Icon(Icons.check_circle_outline_rounded, color: AppColors.success, size: 29),
         ],
       ),
-    );
+    ));
   }
 }
