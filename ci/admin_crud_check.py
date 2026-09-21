@@ -57,7 +57,7 @@ except Exception as exc:
 # Content records are permanently removed after dependent comments/reactions are cleaned.
 # Operational records are also hard-deleted; active=0 remains only for the separate
 # disable/deactivate controls and must not be used as the DELETE contract.
-if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'activities', 'announcements', 'achievements']))" not in SOURCE:
+if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'announcements', 'achievements']))" not in SOURCE:
     errors.append('CONTENT_TABLES contract is missing or incomplete')
 if "DELETE FROM ${table} WHERE id=?" not in SOURCE:
     errors.append('Admin hard-delete SQL contract is missing')
