@@ -25,14 +25,14 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
   @override void initState() { super.initState(); _future = _repo.news(); _tabs.addListener(() { if (!_tabs.indexIsChanging) { setState(() => _index = _tabs.index); _load(); }}); }
   @override void dispose() { _tabs.dispose(); _client.dispose(); super.dispose(); }
 
-  Future<List<ContentItem>> _fetch() => _index == 0 ? _repo.news() : (_index == 1 ? _repo.achievements() : _repo.activities());
+  Future<List<ContentItem>> _fetch() => _index == 0 ? _repo.news() : (_index == 1 ? _repo.events() : _repo.activities());
   void _load() => setState(() => _future = _fetch());
   Future<void> _refresh() async { final f = _fetch(); setState(() => _future = f); await f; }
-  String _type() => _index == 0 ? 'news' : (_index == 1 ? 'achievement' : 'activity');
+  String _type() => _index == 0 ? 'news' : (_index == 1 ? 'event' : 'activity');
 
   @override Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final labels = [l10n.t('news'), l10n.t('achievements'), l10n.t('activities')];
+    final labels = [l10n.t('news'), l10n.t('events'), l10n.t('activities')];
     final icons = [Icons.article_outlined, Icons.event_outlined, Icons.directions_run_outlined];
     return RefreshIndicator(
       onRefresh: _refresh,
@@ -105,7 +105,7 @@ class _MediaCardState extends State<_MediaCard> {
     final cs = Theme.of(context).colorScheme; final image = widget.item.images.isNotEmpty ? widget.item.images.first : widget.item.imageUrl;
     return AppCard(padding: EdgeInsets.zero, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Stack(children: [
-        _MediaImage(url: image, label: widget.label, icon: widget.type == 'news' ? Icons.article_rounded : (widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.directions_run_rounded)),
+        _MediaImage(url: image, label: widget.label, icon: widget.type == 'news' ? Icons.article_rounded : (widget.type == 'event' ? Icons.event_available_rounded : Icons.directions_run_rounded)),
         PositionedDirectional(top: 10, start: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(8)), child: Text(widget.item.category?.trim().isNotEmpty == true ? widget.item.category! : widget.label, style: TextStyle(color: cs.onPrimaryContainer, fontSize: 9, fontWeight: FontWeight.w800)))),
       ]),
       Padding(padding: const EdgeInsets.fromLTRB(13, 11, 13, 9), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

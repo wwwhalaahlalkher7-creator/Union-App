@@ -472,12 +472,48 @@ function token(bytes = 32) {
 }
 
 async function auth(ctx, required = true) {
+  // Base session lookup deliberately touches ONLY the sessions table.
+  // Student and staff identity data are loaded by their respective guards below.
   const raw = bearer(ctx.request);
   if (!raw) return required ? { response: error('AUTH_REQUIRED', 'تسجيل الدخول مطلوب.', 401, ctx.requestId, ctx.cors) } : null;
   const hash = await sha256(raw);
-  const row = await queryOne(ctx.env, `SELECT s.*, st.student_number, st.full_name, st.department_id, st.active AS student_active, su.id AS staff_user_id, su.user_id AS staff_user_id_login, su.email AS staff_email, su.display_name AS staff_display_name, su.role_id AS staff_role_id, r.name AS staff_role_name, su.active AS staff_active FROM sessions s LEFT JOIN students st ON st.id = s.student_id LEFT JOIN staff_users su ON su.id = s.staff_user_id LEFT JOIN roles r ON r.id = su.role_id WHERE s.access_token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > CURRENT_TIMESTAMP`, hash);
+  const row = await queryOne(ctx.env, `SELECT * FROM sessions WHERE access_token_hash = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP LIMIT 1`, hash);
   if (!row) return { response: error('AUTH_INVALID', 'الجلسة غير صالحة أو منتهية. سجّل الدخول مجددًا.', 401, ctx.requestId, ctx.cors) };
+  if ((row.student_id == null) === (row.staff_user_id == null)) {
+    console.error('Invalid session identity invariant', { sessionId: row.id });
+    return { response: error('AUTH_INVALID', 'الجلسة غير صالحة. سجّل الدخول مجددًا.', 401, ctx.requestId, ctx.cors) };
+  }
   return { session: row };
+}
+
+async function studentAuth(ctx, required = true) {
+  const a = await auth(ctx, required);
+  if (!a) return null;
+  if (a.response) return a;
+  if (!a.session.student_id || a.session.staff_user_id) {
+    return { response: error('STUDENT_AUTH_REQUIRED', 'جلسة طالب مطلوبة.', 403, ctx.requestId, ctx.cors) };
+  }
+  const student = await queryOne(ctx.env, `SELECT id AS student_id, student_number, full_name, department_id, current_semester_id, active AS student_active FROM students WHERE id = ? LIMIT 1`, a.session.student_id);
+  if (!student || student.student_active !== 1) {
+    return { response: error('STUDENT_AUTH_REQUIRED', 'حساب الطالب غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors) };
+  }
+  a.session = { ...a.session, ...student };
+  return a;
+}
+
+async function staffAuth(ctx, required = true) {
+  const a = await auth(ctx, required);
+  if (!a) return null;
+  if (a.response) return a;
+  if (!a.session.staff_user_id || a.session.student_id) {
+    return { response: error('STAFF_AUTH_REQUIRED', 'جلسة موظف الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors) };
+  }
+  const staff = await queryOne(ctx.env, `SELECT su.id AS staff_user_id, su.user_id AS staff_user_id_login, su.email AS staff_email, su.display_name AS staff_display_name, su.role_id AS staff_role_id, r.name AS staff_role_name, su.active AS staff_active FROM staff_users su JOIN roles r ON r.id = su.role_id WHERE su.id = ? LIMIT 1`, a.session.staff_user_id);
+  if (!staff || staff.staff_active !== 1) {
+    return { response: error('STAFF_AUTH_REQUIRED', 'حساب الإدارة غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors) };
+  }
+  a.session = { ...a.session, ...staff };
+  return a;
 }
 
 async function pbkdf2Hash(secret, salt, iterations = PBKDF2_ITERATIONS) {
@@ -665,19 +701,20 @@ async function staffBootstrap(ctx) {
 }
 
 async function staffMe(ctx) {
-  const a = await auth(ctx); if (a.response) return a.response;
-  if (!a.session.staff_user_id) return error('STAFF_AUTH_REQUIRED', 'جلسة موظف الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors);
-  const row = await queryOne(ctx.env, 'SELECT su.id, su.user_id, su.email, su.display_name, su.role_id, r.name AS role_name FROM staff_users su JOIN roles r ON r.id = su.role_id WHERE su.id = ? AND su.active = 1', a.session.staff_user_id);
-  if (!row) return error('STAFF_NOT_FOUND', 'حساب الإدارة غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors);
-  return ok(ctx, row);
+  const a = await staffAuth(ctx); if (a.response) return a.response;
+  return ok(ctx, {
+    id: a.session.staff_user_id,
+    user_id: a.session.staff_user_id_login,
+    email: a.session.staff_email,
+    display_name: a.session.staff_display_name,
+    role_id: a.session.staff_role_id,
+    role_name: a.session.staff_role_name,
+  });
 }
 
 async function staffChangePassword(ctx) {
-  const a = await auth(ctx);
+  const a = await staffAuth(ctx);
   if (a.response) return a.response;
-  if (!a.session.staff_user_id || a.session.staff_active !== 1) {
-    return error('STAFF_AUTH_REQUIRED', 'جلسة موظف الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors);
-  }
 
   const body = await parseJson(ctx.request);
   const currentPassword = String(body?.currentPassword || '');
@@ -761,6 +798,9 @@ async function logout(ctx) {
 }
 
 async function issueSession(ctx, identity) {
+  const hasStudent = Boolean(identity?.studentId);
+  const hasStaff = Boolean(identity?.staffUserId);
+  if (hasStudent === hasStaff) throw new Error('SESSION_IDENTITY_INVALID');
   const accessToken = token(32), refreshToken = token(48);
   const now = Date.now();
   const expiresAt = new Date(now + AUTH_ACCESS_TTL * 1000).toISOString();
@@ -775,22 +815,27 @@ async function issueSession(ctx, identity) {
 }
 
 async function authMe(ctx) {
-  const a = await auth(ctx); if (a.response) return a.response;
+  const base = await auth(ctx); if (base.response) return base.response;
+  const a = base.session.student_id ? await studentAuth(ctx) : await staffAuth(ctx);
+  if (a.response) return a.response;
   return ok(ctx, sanitizeSession(a.session));
 }
 
 function sanitizeSession(row) {
-  return { studentId: row.student_id, studentNumber: row.student_number, fullName: row.full_name, departmentId: row.department_id, staffUserId: row.staff_user_id, staffUserIdLogin: row.staff_user_id_login, staffEmail: row.staff_email, staffDisplayName: row.staff_display_name, staffRoleId: row.staff_role_id, staffRole: row.staff_role_name, expiresAt: row.expires_at };
+  return {
+    studentId: row.student_id || null,
+    studentNumber: row.student_number || null,
+    fullName: row.full_name || null,
+    departmentId: row.department_id || null,
+    staffUserId: row.staff_user_id || null,
+    staffUserIdLogin: row.staff_user_id_login || null,
+    staffEmail: row.staff_email || null,
+    staffDisplayName: row.staff_display_name || null,
+    staffRoleId: row.staff_role_id || null,
+    staffRole: row.staff_role_name || null,
+    expiresAt: row.expires_at,
+  };
 }
-
-async function studentAuth(ctx) {
-  const a = await auth(ctx);
-  if (a.response) return a.response;
-  if (!a.session.student_id || a.session.student_active !== 1) return error('STUDENT_AUTH_REQUIRED', 'جلسة طالب مطلوبة.', 403, ctx.requestId, ctx.cors);
-  return a;
-}
-
-async function studentMe(ctx) { const a = await studentAuth(ctx); if (a.response) return a.response; const row = await queryOne(ctx.env, `SELECT st.id AS studentId, st.student_number AS studentNumber, st.full_name AS fullName, st.department_id AS departmentId, d.name_ar AS departmentName, st.current_semester_id AS currentSemesterId, se.name_ar AS semesterName FROM students st LEFT JOIN departments d ON d.id = st.department_id LEFT JOIN semesters se ON se.id = st.current_semester_id WHERE st.id = ? AND st.active = 1`, a.session.student_id); return ok(ctx, row || sanitizeSession(a.session)); }
 
 async function updateStudentSemester(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
@@ -859,7 +904,7 @@ async function departments(ctx) { const rows = await queryAll(ctx.env, 'SELECT *
 
 async function subjects(ctx) {
   const semesterId = ctx.url.searchParams.get('semesterId'); const departmentId = ctx.url.searchParams.get('departmentId');
-  const a = await auth(ctx, false);
+  const a = await studentAuth(ctx, false);
   if (a?.response) return a.response;
   const effectiveDepartment = a?.session?.department_id || departmentId;
   if (!effectiveDepartment) return error('DEPARTMENT_REQUIRED', 'التخصص مطلوب.', 400, ctx.requestId, ctx.cors);
@@ -1131,7 +1176,7 @@ async function replies(ctx) {
   return ok(ctx,rows,{count:rows.length,offset,limit});
 }
 async function createComment(ctx) {
-  const a=await auth(ctx); if(a.response) return a.response; const parts=ctx.path.split('/');
+  const a=await studentAuth(ctx); if(a.response) return a.response; const parts=ctx.path.split('/');
   if(!ALLOWED_CONTENT_TYPES.has(parts[2])) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
   const body=await parseJson(ctx.request); const text=String(body?.body||'').trim(); if(!text || text.length>2000) return error('COMMENT_INVALID','نص التعليق غير صالح.',400,ctx.requestId,ctx.cors);
   if(!(await interactionAllowed(ctx,a.session.student_id,'comment'))) return error('RATE_LIMITED','تم تجاوز حد التعليقات مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
@@ -1139,19 +1184,19 @@ async function createComment(ctx) {
   return ok(ctx,{id,body:text,status:'visible'},null,201);
 }
 async function createReply(ctx) {
-  const a=await auth(ctx); if(a.response) return a.response; const id=ctx.path.split('/')[2]; const body=await parseJson(ctx.request); const text=String(body?.body||'').trim();
+  const a=await studentAuth(ctx); if(a.response) return a.response; const id=ctx.path.split('/')[2]; const body=await parseJson(ctx.request); const text=String(body?.body||'').trim();
   if(!text || text.length>2000) return error('REPLY_INVALID','نص الرد غير صالح.',400,ctx.requestId,ctx.cors); if(!(await interactionAllowed(ctx,a.session.student_id,'reply'))) return error('RATE_LIMITED','تم تجاوز حد الردود مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
   const comment=await queryOne(ctx.env,`SELECT id FROM comments WHERE id=? AND status='visible'`,id); if(!comment) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors);
   const replyId=crypto.randomUUID(); await ctx.env.DB.prepare('INSERT INTO comment_replies (id,comment_id,student_id,body) VALUES (?,?,?,?)').bind(replyId,id,a.session.student_id,text).run(); return ok(ctx,{id:replyId,commentId:id,body:text,status:'visible'},null,201);
 }
 async function reaction(ctx) {
-  const a=await auth(ctx); if(a.response) return a.response; const parts=ctx.path.split('/'); if(!ALLOWED_CONTENT_TYPES.has(parts[2])) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
+  const a=await studentAuth(ctx); if(a.response) return a.response; const parts=ctx.path.split('/'); if(!ALLOWED_CONTENT_TYPES.has(parts[2])) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
   const body=await parseJson(ctx.request); const value=String(body?.reaction||'').trim().toLowerCase(); if(!ALLOWED_REACTIONS.has(value)) return error('REACTION_INVALID','نوع التفاعل غير مدعوم.',400,ctx.requestId,ctx.cors);
   if(!(await interactionAllowed(ctx,a.session.student_id,'reaction'))) return error('RATE_LIMITED','تم تجاوز حد التفاعلات مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
   await ctx.env.DB.prepare('INSERT INTO reactions (id,student_id,content_type,content_id,reaction) VALUES (?,?,?,?,?) ON CONFLICT(student_id,content_type,content_id) DO UPDATE SET reaction=excluded.reaction').bind(crypto.randomUUID(),a.session.student_id,parts[2],parts[3],value).run(); return ok(ctx,{reaction:value});
 }
 async function commentReaction(ctx) {
-  const a = await auth(ctx); if (a.response) return a.response;
+  const a = await studentAuth(ctx); if (a.response) return a.response;
   const id = ctx.path.split('/')[2];
   const body = await parseJson(ctx.request);
   const value = String(body?.reaction || 'like').trim().toLowerCase();
@@ -1163,7 +1208,7 @@ async function commentReaction(ctx) {
   return ok(ctx, {reaction:value});
 }
 
-async function deleteComment(ctx,id) { const a=await auth(ctx); if(a.response) return a.response; const result=await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=? AND status='visible'").bind(id,a.session.student_id).run(); if(!result.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود أو لا يمكنك حذفه.',404,ctx.requestId,ctx.cors); return ok(ctx,{deleted:true}); }
+async function deleteComment(ctx,id) { const a=await studentAuth(ctx); if(a.response) return a.response; const result=await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=? AND status='visible'").bind(id,a.session.student_id).run(); if(!result.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود أو لا يمكنك حذفه.',404,ctx.requestId,ctx.cors); return ok(ctx,{deleted:true}); }
 async function adminModerationComments(ctx) { const a=await requireAdminPermission(ctx, 'moderation.read'); if(a.response) return a.response; const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,'SELECT c.*,s.full_name,s.student_number FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?',status,limit); return ok(ctx,rows,{count:rows.length}); }
 async function adminModerationComment(ctx,id) { const a=await requireAdminPermission(ctx, 'moderation.write'); if(a.response) return a.response; const body=await parseJson(ctx.request); const status=String(body?.status||'').trim(); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const r=await ctx.env.DB.prepare('UPDATE comments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run(); if(!r.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,a.session.staff_user_id,'status_update','comment',id,{status}); return ok(ctx,{id,status}); }
 
@@ -1208,7 +1253,7 @@ function hasAdminPermission(roleId, permissionName) {
 }
 
 async function requireAdminPermission(ctx, permissionName) {
-  const a = await auth(ctx);
+  const a = await staffAuth(ctx);
   if (a.response) return a;
   if (!a.session.staff_user_id || a.session.staff_active !== 1) {
     return { response: error('STAFF_AUTH_REQUIRED', 'صلاحيات الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors) };
@@ -1520,7 +1565,7 @@ async function adminAuditLogs(ctx) {
 
 async function adminSettings(ctx, id) {
   if (ctx.request.method === 'GET') return ok(ctx, await queryAll(ctx.env, 'SELECT * FROM app_settings ORDER BY key'));
-  const a = await auth(ctx); if (a.response) return a.response;
+  const a = await staffAuth(ctx); if (a.response) return a.response;
   const body = await parseJson(ctx.request); const key = String(body?.key || id || '').trim();
   if (!key || key.length > 128) return error('SETTING_KEY_INVALID','مفتاح الإعداد غير صالح.',400,ctx.requestId,ctx.cors);
   if (ctx.request.method !== 'PUT' && ctx.request.method !== 'PATCH' && ctx.request.method !== 'POST') return error('METHOD_NOT_ALLOWED','الطريقة غير مدعومة.',405,ctx.requestId,ctx.cors);
@@ -2182,7 +2227,7 @@ async function adminEinoUsage(ctx) {
 //   GOOGLE_APPS_SCRIPT_TOKEN (secret; must match Apps Script API_TOKEN)
 // -----------------------------------------------------------------------------
 async function adminDriveAuth(ctx) {
-  const a = await auth(ctx);
+  const a = await staffAuth(ctx);
   if (a.response) return a.response;
   if (!a.session.staff_user_id || a.session.staff_active !== 1) return error('STAFF_AUTH_REQUIRED', 'جلسة موظف الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors);
   const role = a.session.staff_role_id;

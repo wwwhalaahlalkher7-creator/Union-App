@@ -271,28 +271,44 @@ body[data-page="news"] #pageContent > * {
         <input type="date" name="${f.key}" value="${Utils.escapeHtml(val)}" ${req}></div>`;
     }
     if (f.type === "image") {
+      // ✅ جديد — رفع فعلي: مدخل ملف حقيقي + معاينة فورية بالمتصفح، بلا
+      // أي رفع للخادم إلا عند الضغط على "نشر/حفظ" (submitForm يقرأ
+      // الملف كـ base64 عندها فقط). عند التعديل: تُعرض الصورة الحالية
+      // (البيانات القادمة من Association API تحتوي على رابط الصورة مباشرة) إن
+      // وُجدت، ولا تُستبدل إلا باختيار ملف جديد صراحةً.
       const existingValue = record ? record.fields.Image : "";
       const existingUrl = Array.isArray(existingValue)
         ? (existingValue[0]?.url || existingValue[0] || "")
         : (existingValue || "");
       return `<div class="field">
         <label>${f.label}</label>
-        <input type="url" name="${f.key}" value="${Utils.escapeHtml(existingUrl)}"
-          placeholder="https://example.com/image.jpg"
-          ${req}>
-        <div class="field-hint">أدخل رابط الصورة المباشر. التخزين الحالي للمحتوى يعتمد على رابط صورة عام.</div>
+        <div class="file-drop" id="imgDrop-${f.key}" style="cursor:pointer">
+          <img id="imgPreview-${f.key}" src="${Utils.escapeHtml(existingUrl)}" style="max-width:120px;max-height:120px;border-radius:6px;display:${existingUrl ? "block" : "none"};margin-bottom:8px">
+          <span id="imgHint-${f.key}"><i class="fa-solid fa-image"></i> ${existingUrl ? "اضغط لاختيار صورة أخرى (اتركه كما هو للإبقاء على الصورة الحالية)" : "اضغط لاختيار صورة"}</span>
+        </div>
+        <input type="file" accept="image/*" name="${f.key}" id="imgInput-${f.key}" style="display:none">
       </div>`;
     }
     if (f.type === "images") {
-      const existingValue = record ? record.fields.Image : [];
-      const existingUrls = Array.isArray(existingValue)
-        ? existingValue.map(i => i?.url || i).filter(Boolean)
-        : (existingValue ? [existingValue] : []);
-      const value = existingUrls.join("\n");
+      // ✅ جديد — رفع أكثر من صورة واحدة (يُستخدم حالياً للإنجازات فقط).
+      // الصور الحالية (عند التعديل) تُعرض للمعاينة فقط؛ اختيار صور جديدة
+      // من الحقل أدناه يستبدلها بالكامل عند الحفظ (نفس مبدأ حقل "صورة"
+      // المفردة القديم: لا تغيير إن لم يُختر شيء جديد).
+      const existingUrls = (record && Array.isArray(record.fields.Image)) ? record.fields.Image.map(i => i.url).filter(Boolean) : [];
+      const existingPreview = existingUrls.length
+        ? `<div class="field-hint" style="margin-bottom:8px">الصور الحالية (${existingUrls.length}) — اختيار صور جديدة أدناه يستبدلها كلها:</div>
+           <div id="imgExisting-${f.key}" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+             ${existingUrls.map(u => `<img src="${Utils.escapeHtml(u)}" style="width:70px;height:70px;object-fit:cover;border-radius:6px">`).join("")}
+           </div>`
+        : "";
       return `<div class="field">
         <label>${f.label}</label>
-        <textarea name="${f.key}" placeholder="ضع رابطاً واحداً لكل سطر">${Utils.escapeHtml(value)}</textarea>
-        <div class="field-hint">رابط واحد لكل سطر. عند التعديل، استبدال القائمة يتم بحفظ الروابط الجديدة.</div>
+        ${existingPreview}
+        <div class="file-drop" id="imgDrop-${f.key}" style="cursor:pointer">
+          <span id="imgHint-${f.key}"><i class="fa-solid fa-images"></i> اضغط لاختيار صورة أو أكثر</span>
+        </div>
+        <div id="imgGrid-${f.key}" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
+        <input type="file" accept="image/*" name="${f.key}" id="imgInput-${f.key}" multiple style="display:none">
       </div>`;
     }
     if (f.type === "highlights") {
@@ -332,6 +348,69 @@ body[data-page="news"] #pageContent > * {
         { label: "إلغاء", className: "btn-secondary", onClick: () => Modal.close() },
         { label: record ? "حفظ التعديلات" : "نشر", className: "btn-primary", onClick: (btn) => submitForm(schema, record, btn) }
       ]
+    });
+
+    // ✅ جديد — يربط كل حقل صورة بمدخل الملف المخفي + معاينة فورية
+    schema.fields.filter(f => f.type === "image").forEach(f => {
+      const drop = document.getElementById("imgDrop-" + f.key);
+      const input = document.getElementById("imgInput-" + f.key);
+      const preview = document.getElementById("imgPreview-" + f.key);
+      const hint = document.getElementById("imgHint-" + f.key);
+      if (!drop || !input) return;
+
+      drop.addEventListener("click", () => input.click());
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          preview.src = reader.result;
+          preview.style.display = "block";
+          hint.innerHTML = `<i class="fa-solid fa-image"></i> ${Utils.escapeHtml(file.name)}`;
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    // ✅ جديد — يربط كل حقل صور متعددة بمدخل الملف (multiple) + شبكة
+    // معاينة مصغّرات، كل واحدة بزر حذف (×) يزيلها من الاختيار قبل الحفظ
+    schema.fields.filter(f => f.type === "images").forEach(f => {
+      const drop = document.getElementById("imgDrop-" + f.key);
+      const input = document.getElementById("imgInput-" + f.key);
+      const grid = document.getElementById("imgGrid-" + f.key);
+      const hint = document.getElementById("imgHint-" + f.key);
+      if (!drop || !input || !grid) return;
+
+      _pendingImages[f.key] = [];
+
+      function renderGrid() {
+        grid.innerHTML = _pendingImages[f.key].map((file, idx) => `
+          <div style="position:relative;width:70px;height:70px">
+            <img src="${file._previewUrl}" style="width:70px;height:70px;object-fit:cover;border-radius:6px">
+            <button type="button" data-idx="${idx}" class="pending-img-remove"
+              style="position:absolute;top:-6px;left:-6px;width:20px;height:20px;border-radius:50%;border:none;background:#e5484d;color:#fff;cursor:pointer;font-size:11px;line-height:1">×</button>
+          </div>`).join("");
+        hint.innerHTML = _pendingImages[f.key].length
+          ? `<i class="fa-solid fa-images"></i> ${_pendingImages[f.key].length} صورة مختارة — اضغط لإضافة المزيد`
+          : `<i class="fa-solid fa-images"></i> اضغط لاختيار صورة أو أكثر`;
+        grid.querySelectorAll(".pending-img-remove").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            _pendingImages[f.key].splice(Number(btn.dataset.idx), 1);
+            renderGrid();
+          });
+        });
+      }
+
+      drop.addEventListener("click", () => input.click());
+      input.addEventListener("change", () => {
+        Array.from(input.files || []).forEach(file => {
+          file._previewUrl = URL.createObjectURL(file);
+          _pendingImages[f.key].push(file);
+        });
+        input.value = ""; // يسمح باختيار نفس الملف مجدداً لاحقاً إن حُذف
+        renderGrid();
+      });
     });
 
     // ✅ جديد — يربط كل حقل "highlights" بصفوف قابلة للإضافة/الحذف،
@@ -401,25 +480,44 @@ body[data-page="news"] #pageContent > * {
       fields[f.key] = input ? input.value.trim() : "";
     });
 
-    // الصور تُرسل كروابط مباشرة لأن الـ API الحالي يخزن image_url/images_json
-    // ولا يملك endpoint لرفع ملفات ثنائية من لوحة التحكم.
+    // ✅ جديد — إن اختار المستخدم صورة جديدة، اقرأها كـ base64 وأرسلها
+    // ضمن fields.ImageBase64 (يقرأها Adapter.createContent/updateContent
+    // ويرسلها عبر Association API). لم يختر صورة؟ يبقى الحقل فارغاً
+    // فلا يتغيّر شيء في الصورة الحالية عند التعديل.
     const imageField = schema.fields.find(f => f.type === "image");
     if (imageField) {
-      const input = form.querySelector(`[name="${imageField.key}"]`);
-      const value = input ? input.value.trim() : "";
-      if (value) fields.Image = value;
-      else if (record) fields.Image = record.fields.Image || "";
+      const fileInput = document.getElementById("imgInput-" + imageField.key);
+      const file = fileInput && fileInput.files && fileInput.files[0];
+      if (file) {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        fields.ImageBase64 = dataUrl.split(",")[1] || ""; // إسقاط بادئة data:image/...;base64,
+      } else if (record) {
+        fields.Image = record.fields.Image || "";
+      }
     }
 
+    // ✅ جديد — نفس فكرة الصورة المفردة أعلاه، لكن لصور متعددة: يقرأ كل
+    // ملف مختار في _pendingImages[key] كـ base64 ويبنيها في مصفوفة
+    // واحدة fields.ImagesBase64. لم يختر المستخدم أي صورة جديدة؟ تبقى
+    // المصفوفة فارغة فلا يتغيّر شيء في الصور الحالية عند التعديل.
     const imagesField = schema.fields.find(f => f.type === "images");
     if (imagesField) {
-      const input = form.querySelector(`[name="${imagesField.key}"]`);
-      const urls = (input?.value || "")
-        .split(/\r?\n/)
-        .map(x => x.trim())
-        .filter(Boolean);
-      if (urls.length) fields.Image = urls.map(url => ({url}));
-      else if (record) fields.Image = record.fields.Image || [];
+      const pending = _pendingImages[imagesField.key] || [];
+      if (pending.length) {
+        fields.ImagesBase64 = await Promise.all(pending.map(file => new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result.split(",")[1]) || "");
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        })));
+      } else if (record) {
+        fields.Image = record.fields.Image || [];
+      }
     }
 
     // ⚠️ لا نغلق النافذة ولا نحدّث القائمة إلا بعد تأكيد نجاح الخادم

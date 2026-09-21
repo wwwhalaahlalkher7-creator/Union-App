@@ -12,11 +12,7 @@ class ContentItem {
     this.category,
     this.publisher,
     this.eventAt,
-    this.endAt,
     this.location,
-    this.highlightsTitle,
-    this.highlights = const <String>[],
-    this.badge,
     this.commentCount = 0,
     this.likeCount = 0,
     this.images = const <String>[],
@@ -32,11 +28,7 @@ class ContentItem {
   final String? category;
   final String? publisher;
   final DateTime? eventAt;
-  final DateTime? endAt;
   final String? location;
-  final String? highlightsTitle;
-  final List<String> highlights;
-  final String? badge;
   final int commentCount;
   final int likeCount;
   final List<String> images;
@@ -78,32 +70,12 @@ class ContentItem {
       category: fields['category']?.toString(),
       publisher: fields['publisher']?.toString(),
       eventAt: parseDate(fields['eventAt'] ?? fields['event_at']),
-      endAt: parseDate(fields['endAt'] ?? fields['end_at']),
       location: fields['location']?.toString(),
-      highlightsTitle: fields['highlightsTitle']?.toString(),
-      highlights: _toStringList(fields['highlights']),
-      badge: fields['badge']?.toString(),
       commentCount: _toInt(fields['commentCount'] ?? fields['comment_count']),
       likeCount: _toInt(fields['likeCount'] ?? fields['like_count']),
       images: _toImages(fields['images'] ?? fields['images_json']),
     );
   }
-}
-
-List<String> _toStringList(dynamic value) {
-  if (value is List) {
-    return value.map((v) => v.toString().trim()).where((v) => v.isNotEmpty).toList();
-  }
-  if (value is String && value.trim().isNotEmpty) {
-    try {
-      final decoded = jsonDecode(value);
-      if (decoded is List) {
-        return decoded.map((v) => v.toString().trim()).where((v) => v.isNotEmpty).toList();
-      }
-    } catch (_) {}
-    return value.split(RegExp(r'\s*\|\|\s*|\r?\n')).map((v) => v.trim()).where((v) => v.isNotEmpty).toList();
-  }
-  return const <String>[];
 }
 
 List<String> _toImages(dynamic value) {

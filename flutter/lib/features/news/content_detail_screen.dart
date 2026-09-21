@@ -70,8 +70,8 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         : (item.imageUrl?.trim().isNotEmpty == true ? [item.imageUrl!] : const <String>[]);
     final label = widget.type == 'news'
         ? l10n.t('news')
-        : widget.type == 'achievement'
-            ? l10n.t('achievements')
+        : widget.type == 'event'
+            ? l10n.t('events')
             : l10n.t('activities');
 
     return Scaffold(
@@ -82,7 +82,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
           if (images.isNotEmpty)
             _Gallery(images: images)
           else
-            _Fallback(label: label, icon: widget.type == 'news' ? Icons.article_rounded : widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.directions_run_rounded),
+            _Fallback(label: label, icon: widget.type == 'news' ? Icons.article_rounded : widget.type == 'event' ? Icons.event_available_rounded : Icons.directions_run_rounded),
           Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
