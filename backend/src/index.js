@@ -837,6 +837,18 @@ function sanitizeSession(row) {
   };
 }
 
+
+async function studentMe(ctx) {
+  const a = await studentAuth(ctx);
+  if (a.response) return a.response;
+  const row = await queryOne(
+    ctx.env,
+    `SELECT st.id AS studentId, st.student_number AS studentNumber, st.full_name AS fullName, st.department_id AS departmentId, d.name_ar AS departmentName, st.current_semester_id AS currentSemesterId, se.name_ar AS semesterName FROM students st LEFT JOIN departments d ON d.id = st.department_id LEFT JOIN semesters se ON se.id = st.current_semester_id WHERE st.id = ? AND st.active = 1`,
+    a.session.student_id,
+  );
+  return ok(ctx, row || sanitizeSession(a.session));
+}
+
 async function updateStudentSemester(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
   const body = await parseJson(ctx.request);
