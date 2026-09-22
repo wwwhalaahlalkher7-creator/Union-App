@@ -105,7 +105,7 @@ body[data-page="students"] #pageContent > *{animation:studentsReveal .45s cubic-
     </div>
     <div class="table-scroll">
       <table class="data-table">
-        <thead><tr><th>الرقم الجامعي</th><th>اسم الطالب</th><th>القسم</th><th>الفصل</th><th>الحالة</th><th></th></tr></thead>
+        <thead><tr><th>الرقم الجامعي</th><th>اسم الطالب</th><th>القسم</th><th>الفصل</th><th>الحساب</th><th>الحالة</th><th></th></tr></thead>
         <tbody id="studentsBody"></tbody>
       </table>
     </div>
@@ -162,7 +162,7 @@ function setupOptions(){
 }
 async function loadStudents(){
   const body=$("studentsBody");if(!body)return;
-  body.innerHTML=`<tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> جارٍ تحميل الطلاب...</div></td></tr>`;
+  body.innerHTML=`<tr><td colspan="7"><div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> جارٍ تحميل الطلاب...</div></td></tr>`;
   try{
     const filters={q:$("searchInput").value.trim(),department:$("departmentFilter").value,semester:$("semesterFilter").value};
     studentData=await Adapter.listStudentsAdmin(filters);
@@ -171,7 +171,7 @@ async function loadStudents(){
     $("semesterFilter").value=filters.semester;
     renderStudents();
   }catch(e){
-    body.innerHTML=`<tr><td colspan="6"><div class="empty-state is-error"><i class="fa-solid fa-triangle-exclamation"></i>${Utils.escapeHtml(e.message||"تعذّر تحميل الطلاب")}<br><button class="btn btn-secondary" type="button" data-action="retry-load">إعادة المحاولة</button></div></td></tr>`;
+    body.innerHTML=`<tr><td colspan="7"><div class="empty-state is-error"><i class="fa-solid fa-triangle-exclamation"></i>${Utils.escapeHtml(e.message||"تعذّر تحميل الطلاب")}<br><button class="btn btn-secondary" type="button" data-action="retry-load">إعادة المحاولة</button></div></td></tr>`;
     $("resultHint").textContent="فشل التحميل";
     Feedback.error(e.message||"تعذّر تحميل الطلاب");
   }
@@ -195,12 +195,13 @@ function renderStudents(){
   rows.sort((a,b)=>compareStudents(a,b,mode)*(studentData.reverse?-1:1));
   $("resultHint").textContent=`${rows.length} طالب`;
   updateSortButton();
-  if(!rows.length){body.innerHTML=`<tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-user-slash"></i>لا توجد نتائج مطابقة.</div></td></tr>`;return}
+  if(!rows.length){body.innerHTML=`<tr><td colspan="7"><div class="empty-state"><i class="fa-solid fa-user-slash"></i>لا توجد نتائج مطابقة.</div></td></tr>`;return}
   body.innerHTML=rows.map(r=>`<tr>
     <td class="students-id">${Utils.escapeHtml(r.studentId||"—")}</td>
     <td><strong>${Utils.escapeHtml(r.name||"—")}</strong></td>
     <td>${Utils.escapeHtml(r.departmentName || r.department || "—")}</td>
     <td>${Utils.escapeHtml(r.semesterName || Utils.displayText(r.semester))}</td>
+    <td><span class="badge ${r.registered?"badge-success":"badge-neutral"}" title="${r.email?Utils.escapeHtml(r.email):""}">${r.registered?"مسجّل":"غير مسجّل"}</span></td>
     <td><span class="badge ${r.active?"badge-success":"badge-neutral"}">${r.active?"نشط":"معطّل"}</span></td>
     <td><div class="row-actions requires-edit">
       <button class="icon-btn" type="button" title="تعديل" data-action="edit" data-id="${Utils.escapeHtml(String(r.id))}"><i class="fa-solid fa-pen"></i></button>

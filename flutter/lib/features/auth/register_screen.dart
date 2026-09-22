@@ -28,13 +28,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
-  bool _loadingCatalogs = true;
   String? _errorMessage;
-
-  List<Map<String, dynamic>> _departments = [];
-  List<Map<String, dynamic>> _semesters = [];
-  String? _selectedDepartmentId;
-  String? _selectedSemesterId;
 
   ApiClient? _client;
   AuthStorage? _storage;
@@ -43,38 +37,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
-    _initCatalogs();
+    _initAuth();
   }
 
-  Future<void> _initCatalogs() async {
+  Future<void> _initAuth() async {
     try {
       _storage = await AuthStorage.create();
       _client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: _storage!);
       _studentRepo = StudentRepository(_client!);
-
-      final depts = await _studentRepo!.departments();
-      final sems = await _studentRepo!.semesters();
-
-      if (!mounted) return;
-      setState(() {
-        _departments = depts;
-        _semesters = sems;
-        if (depts.isNotEmpty) {
-          _selectedDepartmentId = depts.first['id']?.toString();
-        }
-        if (sems.isNotEmpty) {
-          _selectedSemesterId = sems.first['id']?.toString();
-        }
-        _loadingCatalogs = false;
-      });
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loadingCatalogs = false;
-        _errorMessage = e.toString();
-      });
+      if (mounted) setState(() => _errorMessage = e.toString());
     }
   }
+
 
   @override
   void dispose() {
@@ -90,17 +65,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final l10n = AppLocalizations.of(context);
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedDepartmentId == null || _selectedSemesterId == null) {
-      setState(() => _errorMessage = l10n.t('loginFieldsRequired'));
-      return;
-    }
-
     if (_passwordController.text != _confirmPasswordController.text) {
       setState(() => _errorMessage = l10n.t('passwordMismatch'));
       return;
     }
 
-    if (_passwordController.text.length < 6) {
+    if (_passwordController.text.length < 8) {
       setState(() => _errorMessage = l10n.t('passwordTooShort'));
       return;
     }
@@ -111,11 +81,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
+      if (_studentRepo == null || _storage == null) {
+        await _initAuth();
+      }
+      if (_studentRepo == null || _storage == null) {
+        throw const ApiException('تعذر تهيئة خدمة التسجيل. أعد المحاولة.');
+      }
       final repo = _studentRepo!;
       final result = await repo.register(
         studentNumber: _studentNumberController.text.trim(),
-        departmentId: _selectedDepartmentId!,
-        semesterId: _selectedSemesterId!,
         password: _passwordController.text,
         email: _emailController.text.trim(),
       );
@@ -166,9 +140,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
       body: SafeArea(
-        child: _loadingCatalogs
-            ? const Center(child: CircularProgressIndicator())
-            : Center(
+        child: Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 22.08, vertical: 14.72),
                   child: ConstrainedBox(
@@ -261,51 +233,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Department Dropdown
-                                DropdownButtonFormField<String>(
-                                  initialValue: _selectedDepartmentId,
-                                  decoration: InputDecoration(
-                                    labelText: l10n.t('selectDepartment'),
-                                    helperText: l10n.t('departmentLockedHelp'),
-                                    helperMaxLines: 2,
-                                    prefixIcon: const Icon(Icons.account_tree_outlined),
-                                    border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12.6)),
-                                  ),
-                                  items: _departments.map((dept) {
-                                    final name = dept['name']?.toString() ?? dept['code'] ?? '';
-                                    final id = dept['id']?.toString() ?? '';
-                                    return DropdownMenuItem<String>(
-                                      value: id,
-                                      child: Text(name, overflow: TextOverflow.ellipsis),
-                                    );
-                                  }).toList(),
-                                  onChanged: (val) => setState(() => _selectedDepartmentId = val),
-                                ),
-                                const SizedBox(height: 16),
-
-                                // Semester Dropdown
-                                DropdownButtonFormField<String>(
-                                  initialValue: _selectedSemesterId,
-                                  decoration: InputDecoration(
-                                    labelText: l10n.t('selectSemester'),
-                                    helperText: l10n.t('semesterFlexibleHelp'),
-                                    prefixIcon: const Icon(Icons.calendar_today_outlined),
-                                    border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12.6)),
-                                  ),
-                                  items: _semesters.map((sem) {
-                                    final name = sem['name']?.toString() ?? sem['id']?.toString() ?? '';
-                                    final id = sem['id']?.toString() ?? '';
-                                    return DropdownMenuItem<String>(
-                                      value: id,
-                                      child: Text(name, overflow: TextOverflow.ellipsis),
-                                    );
-                                  }).toList(),
-                                  onChanged: (val) => setState(() => _selectedSemesterId = val),
-                                ),
-                                const SizedBox(height: 16),
-
                                 // Email (Optional)
                                 TextFormField(
                                   controller: _emailController,
@@ -327,7 +254,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   obscureText: _obscurePassword,
                                   textInputAction: TextInputAction.next,
                                   validator: (v) {
-                                    if (v == null || v.length < 6) {
+                                    if (v == null || v.length < 8) {
                                       return l10n.t('passwordTooShort');
                                     }
                                     return null;

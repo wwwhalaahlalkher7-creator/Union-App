@@ -96,26 +96,23 @@ Do not expose provider secrets, SQL errors, stack traces, raw tokens or private 
 
 `POST /auth/register`
 
+Registration claims an existing student record created by the administration. The client cannot choose or overwrite the academic department or current semester during registration.
+
 Request:
 ```json
 {
   "studentNumber": "string",
-  "departmentId": "string",
-  "semesterId": "string",
   "email": "student@example.com",
   "password": "string",
   "confirmPassword": "string"
 }
 ```
 
-`POST /student/semester`
+`email` is optional. The department and current semester returned after registration come from the existing `students` record.
 
-Request:
-```json
-{"semesterId":"string"}
-```
+`POST /student/semester` is retained only as a compatibility guard and returns `403 ACADEMIC_RECORD_READ_ONLY`. The official `students.current_semester_id` belongs to the academic record managed by administration.
 
-Materials intentionally permit a registered student to request historical semesters. This is different from the schedule endpoint, which only exposes active semesters.
+Students can request another semester for read-only browsing by passing `semesterId` to the relevant GET endpoints (for example `/materials` or `/schedule`), without modifying their official student record. Materials intentionally permit historical-semester browsing; schedule remains restricted to active semesters.
 
 ## Eino media and memory endpoints
 

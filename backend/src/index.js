@@ -628,32 +628,34 @@ async function registerStudent(ctx) {
   if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد محاولات التسجيل مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
   const body = await parseJson(ctx.request);
   const studentNumber = String(body?.studentNumber || '').trim();
-  const departmentId = String(body?.departmentId || '').trim();
-  const semesterId = String(body?.semesterId || body?.currentSemesterId || '').trim();
   const email = String(body?.email || '').trim().toLowerCase();
   const password = String(body?.password || '');
   const confirmPassword = String(body?.confirmPassword || '');
 
-  if (!studentNumber || !departmentId || !semesterId || !email || !password) {
-    return error('REGISTER_FIELDS_REQUIRED', 'جميع حقول التسجيل مطلوبة.', 400, ctx.requestId, ctx.cors);
+  // Academic identity is owned by the administration. Registration may only
+  // claim an existing student record; department and current semester are
+  // never accepted from the client during account creation.
+  if (!studentNumber || !password) {
+    return error('REGISTER_FIELDS_REQUIRED', 'الرقم الجامعي وكلمة المرور مطلوبان.', 400, ctx.requestId, ctx.cors);
   }
-  if (!email.includes('@') || email.length > 180) {
+  if (email && (!email.includes('@') || email.length > 180)) {
     return error('EMAIL_INVALID', 'يرجى إدخال بريد إلكتروني صالح.', 400, ctx.requestId, ctx.cors);
   }
-  if (password.length < 6 || password.length > 256) {
-    return error('PASSWORD_TOO_SHORT', 'كلمة المرور يجب ألا تقل عن 6 أحرف.', 400, ctx.requestId, ctx.cors);
+  if (password.length < 8 || password.length > 256) {
+    return error('PASSWORD_TOO_SHORT', 'كلمة المرور يجب ألا تقل عن 8 أحرف.', 400, ctx.requestId, ctx.cors);
   }
   if (confirmPassword && password !== confirmPassword) {
     return error('PASSWORDS_MISMATCH', 'كلمتا المرور غير متطابقتين.', 400, ctx.requestId, ctx.cors);
   }
 
-  const dept = await queryOne(ctx.env, 'SELECT id, name_ar FROM departments WHERE id = ? AND active = 1', departmentId);
-  if (!dept) return error('DEPARTMENT_NOT_FOUND', 'التخصص المختار غير صالح.', 400, ctx.requestId, ctx.cors);
-
-  const sem = await queryOne(ctx.env, 'SELECT id, name_ar FROM semesters WHERE id = ? AND active = 1', semesterId);
-  if (!sem) return error('SEMESTER_NOT_FOUND', 'الفصل الدراسي المختار غير صالح.', 400, ctx.requestId, ctx.cors);
-
-  const student = await queryOne(ctx.env, 'SELECT * FROM students WHERE student_number = ? AND active = 1 LIMIT 1', studentNumber);
+  const student = await queryOne(ctx.env, `
+    SELECT st.*, d.name_ar AS department_name, se.name_ar AS semester_name
+    FROM students st
+    LEFT JOIN departments d ON d.id = st.department_id
+    LEFT JOIN semesters se ON se.id = st.current_semester_id
+    WHERE st.student_number = ? AND st.active = 1
+    LIMIT 1
+  `, studentNumber);
   if (!student) {
     return error('STUDENT_NOT_FOUND', 'الرقم الجامعي غير مسجل في قيود الكلية. يرجى مراجعة إدارة الكلية.', 404, ctx.requestId, ctx.cors);
   }
@@ -661,17 +663,28 @@ async function registerStudent(ctx) {
     return error('ACCOUNT_ALREADY_REGISTERED', 'هذا الحساب مسجل بالفعل. يمكنك تسجيل الدخول مباشرة.', 409, ctx.requestId, ctx.cors);
   }
 
-  const emailInUse = await queryOne(ctx.env, 'SELECT id FROM students WHERE lower(email) = ? AND id <> ? AND active = 1', email, student.id);
-  if (emailInUse) {
-    return error('EMAIL_ALREADY_IN_USE', 'البريد الإلكتروني مستخدم بالفعل لحساب طالب آخر.', 409, ctx.requestId, ctx.cors);
+  if (email) {
+    const emailInUse = await queryOne(ctx.env, 'SELECT id FROM students WHERE lower(email) = ? AND id <> ? AND active = 1', email, student.id);
+    if (emailInUse) {
+      return error('EMAIL_ALREADY_IN_USE', 'البريد الإلكتروني مستخدم بالفعل لحساب طالب آخر.', 409, ctx.requestId, ctx.cors);
+    }
   }
 
   const salt = token(16);
   const hash = await pbkdf2Hash(password, salt);
 
-  await ctx.env.DB.prepare(
-    'UPDATE students SET email = ?, department_id = ?, current_semester_id = ?, auth_secret_hash = ?, auth_secret_salt = ?, auth_secret_algo = \'pbkdf2-sha256\', failed_login_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-  ).bind(email, dept.id, sem.id, hash, salt, student.id).run();
+  // The NULL check makes registration safe under concurrent requests: only
+  // the first request may claim the unregistered student record.
+  const claimed = await ctx.env.DB.prepare(
+    `UPDATE students
+     SET email = ?, auth_secret_hash = ?, auth_secret_salt = ?, auth_secret_algo = 'pbkdf2-sha256',
+         failed_login_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ? AND active = 1 AND auth_secret_hash IS NULL`
+  ).bind(email || null, hash, salt, student.id).run();
+
+  if (!claimed.meta?.changes) {
+    return error('ACCOUNT_ALREADY_REGISTERED', 'هذا الحساب مسجل بالفعل. يمكنك تسجيل الدخول مباشرة.', 409, ctx.requestId, ctx.cors);
+  }
 
   await recordAuthEvent(ctx, 'student', student.id, 'register_success');
   return issueSession(ctx, { studentId: student.id });
@@ -844,7 +857,15 @@ async function issueSession(ctx, identity) {
     .bind(id, identity.studentId || null, identity.staffUserId || null, await sha256(accessToken), await sha256(refreshToken), expiresAt, refreshExpiresAt).run();
   let profile = {};
   if (identity.staffUserId) profile = await queryOne(ctx.env, 'SELECT su.id AS staffUserId,su.user_id AS staffUserIdLogin,su.email AS staffEmail,su.display_name AS staffDisplayName,su.role_id AS staffRoleId,r.name AS staffRole FROM staff_users su JOIN roles r ON r.id=su.role_id WHERE su.id=?', identity.staffUserId) || {};
-  if (identity.studentId) profile = await queryOne(ctx.env, 'SELECT id AS studentId,student_number AS studentNumber,full_name AS fullName,department_id AS departmentId FROM students WHERE id=?', identity.studentId) || {};
+  if (identity.studentId) profile = await queryOne(ctx.env, `
+    SELECT st.id AS studentId, st.student_number AS studentNumber, st.full_name AS fullName,
+           st.email, st.department_id AS departmentId, d.name_ar AS departmentName,
+           st.current_semester_id AS currentSemesterId, se.name_ar AS semesterName
+    FROM students st
+    LEFT JOIN departments d ON d.id = st.department_id
+    LEFT JOIN semesters se ON se.id = st.current_semester_id
+    WHERE st.id = ?
+  `, identity.studentId) || {};
   return ok(ctx, { token: accessToken, refreshToken, expiresInSeconds: AUTH_ACCESS_TTL, refreshExpiresInSeconds: AUTH_REFRESH_TTL, ...profile });
 }
 
@@ -877,7 +898,7 @@ async function studentMe(ctx) {
   if (a.response) return a.response;
   const row = await queryOne(
     ctx.env,
-    `SELECT st.id AS studentId, st.student_number AS studentNumber, st.full_name AS fullName, st.department_id AS departmentId, d.name_ar AS departmentName, st.current_semester_id AS currentSemesterId, se.name_ar AS semesterName FROM students st LEFT JOIN departments d ON d.id = st.department_id LEFT JOIN semesters se ON se.id = st.current_semester_id WHERE st.id = ? AND st.active = 1`,
+    `SELECT st.id AS studentId, st.student_number AS studentNumber, st.full_name AS fullName, st.email, st.department_id AS departmentId, d.name_ar AS departmentName, st.current_semester_id AS currentSemesterId, se.name_ar AS semesterName FROM students st LEFT JOIN departments d ON d.id = st.department_id LEFT JOIN semesters se ON se.id = st.current_semester_id WHERE st.id = ? AND st.active = 1`,
     a.session.student_id,
   );
   return ok(ctx, row || sanitizeSession(a.session));
@@ -885,13 +906,9 @@ async function studentMe(ctx) {
 
 async function updateStudentSemester(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
-  const body = await parseJson(ctx.request);
-  const semesterId = String(body?.semesterId || body?.currentSemesterId || '').trim();
-  if (!semesterId) return error('SEMESTER_REQUIRED', 'معرّف الفصل الدراسي مطلوب.', 400, ctx.requestId, ctx.cors);
-  const sem = await queryOne(ctx.env, 'SELECT id, name_ar FROM semesters WHERE id = ? AND active = 1', semesterId);
-  if (!sem) return error('SEMESTER_NOT_FOUND', 'الفصل الدراسي غير صالح.', 404, ctx.requestId, ctx.cors);
-  await ctx.env.DB.prepare('UPDATE students SET current_semester_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(semesterId, a.session.student_id).run();
-  return ok(ctx, { updated: true, currentSemesterId: semesterId, semesterName: sem.name_ar });
+  // The official current semester is an academic record owned by administration.
+  // Students may browse other semesters through read-only GET endpoints.
+  return error('ACADEMIC_RECORD_READ_ONLY', 'الفصل الدراسي الرسمي يُدار من لوحة التحكم. يمكنك اختيار فصل آخر للعرض دون تغيير السجل الأكاديمي.', 403, ctx.requestId, ctx.cors);
 }
 
 async function studentStats(ctx) {
@@ -1503,7 +1520,7 @@ const ADMIN_SELECT_COLUMNS = {
   subjects: 'id,semester_id,department_id,code,name_ar,name_en,active,sort_order',
   materials: 'id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,created_at,updated_at',
   schedules: 'id,semester_id,department_id,subject_id,day_of_week,start_time,end_time,room,lecturer,active,created_by,updated_by,updated_at',
-  students: 'id,student_number,full_name,department_id,current_semester_id,active,created_at,updated_at',
+  students: 'id,student_number,full_name,email,department_id,current_semester_id,active,CASE WHEN auth_secret_hash IS NULL THEN 0 ELSE 1 END AS registered,created_at,updated_at',
   badges: 'id,name_ar,description_ar,icon_url,rule_type,rule_value,active,sort_order,created_at,updated_at',
   comments: 'id,student_id,content_type,content_id,body,status,created_at,updated_at',
 };
@@ -1514,8 +1531,20 @@ async function adminCrud(ctx, table, id, actorId) {
     const offset = Math.max(0, Number.parseInt(ctx.url.searchParams.get('offset') || '0', 10) || 0);
     const columns = ADMIN_SELECT_COLUMNS[table];
     if (!columns) return error('ADMIN_RESOURCE_NOT_FOUND','وحدة الإدارة غير معروفة.',404,ctx.requestId,ctx.cors);
-    const rows = await queryAll(ctx.env, `SELECT ${columns} FROM ${table} ORDER BY rowid DESC LIMIT ? OFFSET ?`, limit, offset);
-    const count = await queryOne(ctx.env, `SELECT COUNT(*) AS count FROM ${table}`);
+    let where = '';
+    const params = [];
+    if (table === 'students') {
+      const q = String(ctx.url.searchParams.get('q') || '').trim();
+      const department = String(ctx.url.searchParams.get('department') || '').trim();
+      const semester = String(ctx.url.searchParams.get('semester') || '').trim();
+      const clauses = [];
+      if (q) { clauses.push('(student_number LIKE ? OR full_name LIKE ? OR email LIKE ?)'); const like = `%${q}%`; params.push(like, like, like); }
+      if (department) { clauses.push('department_id = ?'); params.push(department); }
+      if (semester) { clauses.push('current_semester_id = ?'); params.push(semester); }
+      if (clauses.length) where = ` WHERE ${clauses.join(' AND ')}`;
+    }
+    const rows = await queryAll(ctx.env, `SELECT ${columns} FROM ${table}${where} ORDER BY rowid DESC LIMIT ? OFFSET ?`, ...params, limit, offset);
+    const count = await queryOne(ctx.env, `SELECT COUNT(*) AS count FROM ${table}${where}`, ...params);
     return ok(ctx, rows, { limit, offset, total: Number(count?.count || 0) });
   }
   if (ctx.request.method === 'POST') {

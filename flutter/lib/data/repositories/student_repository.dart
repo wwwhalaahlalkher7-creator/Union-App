@@ -30,17 +30,13 @@ class StudentRepository {
 
   Future<Map<String, dynamic>> register({
     required String studentNumber,
-    required String departmentId,
-    required String semesterId,
     required String email,
     required String password,
     String? confirmPassword,
   }) async {
     final j = await _client.postJson('/api/v1/auth/register', body: {
       'studentNumber': studentNumber,
-      'departmentId': departmentId,
-      'semesterId': semesterId,
-      'email': email,
+      'email': email.trim(),
       'password': password,
       'confirmPassword': ?confirmPassword,
     });
@@ -49,11 +45,4 @@ class StudentRepository {
     throw const ApiException('فشل إنشاء الحساب. يرجى التحقق من البيانات والمحاولة مجددًا.');
   }
 
-  Future<Map<String, dynamic>> updateSemester({required String semesterId}) async {
-    final j = await _client.postJson('/api/v1/student/semester', body: {
-      'semesterId': semesterId,
-    });
-    final d = j['data'];
-    return d is Map ? Map<String, dynamic>.from(d) : const {};
-  }
 }

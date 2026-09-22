@@ -37,14 +37,14 @@ window.Adapter = (() => {
   async function updateContent(type,id,fields){return req('/admin/'+type+'/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(contentPayload(type,fields))});}
   async function deleteContent(type,id){return req('/admin/'+type+'/'+encodeURIComponent(id),{method:'DELETE'});} async function sendNotification(announcementId){return req('/admin/notifications/send',{method:'POST',body:JSON.stringify({announcementId})});} async function listNotifications(){return req('/admin/notifications?limit=100');}
   async function listStudentsAdmin(filters={}){
-    const q=new URLSearchParams({limit:'100'});if(filters.q)q.set('q',filters.q);
+    const q=new URLSearchParams({limit:'100'});if(filters.q)q.set('q',filters.q);if(filters.department)q.set('department',filters.department);if(filters.semester)q.set('semester',filters.semester);
     const rows=await req('/admin/students?'+q);
     const [departments,semesters]=await Promise.all([req('/departments'),req('/semesters')]);
     const depMap=new Map(departments.map(d=>[d.id,d]));
     const semMap=new Map(semesters.map(s=>[s.id,s]));
     return {records:rows.map(r=>{
       const dep=depMap.get(r.department_id), sem=semMap.get(r.current_semester_id);
-      return {id:r.id,studentId:r.student_number,name:r.full_name,department:r.department_id,departmentName:dep?.name_ar||dep?.name_en||dep?.code||r.department_id,semester:r.current_semester_id,semesterName:sem?.name_ar||sem?.name_en||(sem?.number!=null?`الفصل ${sem.number}`:r.current_semester_id),active:!!r.active,fields:{Student:r.full_name,Student_ID:r.student_number,Department:r.department_id,Semester:r.current_semester_id,Active:r.active}};
+      return {id:r.id,studentId:r.student_number,name:r.full_name,email:r.email||'',department:r.department_id,departmentName:dep?.name_ar||dep?.name_en||dep?.code||r.department_id,semester:r.current_semester_id,semesterName:sem?.name_ar||sem?.name_en||(sem?.number!=null?`الفصل ${sem.number}`:r.current_semester_id),active:!!r.active,registered:Number(r.registered||0)===1,fields:{Student:r.full_name,Student_ID:r.student_number,Email:r.email||'',Department:r.department_id,Semester:r.current_semester_id,Active:r.active}};
     }),departments,semesters};
   }
   async function createStudentAdmin(s){return req('/admin/students',{method:'POST',body:JSON.stringify({student_number:String(s.Student_ID||s.studentNumber||'').trim(),full_name:String(s.Student||s.fullName||'').trim(),department_id:s.Department||s.department_id,current_semester_id:s.Semester||s.current_semester_id,active:s.Active===false?0:1})});}
