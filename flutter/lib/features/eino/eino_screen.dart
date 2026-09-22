@@ -776,7 +776,7 @@ class _EinoScreenState extends State<EinoScreen> {
           style: TextStyle(color: cs.onSurfaceVariant, height: 1.5),
         ),
         const SizedBox(height: 18),
-        _EinoGoalCard(source: widget.source),
+        _einoGoalCard(source: widget.source),
         const SizedBox(height: 18),
         Wrap(
           spacing: 9,
@@ -798,7 +798,7 @@ class _EinoScreenState extends State<EinoScreen> {
     );
   }
 
-  Widget _EinoGoalCard({required String source}) {
+  Widget _einoGoalCard({required String source}) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final title = switch (source) {

@@ -89,9 +89,9 @@ class _XpScreenState extends State<XpScreen> {
             DesignTokens.space32,
           ),
           children: [
-            _XpHero(snapshot: snapshot!, progress: progress),
+            _XpHero(snapshot: snapshot, progress: progress),
             const SizedBox(height: DesignTokens.space16),
-            _NextMilestone(snapshot: snapshot!),
+            _NextMilestone(snapshot: snapshot),
             const SizedBox(height: DesignTokens.space24),
             AppSection(
               title: l10n.t('xpLog'),
