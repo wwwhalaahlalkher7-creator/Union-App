@@ -40,7 +40,7 @@ class TrinexMark extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         boxShadow: [
           BoxShadow(
-            color: AppColors.navy.withValues(alpha: .16),
+            color: AppColors.background.withValues(alpha: .16),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),

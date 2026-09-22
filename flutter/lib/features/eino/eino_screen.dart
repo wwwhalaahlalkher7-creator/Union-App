@@ -775,7 +775,9 @@ class _EinoScreenState extends State<EinoScreen> {
           textAlign: TextAlign.center,
           style: TextStyle(color: cs.onSurfaceVariant, height: 1.5),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 18),
+        _EinoGoalCard(source: widget.source),
+        const SizedBox(height: 18),
         Wrap(
           spacing: 9,
           runSpacing: 9,
@@ -793,6 +795,44 @@ class _EinoScreenState extends State<EinoScreen> {
               .toList(),
         ),
       ],
+    );
+  }
+
+  Widget _EinoGoalCard({required String source}) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final title = switch (source) {
+      'materials' => l10n.t('einoGoalMaterials'),
+      'schedule' => l10n.t('einoGoalSchedule'),
+      'progress' => l10n.t('einoGoalProgress'),
+      'xp' => l10n.t('einoGoalXp'),
+      'badges' => l10n.t('einoGoalBadges'),
+      _ => l10n.t('einoGoalHome'),
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.track_changes_rounded, color: cs.primary, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: cs.onSurfaceVariant,
+                fontSize: 12.5,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

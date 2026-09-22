@@ -72,7 +72,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     final cs = Theme.of(context).colorScheme;
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     return Scaffold(
-      backgroundColor: AppColors.navy,
+      backgroundColor: AppColors.background,
       body: Stack(
         fit: StackFit.expand,
         children: [

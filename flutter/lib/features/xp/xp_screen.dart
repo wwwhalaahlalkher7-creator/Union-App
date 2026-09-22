@@ -90,6 +90,8 @@ class _XpScreenState extends State<XpScreen> {
           ),
           children: [
             _XpHero(snapshot: snapshot!, progress: progress),
+            const SizedBox(height: DesignTokens.space16),
+            _NextMilestone(snapshot: snapshot!),
             const SizedBox(height: DesignTokens.space24),
             AppSection(
               title: l10n.t('xpLog'),
@@ -314,6 +316,64 @@ class _EventTile extends StatelessWidget {
       default:
         return l10n.t('xpEventOther');
     }
+  }
+}
+
+
+class _NextMilestone extends StatelessWidget {
+  const _NextMilestone({required this.snapshot});
+  final XpSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final remaining = (snapshot.nextLevelXp - snapshot.levelXp).clamp(0, snapshot.nextLevelXp);
+    final isComplete = remaining == 0;
+
+    return AppCard(
+      padding: const EdgeInsets.all(DesignTokens.space16),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: cs.secondaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isComplete ? Icons.check_rounded : Icons.flag_rounded,
+              color: cs.onSecondaryContainer,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isComplete
+                      ? l10n.t('levelReady')
+                      : l10n.t('nextLevelGoal'),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  isComplete
+                      ? l10n.t('levelReadySubtitle')
+                      : l10n.t('xpRemaining', {'value': '$remaining'}),
+                  style: TextStyle(
+                    color: cs.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

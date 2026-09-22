@@ -249,6 +249,7 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Tooltip(
       message: l10n.t('profile'),
       child: InkWell(

@@ -11,6 +11,7 @@ import '../../data/models/student_profile.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../data/repositories/student_repository.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../features/eino/eino_face.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -200,6 +201,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: DesignTokens.space16),
+              _EinoHomeCard(
+                onTap: () => context.push('/eino?from=home'),
+              ),
+              const SizedBox(height: DesignTokens.space16),
+              _ProgressJourneyCard(
+                level: level,
+                xp: xp,
+                onXpTap: () => context.go('/xp'),
+                onBadgesTap: () => context.go('/badges'),
               ),
               const SizedBox(height: 20),
               Row(
@@ -468,4 +480,90 @@ class _StateMessage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _EinoHomeCard extends StatelessWidget {
+  const _EinoHomeCard({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return Material(
+      color: cs.primaryContainer.withValues(alpha: .42),
+      borderRadius: BorderRadius.circular(DesignTokens.radius20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(DesignTokens.radius20),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 12, 12),
+          child: Row(
+            children: [
+              const EinoFace(size: 58, mood: EinoMood.happy, showAura: false),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.t('einoCardTitle'), style: const TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 3),
+                    Text(l10n.t('einoHomeSubtitle'), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5, height: 1.3)),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, size: 16, color: cs.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressJourneyCard extends StatelessWidget {
+  const _ProgressJourneyCard({required this.level, required this.xp, required this.onXpTap, required this.onBadgesTap});
+  final int level;
+  final int xp;
+  final VoidCallback onXpTap;
+  final VoidCallback onBadgesTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return AppCard(
+      padding: const EdgeInsets.all(DesignTokens.space16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            Container(width: 42, height: 42, decoration: BoxDecoration(color: cs.primaryContainer, shape: BoxShape.circle), child: Icon(Icons.auto_awesome_rounded, color: cs.onPrimaryContainer)),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(l10n.t('yourJourney'), style: const TextStyle(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 2),
+              Text(l10n.t('levelValue', {'level': '$level'}), style: TextStyle(color: cs.primary, fontWeight: FontWeight.w800)),
+            ])),
+            Text('$xp XP', style: TextStyle(fontWeight: FontWeight.w900, color: cs.primary)),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: _JourneyAction(icon: Icons.bolt_rounded, label: l10n.t('viewXp'), onTap: onXpTap)),
+            const SizedBox(width: 8),
+            Expanded(child: _JourneyAction(icon: Icons.emoji_events_rounded, label: l10n.t('viewBadges'), onTap: onBadgesTap)),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _JourneyAction extends StatelessWidget {
+  const _JourneyAction({required this.icon, required this.label, required this.onTap});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(onPressed: onTap, icon: Icon(icon, size: 18), label: Text(label), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44), padding: const EdgeInsets.symmetric(horizontal: 10)));
 }

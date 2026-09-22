@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
@@ -69,6 +70,15 @@ class _BadgesScreenState extends State<BadgesScreen> {
                 LinearProgressIndicator(value: ratio, minHeight: 8, borderRadius: BorderRadius.circular(7.2)),
               ]),
             ),
+            const SizedBox(height: DesignTokens.space16),
+            OutlinedButton.icon(
+              onPressed: () => context.go('/xp'),
+              icon: const Icon(Icons.bolt_rounded),
+              label: Text(l10n.t('viewXp')),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(46),
+              ),
+            ),
             const SizedBox(height: DesignTokens.space24),
             AppSection(
               title: l10n.t('badgeCollection'),
@@ -102,7 +112,22 @@ class _BadgeCard extends StatelessWidget {
     return AppCard(
       padding: const EdgeInsets.all(DesignTokens.space12),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(width: 58, height: 58, decoration: BoxDecoration(color: badge.earned ? cs.primaryContainer : cs.surfaceContainerHighest, shape: BoxShape.circle), child: Icon(badge.earned ? Icons.emoji_events_rounded : Icons.lock_outline_rounded, color: badge.earned ? cs.onPrimaryContainer : cs.onSurfaceVariant)),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: badge.earned ? cs.primaryContainer : cs.surfaceContainerHighest,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: badge.earned ? cs.primary.withValues(alpha: .35) : cs.outlineVariant,
+            ),
+          ),
+          child: Icon(
+            badge.earned ? Icons.emoji_events_rounded : Icons.lock_outline_rounded,
+            color: badge.earned ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 10),
         Text(badge.localizedName(languageCode), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: badge.earned ? cs.onSurface : cs.onSurfaceVariant)),
         const SizedBox(height: 4),
