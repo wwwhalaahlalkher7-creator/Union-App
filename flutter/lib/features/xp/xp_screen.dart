@@ -72,9 +72,13 @@ class _XpScreenState extends State<XpScreen> {
     } else if (_error != null && snapshot == null) {
       body = _XpError(message: _error!, retry: _load);
     } else {
-      final progress = snapshot == null || snapshot.nextLevelXp <= 0
+      // Both guarded branches above require a null snapshot, so reaching this
+      // branch means a snapshot is available. Keep the promotion explicit for
+      // Dart's flow analysis and pass a non-null value to the child widgets.
+      final data = snapshot!;
+      final progress = data.nextLevelXp <= 0
           ? 0.0
-          : (snapshot.levelXp / snapshot.nextLevelXp)
+          : (data.levelXp / data.nextLevelXp)
               .clamp(0.0, 1.0)
               .toDouble();
 
@@ -89,14 +93,14 @@ class _XpScreenState extends State<XpScreen> {
             DesignTokens.space32,
           ),
           children: [
-            _XpHero(snapshot: snapshot, progress: progress),
+            _XpHero(snapshot: data, progress: progress),
             const SizedBox(height: DesignTokens.space16),
-            _NextMilestone(snapshot: snapshot),
+            _NextMilestone(snapshot: data),
             const SizedBox(height: DesignTokens.space24),
             AppSection(
               title: l10n.t('xpLog'),
               subtitle: l10n.t('xpSubtitle'),
-              child: snapshot.events.isEmpty
+              child: data.events.isEmpty
                   ? AppCard(
                       child: Row(
                         children: [
@@ -109,10 +113,10 @@ class _XpScreenState extends State<XpScreen> {
                     )
                   : Column(
                       children: [
-                        for (var i = 0; i < snapshot.events.length; i++)
+                        for (var i = 0; i < data.events.length; i++)
                           _EventTile(
-                            event: snapshot.events[i],
-                            last: i == snapshot.events.length - 1,
+                            event: data.events[i],
+                            last: i == data.events.length - 1,
                           ),
                       ],
                     ),
