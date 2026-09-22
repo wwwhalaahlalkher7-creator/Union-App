@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:llama_flutter_android/llama_flutter_android.dart';
 import 'package:record/record.dart';
 
@@ -45,9 +46,11 @@ class _EinoScreenState extends State<EinoScreen> {
 
   EinoMood get _mood => _recording || _sending || _uploading
       ? EinoMood.thinking
-      : _messages.any((m) => !m.user && !m.isError)
-          ? EinoMood.happy
-          : EinoMood.idle;
+      : _messages.any((m) => m.isError)
+          ? EinoMood.concerned
+          : _messages.any((m) => !m.user && !m.isError)
+              ? EinoMood.happy
+              : EinoMood.idle;
 
   @override
   void initState() {
@@ -277,6 +280,15 @@ class _EinoScreenState extends State<EinoScreen> {
     final path = '${Directory.systemTemp.path}/eino_${DateTime.now().millisecondsSinceEpoch}.m4a';
     await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
     if (mounted) setState(() => _recording = true);
+  }
+
+  Future<void> _copyMessage(_Message message) async {
+    if (message.text.trim().isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: message.text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context).t('copied'))),
+    );
   }
 
   Future<void> _speak(_Message message) async {
@@ -868,13 +880,20 @@ class _EinoScreenState extends State<EinoScreen> {
                     ],
                   ),
                   const SizedBox(height: 5),
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: IconButton(
-                      onPressed: () => _speak(m),
-                      tooltip: AppLocalizations.of(context).t('einoListen'),
-                      icon: const Icon(Icons.volume_up_outlined, size: 19),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        tooltip: AppLocalizations.of(context).t('copy'),
+                        onPressed: () => _copyMessage(m),
+                        icon: const Icon(Icons.copy_outlined, size: 18),
+                      ),
+                      IconButton(
+                        onPressed: () => _speak(m),
+                        tooltip: AppLocalizations.of(context).t('einoListen'),
+                        icon: const Icon(Icons.volume_up_outlined, size: 19),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -933,6 +952,7 @@ class _EinoScreenState extends State<EinoScreen> {
               minLines: 1,
               maxLines: 6,
               textCapitalization: TextCapitalization.sentences,
+              onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
                 hintText: l10n.t('einoHint'),
                 border: InputBorder.none,

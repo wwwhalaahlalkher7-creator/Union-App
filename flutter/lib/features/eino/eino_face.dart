@@ -141,7 +141,7 @@ class _EinoAnimePainter extends CustomPainter {
     }
 
     // Circular background badge
-    final bgPaint = Paint()..color = const Color(0xFF0F1E2E);
+    final bgPaint = Paint()..color = Color.lerp(const Color(0xFF0B1320), accent, .10)!;
     canvas.drawCircle(center, r, bgPaint);
 
     final borderPaint = Paint()
@@ -176,7 +176,7 @@ class _EinoAnimePainter extends CustomPainter {
     canvas.drawPath(neckPath, neckPaint);
 
     // Engineering hoodie / shirt collar
-    final collarPaint = Paint()..color = const Color(0xFF1E293B);
+    final collarPaint = Paint()..color = Color.lerp(const Color(0xFF172231), accent, .18)!;
     final collarPath = Path()
       ..moveTo(center.dx - r * 0.55, center.dy + r * 0.85)
       ..quadraticBezierTo(center.dx, center.dy + r * 0.65, center.dx + r * 0.55, center.dy + r * 0.85)
@@ -333,17 +333,19 @@ class _EinoAnimePainter extends CustomPainter {
       center.dy + (mood == EinoMood.thinking ? -r * 0.03 : r * 0.02),
     );
     final irisPaint = Paint()
-      ..shader = const RadialGradient(
+      ..shader = RadialGradient(
         colors: [
-          Color(0xFF0284C7),
-          Color(0xFF0369A1),
-          Color(0xFF0C4A6E),
+          Color.lerp(Colors.white, accent, .92)!,
+          accent,
+          Color.lerp(const Color(0xFF0B1320), accent, .38)!,
         ],
-      ).createShader(Rect.fromCircle(center: irisCenter, radius: eyeWidth * 0.4));
+      ).createShader(
+        Rect.fromCircle(center: irisCenter, radius: eyeWidth * 0.4),
+      );
     canvas.drawOval(Rect.fromCenter(center: irisCenter, width: eyeWidth * 0.76, height: eyeHeight * 0.88), irisPaint);
 
     // Dark Pupil
-    final pupilPaint = Paint()..color = const Color(0xFF082F49);
+    final pupilPaint = Paint()..color = const Color(0xFF07101C);
     canvas.drawCircle(irisCenter, eyeWidth * 0.22, pupilPaint);
 
     // Specular anime sparkles (twin glints for living anime feel)

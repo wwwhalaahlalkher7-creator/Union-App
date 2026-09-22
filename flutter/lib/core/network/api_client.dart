@@ -92,10 +92,11 @@ class ApiClient {
       final token = await authStorage?.accessToken;
       if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
       if (body != null) { headers['Content-Type'] = 'application/json'; }
+      final timeout = _requestTimeout(path);
       final response = switch (method) {
-        'GET' => await _client.get(uri, headers: headers).timeout(const Duration(seconds: 20)),
-        'DELETE' => await _client.delete(uri, headers: headers).timeout(const Duration(seconds: 20)),
-        _ => await _client.post(uri, headers: headers, body: jsonEncode(body ?? const {})).timeout(const Duration(seconds: 20)),
+        'GET' => await _client.get(uri, headers: headers).timeout(timeout),
+        'DELETE' => await _client.delete(uri, headers: headers).timeout(timeout),
+        _ => await _client.post(uri, headers: headers, body: jsonEncode(body ?? const {})).timeout(timeout),
       };
       if (response.statusCode == 401 && retry && (await authStorage?.refreshToken)?.isNotEmpty == true) {
         final refreshed = await _refreshSession();
@@ -110,6 +111,22 @@ class ApiClient {
       on TimeoutException catch (e) { throw ApiException('انتهت مهلة الاتصال بالخدمة. أعد المحاولة.', cause: e, kind: ApiErrorKind.timeout, retryable: true); }
       on SocketException catch (e) { throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true); }
       on http.ClientException catch (e) { throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true); }
+  }
+
+  Duration _requestTimeout(String path) {
+    final normalized = path.toLowerCase();
+    // The Worker gives Eino up to 30s for chat/vision/TTS and up to 60s for
+    // OCR/STT. A 20s Flutter timeout would make the app report a failure
+    // while the backend is still processing a valid request.
+    if (normalized.contains('/eino/ocr') || normalized.contains('/eino/stt')) {
+      return const Duration(seconds: 90);
+    }
+    if (normalized.contains('/eino/chat') ||
+        normalized.contains('/eino/vision') ||
+        normalized.contains('/eino/tts')) {
+      return const Duration(seconds: 45);
+    }
+    return const Duration(seconds: 20);
   }
 
   Future<bool> _refreshSession() async {

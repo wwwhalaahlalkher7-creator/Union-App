@@ -91,3 +91,61 @@ Admin endpoints are under `/admin/*` and require staff authentication plus the r
 ```
 
 Do not expose provider secrets, SQL errors, stack traces, raw tokens or private student data through this contract.
+
+## Student registration and semester selection
+
+`POST /auth/register`
+
+Request:
+```json
+{
+  "studentNumber": "string",
+  "departmentId": "string",
+  "semesterId": "string",
+  "email": "student@example.com",
+  "password": "string",
+  "confirmPassword": "string"
+}
+```
+
+`POST /student/semester`
+
+Request:
+```json
+{"semesterId":"string"}
+```
+
+Materials intentionally permit a registered student to request historical semesters. This is different from the schedule endpoint, which only exposes active semesters.
+
+## Eino media and memory endpoints
+
+- `GET /eino/capabilities`
+- `GET /eino/models`
+- `GET /eino/memory?limit=30`
+- `POST /eino/memory` with `{ "content": "...", "category": "general" }`
+- `DELETE /eino/memory/:id`
+- `POST /eino/vision` with JSON `{ "image": "data-url", "mode": "describe" }`
+- `POST /eino/ocr` as multipart field `file` (maximum 10 MB)
+- `POST /eino/stt` as multipart field `file` (maximum 25 MB), optional `language`
+- `POST /eino/tts` with JSON `{ "text": "...", "voice": "af_heart" }`
+
+The Flutter client allows longer network timeouts for these operations than ordinary API calls because the Worker/provider contracts allow up to 30 seconds for chat/vision/TTS and 60 seconds for OCR/STT.
+
+## Interaction content types
+
+The interaction API accepts only:
+
+`news`, `event`, `activity`, `announcement`, `achievement`.
+
+The public detail API uses plural route names (`events`, `activities`) while interaction routes use the singular content type (`event`, `activity`).
+
+## Response envelopes
+
+Successful responses always use:
+```json
+{"success":true,"data":{},"meta":{}}
+```
+
+`meta` is omitted when there is no metadata.
+
+Client errors and server errors use the error envelope documented above. Database uniqueness conflicts are returned as `409 CONFLICT`; invalid foreign-key, NOT NULL, or CHECK data is returned as `400 DATA_CONSTRAINT` instead of being exposed as an unclassified `500`.

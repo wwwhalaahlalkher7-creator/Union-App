@@ -88,7 +88,7 @@ class _NewsScreenState extends State<NewsScreen> {
               Text(
                 l10n.t('news'),
                 textAlign: TextAlign.start,
-                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 3),
               Text(
@@ -96,7 +96,7 @@ class _NewsScreenState extends State<NewsScreen> {
                 textAlign: TextAlign.start,
                 style: TextStyle(
                   color: context.colors.onSurfaceVariant,
-                  fontSize: 10.5,
+                  fontSize: 12,
                 ),
               ),
               const SizedBox(height: 9),
@@ -212,7 +212,7 @@ class _NewsCardState extends State<_NewsCard> {
           Stack(
             children: [
               AspectRatio(
-                aspectRatio: 16 / 7.8,
+                aspectRatio: 16 / 8.6,
                 child: imageUrl == null || imageUrl.isEmpty
                     ? Container(
                         color: context.colors.surfaceContainerHigh,
@@ -240,14 +240,14 @@ class _NewsCardState extends State<_NewsCard> {
                 start: 10,
                 bottom: 10,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: .82),
-                    borderRadius: BorderRadius.circular(7),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     category,
-                    style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w900),
+                    style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
@@ -284,7 +284,7 @@ class _NewsCardState extends State<_NewsCard> {
                           Text(
                             item.title,
                             textAlign: TextAlign.start,
-                            style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, height: 1.35),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.35),
                           ),
                           if (item.summary?.trim().isNotEmpty == true) ...[
                             const SizedBox(height: 4),
@@ -293,7 +293,7 @@ class _NewsCardState extends State<_NewsCard> {
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.start,
-                              style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 10.5, height: 1.45),
+                              style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 12, height: 1.5),
                             ),
                           ],
                         ],
@@ -368,7 +368,7 @@ class _ActionButton extends StatelessWidget {
               Icon(icon, size: 18, color: color),
               if (count > 0) ...[
                 const SizedBox(width: 4),
-                Text('$count', style: TextStyle(fontSize: 9.5, color: color, fontWeight: FontWeight.w700)),
+                Text('$count', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w700)),
               ],
             ],
           ),

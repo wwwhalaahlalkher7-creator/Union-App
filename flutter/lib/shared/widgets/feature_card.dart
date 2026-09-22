@@ -48,13 +48,7 @@ class _FeatureCardState extends State<FeatureCard> {
             border: Border.all(
               color: _hovering ? cs.primary.withValues(alpha: .35) : cs.outline.withValues(alpha: .08),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: cs.primary.withValues(alpha: _hovering ? .12 : .05),
-                blurRadius: _hovering ? 18 : 10,
-                offset: const Offset(0, 6),
-              ),
-            ],
+
           ),
           child: Padding(
             padding: const EdgeInsets.all(DesignTokens.space16),
@@ -65,14 +59,7 @@ class _FeatureCardState extends State<FeatureCard> {
                   height: 44,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: AlignmentDirectional.topStart,
-                      end: AlignmentDirectional.bottomEnd,
-                      colors: [
-                        cs.primary.withValues(alpha: .20),
-                        cs.primary.withValues(alpha: .08),
-                      ],
-                    ),
+                    color: cs.primaryContainer,
                   ),
                   child: Icon(widget.icon, color: cs.primary, size: 22),
                 ),

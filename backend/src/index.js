@@ -136,7 +136,7 @@ export default {
       return error('NOT_FOUND', 'المسار غير موجود.', 404, requestId, cors);
     } catch (e) {
       console.error(`[${requestId}]`, e);
-      return error('INTERNAL_ERROR', 'حدث خطأ غير متوقع. حاول مرة أخرى.', 500, requestId, cors);
+      return databaseErrorResponse(e, requestId, cors);
     }
   },
 };
@@ -164,6 +164,17 @@ function json(ctx, payload, status = 200, extra = {}) {
 
 function ok(ctx, data, meta = null, status = 200) {
   return json(ctx, { success: true, data, ...(meta ? { meta } : {}) }, status);
+}
+
+function databaseErrorResponse(e, requestId, cors) {
+  const message = String(e?.message || e || '');
+  if (/UNIQUE constraint failed/i.test(message)) {
+    return error('CONFLICT', 'البيانات موجودة بالفعل أو تتعارض مع سجل موجود.', 409, requestId, cors);
+  }
+  if (/FOREIGN KEY constraint failed|NOT NULL constraint failed|CHECK constraint failed/i.test(message)) {
+    return error('DATA_CONSTRAINT', 'البيانات المرسلة لا تتوافق مع العلاقات أو القيود الحالية.', 400, requestId, cors);
+  }
+  return error('INTERNAL_ERROR', 'حدث خطأ غير متوقع. حاول مرة أخرى.', 500, requestId, cors);
 }
 
 function error(code, message, status = 400, requestId = crypto.randomUUID(), cors = {}) {
@@ -255,7 +266,9 @@ async function publicContentDetail(ctx) {
       (SELECT COUNT(*) FROM comments c WHERE c.content_type=? AND c.content_id=${table}.id AND c.status='visible') AS comment_count,
       (SELECT COUNT(*) FROM reactions r WHERE r.content_type=? AND r.content_id=${table}.id) AS like_count
     FROM ${table} WHERE id=? AND status='published' AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP) ${expiryClause}`,
-    table === 'news' ? 'news' : 'activity', table === 'news' ? 'news' : 'activity', id);
+    table === 'news' ? 'news' : table === 'events' ? 'event' : 'activity',
+    table === 'news' ? 'news' : table === 'events' ? 'event' : 'activity',
+    id);
   if (!row) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح حاليًا.',404,ctx.requestId,ctx.cors);
   return ok(ctx, serializePublicContent(table, row), {source:'d1'});
 }
@@ -586,9 +599,21 @@ async function login(ctx) {
   if (student.locked_until && new Date(student.locked_until).getTime() > Date.now()) return lockedResponse(ctx);
   const valid = await verifySecret(secret, student.auth_secret_hash, student.auth_secret_salt, student.auth_secret_algo);
   if (!valid) {
-    const failed = (student.failed_login_attempts || 0) + 1;
-    const locked = failed >= AUTH_MAX_FAILED ? new Date(Date.now() + AUTH_LOCK_SECONDS * 1000).toISOString() : null;
-    await ctx.env.DB.prepare('UPDATE students SET failed_login_attempts = ?, locked_until = ? WHERE id = ?').bind(failed, locked, student.id).run();
+    // Increment the failure counter in SQL so concurrent wrong-password requests
+    // cannot overwrite each other's count (read-then-write race).
+    await ctx.env.DB.prepare(`
+      UPDATE students
+      SET failed_login_attempts = failed_login_attempts + 1,
+          locked_until = CASE
+            WHEN failed_login_attempts + 1 >= ?
+              THEN datetime('now', '+' || ? || ' seconds')
+            ELSE locked_until
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND active = 1
+    `).bind(AUTH_MAX_FAILED, AUTH_LOCK_SECONDS, student.id).run();
+    const state = await queryOne(ctx.env, 'SELECT failed_login_attempts, locked_until FROM students WHERE id=?', student.id);
+    const locked = Number(state?.failed_login_attempts || 0) >= AUTH_MAX_FAILED && state?.locked_until;
     await recordAuthEvent(ctx, 'student', student.id, locked ? 'login_locked' : 'login_failed');
     return locked ? lockedResponse(ctx) : error('AUTH_INVALID_CREDENTIALS', 'بيانات تسجيل الدخول غير صحيحة.', 401, ctx.requestId, ctx.cors);
   }
@@ -665,9 +690,18 @@ async function staffLogin(ctx) {
   if (staff.locked_until && new Date(staff.locked_until).getTime() > Date.now()) return lockedResponse(ctx);
   const valid = await verifySecret(password, staff.password_hash, staff.password_salt, staff.password_algo);
   if (!valid) {
-    const failed = (staff.failed_login_attempts || 0) + 1;
-    const locked = failed >= AUTH_MAX_FAILED ? new Date(Date.now() + AUTH_LOCK_SECONDS * 1000).toISOString() : null;
-    await ctx.env.DB.prepare('UPDATE staff_users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?').bind(failed, locked, staff.id).run();
+    await ctx.env.DB.prepare(`
+      UPDATE staff_users
+      SET failed_login_attempts = failed_login_attempts + 1,
+          locked_until = CASE
+            WHEN failed_login_attempts + 1 >= ?
+              THEN datetime('now', '+' || ? || ' seconds')
+            ELSE locked_until
+          END
+      WHERE id = ? AND active = 1
+    `).bind(AUTH_MAX_FAILED, AUTH_LOCK_SECONDS, staff.id).run();
+    const state = await queryOne(ctx.env, 'SELECT failed_login_attempts, locked_until FROM staff_users WHERE id=?', staff.id);
+    const locked = Number(state?.failed_login_attempts || 0) >= AUTH_MAX_FAILED && state?.locked_until;
     await recordAuthEvent(ctx, 'staff', staff.id, locked ? 'login_locked' : 'login_failed');
     return locked ? lockedResponse(ctx) : error('AUTH_INVALID_CREDENTIALS', 'بيانات تسجيل الدخول غير صحيحة.', 401, ctx.requestId, ctx.cors);
   }
@@ -880,12 +914,13 @@ async function studentNotificationRead(ctx) {
   const ids = Array.isArray(body?.ids) ? body.ids.map(String).filter(Boolean).slice(0, 100) : [];
   if (!ids.length) return error('NOTIFICATION_IDS_REQUIRED', 'معرّفات الإشعارات مطلوبة.', 400, ctx.requestId, ctx.cors);
   const now = new Date().toISOString();
-  let changed = 0;
-  for (const id of ids) {
-    const r = await ctx.env.DB.prepare('UPDATE notification_targets SET read_at = COALESCE(read_at, ?) WHERE id = ? AND student_id = ?').bind(now, id, a.session.student_id).run();
-    changed += r.meta?.changes || 0;
-  }
-  return ok(ctx, {updated: changed});
+  const marks = ids.map(() => '?').join(',');
+  const result = await ctx.env.DB.prepare(
+    `UPDATE notification_targets
+     SET read_at = COALESCE(read_at, ?)
+     WHERE student_id = ? AND id IN (${marks})`
+  ).bind(now, a.session.student_id, ...ids).run();
+  return ok(ctx, {updated: Number(result.meta?.changes || 0)});
 }
 
 async function registerNotificationDevice(ctx) {
@@ -938,12 +973,28 @@ async function effectiveStudentSemester(ctx, session, requested) {
   return { id: current?.id || null };
 }
 
+async function effectiveMaterialSemester(ctx, session, requested) {
+  if (requested) {
+    // Materials intentionally allow browsing historical semesters. A previous
+    // semester may be archived/inactive while its study files remain useful.
+    const row = await queryOne(ctx.env, 'SELECT id FROM semesters WHERE id = ?', requested);
+    if (!row) return { error: error('SEMESTER_NOT_FOUND', 'الفصل الدراسي غير موجود.', 404, ctx.requestId, ctx.cors) };
+    return { id: requested };
+  }
+  if (session.current_semester_id) {
+    const row = await queryOne(ctx.env, 'SELECT id FROM semesters WHERE id = ?', session.current_semester_id);
+    if (row) return { id: row.id };
+  }
+  const current = await queryOne(ctx.env, 'SELECT id FROM semesters WHERE active = 1 ORDER BY is_current DESC, academic_year DESC, number DESC LIMIT 1');
+  return { id: current?.id || null };
+}
+
 async function materials(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
   const requestedSemester = ctx.url.searchParams.get('semesterId');
   const subjectId = ctx.url.searchParams.get('subjectId');
   const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
-  const semester = await effectiveStudentSemester(ctx, a.session, requestedSemester);
+  const semester = await effectiveMaterialSemester(ctx, a.session, requestedSemester);
   if (semester.error) return semester.error;
   const rows = await queryAll(ctx.env, `SELECT m.id, m.subject_id, m.title, m.description, m.drive_file_id, m.drive_url, m.drive_web_view_url, m.mime_type, m.size_bytes, m.pinned, m.sort_order, m.created_at, m.updated_at, s.code AS subject_code, s.name_ar AS subject_name, s.name_en AS subject_name_en, s.semester_id, s.department_id
     FROM materials m JOIN subjects s ON s.id = m.subject_id
@@ -1110,63 +1161,108 @@ function calculateLevel(totalXp) {
 
 async function awardProgressXp(ctx, studentId, materialId, previousPercent, nextPercent) {
   if (nextPercent <= previousPercent) return 0;
+
   const milestones = [
     { percent: 25, xp: 10, eventType: 'material_progress_25' },
     { percent: 50, xp: 10, eventType: 'material_progress_50' },
     { percent: 75, xp: 15, eventType: 'material_progress_75' },
     { percent: 100, xp: 25, eventType: 'material_complete' },
   ];
-  const crossed = milestones.filter(m => previousPercent < m.percent && nextPercent >= m.percent);
+  const crossed = milestones.filter((m) => previousPercent < m.percent && nextPercent >= m.percent);
   if (!crossed.length) return 0;
 
-  const todayCount = await queryOne(ctx.env, `SELECT COALESCE(SUM(xp),0) AS xp FROM xp_events WHERE student_id = ? AND created_at >= date('now')`, studentId);
-  let remaining = Math.max(0, XP_DAILY_CAP - Number(todayCount?.xp || 0));
-  let awarded = 0;
+  // The INSERT ... SELECT condition is evaluated inside the same D1 batch
+  // transaction as the milestone inserts. This makes the daily cap an
+  // atomic database rule instead of a read-then-write race in JavaScript.
+  const statements = crossed.map((milestone) => ctx.env.DB.prepare(`
+    INSERT INTO xp_events (id, student_id, event_type, source_id, xp)
+    SELECT ?, ?, ?, ?, ?
+    WHERE (
+      SELECT COALESCE(SUM(xp), 0)
+      FROM xp_events
+      WHERE student_id = ? AND created_at >= date('now')
+    ) + ? <= ?
+    ON CONFLICT(student_id, event_type, source_id) DO NOTHING
+  `).bind(
+    crypto.randomUUID(),
+    studentId,
+    milestone.eventType,
+    materialId,
+    milestone.xp,
+    studentId,
+    milestone.xp,
+    XP_DAILY_CAP,
+  ));
 
-  for (const milestone of crossed) {
-    if (remaining <= 0) break;
-    if (remaining < milestone.xp) continue;
-    const amount = milestone.xp;
-    const result = await ctx.env.DB.prepare(`INSERT INTO xp_events (id, student_id, event_type, source_id, xp)
-      VALUES (?, ?, ?, ?, ?) ON CONFLICT(student_id, event_type, source_id) DO NOTHING`)
-      .bind(crypto.randomUUID(), studentId, milestone.eventType, materialId, amount).run();
-    if (result.meta?.changes) {
-      await ctx.env.DB.prepare(`INSERT INTO student_stats (student_id, xp_total, level)
-        VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET xp_total = xp_total + excluded.xp_total, updated_at = CURRENT_TIMESTAMP`)
-        .bind(studentId, amount, calculateLevel(amount)).run();
-      awarded += amount;
-      remaining -= amount;
-    }
-  }
+  const results = await ctx.env.DB.batch(statements);
+  const awarded = crossed.reduce((sum, milestone, index) => {
+    const changed = Number(results[index]?.meta?.changes || 0);
+    return sum + (changed > 0 ? milestone.xp : 0);
+  }, 0);
+  if (awarded <= 0) return 0;
 
-  if (awarded > 0) {
-    const total = await queryOne(ctx.env, 'SELECT xp_total FROM student_stats WHERE student_id = ?', studentId);
-    const level = calculateLevel(Number(total?.xp_total || 0));
-    await ctx.env.DB.prepare('UPDATE student_stats SET level = ?, updated_at = CURRENT_TIMESTAMP WHERE student_id = ?').bind(level, studentId).run();
-  }
+  const total = await queryOne(ctx.env, 'SELECT COALESCE(SUM(xp),0) AS xp_total FROM xp_events WHERE student_id=?', studentId);
+  const totalXp = Number(total?.xp_total || 0);
+  await ctx.env.DB.prepare(`
+    INSERT INTO student_stats (student_id, xp_total, level)
+    VALUES (?, ?, ?)
+    ON CONFLICT(student_id) DO UPDATE SET
+      xp_total = excluded.xp_total,
+      level = excluded.level,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(studentId, totalXp, calculateLevel(totalXp)).run();
+
   return awarded;
 }
 
 async function evaluateBadges(ctx, studentId) {
-  const badgeRows = await queryAll(ctx.env, 'SELECT id, rule_type, rule_value FROM badges WHERE active=1 ORDER BY sort_order ASC, id ASC');
+  const badgeRows = await queryAll(ctx.env,
+    'SELECT id, rule_type, rule_value FROM badges WHERE active=1 ORDER BY sort_order ASC, id ASC');
   if (!badgeRows.length) return [];
-  const stats = await queryOne(ctx.env, 'SELECT xp_total, level FROM student_stats WHERE student_id=?', studentId);
-  const pe = await queryOne(ctx.env, 'SELECT COUNT(*) AS count FROM material_progress_events WHERE student_id=?', studentId);
-  const cm = await queryOne(ctx.env, 'SELECT COUNT(*) AS count FROM material_progress WHERE student_id=? AND progress_percent>=100', studentId);
-  const values = {xp_total:Number(stats?.xp_total||0), level:Number(stats?.level||calculateLevel(Number(stats?.xp_total||0))), progress_events:Number(pe?.count||0), completed_materials:Number(cm?.count||0)};
-  const newly=[];
-  for (const badge of badgeRows) {
-    const current=Number(values[badge.rule_type]||0), threshold=Number(badge.rule_value||0);
-    if (threshold<=0 || current<threshold) continue;
-    const result=await ctx.env.DB.prepare('INSERT INTO student_badges(student_id,badge_id) VALUES(?,?) ON CONFLICT(student_id,badge_id) DO NOTHING').bind(studentId,badge.id).run();
-    if (result.meta?.changes) newly.push(badge.id);
-  }
-  return newly;
+
+  const valuesRow = await queryOne(ctx.env, `
+    SELECT
+      COALESCE((SELECT xp_total FROM student_stats WHERE student_id=?), 0) AS xp_total,
+      COALESCE((SELECT level FROM student_stats WHERE student_id=?), 0) AS level,
+      (SELECT COUNT(*) FROM material_progress_events WHERE student_id=?) AS progress_events,
+      (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials
+  `, studentId, studentId, studentId, studentId);
+  const xpTotal = Number(valuesRow?.xp_total || 0);
+  const values = {
+    xp_total: xpTotal,
+    level: Number(valuesRow?.level || calculateLevel(xpTotal)),
+    progress_events: Number(valuesRow?.progress_events || 0),
+    completed_materials: Number(valuesRow?.completed_materials || 0),
+  };
+
+  const eligible = badgeRows.filter((badge) => {
+    const current = Number(values[badge.rule_type] || 0);
+    const threshold = Number(badge.rule_value || 0);
+    return threshold > 0 && current >= threshold;
+  });
+  if (!eligible.length) return [];
+
+  const results = await ctx.env.DB.batch(
+    eligible.map((badge) => ctx.env.DB.prepare(
+      'INSERT INTO student_badges(student_id,badge_id) VALUES(?,?) ON CONFLICT(student_id,badge_id) DO NOTHING'
+    ).bind(studentId, badge.id))
+  );
+  return eligible.filter((_, index) => Number(results[index]?.meta?.changes || 0) > 0).map((badge) => badge.id);
 }
 
 const INTERACTION_RULES = { comment: { limit: 10, minutes: 10 }, reply: { limit: 15, minutes: 10 }, reaction: { limit: 40, minutes: 10 } };
 const ALLOWED_REACTIONS = new Set(['like','helpful','love','celebrate']);
 const ALLOWED_CONTENT_TYPES = new Set(['news','event','activity','announcement','achievement']);
+
+async function contentIsCommentable(ctx, type, id) {
+  if (!ALLOWED_CONTENT_TYPES.has(type) || !id) return false;
+  const table = type === 'event' ? 'events' : type === 'activity' ? 'activities' : type === 'announcement' ? 'announcements' : type === 'achievement' ? 'achievements' : 'news';
+  const dateColumn = ['events', 'activities'].includes(table) ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
+  const expiry = ['news', 'announcements'].includes(table) ? ' AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)' : '';
+  const row = await queryOne(ctx.env, `SELECT id FROM ${table} WHERE id=? AND status='published' AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)${expiry} LIMIT 1`, id);
+  return Boolean(row);
+}
+
 async function interactionAllowed(ctx, studentId, action) {
   const rule = INTERACTION_RULES[action]; const now = Date.now(); const windowMs = rule.minutes * 60 * 1000;
   const bucket = new Date(Math.floor(now / windowMs) * windowMs).toISOString(); const id = await sha256(`${studentId}:${action}:${bucket}`);
@@ -1191,6 +1287,7 @@ async function createComment(ctx) {
   const a=await studentAuth(ctx); if(a.response) return a.response; const parts=ctx.path.split('/');
   if(!ALLOWED_CONTENT_TYPES.has(parts[2])) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
   const body=await parseJson(ctx.request); const text=String(body?.body||'').trim(); if(!text || text.length>2000) return error('COMMENT_INVALID','نص التعليق غير صالح.',400,ctx.requestId,ctx.cors);
+  if(!(await contentIsCommentable(ctx, parts[2], parts[3]))) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح للتعليق حاليًا.',404,ctx.requestId,ctx.cors);
   if(!(await interactionAllowed(ctx,a.session.student_id,'comment'))) return error('RATE_LIMITED','تم تجاوز حد التعليقات مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
   const id=crypto.randomUUID(); await ctx.env.DB.prepare('INSERT INTO comments (id,student_id,content_type,content_id,body) VALUES (?,?,?,?,?)').bind(id,a.session.student_id,parts[2],parts[3],text).run();
   return ok(ctx,{id,body:text,status:'visible'},null,201);
@@ -1204,6 +1301,7 @@ async function createReply(ctx) {
 async function reaction(ctx) {
   const a=await studentAuth(ctx); if(a.response) return a.response; const parts=ctx.path.split('/'); if(!ALLOWED_CONTENT_TYPES.has(parts[2])) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
   const body=await parseJson(ctx.request); const value=String(body?.reaction||'').trim().toLowerCase(); if(!ALLOWED_REACTIONS.has(value)) return error('REACTION_INVALID','نوع التفاعل غير مدعوم.',400,ctx.requestId,ctx.cors);
+  if(!(await contentIsCommentable(ctx, parts[2], parts[3]))) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح للتفاعل حاليًا.',404,ctx.requestId,ctx.cors);
   if(!(await interactionAllowed(ctx,a.session.student_id,'reaction'))) return error('RATE_LIMITED','تم تجاوز حد التفاعلات مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
   await ctx.env.DB.prepare('INSERT INTO reactions (id,student_id,content_type,content_id,reaction) VALUES (?,?,?,?,?) ON CONFLICT(student_id,content_type,content_id) DO UPDATE SET reaction=excluded.reaction').bind(crypto.randomUUID(),a.session.student_id,parts[2],parts[3],value).run(); return ok(ctx,{reaction:value});
 }
@@ -1334,6 +1432,63 @@ function cleanAdminPayload(table, body) {
 function makeId(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
 function sqlValue(v) { return v === undefined ? null : v; }
 
+async function validateAcademicReferences(ctx, table, fields, existing = null) {
+  const value = (key) => fields[key] !== undefined ? fields[key] : existing?.[key];
+
+  if (table === 'students') {
+    if (value('department_id')) {
+      const row = await queryOne(ctx.env, 'SELECT id FROM departments WHERE id=? AND active=1', value('department_id'));
+      if (!row) return error('DEPARTMENT_NOT_FOUND', 'القسم الأكاديمي غير موجود أو غير نشط.', 400, ctx.requestId, ctx.cors);
+    }
+    if (value('current_semester_id')) {
+      const row = await queryOne(ctx.env, 'SELECT id FROM semesters WHERE id=? AND active=1', value('current_semester_id'));
+      if (!row) return error('SEMESTER_NOT_FOUND', 'الفصل الدراسي غير موجود أو غير نشط.', 400, ctx.requestId, ctx.cors);
+    }
+  }
+
+  if (table === 'subjects') {
+    const [department, semester] = await Promise.all([
+      queryOne(ctx.env, 'SELECT id FROM departments WHERE id=? AND active=1', value('department_id')),
+      queryOne(ctx.env, 'SELECT id FROM semesters WHERE id=? AND active=1', value('semester_id')),
+    ]);
+    if (!department) return error('DEPARTMENT_NOT_FOUND', 'القسم الأكاديمي غير موجود أو غير نشط.', 400, ctx.requestId, ctx.cors);
+    if (!semester) return error('SEMESTER_NOT_FOUND', 'الفصل الدراسي غير موجود أو غير نشط.', 400, ctx.requestId, ctx.cors);
+  }
+
+  if (table === 'materials' && value('subject_id')) {
+    const row = await queryOne(ctx.env, 'SELECT id FROM subjects WHERE id=? AND active=1', value('subject_id'));
+    if (!row) return error('SUBJECT_NOT_FOUND', 'المادة الدراسية غير موجودة أو غير نشطة.', 400, ctx.requestId, ctx.cors);
+  }
+
+  if (table === 'schedules') {
+    const [department, semester] = await Promise.all([
+      queryOne(ctx.env, 'SELECT id FROM departments WHERE id=? AND active=1', value('department_id')),
+      queryOne(ctx.env, 'SELECT id FROM semesters WHERE id=? AND active=1', value('semester_id')),
+    ]);
+    if (!department) return error('DEPARTMENT_NOT_FOUND', 'القسم الأكاديمي غير موجود أو غير نشط.', 400, ctx.requestId, ctx.cors);
+    if (!semester) return error('SEMESTER_NOT_FOUND', 'الفصل الدراسي غير موجود أو غير نشط.', 400, ctx.requestId, ctx.cors);
+
+    const subjectId = value('subject_id');
+    if (subjectId) {
+      const subject = await queryOne(ctx.env,
+        'SELECT id, department_id, semester_id, active FROM subjects WHERE id=?', subjectId);
+      if (!subject || Number(subject.active) !== 1) return error('SUBJECT_NOT_FOUND', 'المادة الدراسية غير موجودة أو غير نشطة.', 400, ctx.requestId, ctx.cors);
+      if (subject.department_id !== value('department_id') || subject.semester_id !== value('semester_id')) {
+        return error('SCHEDULE_SUBJECT_MISMATCH', 'المادة لا تنتمي إلى القسم والفصل المحددين في الجدول.', 400, ctx.requestId, ctx.cors);
+      }
+    }
+    const day = Number(value('day_of_week'));
+    if (!Number.isInteger(day) || day < 0 || day > 6) return error('SCHEDULE_DAY_INVALID', 'يوم الجدول يجب أن يكون رقمًا بين 0 و6.', 400, ctx.requestId, ctx.cors);
+    const start = String(value('start_time') || '');
+    const end = String(value('end_time') || '');
+    if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end) || start >= end) {
+      return error('SCHEDULE_TIME_INVALID', 'وقت بداية المحاضرة يجب أن يسبق وقت نهايتها وبصيغة HH:MM.', 400, ctx.requestId, ctx.cors);
+    }
+  }
+
+  return null;
+}
+
 async function writeAudit(ctx, actorId, action, resourceType, resourceId, metadata = {}) {
   await ctx.env.DB.prepare('INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .bind(crypto.randomUUID(), 'staff', actorId, action, resourceType, resourceId, JSON.stringify(metadata || {})).run();
@@ -1376,6 +1531,8 @@ async function adminCrud(ctx, table, id, actorId) {
     if (table === 'subjects' && (!fields.semester_id || !fields.department_id || !fields.name_ar)) return error('SUBJECT_INPUT_INVALID','بيانات المادة الأساسية مطلوبة.',400,ctx.requestId,ctx.cors);
     if (table === 'materials' && (!fields.subject_id || !fields.title)) return error('MATERIAL_INPUT_INVALID','المادة والعنوان مطلوبان.',400,ctx.requestId,ctx.cors);
     if (table === 'schedules' && (!fields.semester_id || !fields.department_id || fields.day_of_week == null || !fields.start_time || !fields.end_time)) return error('SCHEDULE_INPUT_INVALID','بيانات الجدول الأساسية مطلوبة.',400,ctx.requestId,ctx.cors);
+    const academicError = await validateAcademicReferences(ctx, table, fields);
+    if (academicError) return academicError;
     const cols = ['id', ...Object.keys(fields)]; const vals = [id, ...Object.values(fields)];
     if (table === 'news' || table === 'events' || table === 'activities' || table === 'announcements' || table === 'achievements') { cols.push('created_by'); vals.push(actorId); }
     if (table === 'schedules') { cols.push('created_by','updated_by'); vals.push(actorId,actorId); }
@@ -1394,6 +1551,10 @@ async function adminCrud(ctx, table, id, actorId) {
       if (fields.rule_value != null && (!Number.isInteger(Number(fields.rule_value)) || Number(fields.rule_value)<=0)) return error('BADGE_RULE_VALUE_INVALID','قيمة قاعدة الشارة يجب أن تكون رقمًا صحيحًا موجبًا.',400,ctx.requestId,ctx.cors);
     }
     if (!Object.keys(fields).length) return error('ADMIN_NO_FIELDS','لم يتم إرسال أي تغييرات.',400,ctx.requestId,ctx.cors);
+    const existing = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
+    if (!existing) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
+    const academicError = await validateAcademicReferences(ctx, table, fields, existing);
+    if (academicError) return academicError;
     if (CONTENT_UPDATED_BY_TABLES.has(table)) { fields.updated_by = actorId; fields.updated_at = new Date().toISOString(); }
     if (table === 'announcements') { fields.updated_at = new Date().toISOString(); }
     if (table === 'achievements') { fields.updated_at = new Date().toISOString(); fields.updated_by = actorId; }
@@ -1424,7 +1585,7 @@ async function adminCrud(ctx, table, id, actorId) {
 
     if (table === 'staff_users') {
       if (id === actorId) return error('STAFF_SELF_DELETE_FORBIDDEN','لا يمكنك حذف حسابك الحالي.',400,ctx.requestId,ctx.cors);
-      await ctx.env.DB.batch([
+      const staffDeleteBatch = await ctx.env.DB.batch([
         ctx.env.DB.prepare('DELETE FROM sessions WHERE staff_user_id=?').bind(id),
         ctx.env.DB.prepare('UPDATE news SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
         ctx.env.DB.prepare('UPDATE events SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
@@ -1433,8 +1594,9 @@ async function adminCrud(ctx, table, id, actorId) {
         ctx.env.DB.prepare('UPDATE announcements SET created_by=NULL WHERE created_by=?').bind(id),
         ctx.env.DB.prepare('UPDATE schedules SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
         ctx.env.DB.prepare('UPDATE app_settings SET updated_by=NULL WHERE updated_by=?').bind(id),
+        ctx.env.DB.prepare('DELETE FROM staff_users WHERE id=?').bind(id),
       ]);
-      const result = await ctx.env.DB.prepare('DELETE FROM staff_users WHERE id=?').bind(id).run();
+      const result = staffDeleteBatch[staffDeleteBatch.length - 1];
       if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','المستخدم غير موجود.',404,ctx.requestId,ctx.cors);
       await writeAudit(ctx, actorId, 'delete', 'staff_users', id, { mode: 'hard_delete' });
       return ok(ctx, { deleted:true, id, mode:'hard_delete' });
@@ -1460,10 +1622,15 @@ async function adminCrud(ctx, table, id, actorId) {
       stmts.push(ctx.env.DB.prepare('DELETE FROM student_stats WHERE student_id=?').bind(id));
       stmts.push(ctx.env.DB.prepare('DELETE FROM interaction_rate_limits WHERE student_id=?').bind(id));
       stmts.push(ctx.env.DB.prepare('DELETE FROM sessions WHERE student_id=?').bind(id));
+      // A student can author replies under another student's comment, so
+      // deleting only replies belonging to the student's own comments is insufficient.
+      stmts.push(ctx.env.DB.prepare('DELETE FROM comment_replies WHERE student_id=?').bind(id));
       stmts.push(ctx.env.DB.prepare('DELETE FROM comment_reactions WHERE student_id=?').bind(id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM eino_memories WHERE student_id=?').bind(id));
       stmts.push(ctx.env.DB.prepare('DELETE FROM reactions WHERE student_id=?').bind(id));
-      await ctx.env.DB.batch(stmts);
-      const result = await ctx.env.DB.prepare('DELETE FROM students WHERE id=?').bind(id).run();
+      stmts.push(ctx.env.DB.prepare('DELETE FROM students WHERE id=?').bind(id));
+      const studentDeleteBatch = await ctx.env.DB.batch(stmts);
+      const result = studentDeleteBatch[studentDeleteBatch.length - 1];
       if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','الطالب غير موجود.',404,ctx.requestId,ctx.cors);
       await writeAudit(ctx, actorId, 'delete', 'students', id, { mode:'hard_delete', xp_policy:'preserved_history_is_not_applicable_after_student_delete' });
       return ok(ctx, { deleted:true, id, mode:'hard_delete' });
@@ -1507,22 +1674,21 @@ async function adminCrud(ctx, table, id, actorId) {
     }
 
     if (table === 'announcements') {
-      await ctx.env.DB.batch([
+      const results = await ctx.env.DB.batch([
         ctx.env.DB.prepare('DELETE FROM notification_dispatch_queue WHERE notification_target_id IN (SELECT id FROM notification_targets WHERE announcement_id=?)').bind(id),
-        ctx.env.DB.prepare('DELETE FROM notification_targets WHERE announcement_id=?').bind(id),
+        ctx.env.DB.prepare("UPDATE announcements SET status='archived', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status <> 'archived'").bind(id),
       ]);
-      await deleteGenericContentRefs('announcement', id);
-      await ctx.env.DB.prepare('DELETE FROM announcements WHERE id=?').bind(id).run();
-      await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete' });
-      return ok(ctx, { deleted:true, id, mode:'hard_delete' });
+      const result = results[results.length - 1];
+      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','الإعلان غير موجود أو مؤرشف بالفعل.',404,ctx.requestId,ctx.cors);
+      await writeAudit(ctx, actorId, 'archive', table, id, { mode:'archive', cancelled_queued_deliveries:true });
+      return ok(ctx, { deleted:true, archived:true, id, mode:'archive' });
     }
 
     if (CONTENT_TABLES.has(table)) {
-      await deleteGenericContentRefs(table === 'news' ? 'news' : table === 'events' ? 'event' : table === 'activities' ? 'activity' : 'achievement', id);
-      const result = await ctx.env.DB.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();
-      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
-      await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete' });
-      return ok(ctx, { deleted:true, id, mode:'hard_delete' });
+      const result = await ctx.env.DB.prepare(`UPDATE ${table} SET status='archived', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status <> 'archived'`).bind(id).run();
+      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود أو مؤرشف بالفعل.',404,ctx.requestId,ctx.cors);
+      await writeAudit(ctx, actorId, 'archive', table, id, { mode:'archive' });
+      return ok(ctx, { deleted:true, archived:true, id, mode:'archive' });
     }
 
     if (table === 'comments') {
@@ -1670,28 +1836,90 @@ async function adminNotifications(ctx) {
 }
 
 async function adminNotificationSend(ctx, actorId) {
-  const authResult = await adminRouteAuthOnly(ctx, 'notifications.write'); if (authResult.response) return authResult.response;
+  const authResult = await adminRouteAuthOnly(ctx, 'notifications.write');
+  if (authResult.response) return authResult.response;
   actorId = actorId || authResult.session.staff_user_id;
-  const body=await parseJson(ctx.request); const announcementId=String(body?.announcementId||'');
-  if(!announcementId)return error('ANNOUNCEMENT_REQUIRED','معرّف الإعلان مطلوب.',400,ctx.requestId,ctx.cors);
-  const a=await queryOne(ctx.env,'SELECT * FROM announcements WHERE id=?',announcementId); if(!a)return error('ANNOUNCEMENT_NOT_FOUND','الإعلان غير موجود.',404,ctx.requestId,ctx.cors);
-  if (a.status !== 'published') return error('ANNOUNCEMENT_NOT_PUBLISHED','يجب نشر الإعلان قبل إرساله.',400,ctx.requestId,ctx.cors);
-  let sql='SELECT id FROM students WHERE active=1', binds=[];
-  if(a.target_department_id){sql+=' AND department_id=?';binds.push(a.target_department_id);} if(a.target_semester_id){sql+=' AND current_semester_id=?';binds.push(a.target_semester_id);}
-  const students=await queryAll(ctx.env,sql,...binds);
-  let created=0;
-  for(const st of students){
-    const targetId=crypto.randomUUID();
-    const r=await ctx.env.DB.prepare('INSERT OR IGNORE INTO notification_targets(id,announcement_id,student_id) VALUES(?,?,?)').bind(targetId,announcementId,st.id).run();
-    if (r.meta?.changes) {
-      created++;
-      const target = await queryOne(ctx.env, 'SELECT id FROM notification_targets WHERE announcement_id=? AND student_id=?', announcementId, st.id);
-      const devices = await queryAll(ctx.env, 'SELECT id FROM notification_devices WHERE student_id=? AND active=1', st.id);
-      if (devices.length) for (const d of devices) await ctx.env.DB.prepare('INSERT INTO notification_dispatch_queue(id,notification_target_id,device_id,channel) VALUES(?,?,?,?)').bind(crypto.randomUUID(),target.id,d.id,'push').run();
-      await ctx.env.DB.prepare('INSERT INTO notification_dispatch_queue(id,notification_target_id,channel) VALUES(?,?,?)').bind(crypto.randomUUID(),target.id,'in_app').run();
-    }
-  }
-  await writeAudit(ctx,actorId,'send','notifications',announcementId,{targets:students.length,newTargets:created}); return ok(ctx,{announcementId,targets:students.length,newTargets:created,pushQueued:true});
+
+  const body = await parseJson(ctx.request);
+  const announcementId = String(body?.announcementId || '').trim();
+  if (!announcementId) return error('ANNOUNCEMENT_REQUIRED', 'معرّف الإعلان مطلوب.', 400, ctx.requestId, ctx.cors);
+
+  const announcement = await queryOne(ctx.env,
+    'SELECT id, status, target_department_id, target_semester_id FROM announcements WHERE id=?',
+    announcementId);
+  if (!announcement) return error('ANNOUNCEMENT_NOT_FOUND', 'الإعلان غير موجود.', 404, ctx.requestId, ctx.cors);
+  if (announcement.status !== 'published') return error('ANNOUNCEMENT_NOT_PUBLISHED', 'يجب نشر الإعلان قبل إرساله.', 400, ctx.requestId, ctx.cors);
+
+  const targetWhere = [
+    's.active=1',
+    '(? IS NULL OR s.department_id=?)',
+    '(? IS NULL OR s.current_semester_id=?)',
+  ].join(' AND ');
+  const targetBinds = [
+    announcement.target_department_id || null,
+    announcement.target_department_id || null,
+    announcement.target_semester_id || null,
+    announcement.target_semester_id || null,
+  ];
+
+  // One set-based insert replaces the previous per-student N+1 loop.
+  // randomblob() is used only for opaque internal IDs; UUID format is not required by the schema.
+  const targetInsert = await ctx.env.DB.prepare(`
+    INSERT INTO notification_targets (id, announcement_id, student_id)
+    SELECT lower(hex(randomblob(16))), ?, s.id
+    FROM students s
+    WHERE ${targetWhere}
+      AND NOT EXISTS (
+        SELECT 1 FROM notification_targets nt
+        WHERE nt.announcement_id=? AND nt.student_id=s.id
+      )
+  `).bind(announcementId, ...targetBinds, announcementId).run();
+
+  // Queue push deliveries once per active device, and one in-app delivery per target.
+  // NOT EXISTS keeps repeated sends idempotent even though the legacy queue table has
+  // no uniqueness constraint on delivery rows.
+  await ctx.env.DB.batch([
+    ctx.env.DB.prepare(`
+      INSERT OR IGNORE INTO notification_dispatch_queue (id, notification_target_id, device_id, channel)
+      SELECT lower(hex(randomblob(16))), nt.id, nd.id, 'push'
+      FROM notification_targets nt
+      JOIN notification_devices nd ON nd.student_id=nt.student_id AND nd.active=1
+      WHERE nt.announcement_id=?
+        AND NOT EXISTS (
+          SELECT 1 FROM notification_dispatch_queue q
+          WHERE q.notification_target_id=nt.id AND q.device_id=nd.id AND q.channel='push'
+        )
+    `).bind(announcementId),
+    ctx.env.DB.prepare(`
+      INSERT OR IGNORE INTO notification_dispatch_queue (id, notification_target_id, channel)
+      SELECT lower(hex(randomblob(16))), nt.id, 'in_app'
+      FROM notification_targets nt
+      WHERE nt.announcement_id=?
+        AND NOT EXISTS (
+          SELECT 1 FROM notification_dispatch_queue q
+          WHERE q.notification_target_id=nt.id AND q.device_id IS NULL AND q.channel='in_app'
+        )
+    `).bind(announcementId),
+  ]);
+
+  const counts = await queryOne(ctx.env,
+    'SELECT COUNT(*) AS targets FROM notification_targets WHERE announcement_id=?',
+    announcementId);
+  const targetCount = Number(counts?.targets || 0);
+  const newTargets = Number(targetInsert?.meta?.changes || 0);
+
+  await writeAudit(ctx, actorId, 'send', 'notifications', announcementId, {
+    targets: targetCount,
+    newTargets,
+    mode: 'set_based_idempotent',
+  });
+  return ok(ctx, {
+    announcementId,
+    targets: targetCount,
+    newTargets,
+    pushQueued: true,
+    idempotent: true,
+  });
 }
 
 async function adminRouteAuthOnly(ctx, permissionName) {
@@ -1916,12 +2144,29 @@ function chromaConfigured(ctx) {
   );
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal = options.signal;
+  const abortExternal = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener('abort', abortExternal, { once: true });
+  }
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+    externalSignal?.removeEventListener('abort', abortExternal);
+  }
+}
+
 async function chromaRequest(ctx, path, options = {}) {
   const base = String(ctx.env.CHROMA_BASE_URL || '').trim().replace(/\/+$/, '');
   if (!base) throw new Error('CHROMA_BASE_URL is empty');
   const headers = { 'content-type': 'application/json', ...(options.headers || {}) };
   if (ctx.env.CHROMA_TOKEN) headers['x-chroma-token'] = String(ctx.env.CHROMA_TOKEN);
-  const response = await fetch(`${base}${path}`, { ...options, headers });
+  const response = await fetchWithTimeout(`${base}${path}`, { ...options, headers });
   const text = await response.text();
   if (!response.ok) {
     const e = new Error(`Chroma request failed with status ${response.status}`);
@@ -1938,7 +2183,7 @@ async function getEmbedding(ctx, text) {
   if (!String(ctx.env.OMNIROUTE_BASE_URL || '').trim()) throw new Error('OmniRoute is required for Eino memory embeddings');
   const base = String(ctx.env.OMNIROUTE_BASE_URL).trim().replace(/\/+$/, '');
   const endpoint = /\/v1$/i.test(base) ? `${base}/embeddings` : /\/embeddings$/i.test(base) ? base : `${base}/v1/embeddings`;
-  const response = await fetch(endpoint, {
+  const response = await fetchWithTimeout(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(ctx.env.OMNIROUTE_API_KEY ? { authorization: `Bearer ${ctx.env.OMNIROUTE_API_KEY}` } : {}) },
     body: JSON.stringify({ model: String(ctx.env.EINO_EMBEDDING_MODEL || 'text-embedding-3-small'), input: text }),

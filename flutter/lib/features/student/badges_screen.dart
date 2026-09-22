@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
+import '../../core/theme/design_tokens.dart';
 import '../../data/models/badge_item.dart';
 import '../../data/repositories/badges_repository.dart';
 import '../../shared/widgets/app_card.dart';
@@ -54,12 +55,12 @@ class _BadgesScreenState extends State<BadgesScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsetsDirectional.fromSTEB(14.72, 9.2, 14.72, 33.12),
+          padding: const EdgeInsetsDirectional.fromSTEB(DesignTokens.space16, DesignTokens.space12, DesignTokens.space16, DesignTokens.space32),
           children: [
             AppCard(
-              padding: const EdgeInsets.all(18.4),
+              padding: const EdgeInsets.all(DesignTokens.space20),
               child: Column(children: [
-                Container(width: 68, height: 68, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, shape: BoxShape.circle), child: Icon(Icons.emoji_events_rounded, size: 36, color: Theme.of(context).colorScheme.onPrimaryContainer)),
+                Container(width: 72, height: 72, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, shape: BoxShape.circle), child: Icon(Icons.emoji_events_rounded, size: 36, color: Theme.of(context).colorScheme.onPrimaryContainer)),
                 const SizedBox(height: 12),
                 Text(l10n.t('achievementsTitle'), style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 4),
@@ -68,7 +69,7 @@ class _BadgesScreenState extends State<BadgesScreen> {
                 LinearProgressIndicator(value: ratio, minHeight: 8, borderRadius: BorderRadius.circular(7.2)),
               ]),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: DesignTokens.space24),
             AppSection(
               title: l10n.t('badgeCollection'),
               child: LayoutBuilder(builder: (context, constraints) {
@@ -77,7 +78,7 @@ class _BadgesScreenState extends State<BadgesScreen> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: snapshot.badges.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: columns, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .92),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: columns, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: .86),
                   itemBuilder: (context, index) => _BadgeCard(badge: snapshot.badges[index]),
                 );
               }),
@@ -99,10 +100,10 @@ class _BadgeCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final languageCode = Localizations.localeOf(context).languageCode;
     return AppCard(
-      padding: const EdgeInsets.all(11.04),
+      padding: const EdgeInsets.all(DesignTokens.space12),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(width: 52, height: 52, decoration: BoxDecoration(color: badge.earned ? cs.primaryContainer : cs.surfaceContainerHighest, shape: BoxShape.circle), child: Icon(badge.earned ? Icons.emoji_events_rounded : Icons.lock_outline_rounded, color: badge.earned ? cs.onPrimaryContainer : cs.onSurfaceVariant)),
-        const SizedBox(height: 9),
+        Container(width: 58, height: 58, decoration: BoxDecoration(color: badge.earned ? cs.primaryContainer : cs.surfaceContainerHighest, shape: BoxShape.circle), child: Icon(badge.earned ? Icons.emoji_events_rounded : Icons.lock_outline_rounded, color: badge.earned ? cs.onPrimaryContainer : cs.onSurfaceVariant)),
+        const SizedBox(height: 10),
         Text(badge.localizedName(languageCode), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: badge.earned ? cs.onSurface : cs.onSurfaceVariant)),
         const SizedBox(height: 4),
         Text(badge.localizedDescription(languageCode).isEmpty ? _rule(badge) : badge.localizedDescription(languageCode), textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),

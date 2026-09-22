@@ -47,14 +47,16 @@ if "allowedOrigins.length === 0 ? '*'" in backend_source:
 # Admin API safety invariants.
 if 'const ADMIN_SELECT_COLUMNS = {' not in backend_source:
     errors.append('Admin CRUD must use an explicit safe SELECT projection')
-if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'activities', 'announcements', 'achievements']))" not in backend_source:
+if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'announcements', 'achievements']))" not in backend_source:
     errors.append('Admin content lifecycle contract is missing')
-if "DELETE FROM ${table} WHERE id=?" not in backend_source:
-    errors.append('Admin content DELETE must perform a hard delete')
+if "UPDATE ${table} SET status='archived'" not in backend_source:
+    errors.append('Admin content DELETE must archive by status')
 if "students: 'id,student_number,full_name,department_id,current_semester_id,active,created_at,updated_at'" not in backend_source:
     errors.append('Admin student projection must exclude authentication secrets')
 if "mode:'hard_delete'" not in backend_source:
     errors.append('Admin hard-delete audit contract is missing')
+if "mode:'archive'" not in backend_source:
+    errors.append('Admin content archive audit contract is missing')
 
 # Active operational source must not contain retired provider/ad architecture.
 legacy_tokens = ('ad-manager', 'airtable')

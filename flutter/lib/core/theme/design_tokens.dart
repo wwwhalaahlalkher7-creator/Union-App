@@ -1,45 +1,101 @@
 import 'package:flutter/material.dart';
 
+/// Single source of truth for the visual language.
+///
+/// Keep these values semantic and stable so screens do not invent their own
+/// spacing/radius values. This also makes future visual refreshes predictable.
 class DesignTokens {
   DesignTokens._();
-  static const double space4 = 4, space6 = 6, space8 = 8, space12 = 10, space16 = 14, space20 = 18, space24 = 22, space32 = 28, space40 = 34;
-  static const double radius12 = 10, radius16 = 14, radius20 = 18, radius24 = 22, radius32 = 28;
-  static const double controlHeight = 46, iconButtonSize = 42, maxContentWidth = 860;
-  static const Duration fast = Duration(milliseconds: 140), normal = Duration(milliseconds: 220), emphasized = Duration(milliseconds: 360);
+
+  // 4pt base grid.
+  static const double space2 = 2;
+  static const double space4 = 4;
+  static const double space6 = 6;
+  static const double space8 = 8;
+  static const double space12 = 12;
+  static const double space16 = 16;
+  static const double space20 = 20;
+  static const double space24 = 24;
+  static const double space32 = 32;
+  static const double space40 = 40;
+
+  static const double radius8 = 8;
+  static const double radius12 = 12;
+  static const double radius16 = 16;
+  static const double radius20 = 20;
+  static const double radius24 = 24;
+
+  static const double controlHeight = 48;
+  static const double iconButtonSize = 48;
+  static const double maxContentWidth = 920;
+
+  static const Duration fast = Duration(milliseconds: 140);
+  static const Duration normal = Duration(milliseconds: 220);
+  static const Duration emphasized = Duration(milliseconds: 360);
 }
 
 class AppAccentColor {
-  const AppAccentColor({required this.id, required this.nameAr, required this.nameEn, required this.primary, required this.primaryDark});
+  const AppAccentColor({
+    required this.id,
+    required this.nameAr,
+    required this.nameEn,
+    required this.primary,
+    required this.primaryDark,
+  });
+
   final String id, nameAr, nameEn;
   final Color primary, primaryDark;
 
-  static const defaultColor = AppAccentColor(id: 'amber', nameAr: 'عمارة وتصميم', nameEn: 'Amber / Terracotta', primary: Color(0xFFE78100), primaryDark: Color(0xFFFFAA25));
+  static const defaultColor = AppAccentColor(
+    id: 'amber',
+    nameAr: 'عمارة وتصميم',
+    nameEn: 'Amber / Terracotta',
+    primary: Color(0xFFE78100),
+    primaryDark: Color(0xFFFFAA25),
+  );
+
   static const presets = <AppAccentColor>[
-    AppAccentColor(id: 'cyan', nameAr: 'أزرق هندسي', nameEn: 'Cyan', primary: Color(0xFF079DDA), primaryDark: Color(0xFF24C8FF)),
-    AppAccentColor(id: 'emerald', nameAr: 'أخضر زمردي', nameEn: 'Emerald', primary: Color(0xFF00A87A), primaryDark: Color(0xFF21D9A4)),
-    AppAccentColor(id: 'amber', nameAr: 'عمارة وتصميم', nameEn: 'Amber / Terracotta', primary: Color(0xFFE78100), primaryDark: Color(0xFFFFAA25)),
-    AppAccentColor(id: 'sapphire', nameAr: 'كحلي صناعي', nameEn: 'Sapphire', primary: Color(0xFF2865E8), primaryDark: Color(0xFF6A8CFF)),
+    AppAccentColor(
+      id: 'cyan',
+      nameAr: 'أزرق هندسي',
+      nameEn: 'Cyan',
+      primary: Color(0xFF079DDA),
+      primaryDark: Color(0xFF24C8FF),
+    ),
+    AppAccentColor(
+      id: 'emerald',
+      nameAr: 'أخضر زمردي',
+      nameEn: 'Emerald',
+      primary: Color(0xFF00A87A),
+      primaryDark: Color(0xFF21D9A4),
+    ),
     defaultColor,
+    AppAccentColor(
+      id: 'sapphire',
+      nameAr: 'كحلي صناعي',
+      nameEn: 'Sapphire',
+      primary: Color(0xFF2865E8),
+      primaryDark: Color(0xFF6A8CFF),
+    ),
   ];
-  static AppAccentColor fromId(String? id) => presets.firstWhere((c) => c.id == id, orElse: () => defaultColor);
+
+  static AppAccentColor fromId(String? id) =>
+      presets.firstWhere((c) => c.id == id, orElse: () => defaultColor);
 }
 
 class AppColors {
   AppColors._();
-  static const background = Color(0xFF03081A);
-  static const surface = Color(0xFF0D1529);
-  static const elevated = Color(0xFF16233A);
-  static const border = Color(0xFF1D2B43);
-  static const text = Color(0xFFF5F7FF);
-  static const muted = Color(0xFF94A3BD);
-  static const cyan = Color(0xFF08B8F6);
-  static const purple = Color(0xFF8B3DFF);
-  static const gold = Color(0xFFF5A400);
-  static const success = Color(0xFF00C993);
-  static const danger = Color(0xFFF43F67);
-  static const navy = Color(0xFF091328);
-  static const primary = purple;
-  static const primaryDark = Color(0xFFB36BFF);
+
+  static const background = Color(0xFF070B14);
+  static const surface = Color(0xFF101722);
+  static const elevated = Color(0xFF172231);
+  static const border = Color(0xFF263445);
+  static const text = Color(0xFFF6F8FC);
+  static const muted = Color(0xFF9AA8BB);
+
+  static const success = Color(0xFF16A67A);
+  static const danger = Color(0xFFE55363);
+  static const info = Color(0xFF3B82F6);
 }
 
 extension DesignThemeX on BuildContext {

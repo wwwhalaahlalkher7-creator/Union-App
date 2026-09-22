@@ -122,6 +122,13 @@ jobs:
       - name: Validate Syntax (Node Check)
         run: node --check src/index.js
 
+      - name: Validate D1 Schema & Backend Hardening
+        run: |
+          python3 ../ci/backend_schema_check.py
+          python3 ../ci/backend_schema_audit.py
+          python3 ../ci/backend_api_integrity_check.py
+          python3 ../ci/backend_api_contract_check.py
+
       - name: Apply D1 Database Migrations (Production)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_CF == 'true'
         env:

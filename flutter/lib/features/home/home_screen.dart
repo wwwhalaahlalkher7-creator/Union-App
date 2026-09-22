@@ -104,21 +104,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
           return ListView(
             padding: const EdgeInsetsDirectional.fromSTEB(
-              20,
-              18,
-              20,
-              92,
+              DesignTokens.space16,
+              DesignTokens.space16,
+              DesignTokens.space16,
+              96,
             ),
             children: [
               AppCard(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(DesignTokens.space20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
                       'مرحباً ${data.profile.name.split(' ').first} 👋',
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 23,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -140,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             context.colors.primary,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: _QuickStat(
                             'XP',
@@ -148,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             context.colors.secondary,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: _QuickStat(
                             'الفصل',
@@ -161,16 +161,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: DesignTokens.space24),
               const Text(
                 'الوصول السريع',
                 textAlign: TextAlign.end,
                 style: TextStyle(
-                  fontSize: 20.5,
+                  fontSize: 19,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: DesignTokens.space12),
               Row(
                 children: [
                   Expanded(
@@ -181,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       () => context.go('/materials'),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _Tile(
                       'الجداول',
@@ -190,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       () => context.go('/schedule'),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _Tile(
                       'نظام XP',
@@ -326,12 +326,12 @@ class _Tile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(DesignTokens.radius16),
       child: Container(
-        height: 88,
+        height: 92,
         decoration: BoxDecoration(
           color: context.colors.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(DesignTokens.radius16),
           border: Border.all(
             color: context.colors.outline,
           ),
@@ -339,12 +339,16 @@ class _Tile extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: color,
-              size: 27,
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(DesignTokens.radius12),
+              ),
+              child: Icon(icon, color: color, size: 23),
             ),
-            const SizedBox(height: 7),
+            const SizedBox(height: 8),
             Text(
               title,
               style: const TextStyle(
@@ -379,11 +383,11 @@ class _NewsTile extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               color: context.colors.primary.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(DesignTokens.radius12),
             ),
             child: Icon(Icons.campaign_rounded, color: context.colors.primary, size: 23),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Material(
               color: Colors.transparent,
