@@ -2660,7 +2660,7 @@ async function adminDriveSync(ctx) {
       if (!dep) continue;
       const depIndexId = `apps-script-department-${section.id}`;
       await ctx.env.DB.prepare(`INSERT INTO drive_folder_index (id,parent_id,folder_type,department_id,name,modified_at,active,last_synced_at)
-        VALUES (?,?,?,?,?,?,1,CURRENT_TIMESTAMP)
+        VALUES (?,?,?,?,?,?,?,1,CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,folder_type=excluded.folder_type,department_id=excluded.department_id,name=excluded.name,modified_at=excluded.modified_at,active=1,last_synced_at=CURRENT_TIMESTAMP`)
         .bind(depIndexId, 'apps-script-root', 'department', dep.id, section.name, null).run();
       for (const semester of (Array.isArray(section.semesters) ? section.semesters : [])) {
@@ -2668,7 +2668,7 @@ async function adminDriveSync(ctx) {
         if (!sem) continue;
         const semIndexId = `apps-script-semester-${semester.id}`;
         await ctx.env.DB.prepare(`INSERT INTO drive_folder_index (id,parent_id,folder_type,department_id,semester_id,name,modified_at,active,last_synced_at)
-          VALUES (?,?,?,?,?,?,1,CURRENT_TIMESTAMP)
+          VALUES (?,?,?,?,?,?,?,1,CURRENT_TIMESTAMP)
           ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,folder_type=excluded.folder_type,department_id=excluded.department_id,semester_id=excluded.semester_id,name=excluded.name,modified_at=excluded.modified_at,active=1,last_synced_at=CURRENT_TIMESTAMP`)
           .bind(semIndexId, depIndexId, 'semester', dep.id, sem.id, semester.name, null).run();
       }
