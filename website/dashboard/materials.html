@@ -37,7 +37,7 @@ body[data-page="materials"] .page-content{padding-top:24px}
 <body data-page="materials"><div id="app-shell"></div>
 <template id="pageTemplate">
   <div class="card materials-select-card">
-    <div class="card-header"><div><h3>مكتبة المواد</h3><span class="card-header-hint">Google Drive — بنية ثابتة للأقسام والسمسترات</span></div><button class="btn btn-secondary" id="refreshBtn" type="button"><i class="fa-solid fa-rotate"></i> تحديث</button></div>
+    <div class="card-header"><div><h3>مكتبة المواد</h3><span class="card-header-hint">Google Drive — بنية ثابتة للأقسام والسمسترات</span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-secondary" id="refreshBtn" type="button"><i class="fa-solid fa-rotate"></i> تحديث</button><button class="btn btn-primary requires-edit" id="syncDriveBtn" type="button"><i class="fa-solid fa-cloud-arrow-down"></i> مزامنة Drive</button></div></div>
     <div class="department-picker"><div class="tabs premium-tabs" id="departmentTabs"></div></div>
     <div class="materials-filter-row">
       <div class="semester-wrap"><label for="semesterFilter" style="font-weight:600;white-space:nowrap">الفصل</label><select id="semesterFilter" class="form-control" disabled><option value="">اختر السمستر</option></select></div>
@@ -50,7 +50,7 @@ body[data-page="materials"] .page-content{padding-top:24px}
 <script>
 let materialsIndex={tree:[]}; let selectedSectionId='';
 const M$=id=>document.getElementById(id);
-document.addEventListener('shell:ready',async()=>{M$('pageContent').appendChild(M$('pageTemplate').content.cloneNode(true));M$('refreshBtn').onclick=()=>refreshMaterials(M$('refreshBtn'));M$('semesterFilter').onchange=renderWorkspace;await loadMaterials();});
+document.addEventListener('shell:ready',async()=>{M$('pageContent').appendChild(M$('pageTemplate').content.cloneNode(true));M$('refreshBtn').onclick=()=>refreshMaterials(M$('refreshBtn'));M$('syncDriveBtn').onclick=()=>syncDrive(M$('syncDriveBtn'));M$('semesterFilter').onchange=renderWorkspace;await loadMaterials();});
 async function loadMaterials(){
   const root=M$('materialsWorkspace');
   await Feedback.loadInto(root, () => Adapter.listMaterialsAdmin(), data => {
@@ -68,7 +68,17 @@ async function refreshMaterials(btn){
     }).then(data => { materialsIndex=data||{tree:[]}; fillSections(); renderWorkspace(); });
   } catch(e) {}
 }
-function fillSections(){const tabs=M$('departmentTabs');const allowed=new Set(['electrical-electronics','architecture','civil']);const tree=(materialsIndex.tree||[]).filter(x=>allowed.has(x.id));if(!selectedSectionId||!tree.some(x=>x.id===selectedSectionId))selectedSectionId=tree[0]?.id||'';tabs.innerHTML=tree.map(x=>`<button type="button" class="tab-btn ${x.id===selectedSectionId?'is-active':''}" data-id="${Utils.escapeHtml(x.id)}">${Utils.escapeHtml(x.name)}</button>`).join('');tabs.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{selectedSectionId=b.dataset.id;onSection();}));onSection();}
+async function syncDrive(btn){
+  try {
+    const result = await Feedback.busy(btn, () => Adapter.syncDriveMaterials(), {
+      busyLabel:'جارٍ مزامنة Google Drive...',
+      successMessage:'تمت مزامنة المواد من Google Drive',
+      errorPrefix:'تعذّرت مزامنة Google Drive'
+    });
+    await loadMaterials();
+  } catch(e) {}
+}
+function fillSections(){const tabs=M$('departmentTabs');const tree=(materialsIndex.tree||[]).filter(x=>x&&x.id);if(!selectedSectionId||!tree.some(x=>x.id===selectedSectionId))selectedSectionId=tree[0]?.id||'';tabs.innerHTML=tree.map(x=>`<button type="button" class="tab-btn ${x.id===selectedSectionId?'is-active':''}" data-id="${Utils.escapeHtml(x.id)}">${Utils.escapeHtml(x.name)}</button>`).join('');tabs.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{selectedSectionId=b.dataset.id;onSection();}));onSection();}
 function onSection(){const sec=(materialsIndex.tree||[]).find(x=>x.id===selectedSectionId);const sem=M$('semesterFilter');const old=sem.value;sem.disabled=!sec;sem.innerHTML='<option value="">اختر السمستر</option>'+(sec?sec.semesters:[]).map(x=>'<option value="'+Utils.escapeHtml(x.id)+'">'+Utils.escapeHtml(x.name)+'</option>').join('');sem.value=sec&&(sec.semesters||[]).some(x=>x.id===old)?old:'';fillSectionsTabsOnly();renderWorkspace();}
 function fillSectionsTabsOnly(){const tabs=M$('departmentTabs');tabs.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('is-active',b.dataset.id===selectedSectionId));}
 function renderWorkspace(){const root=M$('materialsWorkspace');const sec=(materialsIndex.tree||[]).find(x=>x.id===selectedSectionId);const sem=sec&&(sec.semesters||[]).find(x=>x.id===M$('semesterFilter').value);if(!sec||!sem){root.innerHTML='<div class="card material-empty"><i class="fa-solid fa-folder-tree" style="font-size:2rem"></i><div style="margin-top:10px">اختر القسم والسمستر لعرض المواد.</div></div>';return;}const subjects=sem.subjects||[];root.innerHTML='<div class="card"><div class="materials-section-head"><div><h2>'+Utils.escapeHtml(sec.name)+' — '+Utils.escapeHtml(sem.name)+'</h2><p>'+subjects.length+' مادة</p></div><div style="display:flex;gap:8px;align-items:center"><span class="materials-locked"><i class="fa-solid fa-lock"></i> القسم والسمستر ثابتان</span><button class="btn btn-primary requires-edit" onclick="addSubject()"><i class="fa-solid fa-folder-plus"></i> إضافة مادة</button></div></div>'+(subjects.length?'<div class="materials-subject-grid">'+subjects.map(subjectCard).join('')+'</div>':'<div class="material-empty">لا توجد مواد في هذا السمستر بعد. يمكنك إضافة أول مادة.</div>')+'</div>';bindMaterialActions();}

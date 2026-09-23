@@ -155,10 +155,10 @@ function fillSelect(id,items,placeholder,valueKey,labelFn){
 function setupOptions(){
   const departmentLabel=x=>x?.name_ar||x?.name_en||x?.name||x?.code||x?.id||'';
   const semesterLabel=x=>x?.name_ar||x?.name_en||x?.name||((x?.number!=null)?`الفصل ${x.number}`:'')||x?.id||'';
+  // هذه الدالة تُستدعى أثناء تحميل الصفحة، لذلك تملأ عناصر الفلاتر الموجودة فعليًا فقط.
+  // حقلا القسم والفصل داخل نافذة إضافة/تعديل الطالب يُملآن بعد فتح الـModal في openForm().
   fillSelect("departmentFilter",studentData.departments,"كل الأقسام","id",departmentLabel);
   fillSelect("semesterFilter",studentData.semesters,"كل الفصول","id",semesterLabel);
-  fillSelect("department",studentData.departments,"اختر القسم","id",departmentLabel);
-  fillSelect("semester",studentData.semesters,"اختر الفصل","id",semesterLabel);
 }
 async function loadStudents(){
   const body=$("studentsBody");if(!body)return;

@@ -45,13 +45,21 @@ body[data-page="schedule"] .page-content{padding-top:24px}
 <script src="js/layout.js"></script>
 <script>
 let scheduleData = { departments: [], semesters: [], entries: [] };
-const DAYS = {1:"الأحد",2:"الإثنين",3:"الثلاثاء",4:"الأربعاء",5:"الخميس",6:"الجمعة",7:"السبت"};
+const DAYS = {0:"الأحد",1:"الإثنين",2:"الثلاثاء",3:"الأربعاء",4:"الخميس",5:"الجمعة",6:"السبت"};
 
 document.addEventListener("shell:ready", async () => {
   document.getElementById("pageContent").appendChild(document.getElementById("pageTemplate").content.cloneNode(true));
   document.getElementById("refreshBtn").addEventListener("click", loadSchedule);
   document.getElementById("semesterFilter").addEventListener("change", loadSchedule);
   document.getElementById("addBtn").addEventListener("click", () => openForm(null));
+  document.getElementById("scheduleBody").addEventListener("click", (ev) => {
+    const btn = ev.target.closest("button[data-action]"); if (!btn) return;
+    const id = btn.dataset.id; const action = btn.dataset.action;
+    if (action === "retry-load") loadSchedule();
+    else if (action === "edit") openForm(id);
+    else if (action === "toggle") toggleEntry(id, btn.dataset.active !== "1", btn);
+    else if (action === "delete") deleteEntry(id, btn);
+  });
   await loadSchedule();
 });
 
@@ -68,24 +76,22 @@ function fillSelect(id, items, placeholder, valueKey, labelFn) {
 function setupOptions() {
   const deps = scheduleData.departments || [];
   renderDepartmentTabs(deps);
-  fillSelect("departmentId", deps, "", "id", x => x.name.ar || x.name.en || x.id);
+  // عناصر القسم/الفصل/اليوم داخل نافذة الإضافة لا تكون موجودة إلا بعد فتح الـModal.
+  // لذلك نملأ فلتر الفصل هنا فقط، ونملأ عناصر النموذج داخل openForm().
   const semesterLabel = x => x?.name_ar || x?.name_en || (x?.number != null ? `الفصل ${x.number}` : '') || x?.id || '—';
   fillSelect("semesterFilter", scheduleData.semesters || [], "كل الفصول", "id", semesterLabel);
-  fillSelect("semester", scheduleData.semesters || [], "", "id", semesterLabel);
-  const days = Object.keys(DAYS).map(k => ({id:k,name:DAYS[k]}));
-  fillSelect("dayOfWeek", days, "", "id", x => x.name);
 }
 
 function renderDepartmentTabs(deps) {
   const el = document.getElementById("departmentTabs");
   const current = window.scheduleDepartmentFilter || "";
-  const allowed = new Set(["electrical-electronics", "architecture", "civil"]);
-  const threeDepartments = deps.filter(d => allowed.has(d.id));
-  if (!window.scheduleDepartmentFilter || !allowed.has(window.scheduleDepartmentFilter)) {
-    window.scheduleDepartmentFilter = threeDepartments[0]?.id || "";
+  // IDs القادمة من D1 هي المرجع الرسمي؛ لا نفترض أسماء IDs قديمة في الواجهة.
+  const departments = deps.filter(d => d && d.id);
+  if (!window.scheduleDepartmentFilter || !departments.some(d => d.id === window.scheduleDepartmentFilter)) {
+    window.scheduleDepartmentFilter = departments[0]?.id || "";
   }
   const selected = window.scheduleDepartmentFilter;
-  el.innerHTML = threeDepartments.map(d => ({id:d.id,label:d.name.ar || d.name.en || d.id})).map(x => `<button type="button" class="tab-btn ${x.id === selected ? "is-active" : ""}" data-dept="${Utils.escapeHtml(x.id)}">${Utils.escapeHtml(x.label)}</button>`).join("");
+  el.innerHTML = departments.map(d => ({id:d.id,label:d.name.ar || d.name.en || d.id})).map(x => `<button type="button" class="tab-btn ${x.id === selected ? "is-active" : ""}" data-dept="${Utils.escapeHtml(x.id)}">${Utils.escapeHtml(x.label)}</button>`).join("");
   el.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => { window.scheduleDepartmentFilter = btn.dataset.dept; loadSchedule(); }));
 }
 
@@ -99,9 +105,8 @@ async function loadSchedule() {
       semester: document.getElementById("semesterFilter")?.value || ""
     };
     scheduleData = await Adapter.listScheduleAdmin(filters);
-    const allowed = new Set(["electrical-electronics", "architecture", "civil"]);
-    const availableDepartments = (scheduleData.departments || []).filter(d => allowed.has(d.id));
-    if (!window.scheduleDepartmentFilter || !allowed.has(window.scheduleDepartmentFilter)) {
+    const availableDepartments = (scheduleData.departments || []).filter(d => d && d.id);
+    if (!window.scheduleDepartmentFilter || !availableDepartments.some(d => d.id === window.scheduleDepartmentFilter)) {
       window.scheduleDepartmentFilter = availableDepartments[0]?.id || "";
     }
     setupOptions();
@@ -115,15 +120,6 @@ async function loadSchedule() {
     Feedback.error(e.message || "تعذّر تحميل الجداول");
   }
 }
-
-document.getElementById("scheduleBody").addEventListener("click", (ev) => {
-  const btn = ev.target.closest("button[data-action]"); if (!btn) return;
-  const id = btn.dataset.id; const action = btn.dataset.action;
-  if (action === "retry-load") loadSchedule();
-  else if (action === "edit") openForm(id);
-  else if (action === "toggle") toggleEntry(id, btn.dataset.active !== "1", btn);
-  else if (action === "delete") deleteEntry(id, btn);
-});
 
 function renderSchedule(entries) {
   const body = document.getElementById("scheduleBody");
@@ -178,11 +174,15 @@ function openForm(id) {
       {label:e ? "حفظ التعديلات" : "حفظ", className:"btn-primary", onClick:(btn)=>saveForm(btn)}
     ]
   });
-  setupOptions();
+  const semesterLabel = x => x?.name_ar || x?.name_en || (x?.number != null ? `الفصل ${x.number}` : '') || x?.id || '—';
+  fillSelect("departmentId", scheduleData.departments || [], "اختر القسم", "id", x => x.name.ar || x.name.en || x.id);
+  fillSelect("semester", scheduleData.semesters || [], "اختر الفصل", "id", semesterLabel);
+  const days = Object.keys(DAYS).map(k => ({id:k,name:DAYS[k]}));
+  fillSelect("dayOfWeek", days, "اختر اليوم", "id", x => x.name);
   document.getElementById("entryId").value = e?.id || "";
   document.getElementById("departmentId").value = e?.departmentId || scheduleData.departments?.[0]?.id || "";
   document.getElementById("semester").value = e?.semester ? String(e.semester) : (scheduleData.semesters?.[0]?.id || "");
-  document.getElementById("dayOfWeek").value = e?.dayOfWeek ? String(e.dayOfWeek) : "1";
+  document.getElementById("dayOfWeek").value = e?.dayOfWeek != null ? String(e.dayOfWeek) : "0";
   document.getElementById("startTime").value = e?.startTime || "08:00";
   document.getElementById("endTime").value = e?.endTime || "10:00";
   document.getElementById("subjectName").value = e?.subjectName || "";
