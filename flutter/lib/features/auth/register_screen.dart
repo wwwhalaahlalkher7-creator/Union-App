@@ -289,7 +289,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                 // Academic department
                                 DropdownButtonFormField<String>(
-                                  value: _selectedDepartment,
+                                  initialValue: _selectedDepartment,
                                   isExpanded: true,
                                   items: _departments
                                       .map(
@@ -323,7 +323,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                 // Academic semester
                                 DropdownButtonFormField<String>(
-                                  value: _selectedSemester,
+                                  initialValue: _selectedSemester,
                                   isExpanded: true,
                                   items: _semesters
                                       .map(

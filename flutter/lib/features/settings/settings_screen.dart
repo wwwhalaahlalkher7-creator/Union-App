@@ -195,7 +195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: LayoutBuilder(
                         builder: (context, constraints) {
                           final columns = constraints.maxWidth >= 560 ? 4 : 2;
-                          final gap = 10.0;
+                          const gap = 10.0;
                           final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
                           return Wrap(
                             spacing: gap,
@@ -222,7 +222,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.translate_rounded,
                       child: _LanguageSelector(
                         current: languageCode,
-                        onChanged: _changeLanguage,
+                        onChanged: (locale) {
+                          if (locale != null) _changeLanguage(locale);
+                        },
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -270,6 +272,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
+          ],
+        ),
             if (_changingLanguage)
               Positioned.fill(
                 child: ColoredBox(
@@ -381,7 +385,7 @@ class _ModeSelector extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final gap = 8.0;
+        const gap = 8.0;
         final width = (constraints.maxWidth - gap * 2) / 3;
         return Row(
           children: [
@@ -419,7 +423,7 @@ class _LanguageSelector extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final gap = 8.0;
+        const gap = 8.0;
         final width = (constraints.maxWidth - gap * 2) / 3;
         return Row(
           children: [

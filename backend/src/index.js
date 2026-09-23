@@ -2031,7 +2031,7 @@ async function eino(ctx) {
     return error(code, message, 429, ctx.requestId, ctx.cors);
   }
 
-  const configuredModel = String(body?.model || ctx.env.EINO_MODEL || 'qwen3-8b').trim();
+  const configuredModel = String(body?.model || ctx.env.EINO_MODEL || 'auto').trim();
   if (!configuredModel || /[\s]/.test(configuredModel)) {
     await recordEinoTelemetry(ctx, 'config_invalid', actorType);
     return error('EINO_MODEL_INVALID', 'إعداد نموذج Eino غير صالح.', 503, ctx.requestId, ctx.cors);
@@ -2314,7 +2314,7 @@ async function einoCapabilities(ctx) {
       freeAi: hasFreeAi,
     },
     capabilities: ['chat', 'streaming-ready', 'vision', 'ocr', 'stt', 'tts', 'routing', 'fallback'],
-    model: String(ctx.env.EINO_MODEL || 'qwen3-8b'),
+    model: String(ctx.env.EINO_MODEL || 'auto'),
     offline: { available: false, reason: 'سيتم تفعيل محرك النماذج المحلية في مرحلة Offline AI.' },
   });
 }

@@ -192,7 +192,58 @@ jobs:
           print(f'OmniRoute models visible: {len(models)}')
           if not models:
               raise SystemExit('::error::OmniRoute is reachable but exposes no models. Add/enable at least one provider/model in OmniRoute.')
+          blocked=('embedding','embed','image','audio','tts','stt','vision')
+          selected=''
+          for item in models:
+              model=str(item.get('id','')).strip() if isinstance(item, dict) else ''
+              if model and not any(x in model.lower() for x in blocked):
+                  selected=model
+                  break
+          if not selected:
+              raise SystemExit('::error::OmniRoute returned models, but no chat-capable model could be selected for the smoke test.')
+          Path('/tmp/omniroute-chat-model.txt').write_text(selected)
+          print(f'OmniRoute smoke-test model: {selected}')
           PY2
+
+      - name: Smoke Test OmniRoute Chat
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_CF == 'true'
+        env:
+          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+          OMNIROUTE_BASE_URL: https://omnirouteopen-sse-production.up.railway.app/v1
+          HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        run: |
+          model=$(cat /tmp/omniroute-chat-model.txt)
+          payload=$(python3 - "$model" <<'PY3'
+          import json, sys
+          print(json.dumps({
+              'model': sys.argv[1],
+              'messages': [{'role': 'user', 'content': 'Reply with exactly: PONG'}],
+              'temperature': 0,
+              'max_tokens': 8,
+              'stream': False,
+          }))
+          PY3
+          )
+          status=$(curl -sS -o /tmp/omniroute-chat.json -w "%{http_code}" \
+            -H "Authorization: Bearer $OMNIROUTE_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$OMNIROUTE_BASE_URL/chat/completions")
+          echo "OmniRoute /v1/chat/completions HTTP $status"
+          if [ "$status" != "200" ]; then
+            echo "::error::OmniRoute is reachable, but a real chat completion failed. Check the selected provider/model, routing combo, and provider credentials."
+            cat /tmp/omniroute-chat.json
+            exit 1
+          fi
+          python3 - <<'PY4'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('/tmp/omniroute-chat.json').read_text())
+          content=data.get('choices',[{}])[0].get('message',{}).get('content','') if isinstance(data,dict) else ''
+          if not str(content).strip():
+              raise SystemExit('::error::OmniRoute returned HTTP 200 but no chat content.')
+          print('OmniRoute chat smoke test passed.')
+          PY4
 
       - name: Deploy Cloudflare Worker
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_CF == 'true'
