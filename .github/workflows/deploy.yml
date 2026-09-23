@@ -169,6 +169,9 @@ jobs:
           if [ -n "${{ secrets.FREE_AI_BASE_URL }}" ]; then
             echo "${{ secrets.FREE_AI_BASE_URL }}" | npx wrangler secret put FREE_AI_BASE_URL
           fi
+          if [ -n "${{ secrets.OMNIROUTE_API_KEY }}" ]; then
+            echo "${{ secrets.OMNIROUTE_API_KEY }}" | npx wrangler secret put OMNIROUTE_API_KEY
+          fi
           if [ -n "${{ secrets.GOOGLE_APPS_SCRIPT_TOKEN }}" ]; then
             echo "${{ secrets.GOOGLE_APPS_SCRIPT_TOKEN }}" | npx wrangler secret put GOOGLE_APPS_SCRIPT_TOKEN
           fi

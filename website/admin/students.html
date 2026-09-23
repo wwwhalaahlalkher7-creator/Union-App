@@ -211,12 +211,36 @@ function renderStudents(){
   </tr>`).join("");
 }
 function getStudent(id){return(studentData.records||[]).find(r=>r.id===id)||null}
+function normalizeStudentId(value){
+  let text=String(value||'').replace(/[^0-9-]/g,'').replace(/^-+/,'');
+  const dash=text.indexOf('-');
+  if(dash>=0) text=text.slice(0,dash+1)+text.slice(dash+1).replace(/-/g,'');
+  return text;
+}
+function isValidStudentId(value){
+  return /^[0-9]+(?:-[0-9]+)?$/.test(String(value||'').trim());
+}
+function bindStudentIdInput(){
+  const input=$('studentId'); if(!input || input.dataset.academicIdBound)return;
+  input.dataset.academicIdBound='1';
+  const sanitize=()=>{
+    const clean=normalizeStudentId(input.value);
+    if(input.value!==clean){
+      const at=input.selectionStart;
+      input.value=clean;
+      const next=Math.min(clean.length, Number.isInteger(at)?at:clean.length);
+      try{input.setSelectionRange(next,next);}catch(_){}
+    }
+  };
+  input.addEventListener('input',sanitize);
+  input.addEventListener('paste',()=>setTimeout(sanitize,0));
+}
 function openForm(id){
   const r=id?getStudent(id):null;
   const bodyHtml=`<form id="studentForm" novalidate>
     <input type="hidden" id="studentRecordId">
     <div class="schedule-form-grid">
-      <div class="field"><label for="studentId">الرقم الجامعي</label><input id="studentId" class="students-id" type="text" required maxlength="100" autocomplete="off"></div>
+      <div class="field"><label for="studentId">الرقم الجامعي</label><input id="studentId" class="students-id" type="text" inputmode="numeric" pattern="[0-9-]*" required maxlength="32" autocomplete="off" dir="ltr" spellcheck="false" aria-describedby="studentIdHint"><small id="studentIdHint" class="field-hint">أرقام ورمز - فقط، مثل 20-210045.</small></div>
       <div class="field"><label for="studentName">اسم الطالب</label><input id="studentName" type="text" required maxlength="150"></div>
       <div class="field"><label for="department">القسم</label><select id="department" required></select></div>
       <div class="field"><label for="semester">الفصل</label><select id="semester" required></select></div>
@@ -238,12 +262,14 @@ function openForm(id){
   $("studentName").value=r?.name||"";
   $("department").value=r?.department||"";
   $("semester").value=r?.semester?String(r.semester):"";
+  bindStudentIdInput();
 }
 async function saveForm(btn){
   const form=$("studentForm"),err=$("formError");err.style.display="none";
   if(!form.checkValidity()){form.reportValidity();return;}
   const payload={studentId:$("studentId").value.trim(),name:$("studentName").value.trim(),department:$("department").value,semester:$("semester").value};
   if(!payload.studentId||!payload.name||!payload.department){err.textContent="الرقم الجامعي والاسم والقسم مطلوبة.";err.style.display="block";return}
+  if(!isValidStudentId(payload.studentId)){err.textContent="الرقم الجامعي يجب أن يحتوي على أرقام فقط أو أرقامًا مفصولة بشرطة (-)، مثل 20-210045.";err.style.display="block";return}
   const id=$("studentRecordId").value;
   try{
     await Feedback.busy(btn,()=>id?Adapter.updateStudentAdmin(id,payload):Adapter.createStudentAdmin(payload),{

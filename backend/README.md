@@ -30,8 +30,7 @@ API contract: `docs/PUBLIC_API_CONTRACT.md`.
 
 Eino now supports Leo OmniRoute as the primary OpenAI-compatible chat gateway.
 Set `OMNIROUTE_BASE_URL` in `wrangler.toml` to either the full `/v1/chat/completions`
-URL or the `/v1` base URL. `OMNIROUTE_API_KEY` is optional and should only be
-added as a GitHub/Cloudflare secret when the proxy requires authentication.
+URL or the `/v1` base URL. `OMNIROUTE_API_KEY` must be configured as a Cloudflare secret when the OmniRoute gateway requires authentication. The Railway deployment template enables API-key protection by default, so store the gateway key as the Cloudflare secret `OMNIROUTE_API_KEY` (and in the deployment secret store used by CI if CI performs the deploy).
 
 Routing is controlled by `EINO_PROVIDER`: `auto` prefers OmniRoute and falls
 back to the existing Free.ai adapter for retryable upstream failures; `omniroute`

@@ -9,6 +9,7 @@ import '../../core/storage/app_preferences.dart';
 import '../../core/storage/auth_storage.dart';
 import '../../features/eino/eino_face.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/utils/academic_labels.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -38,6 +39,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (identifier.isEmpty || password.isEmpty) {
       setState(() => _errorMessage = l10n.t('loginFieldsRequired'));
+      return;
+    }
+    if (!isValidAcademicId(identifier)) {
+      setState(() => _errorMessage = l10n.t('academicIdFormatHelp'));
       return;
     }
 
@@ -182,11 +187,18 @@ class _LoginScreenState extends State<LoginScreen> {
                         // Identifier (Student Number or Email)
                         TextField(
                           controller: _identifierController,
-                          keyboardType: TextInputType.emailAddress,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            signed: true,
+                            decimal: false,
+                          ),
+                          inputFormatters: const [AcademicIdInputFormatter()],
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
                           textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
                             labelText: l10n.t('studentNumber'),
                             hintText: l10n.t('academicIdHint'),
+                            helperText: l10n.t('academicIdFormatHelp'),
                             prefixIcon: const Icon(Icons.badge_outlined),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.6)),
                           ),

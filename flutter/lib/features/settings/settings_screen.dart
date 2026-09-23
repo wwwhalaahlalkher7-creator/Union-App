@@ -99,129 +99,117 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final selected = AppAccentColor.presets
-        .firstWhere(
-          (color) => color.primary == context.colors.primary,
-          orElse: () => AppAccentColor.fromId(widget.accentColorId),
-        )
-        .id;
+    // Do not infer selection from ColorScheme.primary: dark mode deliberately
+    // uses primaryDark, so comparing colors made the selected accent disappear.
+    final selectedAccentId = AppAccentColor.fromId(widget.accentColorId).id;
+    final languageCode = widget.locale?.languageCode ?? Localizations.localeOf(context).languageCode;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 26),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
           children: [
             Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
+                constraints: const BoxConstraints(maxWidth: 760),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _Header(
-                      title: l10n.t('settings'),
-                      subtitle: l10n.t('settingsSubtitle'),
-                    ),
-                    const SizedBox(height: 12),
-                    _Section(
+                    _Header(title: l10n.t('settings'), subtitle: l10n.t('settingsSubtitle')),
+                    const SizedBox(height: 16),
+                    _SettingsSection(
                       title: l10n.t('appearanceMode'),
                       icon: Icons.brightness_6_outlined,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _ModeCard(
-                              l10n.t('system'),
-                              Icons.brightness_auto_outlined,
-                              widget.currentThemeMode == ThemeMode.system,
-                              () => widget.onThemeModeChanged(ThemeMode.system),
-                            ),
-                          ),
-                          const SizedBox(width: 7),
-                          Expanded(
-                            child: _ModeCard(
-                              l10n.t('light'),
-                              Icons.light_mode_outlined,
-                              widget.currentThemeMode == ThemeMode.light,
-                              () => widget.onThemeModeChanged(ThemeMode.light),
-                            ),
-                          ),
-                          const SizedBox(width: 7),
-                          Expanded(
-                            child: _ModeCard(
-                              l10n.t('dark'),
-                              Icons.dark_mode_outlined,
-                              widget.currentThemeMode == ThemeMode.dark,
-                              () => widget.onThemeModeChanged(ThemeMode.dark),
-                            ),
-                          ),
-                        ],
+                      child: _ModeSelector(
+                        current: widget.currentThemeMode,
+                        onChanged: widget.onThemeModeChanged,
+                        labels: {
+                          ThemeMode.system: l10n.t('system'),
+                          ThemeMode.light: l10n.t('light'),
+                          ThemeMode.dark: l10n.t('dark'),
+                        },
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    _Section(
+                    const SizedBox(height: 12),
+                    _SettingsSection(
                       title: l10n.t('accentColor'),
                       icon: Icons.palette_outlined,
-                      child: Wrap(
-                        spacing: 7,
-                        runSpacing: 7,
-                        children: [
-                          for (final color in AppAccentColor.presets)
-                            _AccentCard(
-                              color: color,
-                              selected: selected == color.id,
-                              arabic: widget.locale?.languageCode == 'ar',
-                              onTap: widget.onAccentColorChanged == null
-                                  ? null
-                                  : () => widget.onAccentColorChanged!(color.id),
-                            ),
-                        ],
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final columns = constraints.maxWidth >= 560 ? 4 : 2;
+                          final gap = 10.0;
+                          final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+                          return Wrap(
+                            spacing: gap,
+                            runSpacing: gap,
+                            children: [
+                              for (final color in AppAccentColor.presets)
+                                SizedBox(
+                                  width: width,
+                                  child: _AccentOption(
+                                    color: color,
+                                    selected: selectedAccentId == color.id,
+                                    languageCode: languageCode,
+                                    onTap: widget.onAccentColorChanged == null
+                                        ? null
+                                        : () => widget.onAccentColorChanged!(color.id),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    _Section(
+                    const SizedBox(height: 12),
+                    _SettingsSection(
                       title: l10n.t('language'),
                       icon: Icons.translate_rounded,
-                      child: Wrap(
-                        spacing: 7,
-                        runSpacing: 7,
-                        children: [
-                          _LanguageCard('العربية (RTL)', const Locale('ar'), widget.locale?.languageCode == 'ar', widget.onLocaleChanged),
-                          _LanguageCard('English (LTR)', const Locale('en'), widget.locale?.languageCode == 'en', widget.onLocaleChanged),
-                          _LanguageCard('Français (LTR)', const Locale('fr'), widget.locale?.languageCode == 'fr', widget.onLocaleChanged),
-                        ],
+                      child: _LanguageSelector(
+                        current: languageCode,
+                        onChanged: widget.onLocaleChanged,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    _Section(
+                    const SizedBox(height: 12),
+                    _SettingsSection(
                       title: l10n.t('appInfo'),
                       icon: Icons.info_outline_rounded,
                       child: Row(
                         children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: context.colors.primary.withValues(alpha: .10),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(Icons.apps_rounded, color: context.colors.primary),
+                          ),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text('TRINEX Engine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
-                                const SizedBox(height: 2),
-                                Text('v${AppVersion.name}  •  Build #${AppVersion.build}', style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 9.5)),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'v${AppVersion.name}  •  Build #${AppVersion.build}',
+                                  style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 10),
+                                ),
                               ],
                             ),
                           ),
                           OutlinedButton.icon(
                             onPressed: _checkingUpdate ? null : _checkForUpdate,
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 34),
-                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                            ),
                             icon: _checkingUpdate
-                                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                                : const Icon(Icons.refresh_rounded, size: 16),
-                            label: Text(_checkingUpdate ? l10n.t('checking') : l10n.t('checkUpdates'), style: const TextStyle(fontSize: 9.5)),
+                                ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.refresh_rounded, size: 17),
+                            label: Text(_checkingUpdate ? l10n.t('checking') : l10n.t('checkUpdates')),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     _LogoutTile(onTap: _confirmLogout, loading: _loggingOut),
                   ],
                 ),
@@ -242,23 +230,27 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 12),
+      padding: const EdgeInsetsDirectional.fromSTEB(18, 17, 18, 17),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(color: context.colors.primary, borderRadius: BorderRadius.circular(13)),
-            child: const Icon(Icons.settings_rounded, color: Colors.white, size: 22),
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: context.colors.primary.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: context.colors.primary.withValues(alpha: .22)),
+            ),
+            child: Icon(Icons.tune_rounded, color: context.colors.primary, size: 24),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 2),
-                Text(subtitle, style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 10)),
+                Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 11.5, height: 1.35)),
               ],
             ),
           ),
@@ -268,8 +260,8 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.icon, required this.child});
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({required this.title, required this.icon, required this.child});
   final String title;
   final IconData icon;
   final Widget child;
@@ -277,18 +269,18 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: context.colors.primary),
-              const SizedBox(width: 7),
-              Text(title, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900)),
+              Icon(icon, size: 19, color: context.colors.primary),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
             ],
           ),
-          const SizedBox(height: 9),
+          const SizedBox(height: 13),
           child,
         ],
       ),
@@ -296,8 +288,86 @@ class _Section extends StatelessWidget {
   }
 }
 
-class _ModeCard extends StatelessWidget {
-  const _ModeCard(this.label, this.icon, this.selected, this.onTap);
+class _ModeSelector extends StatelessWidget {
+  const _ModeSelector({required this.current, required this.onChanged, required this.labels});
+  final ThemeMode current;
+  final ValueChanged<ThemeMode> onChanged;
+  final Map<ThemeMode, String> labels;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      (ThemeMode.system, Icons.brightness_auto_outlined),
+      (ThemeMode.light, Icons.light_mode_outlined),
+      (ThemeMode.dark, Icons.dark_mode_outlined),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gap = 8.0;
+        final width = (constraints.maxWidth - gap * 2) / 3;
+        return Row(
+          children: [
+            for (var i = 0; i < items.length; i++) ...[
+              SizedBox(
+                width: width,
+                child: _ChoiceOption(
+                  label: labels[items[i].$1]!,
+                  icon: items[i].$2,
+                  selected: current == items[i].$1,
+                  onTap: () => onChanged(items[i].$1),
+                ),
+              ),
+              if (i != items.length - 1) const SizedBox(width: 8),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _LanguageSelector extends StatelessWidget {
+  const _LanguageSelector({required this.current, required this.onChanged});
+  final String current;
+  final ValueChanged<Locale?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const languages = [
+      ('ar', 'العربية', 'RTL', Icons.translate_rounded),
+      ('en', 'English', 'LTR', Icons.language_rounded),
+      ('fr', 'Français', 'LTR', Icons.language_rounded),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gap = 8.0;
+        final width = (constraints.maxWidth - gap * 2) / 3;
+        return Row(
+          children: [
+            for (var i = 0; i < languages.length; i++) ...[
+              SizedBox(
+                width: width,
+                child: _LanguageOption(
+                  name: languages[i].$2,
+                  direction: languages[i].$3,
+                  icon: languages[i].$4,
+                  selected: current == languages[i].$1,
+                  onTap: () => onChanged(Locale(languages[i].$1)),
+                ),
+              ),
+              if (i != languages.length - 1) const SizedBox(width: 8),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ChoiceOption extends StatelessWidget {
+  const _ChoiceOption({required this.label, required this.icon, required this.selected, required this.onTap});
   final String label;
   final IconData icon;
   final bool selected;
@@ -305,87 +375,193 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        height: 58,
-        decoration: BoxDecoration(
-          color: selected ? context.colors.primary.withValues(alpha: .10) : context.colors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? context.colors.primary : context.colors.outline, width: selected ? 1.4 : 1),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 20, color: selected ? context.colors.primary : context.colors.onSurfaceVariant),
-            const SizedBox(height: 3),
-            Text(label, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: selected ? context.colors.primary : context.colors.onSurfaceVariant)),
-          ],
+    final primary = context.colors.primary;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(13),
+          child: AnimatedContainer(
+            duration: DesignTokens.normal,
+            curve: Curves.easeOut,
+            height: 64,
+            decoration: BoxDecoration(
+              color: selected ? primary.withValues(alpha: .12) : context.colors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: selected ? primary : context.colors.outlineVariant, width: selected ? 1.6 : 1),
+              boxShadow: selected
+                  ? [BoxShadow(color: primary.withValues(alpha: .20), blurRadius: 12, spreadRadius: 0)]
+                  : const [],
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, size: 20, color: selected ? primary : context.colors.onSurfaceVariant),
+                      const SizedBox(height: 4),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: selected ? primary : context.colors.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                if (selected) const PositionedDirectional(top: 6, end: 6, child: _SelectedMark()),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _AccentCard extends StatelessWidget {
-  const _AccentCard({required this.color, required this.selected, required this.arabic, required this.onTap});
+class _AccentOption extends StatelessWidget {
+  const _AccentOption({required this.color, required this.selected, required this.languageCode, required this.onTap});
   final AppAccentColor color;
   final bool selected;
-  final bool arabic;
+  final String languageCode;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final label = arabic ? color.nameAr : color.nameEn;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(11),
-      child: Container(
-        width: 78,
-        height: 58,
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
-        decoration: BoxDecoration(
-          color: context.colors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: selected ? color.primary : context.colors.outline, width: selected ? 1.5 : 1),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(width: 22, height: 22, decoration: BoxDecoration(color: color.primary, shape: BoxShape.circle)),
-            const SizedBox(height: 3),
-            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700, color: context.colors.onSurfaceVariant)),
-          ],
+    final primary = color.primary;
+    final label = color.localizedName(languageCode);
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: AnimatedContainer(
+            duration: DesignTokens.normal,
+            curve: Curves.easeOut,
+            height: 72,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: selected ? primary.withValues(alpha: .11) : context.colors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: selected ? primary : context.colors.outlineVariant, width: selected ? 1.8 : 1),
+              boxShadow: selected
+                  ? [BoxShadow(color: primary.withValues(alpha: .26), blurRadius: 15, spreadRadius: 0)]
+                  : const [],
+            ),
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: DesignTokens.normal,
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: primary,
+                    shape: BoxShape.circle,
+                    boxShadow: selected ? [BoxShadow(color: primary.withValues(alpha: .40), blurRadius: 9)] : const [],
+                  ),
+                  child: selected ? const Icon(Icons.check_rounded, size: 18, color: Colors.white) : null,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: selected ? primary : context.colors.onSurfaceVariant),
+                  ),
+                ),
+                if (selected) Icon(Icons.radio_button_checked_rounded, size: 18, color: primary),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _LanguageCard extends StatelessWidget {
-  const _LanguageCard(this.label, this.locale, this.selected, this.onChanged);
-  final String label;
-  final Locale locale;
+class _LanguageOption extends StatelessWidget {
+  const _LanguageOption({required this.name, required this.direction, required this.icon, required this.selected, required this.onTap});
+  final String name;
+  final String direction;
+  final IconData icon;
   final bool selected;
-  final ValueChanged<Locale?> onChanged;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onChanged(locale),
-      borderRadius: BorderRadius.circular(11),
-      child: Container(
-        height: 42,
-        padding: const EdgeInsets.symmetric(horizontal: 11),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? context.colors.primary.withValues(alpha: .10) : context.colors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: selected ? context.colors.primary : context.colors.outline, width: selected ? 1.4 : 1),
+    final primary = context.colors.primary;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: name,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(13),
+          child: AnimatedContainer(
+            duration: DesignTokens.normal,
+            curve: Curves.easeOut,
+            height: 64,
+            decoration: BoxDecoration(
+              color: selected ? primary.withValues(alpha: .12) : context.colors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: selected ? primary : context.colors.outlineVariant, width: selected ? 1.6 : 1),
+              boxShadow: selected
+                  ? [BoxShadow(color: primary.withValues(alpha: .20), blurRadius: 12)]
+                  : const [],
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, size: 18, color: selected ? primary : context.colors.onSurfaceVariant),
+                      const SizedBox(width: 7),
+                      Flexible(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: selected ? primary : context.colors.onSurfaceVariant)),
+                            const SizedBox(height: 2),
+                            Text(direction, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700, color: context.colors.onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (selected) const PositionedDirectional(top: 6, end: 6, child: _SelectedMark()),
+              ],
+            ),
+          ),
         ),
-        child: Text(label, style: TextStyle(color: selected ? context.colors.primary : context.colors.onSurfaceVariant, fontWeight: FontWeight.w800, fontSize: 9.5)),
       ),
+    );
+  }
+}
+
+class _SelectedMark extends StatelessWidget {
+  const _SelectedMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 17,
+      height: 17,
+      decoration: BoxDecoration(color: context.colors.primary, shape: BoxShape.circle),
+      child: const Icon(Icons.check_rounded, size: 11, color: Colors.white),
     );
   }
 }
@@ -398,26 +574,29 @@ class _LogoutTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return InkWell(
-      onTap: loading ? null : onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.danger.withValues(alpha: .07),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.danger.withValues(alpha: .30)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.logout_rounded, color: AppColors.danger, size: 20),
-            const SizedBox(width: 9),
-            Expanded(child: Text(l10n.t('logout'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
-            if (loading)
-              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-            else
-              Icon(Icons.chevron_right_rounded, color: context.colors.onSurfaceVariant, size: 20),
-          ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: loading ? null : onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.danger.withValues(alpha: .07),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.danger.withValues(alpha: .28)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.logout_rounded, color: AppColors.danger, size: 20),
+              const SizedBox(width: 10),
+              Expanded(child: Text(l10n.t('logout'), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800))),
+              if (loading)
+                const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
+              else
+                Icon(Icons.chevron_right_rounded, color: context.colors.onSurfaceVariant, size: 21),
+            ],
+          ),
         ),
       ),
     );

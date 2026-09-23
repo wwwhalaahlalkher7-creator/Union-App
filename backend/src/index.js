@@ -632,12 +632,14 @@ async function registerStudent(ctx) {
   const email = String(body?.email || '').trim().toLowerCase();
   const password = String(body?.password || '');
   const confirmPassword = String(body?.confirmPassword || '');
+  const departmentId = String(body?.departmentId || '').trim();
+  const semesterId = String(body?.semesterId || '').trim();
 
-  // Academic identity is owned by the administration. Registration may only
-  // claim an existing student record; department and current semester are
-  // never accepted from the client during account creation.
-  if (!studentNumber || !password) {
-    return error('REGISTER_FIELDS_REQUIRED', 'الرقم الجامعي وكلمة المرور مطلوبان.', 400, ctx.requestId, ctx.cors);
+  // Academic identity is owned by the administration. The selected
+  // department/semester are verification fields only; they never modify the
+  // administration-owned student record.
+  if (!studentNumber || !password || !departmentId || !semesterId) {
+    return error('REGISTER_FIELDS_REQUIRED', 'الرقم الجامعي والتخصص والفصل وكلمة المرور مطلوبة.', 400, ctx.requestId, ctx.cors);
   }
   if (email && (!email.includes('@') || email.length > 180)) {
     return error('EMAIL_INVALID', 'يرجى إدخال بريد إلكتروني صالح.', 400, ctx.requestId, ctx.cors);
@@ -659,6 +661,16 @@ async function registerStudent(ctx) {
   `, studentNumber);
   if (!student) {
     return error('STUDENT_NOT_FOUND', 'الرقم الجامعي غير مسجل في قيود الكلية. يرجى مراجعة إدارة الكلية.', 404, ctx.requestId, ctx.cors);
+  }
+  if (String(student.department_id || '') !== departmentId ||
+      String(student.current_semester_id || '') !== semesterId) {
+    return error(
+      'REGISTER_ACADEMIC_MISMATCH',
+      'بيانات التخصص أو الفصل لا تطابق السجل الأكاديمي للرقم الجامعي.',
+      400,
+      ctx.requestId,
+      ctx.cors,
+    );
   }
   if (student.auth_secret_hash) {
     return error('ACCOUNT_ALREADY_REGISTERED', 'هذا الحساب مسجل بالفعل. يمكنك تسجيل الدخول مباشرة.', 409, ctx.requestId, ctx.cors);
@@ -1569,7 +1581,14 @@ async function adminCrud(ctx, table, id, actorId) {
       if (fields.rule_value != null && (!Number.isInteger(Number(fields.rule_value)) || Number(fields.rule_value)<=0)) return error('BADGE_RULE_VALUE_INVALID','قيمة قاعدة الشارة يجب أن تكون رقمًا صحيحًا موجبًا.',400,ctx.requestId,ctx.cors);
     }
     const id = String(body?.id || makeId(table.slice(0, -1) || table));
-    if (table === 'students' && (!fields.student_number || !fields.full_name || !fields.department_id)) return error('STUDENT_INPUT_INVALID','بيانات الطالب الأساسية مطلوبة.',400,ctx.requestId,ctx.cors);
+    if (table === 'students') {
+      if (!fields.student_number || !fields.full_name || !fields.department_id) {
+        return error('STUDENT_INPUT_INVALID','بيانات الطالب الأساسية مطلوبة.',400,ctx.requestId,ctx.cors);
+      }
+      if (!/^[0-9]+(?:-[0-9]+)?$/.test(String(fields.student_number).trim())) {
+        return error('STUDENT_NUMBER_INVALID','صيغة الرقم الجامعي غير صالحة. استخدم أرقامًا فقط أو أرقامًا مفصولة بشرطة (-).',400,ctx.requestId,ctx.cors);
+      }
+    }
     if (table === 'subjects' && (!fields.semester_id || !fields.department_id || !fields.name_ar)) return error('SUBJECT_INPUT_INVALID','بيانات المادة الأساسية مطلوبة.',400,ctx.requestId,ctx.cors);
     if (table === 'materials' && (!fields.subject_id || !fields.title)) return error('MATERIAL_INPUT_INVALID','المادة والعنوان مطلوبان.',400,ctx.requestId,ctx.cors);
     if (table === 'schedules' && (!fields.semester_id || !fields.department_id || fields.day_of_week == null || !fields.start_time || !fields.end_time)) return error('SCHEDULE_INPUT_INVALID','بيانات الجدول الأساسية مطلوبة.',400,ctx.requestId,ctx.cors);
@@ -1593,6 +1612,10 @@ async function adminCrud(ctx, table, id, actorId) {
       if (fields.rule_value != null && (!Number.isInteger(Number(fields.rule_value)) || Number(fields.rule_value)<=0)) return error('BADGE_RULE_VALUE_INVALID','قيمة قاعدة الشارة يجب أن تكون رقمًا صحيحًا موجبًا.',400,ctx.requestId,ctx.cors);
     }
     if (!Object.keys(fields).length) return error('ADMIN_NO_FIELDS','لم يتم إرسال أي تغييرات.',400,ctx.requestId,ctx.cors);
+    if (table === 'students' && fields.student_number !== undefined &&
+        !/^[0-9]+(?:-[0-9]+)?$/.test(String(fields.student_number).trim())) {
+      return error('STUDENT_NUMBER_INVALID','صيغة الرقم الجامعي غير صالحة. استخدم أرقامًا فقط أو أرقامًا مفصولة بشرطة (-).',400,ctx.requestId,ctx.cors);
+    }
     const existing = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
     if (!existing) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
     const academicError = await validateAcademicReferences(ctx, table, fields, existing);

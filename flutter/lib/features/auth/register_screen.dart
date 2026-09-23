@@ -10,6 +10,7 @@ import '../../core/storage/auth_storage.dart';
 import '../../data/repositories/student_repository.dart';
 import '../../features/eino/eino_face.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/utils/academic_labels.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -28,7 +29,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
+  bool _academicLoading = true;
   String? _errorMessage;
+  String? _academicLoadError;
+  List<Map<String, dynamic>> _departments = const [];
+  List<Map<String, dynamic>> _semesters = const [];
+  String? _selectedDepartment;
+  String? _selectedSemester;
 
   ApiClient? _client;
   AuthStorage? _storage;
@@ -45,8 +52,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _storage = await AuthStorage.create();
       _client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: _storage!);
       _studentRepo = StudentRepository(_client!);
+      final repo = _studentRepo!;
+      final results = await Future.wait<List<Map<String, dynamic>>>([
+        repo.departments(),
+        repo.semesters(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _departments = results[0];
+        _semesters = results[1];
+        _academicLoading = false;
+        _academicLoadError = null;
+      });
     } catch (e) {
-      if (mounted) setState(() => _errorMessage = e.toString());
+      if (mounted) {
+        setState(() {
+          _academicLoading = false;
+          _academicLoadError = e.toString();
+          _errorMessage ??= e.toString();
+        });
+      }
     }
   }
 
@@ -74,6 +99,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _errorMessage = l10n.t('passwordTooShort'));
       return;
     }
+    final studentNumber = _studentNumberController.text.trim();
+    if (!isValidAcademicId(studentNumber)) {
+      setState(() => _errorMessage = l10n.t('academicIdFormatHelp'));
+      return;
+    }
+    if (_selectedDepartment == null || _selectedSemester == null) {
+      setState(() => _errorMessage = l10n.t('academicSelectionRequired'));
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -89,9 +123,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
       final repo = _studentRepo!;
       final result = await repo.register(
-        studentNumber: _studentNumberController.text.trim(),
+        studentNumber: studentNumber,
         password: _passwordController.text,
         email: _emailController.text.trim(),
+        departmentId: _selectedDepartment!,
+        semesterId: _selectedSemester!,
       );
 
       await _storage?.saveSession(result);
@@ -111,9 +147,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       context.go('/media');
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = e is ApiException ? e.message : e.toString();
-      });
+      final message = e is ApiException
+          ? switch (e.code) {
+              'STUDENT_NOT_FOUND' => l10n.t('registerStudentNotFound'),
+              'REGISTER_ACADEMIC_MISMATCH' => l10n.t('registerAcademicMismatch'),
+              'ACCOUNT_ALREADY_REGISTERED' => l10n.t('registerAlreadyRegistered'),
+              'EMAIL_ALREADY_IN_USE' => l10n.t('registerEmailInUse'),
+              'REGISTER_FIELDS_REQUIRED' => l10n.t('academicSelectionRequired'),
+              _ => l10n.t('registerGenericError'),
+            }
+          : l10n.t('registerGenericError');
+      setState(() => _errorMessage = message);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -218,19 +262,111 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 // Academic ID Field
                                 TextFormField(
                                   controller: _studentNumberController,
-                                  keyboardType: TextInputType.number,
+                                  keyboardType: const TextInputType.numberWithOptions(
+                                    signed: true,
+                                    decimal: false,
+                                  ),
+                                  inputFormatters: const [AcademicIdInputFormatter()],
+                                  textDirection: TextDirection.ltr,
+                                  textAlign: TextAlign.left,
                                   textInputAction: TextInputAction.next,
-                                  validator: (v) =>
-                                      (v == null || v.trim().isEmpty) ? l10n.t('loginFieldsRequired') : null,
+                                  validator: (v) {
+                                    final value = v?.trim() ?? '';
+                                    if (value.isEmpty) return l10n.t('loginFieldsRequired');
+                                    if (!isValidAcademicId(value)) return l10n.t('academicIdFormatHelp');
+                                    return null;
+                                  },
                                   decoration: InputDecoration(
                                     labelText: l10n.t('academicId'),
                                     hintText: l10n.t('academicIdHint'),
-                                    helperText: l10n.t('academicIdHelp'),
+                                    helperText: l10n.t('academicIdFormatHelp'),
                                     prefixIcon: const Icon(Icons.badge_outlined),
                                     border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12.6)),
                                   ),
                                 ),
+                                const SizedBox(height: 16),
+
+                                // Academic department
+                                DropdownButtonFormField<String>(
+                                  value: _selectedDepartment,
+                                  isExpanded: true,
+                                  items: _departments
+                                      .map(
+                                        (department) => DropdownMenuItem<String>(
+                                          value: department['id']?.toString(),
+                                          child: Text(
+                                            AcademicLabels.department(
+                                              department,
+                                              Localizations.localeOf(context).languageCode,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(growable: false),
+                                  onChanged: _academicLoading
+                                      ? null
+                                      : (value) => setState(() => _selectedDepartment = value),
+                                  validator: (value) =>
+                                      value == null ? l10n.t('selectDepartment') : null,
+                                  decoration: InputDecoration(
+                                    labelText: l10n.t('selectDepartment'),
+                                    helperText: l10n.t('departmentLockedHelp'),
+                                    prefixIcon: const Icon(Icons.account_tree_outlined),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12.6),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Academic semester
+                                DropdownButtonFormField<String>(
+                                  value: _selectedSemester,
+                                  isExpanded: true,
+                                  items: _semesters
+                                      .map(
+                                        (semester) => DropdownMenuItem<String>(
+                                          value: semester['id']?.toString(),
+                                          child: Text(
+                                            AcademicLabels.semester(
+                                              semester,
+                                              Localizations.localeOf(context).languageCode,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(growable: false),
+                                  onChanged: _academicLoading
+                                      ? null
+                                      : (value) => setState(() => _selectedSemester = value),
+                                  validator: (value) =>
+                                      value == null ? l10n.t('selectSemester') : null,
+                                  decoration: InputDecoration(
+                                    labelText: l10n.t('selectSemester'),
+                                    helperText: l10n.t('semesterFlexibleHelp'),
+                                    prefixIcon: const Icon(Icons.calendar_month_outlined),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12.6),
+                                    ),
+                                  ),
+                                ),
+                                if (_academicLoading) ...[
+                                  const SizedBox(height: 8),
+                                  const LinearProgressIndicator(minHeight: 2),
+                                ],
+                                if (_academicLoadError != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _academicLoadError!,
+                                    style: TextStyle(
+                                      color: theme.colorScheme.error,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 16),
 
                                 // Email (Optional)

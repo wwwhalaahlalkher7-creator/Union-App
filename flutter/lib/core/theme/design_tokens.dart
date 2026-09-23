@@ -39,17 +39,25 @@ class AppAccentColor {
     required this.id,
     required this.nameAr,
     required this.nameEn,
+    required this.nameFr,
     required this.primary,
     required this.primaryDark,
   });
 
-  final String id, nameAr, nameEn;
+  final String id, nameAr, nameEn, nameFr;
+
+  String localizedName(String languageCode) => switch (languageCode) {
+        'fr' => nameFr,
+        'en' => nameEn,
+        _ => nameAr,
+      };
   final Color primary, primaryDark;
 
   static const defaultColor = AppAccentColor(
     id: 'amber',
     nameAr: 'عمارة وتصميم',
     nameEn: 'Amber / Terracotta',
+    nameFr: 'Ambre / Terre cuite',
     primary: Color(0xFFE78100),
     primaryDark: Color(0xFFFFAA25),
   );
@@ -59,6 +67,7 @@ class AppAccentColor {
       id: 'cyan',
       nameAr: 'أزرق هندسي',
       nameEn: 'Cyan',
+      nameFr: 'Cyan',
       primary: Color(0xFF079DDA),
       primaryDark: Color(0xFF24C8FF),
     ),
@@ -66,6 +75,7 @@ class AppAccentColor {
       id: 'emerald',
       nameAr: 'أخضر زمردي',
       nameEn: 'Emerald',
+      nameFr: 'Émeraude',
       primary: Color(0xFF00A87A),
       primaryDark: Color(0xFF21D9A4),
     ),
@@ -74,6 +84,7 @@ class AppAccentColor {
       id: 'sapphire',
       nameAr: 'كحلي صناعي',
       nameEn: 'Sapphire',
+      nameFr: 'Saphir',
       primary: Color(0xFF2865E8),
       primaryDark: Color(0xFF6A8CFF),
     ),

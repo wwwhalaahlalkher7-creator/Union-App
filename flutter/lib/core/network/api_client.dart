@@ -13,8 +13,8 @@ class _CachedResponse {
 enum ApiErrorKind { offline, timeout, server, response, auth, client }
 
 class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode, this.cause, this.kind = ApiErrorKind.client, this.retryable = false});
-  final String message; final int? statusCode; final Object? cause; final ApiErrorKind kind; final bool retryable;
+  const ApiException(this.message, {this.statusCode, this.code, this.cause, this.kind = ApiErrorKind.client, this.retryable = false});
+  final String message; final int? statusCode; final String? code; final Object? cause; final ApiErrorKind kind; final bool retryable;
   @override String toString() => 'ApiException($statusCode): $message';
 }
 
@@ -200,16 +200,33 @@ class ApiClient {
       final status = response.statusCode;
       final server = status >= 500;
       final message = server ? 'هناك خطأ في السيرفر. حاول مرة أخرى.' : (_extractErrorMessage(body) ?? 'تعذر تنفيذ الطلب.');
-      throw ApiException(message, statusCode: status, kind: server ? ApiErrorKind.server : (status == 401 ? ApiErrorKind.auth : ApiErrorKind.response), retryable: server || status == 408 || status == 429);
+      throw ApiException(
+        message,
+        statusCode: status,
+        code: _extractErrorCode(body),
+        kind: server ? ApiErrorKind.server : (status == 401 ? ApiErrorKind.auth : ApiErrorKind.response),
+        retryable: server || status == 408 || status == 429,
+      );
     }
     if (body is! Map<String, dynamic>) throw const ApiException('استجابة غير صالحة من السيرفر.', kind: ApiErrorKind.response);
-    if (body['success'] == false) throw ApiException(_extractErrorMessage(body) ?? 'تعذر تنفيذ الطلب.');
+    if (body['success'] == false) throw ApiException(_extractErrorMessage(body) ?? 'تعذر تنفيذ الطلب.', code: _extractErrorCode(body));
     return body;
   }
   String? _extractErrorMessage(dynamic body) {
-    if (body is! Map<String, dynamic>) return null; final error = body['error'];
-    if (error is Map<String,dynamic> && error['message'] != null) return error['message'].toString();
-    if (error != null && error is! Map) return error.toString(); if (body['message'] != null) return body['message'].toString(); return null;
+    if (body is! Map<String, dynamic>) return null;
+    final error = body['error'];
+    if (error is Map<String, dynamic> && error['message'] != null) return error['message'].toString();
+    if (error != null && error is! Map) return error.toString();
+    if (body['message'] != null) return body['message'].toString();
+    return null;
+  }
+
+  String? _extractErrorCode(dynamic body) {
+    if (body is! Map<String, dynamic>) return null;
+    final error = body['error'];
+    if (error is Map<String, dynamic> && error['code'] != null) return error['code'].toString();
+    if (body['code'] != null) return body['code'].toString();
+    return null;
   }
   void dispose() => _client.close();
 }

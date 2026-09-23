@@ -12,7 +12,7 @@ EINO_GLOBAL_DAILY_LIMIT = "2000"
 APP_UPDATE_URL = ""
 APP_RELEASE_NOTES = ""
 API_VERSION = "v1"
-EINO_MODEL = "qwen3-8b"
+EINO_MODEL = "auto"
 # Optional Leo OmniRoute OpenAI-compatible endpoint. Can be the full /v1/chat/completions URL or /v1 base URL.
 OMNIROUTE_BASE_URL = "https://omnirouteopen-sse-production.up.railway.app/v1"
 # Optional self-hosted Chroma. Keep empty until a Chroma server is provisioned.
@@ -37,9 +37,9 @@ migrations_dir = "migrations"
 
 # Secrets are intentionally not stored in this file.
 # Required Eino upstream credentials are supplied through Cloudflare/GitHub secrets.
-# Optional secret for a protected Chroma deployment.
+# Required when the OmniRoute gateway has REQUIRE_API_KEY=true (the Railway deployment template does by default).
 # CHROMA_TOKEN is added only when Chroma authentication is enabled.
-# OMNIROUTE_API_KEY is optional for trusted/private proxy deployments.
+# OMNIROUTE_API_KEY is a Cloudflare secret containing the OmniRoute gateway key; never put it in this file.
 # OMNIROUTE_BASE_URL is intentionally a var so the endpoint can be changed without code edits.
 
 # Comma-separated production origins. Configure as a secret/var in deployment.

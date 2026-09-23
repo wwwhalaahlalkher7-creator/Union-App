@@ -104,11 +104,23 @@ class _EinoScreenState extends State<EinoScreen> {
 
   String _friendlyError(Object error, AppLocalizations l10n) {
     if (error is ApiException) {
+      switch (error.code) {
+        case 'EINO_PROVIDER_LIMITED':
+        case 'EINO_RATE_LIMITED':
+        case 'EINO_DAILY_LIMITED':
+        case 'EINO_GLOBAL_LIMITED':
+          return l10n.t('einoRateLimited');
+        case 'EINO_PROVIDER_AUTH':
+          return l10n.t('einoProviderAuth');
+        case 'EINO_PROVIDER_ROUTE':
+          return l10n.t('einoProviderRoute');
+        case 'EINO_PROVIDER_ERROR':
+          return l10n.t('einoProviderUnavailable');
+        case 'EINO_TIMEOUT':
+          return l10n.t('einoTimeout');
+      }
       if (error.statusCode == 429) return l10n.t('einoRateLimited');
-      if (error.message.contains('مزود Eino مشغول')) return l10n.t('einoProviderBusy');
-      if (error.message.contains('مزود Eino غير متاح')) return l10n.t('einoProviderUnavailable');
-      if (error.message.contains('استغرق Eino')) return l10n.t('einoTimeout');
-      return error.message;
+      return l10n.t('einoGenericError');
     }
     return l10n.t('einoGenericError');
   }

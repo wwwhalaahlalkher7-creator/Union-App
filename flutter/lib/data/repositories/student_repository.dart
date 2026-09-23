@@ -32,12 +32,16 @@ class StudentRepository {
     required String studentNumber,
     required String email,
     required String password,
+    required String departmentId,
+    required String semesterId,
     String? confirmPassword,
   }) async {
     final j = await _client.postJson('/api/v1/auth/register', body: {
       'studentNumber': studentNumber,
       'email': email.trim(),
       'password': password,
+      'departmentId': departmentId,
+      'semesterId': semesterId,
       'confirmPassword': ?confirmPassword,
     });
     final d = j['data'];
