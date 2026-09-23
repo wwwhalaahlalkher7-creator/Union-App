@@ -4,7 +4,7 @@ window.Adapter = (() => {
   async function req(path, options={}){
     const headers={'Content-Type':'application/json',...(options.headers||{})}; if(token()) headers.Authorization='Bearer '+token();
     const r=await fetch(base()+path,{...options,headers}); let d=null; try{d=await r.json();}catch{}
-    if(!r.ok||d?.success===false) throw new Error(d?.error?.message||d?.error||'تعذّر تنفيذ الطلب');
+    if(!r.ok||d?.success===false) { const detail=d?.error?.details||d?.error?.message||d?.error; throw new Error(typeof detail==='string'?detail:'تعذّر تنفيذ الطلب'); }
     return d?.data ?? d;
   }
   const schemas={
@@ -50,8 +50,8 @@ window.Adapter = (() => {
     }),departments,semesters};
   }
   function studentPayload(s){
-    const studentNumber=String(s?.Student_ID??s?.studentNumber??s?.student_id??'').trim();
-    const fullName=String(s?.Student??s?.fullName??s?.name??'').trim();
+    const studentNumber=String(s?.Student_ID??s?.studentNumber??s?.studentId??s?.student_id??'').trim();
+    const fullName=String(s?.Student??s?.fullName??s?.name??s?.studentName??'').trim();
     const departmentId=String(s?.Department??s?.department_id??s?.departmentId??s?.department??'').trim();
     const semesterId=String(s?.Semester??s?.current_semester_id??s?.currentSemesterId??s?.semesterId??s?.semester??'').trim();
     if(!studentNumber||!fullName||!departmentId) throw new Error('بيانات الطالب الأساسية مطلوبة: الرقم الجامعي والاسم والقسم.');

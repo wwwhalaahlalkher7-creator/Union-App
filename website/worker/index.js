@@ -25,7 +25,7 @@ export default {
     let path = url.pathname;
 
     // Keep /admin as the public URL for the existing dashboard source.
-    // The deployment workflow places website/dashboard under dist/admin/.
+    // The deployment workflow places website/admin under dist/admin/.
     if (path === '/admin') path = '/admin/';
     if (path.endsWith('/')) path += 'index.html';
 

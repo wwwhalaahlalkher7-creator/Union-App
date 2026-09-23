@@ -5,7 +5,7 @@
 ## URLs
 
 - Public site: `https://ush-eng.great-site.net/`
-- Dashboard: `https://ush-eng.great-site.net/admin/`
+- Admin: `https://ush-eng.great-site.net/admin/`
 - API: `https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1`
 
 ## Structure

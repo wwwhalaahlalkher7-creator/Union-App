@@ -60,7 +60,7 @@ if "mode:'archive'" not in backend_source:
 
 # Active operational source must not contain retired provider/ad architecture.
 legacy_tokens = ('ad-manager', 'airtable')
-for base in (ROOT / 'flutter/lib', ROOT / 'website/dashboard', ROOT / 'backend/src'):
+for base in (ROOT / 'flutter/lib', ROOT / 'website/admin', ROOT / 'backend/src'):
     for path in base.rglob('*'):
         if path.suffix not in {'.dart', '.js', '.ts', '.html', '.css'}:
             continue

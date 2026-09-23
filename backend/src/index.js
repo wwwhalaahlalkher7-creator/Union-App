@@ -177,8 +177,9 @@ function databaseErrorResponse(e, requestId, cors) {
   return error('INTERNAL_ERROR', 'حدث خطأ غير متوقع. حاول مرة أخرى.', 500, requestId, cors);
 }
 
-function error(code, message, status = 400, requestId = crypto.randomUUID(), cors = {}) {
-  return new Response(JSON.stringify({ success: false, error: { code, message, details: null, requestId } }), {
+function error(code, message, status = 400, requestId = crypto.randomUUID(), cors = {}, details = null) {
+  const safeDetails = details == null ? null : String(details).slice(0, 500);
+  return new Response(JSON.stringify({ success: false, error: { code, message, details: safeDetails, requestId } }), {
     status,
     headers: {
       ...JSON_HEADERS,
@@ -2732,7 +2733,7 @@ async function adminDriveSync(ctx) {
     await ctx.env.DB.prepare("UPDATE drive_sync_runs SET status='failed', finished_at=CURRENT_TIMESTAMP, error_message=? WHERE id=?")
       .bind(String(e?.message || e).slice(0,1000), syncId).run();
     console.error(`[${ctx.requestId}] drive sync`, e);
-    return error('DRIVE_SYNC_FAILED', 'تعذّر مزامنة المواد من Google Drive عبر Apps Script.', 502, ctx.requestId, ctx.cors);
+    return error('DRIVE_SYNC_FAILED', 'تعذّر مزامنة المواد من Google Drive عبر Apps Script.', 502, ctx.requestId, ctx.cors, e?.message || 'unknown');
   }
 }
 

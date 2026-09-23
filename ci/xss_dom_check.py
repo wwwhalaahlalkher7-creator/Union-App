@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-DASH = ROOT / 'website' / 'dashboard'
+DASH = ROOT / 'website' / 'admin'
 
 html = '\n'.join(p.read_text(errors='ignore') for p in DASH.glob('*.html'))
 js = '\n'.join(p.read_text(errors='ignore') for p in (DASH/'js').glob('*.js'))

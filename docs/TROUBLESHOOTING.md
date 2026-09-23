@@ -58,7 +58,7 @@ npm run migrate:local
 - صحة `user_id` وكلمة المرور.
 - صلاحية session.
 - أن المتصفح يستخدم `/admin/` الصحيح.
-- أن API base URL في `website/dashboard/config.js` صحيح.
+- أن API base URL في `website/admin/config.js` صحيح.
 
 ## 6. الموقع لا يعرض المحتوى
 

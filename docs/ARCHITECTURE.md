@@ -61,9 +61,9 @@ lib/
 ## 5. Website + Dashboard
 
 - `website/` = public site.
-- `website/dashboard/` = admin UI.
+- `website/admin/` = admin UI.
 - كلاهما يستخدمان TRINEX API.
-- `website/dashboard/worker/` مسؤول عن حماية مسار `/admin` عند نشر Worker الخاص باللوحة.
+- `website/admin/worker/` مسؤول عن حماية مسار `/admin` عند نشر Worker الخاص باللوحة.
 
 ## 6. CI/CD
 

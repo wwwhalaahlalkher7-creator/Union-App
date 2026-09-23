@@ -1,8 +1,8 @@
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-adapter = (root / "website/dashboard/js/api-adapter.js").read_text()
-content = (root / "website/dashboard/content.html").read_text()
+adapter = (root / "website/admin/js/api-adapter.js").read_text()
+content = (root / "website/admin/content.html").read_text()
 
 checks = {
     "student create maps UI fields to API snake_case": "studentPayload(s)" in adapter and "student_number:studentNumber" in adapter and "department_id:departmentId" in adapter,

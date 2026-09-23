@@ -3,12 +3,11 @@ import path from 'path';
 
 const rootDir = process.cwd();
 const websiteDir = path.join(rootDir, 'website');
-const dashboardDir = path.join(websiteDir, 'dashboard');
+const adminDir = path.join(websiteDir, 'admin');
 const distDir = path.join(rootDir, 'dist');
 const distAdminDir = path.join(distDir, 'admin');
-const distDashboardDir = path.join(distDir, 'dashboard');
 
-console.log('[BUILD] Starting packaging for TRINEX portal & dashboard...');
+console.log('[BUILD] Starting packaging for TRINEX portal & admin...');
 
 function copyDirRecursive(src, dest, excludeFilter = () => false) {
   if (!fs.existsSync(dest)) {
@@ -41,7 +40,7 @@ fs.mkdirSync(distDir, { recursive: true });
 
 // Copy public website assets to dist
 copyDirRecursive(websiteDir, distDir, (name, fullPath) => {
-  if (name === 'dashboard' || name === 'worker' || name === 'wrangler.toml' || name === 'node_modules') {
+  if (name === 'admin' || name === 'worker' || name === 'wrangler.toml' || name === 'node_modules' || name.endsWith('.zip')) {
     return true;
   }
   if (name.startsWith('README') && name.endsWith('.md')) {
@@ -50,25 +49,15 @@ copyDirRecursive(websiteDir, distDir, (name, fullPath) => {
   return false;
 });
 
-// Copy dashboard assets to dist/admin and dist/dashboard
-copyDirRecursive(dashboardDir, distAdminDir, (name) => {
+// Copy the canonical admin UI to dist/admin only.
+// Do not publish a second /dashboard tree: /admin is the single public admin URL.
+copyDirRecursive(adminDir, distAdminDir, (name) => {
   if (name === 'worker' || name === 'wrangler.toml' || name === 'node_modules') {
     return true;
   }
   if (name.startsWith('README') && name.endsWith('.md')) {
     return true;
   }
-  return false;
-});
-
-copyDirRecursive(dashboardDir, distDashboardDir, (name) => {
-  if (name === 'worker' || name === 'wrangler.toml' || name === 'node_modules') {
-    return true;
-  }
-  if (name.startsWith('README') && name.endsWith('.md')) {
-    return true;
-  }
-  return false;
 });
 
 // Verify required outputs exist
@@ -88,5 +77,5 @@ for (const file of requiredFiles) {
   }
 }
 
-console.log('[BUILD] Validation passed: All public pages and admin dashboard packaged successfully.');
+console.log('[BUILD] Validation passed: All public pages and admin UI packaged successfully.');
 console.log(`[BUILD] Dist ready at ${distDir}`);

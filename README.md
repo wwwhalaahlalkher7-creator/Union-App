@@ -26,7 +26,7 @@ TRINEX
 | مخطط D1 والتغييرات | `backend/migrations/` |
 | إعداد Worker | `backend/wrangler.toml` |
 | الموقع العام | `website/` |
-| لوحة الإدارة | `website/dashboard/` |
+| لوحة الإدارة | `website/admin/` |
 | فحوصات الجودة | `ci/` |
 | أسرار الإنتاج | GitHub Actions / Cloudflare Secrets فقط |
 

@@ -4,7 +4,7 @@ import re, sqlite3, sys
 ROOT = Path(__file__).resolve().parents[1]
 FLUTTER = ROOT / 'flutter'
 BACKEND = ROOT / 'backend'
-DASHBOARD = ROOT / 'website/dashboard'
+DASHBOARD = ROOT / 'website/admin'
 
 errors=[]
 

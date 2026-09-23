@@ -29,7 +29,7 @@ Workflow: `.github/workflows/flutter.yml`
 
 ## Website
 
-Workflow: `.github/workflows/deploy-website.yml`
+Workflow: `.github/workflows/deploy.yml`
 
 يتحقق من JavaScript والملفات المطلوبة وسياسة المصادر القديمة، ثم ينشر الموقع ولوحة الإدارة إلى InfinityFree عبر FTPS.
 

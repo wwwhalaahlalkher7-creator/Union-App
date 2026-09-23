@@ -28,7 +28,7 @@
 ملفات JavaScript يجب أن تمر:
 
 ```bash
-node --check website/dashboard/js/api-adapter.js
+node --check website/admin/js/api-adapter.js
 python3 ci/web_security_check.py
 python3 ci/xss_dom_check.py
 ```

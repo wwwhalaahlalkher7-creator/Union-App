@@ -145,6 +145,17 @@ jobs:
           HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
         run: npx wrangler deploy
 
+      - name: Validate required Drive adapter secret
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_CF == 'true'
+        env:
+          GOOGLE_APPS_SCRIPT_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_TOKEN }}
+          HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        run: |
+          if [ -z "$GOOGLE_APPS_SCRIPT_TOKEN" ]; then
+            echo "::error::GOOGLE_APPS_SCRIPT_TOKEN is required for Google Drive synchronization. Set it to the same API_TOKEN configured in Google Apps Script."
+            exit 1
+          fi
+
       - name: Set Backend Production Secrets
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_CF == 'true'
         env:
@@ -194,7 +205,7 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-      - name: Deploy Website to Hosting via FTPS (e.g. InfinityFree / CPanel)
+      - name: Deploy Website to Hosting via FTPS (InfinityFree) — mirror dist exactly
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_FTP == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         env:
@@ -205,4 +216,4 @@ jobs:
           password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
           local-dir: ./dist/
           server-dir: ${{ secrets.INFINITYFREE_FTP_REMOTE_DIR || '/htdocs/' }}
-          dangerous-clean-slate: false
+          dangerous-clean-slate: true

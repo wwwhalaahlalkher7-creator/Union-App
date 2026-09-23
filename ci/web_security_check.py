@@ -2,10 +2,10 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 public_worker = (root / 'website/worker/index.js').read_text(encoding='utf-8')
-dash_worker = (root / 'website/dashboard/worker/index.js').read_text(encoding='utf-8')
-auth = (root / 'website/dashboard/js/auth.js').read_text(encoding='utf-8')
-redirect = (root / 'website/dashboard/js/auth-check-redirect.js').read_text(encoding='utf-8')
-login = (root / 'website/dashboard/login.html').read_text(encoding='utf-8')
+dash_worker = (root / 'website/admin/worker/index.js').read_text(encoding='utf-8')
+auth = (root / 'website/admin/js/auth.js').read_text(encoding='utf-8')
+redirect = (root / 'website/admin/js/auth-check-redirect.js').read_text(encoding='utf-8')
+login = (root / 'website/admin/login.html').read_text(encoding='utf-8')
 api = (root / 'backend/src/index.js').read_text(encoding='utf-8')
 
 checks = {
