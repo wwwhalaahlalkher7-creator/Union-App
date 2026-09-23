@@ -215,5 +215,5 @@ jobs:
           username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
           password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
           local-dir: ./dist/
-          server-dir: ${{ secrets.INFINITYFREE_FTP_REMOTE_DIR || '/htdocs/' }}
+          server-dir: /ush-eng.great-site.net/htdocs/
           dangerous-clean-slate: true

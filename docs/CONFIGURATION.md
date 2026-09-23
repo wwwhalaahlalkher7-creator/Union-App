@@ -47,7 +47,9 @@
 - Cloudflare: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 - Eino/Free.ai: `FREE_AI_BASE_URL`, `FREE_AI_API_KEY`.
 - Android signing: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_STORE_PASSWORD`.
-- InfinityFree: `INFINITYFREE_FTP_USERNAME`, `INFINITYFREE_FTP_PASSWORD`, `INFINITYFREE_FTP_REMOTE_DIR`.
+- InfinityFree: `INFINITYFREE_FTP_USERNAME`, `INFINITYFREE_FTP_PASSWORD`.
+
+- InfinityFree remote deployment path: `/ush-eng.great-site.net/htdocs/`.
 
 ## قبل تغيير secret
 
