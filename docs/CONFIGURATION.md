@@ -15,7 +15,7 @@
 | `APP_UPDATE_URL` | Variable | صفحة التحديث إن وجدت |
 | `APP_RELEASE_NOTES` | Variable | ملاحظات الإصدار |
 | `API_VERSION` | Variable | عقد API، حاليًا `v1` |
-| `EINO_MODEL` | Variable | نموذج Eino، الافتراضي `qwen3-8b` |
+| `EINO_MODEL` | Variable | نموذج Eino، الافتراضي `auto` عبر OmniRoute |
 | `EINO_*_DAILY_LIMIT` | Variable | حدود Eino اليومية |
 | `GOOGLE_APPS_SCRIPT_URL` | Variable | رابط Drive adapter |
 | `ALLOWED_ORIGINS` | Variable | Origins المسموح بها للمتصفح |
@@ -26,6 +26,7 @@
 |---|---|
 | `FREE_AI_BASE_URL` | عنوان Free.ai API، عادة `https://api.free.ai/v1` |
 | `FREE_AI_API_KEY` | مفتاح Free.ai (`sk-free-...`) |
+| `OMNIROUTE_API_KEY` | مفتاح Gateway من OmniRoute → API Keys |
 | `GOOGLE_APPS_SCRIPT_TOKEN` | مصادقة Worker مع Drive adapter |
 | `STAFF_BOOTSTRAP_TOKEN` | تهيئة أول مدير عند الحاجة |
 

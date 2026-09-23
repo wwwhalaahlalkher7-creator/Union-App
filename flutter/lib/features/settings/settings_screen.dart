@@ -34,6 +34,63 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _checkingUpdate = false;
   bool _loggingOut = false;
+  bool _changingLanguage = false;
+  late String _selectedAccentId;
+  late String _selectedLanguageCode;
+  late ThemeMode _selectedThemeMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedAccentId = AppAccentColor.fromId(widget.accentColorId).id;
+    _selectedLanguageCode = widget.locale?.languageCode ?? 'ar';
+    _selectedThemeMode = widget.currentThemeMode;
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Parent updates can rebuild MaterialApp.router while the same route
+    // remains mounted. Keep the local selection in sync without losing the
+    // immediate visual feedback from a tap.
+    if (!_changingLanguage && widget.locale?.languageCode != oldWidget.locale?.languageCode) {
+      _selectedLanguageCode = widget.locale?.languageCode ?? Localizations.localeOf(context).languageCode;
+    }
+    if (widget.accentColorId != oldWidget.accentColorId) {
+      _selectedAccentId = AppAccentColor.fromId(widget.accentColorId).id;
+    }
+    if (widget.currentThemeMode != oldWidget.currentThemeMode) {
+      _selectedThemeMode = widget.currentThemeMode;
+    }
+  }
+
+  Future<void> _changeLanguage(Locale locale) async {
+    if (_changingLanguage || _selectedLanguageCode == locale.languageCode) return;
+    setState(() {
+      _selectedLanguageCode = locale.languageCode;
+      _changingLanguage = true;
+    });
+
+    // Let the user see a deliberate transition before Flutter flips the
+    // entire text direction and rebuilds the localized tree.
+    await Future<void>.delayed(const Duration(milliseconds: 140));
+    if (!mounted) return;
+    widget.onLocaleChanged(locale);
+    await Future<void>.delayed(const Duration(milliseconds: 420));
+    if (mounted) setState(() => _changingLanguage = false);
+  }
+
+  void _changeTheme(ThemeMode mode) {
+    if (_selectedThemeMode == mode) return;
+    setState(() => _selectedThemeMode = mode);
+    widget.onThemeModeChanged(mode);
+  }
+
+  void _changeAccent(String colorId) {
+    if (_selectedAccentId == colorId) return;
+    setState(() => _selectedAccentId = colorId);
+    widget.onAccentColorChanged?.call(colorId);
+  }
 
   Future<void> _checkForUpdate() async {
     if (_checkingUpdate) return;
@@ -99,15 +156,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Do not infer selection from ColorScheme.primary: dark mode deliberately
-    // uses primaryDark, so comparing colors made the selected accent disappear.
-    final selectedAccentId = AppAccentColor.fromId(widget.accentColorId).id;
-    final languageCode = widget.locale?.languageCode ?? Localizations.localeOf(context).languageCode;
+    final selectedAccentId = _selectedAccentId;
+    final languageCode = _selectedLanguageCode;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: ListView(
+        child: Stack(
+          children: [
+            ListView(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
           children: [
             Center(
@@ -122,8 +179,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: l10n.t('appearanceMode'),
                       icon: Icons.brightness_6_outlined,
                       child: _ModeSelector(
-                        current: widget.currentThemeMode,
-                        onChanged: widget.onThemeModeChanged,
+                        current: _selectedThemeMode,
+                        onChanged: _changeTheme,
                         labels: {
                           ThemeMode.system: l10n.t('system'),
                           ThemeMode.light: l10n.t('light'),
@@ -151,9 +208,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     color: color,
                                     selected: selectedAccentId == color.id,
                                     languageCode: languageCode,
-                                    onTap: widget.onAccentColorChanged == null
-                                        ? null
-                                        : () => widget.onAccentColorChanged!(color.id),
+                                    onTap: widget.onAccentColorChanged == null ? null : () => _changeAccent(color.id),
                                   ),
                                 ),
                             ],
@@ -167,7 +222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.translate_rounded,
                       child: _LanguageSelector(
                         current: languageCode,
-                        onChanged: widget.onLocaleChanged,
+                        onChanged: _changeLanguage,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -215,6 +270,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
+            if (_changingLanguage)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: .30),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: context.colors.primary.withValues(alpha: .35)),
+                        boxShadow: [BoxShadow(color: context.colors.primary.withValues(alpha: .18), blurRadius: 24)],
+                      ),
+                      child: const SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: CircularProgressIndicator(strokeWidth: 2.6),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

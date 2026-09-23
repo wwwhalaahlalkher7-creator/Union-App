@@ -2037,6 +2037,8 @@ async function eino(ctx) {
     return error('EINO_MODEL_INVALID', 'إعداد نموذج Eino غير صالح.', 503, ctx.requestId, ctx.cors);
   }
 
+  const requestedModel = configuredModel.toLowerCase() === 'auto' ? 'auto' : configuredModel;
+
   const systemParts = [
     'أنت Eino، مساعد ذكي ولطيف داخل تطبيق TRINEX لطلاب الهندسة والعمارة والتقنية.',
     'ساعد في الدراسة، فهم المفاهيم، استخدام التطبيق ومعلومات الرابطة العامة.',
@@ -2068,7 +2070,7 @@ async function eino(ctx) {
       return omniRouteChat({
         baseUrl: ctx.env.OMNIROUTE_BASE_URL,
         apiKey: ctx.env.OMNIROUTE_API_KEY,
-        model: configuredModel,
+        model: requestedModel,
         messages,
         temperature: 0.4,
         maxTokens: 900,
