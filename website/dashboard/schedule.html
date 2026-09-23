@@ -38,7 +38,7 @@ body[data-page="schedule"] .page-content{padding-top:24px}
   </div>
 
 </template>
-<script src="js/api-adapter.js?v=3.0.0"></script>
+<script src="js/api-adapter.js?v=3.0.2"></script>
 <script src="js/utils.js"></script>
 <script src="js/feedback.js"></script>
 <script src="js/modal.js"></script>
@@ -47,24 +47,12 @@ body[data-page="schedule"] .page-content{padding-top:24px}
 let scheduleData = { departments: [], semesters: [], entries: [] };
 const DAYS = {0:"الأحد",1:"الإثنين",2:"الثلاثاء",3:"الأربعاء",4:"الخميس",5:"الجمعة",6:"السبت"};
 
-document.addEventListener("shell:ready", async () => {
-  document.getElementById("pageContent").appendChild(document.getElementById("pageTemplate").content.cloneNode(true));
-  document.getElementById("refreshBtn").addEventListener("click", loadSchedule);
-  document.getElementById("semesterFilter").addEventListener("change", loadSchedule);
-  document.getElementById("addBtn").addEventListener("click", () => openForm(null));
-  document.getElementById("scheduleBody").addEventListener("click", (ev) => {
-    const btn = ev.target.closest("button[data-action]"); if (!btn) return;
-    const id = btn.dataset.id; const action = btn.dataset.action;
-    if (action === "retry-load") loadSchedule();
-    else if (action === "edit") openForm(id);
-    else if (action === "toggle") toggleEntry(id, btn.dataset.active !== "1", btn);
-    else if (action === "delete") deleteEntry(id, btn);
-  });
-  await loadSchedule();
-});
+document.addEventListener("shell:ready", () => { document.getElementById("pageContent").appendChild(document.getElementById("pageTemplate").content.cloneNode(true)); initSchedulePage(); });
+if (document.documentElement.classList.contains("shell-ready")) { const t=document.getElementById("pageTemplate"); if(t && !document.getElementById("scheduleBody")){ document.getElementById("pageContent").appendChild(t.content.cloneNode(true)); initSchedulePage(); } }
 
 function fillSelect(id, items, placeholder, valueKey, labelFn) {
   const el = document.getElementById(id);
+  if (!el) return;
   const first = placeholder ? `<option value="">${Utils.escapeHtml(placeholder)}</option>` : "";
   el.innerHTML = first + (items || []).map(x => {
     const value = valueKey ? x?.[valueKey] : (x?.id ?? x?.value ?? x);
@@ -84,6 +72,7 @@ function setupOptions() {
 
 function renderDepartmentTabs(deps) {
   const el = document.getElementById("departmentTabs");
+  if (!el) return;
   const current = window.scheduleDepartmentFilter || "";
   // IDs القادمة من D1 هي المرجع الرسمي؛ لا نفترض أسماء IDs قديمة في الواجهة.
   const departments = deps.filter(d => d && d.id);
@@ -91,9 +80,11 @@ function renderDepartmentTabs(deps) {
     window.scheduleDepartmentFilter = departments[0]?.id || "";
   }
   const selected = window.scheduleDepartmentFilter;
-  el.innerHTML = departments.map(d => ({id:d.id,label:d.name.ar || d.name.en || d.id})).map(x => `<button type="button" class="tab-btn ${x.id === selected ? "is-active" : ""}" data-dept="${Utils.escapeHtml(x.id)}">${Utils.escapeHtml(x.label)}</button>`).join("");
+  el.innerHTML = departments.map(d => ({id:d.id,label:d.name?.ar || d.name?.en || d.name_ar || d.name_en || d.id})).map(x => `<button type="button" class="tab-btn ${x.id === selected ? "is-active" : ""}" data-dept="${Utils.escapeHtml(x.id)}">${Utils.escapeHtml(x.label)}</button>`).join("");
   el.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => { window.scheduleDepartmentFilter = btn.dataset.dept; loadSchedule(); }));
 }
+
+function initSchedulePage(){ if(document.getElementById("scheduleBody")) { document.getElementById("refreshBtn")?.addEventListener("click", loadSchedule); document.getElementById("semesterFilter")?.addEventListener("change", loadSchedule); document.getElementById("addBtn")?.addEventListener("click", () => openForm(null)); document.getElementById("scheduleBody")?.addEventListener("click", (ev)=>{const btn=ev.target.closest("button[data-action]");if(!btn)return;const id=btn.dataset.id,action=btn.dataset.action;if(action==="retry-load")loadSchedule();else if(action==="edit")openForm(id);else if(action==="toggle")toggleEntry(id,btn.dataset.active!=="1",btn);else if(action==="delete")deleteEntry(id,btn);}); loadSchedule(); }}
 
 async function loadSchedule() {
   const body = document.getElementById("scheduleBody");

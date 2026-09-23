@@ -1,1 +1,1 @@
-TRINEX dashboard deploy V2.0.1-crud-drive-v7
+TRINEX dashboard deploy V2.0.2-auth-materials-schedule-hotfix-2026-09-23

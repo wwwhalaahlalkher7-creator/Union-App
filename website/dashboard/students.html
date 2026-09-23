@@ -113,7 +113,7 @@ body[data-page="students"] #pageContent > *{animation:studentsReveal .45s cubic-
 
 
 </template>
-<script src="js/api-adapter.js?v=3.0.0"></script>
+<script src="js/api-adapter.js?v=3.0.2"></script>
 <script src="js/utils.js"></script>
 <script src="js/feedback.js"></script>
 <script src="js/modal.js"></script>
@@ -243,7 +243,7 @@ async function saveForm(btn){
   const form=$("studentForm"),err=$("formError");err.style.display="none";
   if(!form.checkValidity()){form.reportValidity();return;}
   const payload={studentId:$("studentId").value.trim(),name:$("studentName").value.trim(),department:$("department").value,semester:$("semester").value};
-  if(!payload.studentId||!payload.name||!payload.department||!payload.semester){err.textContent="جميع الحقول مطلوبة.";err.style.display="block";return}
+  if(!payload.studentId||!payload.name||!payload.department){err.textContent="الرقم الجامعي والاسم والقسم مطلوبة.";err.style.display="block";return}
   const id=$("studentRecordId").value;
   try{
     await Feedback.busy(btn,()=>id?Adapter.updateStudentAdmin(id,payload):Adapter.createStudentAdmin(payload),{

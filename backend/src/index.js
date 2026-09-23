@@ -1443,7 +1443,19 @@ const CONTENT_UPDATED_BY_TABLES = Object.freeze(new Set(['news', 'events', 'acti
 
 function cleanAdminPayload(table, body) {
   const out = {};
-  for (const key of ADMIN_FIELDS[table] || []) if (body && Object.prototype.hasOwnProperty.call(body, key)) out[key] = body[key] === '' ? null : body[key];
+  const aliases = {
+    students: { studentNumber: 'student_number', studentId: 'student_number', fullName: 'full_name', departmentId: 'department_id', department: 'department_id', currentSemesterId: 'current_semester_id', semesterId: 'current_semester_id', semester: 'current_semester_id' },
+    subjects: { semesterId: 'semester_id', departmentId: 'department_id', name: 'name_ar', nameAr: 'name_ar', nameEn: 'name_en', sortOrder: 'sort_order' },
+    schedules: { semesterId: 'semester_id', departmentId: 'department_id', dayOfWeek: 'day_of_week', startTime: 'start_time', endTime: 'end_time', subjectId: 'subject_id', lecturer: 'lecturer' },
+    materials: { subjectId: 'subject_id', driveFileId: 'drive_file_id', driveUrl: 'drive_url', driveWebViewUrl: 'drive_web_view_url', mimeType: 'mime_type', sizeBytes: 'size_bytes', sortOrder: 'sort_order', driveParentId: 'drive_parent_id', driveModifiedAt: 'drive_modified_at' },
+  };
+  const source = body || {};
+  for (const key of ADMIN_FIELDS[table] || []) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) out[key] = source[key] === '' ? null : source[key];
+  }
+  for (const [alias, key] of Object.entries(aliases[table] || {})) {
+    if (out[key] === undefined && Object.prototype.hasOwnProperty.call(source, alias)) out[key] = source[alias] === '' ? null : source[alias];
+  }
   return out;
 }
 function makeId(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
