@@ -261,16 +261,43 @@ async function publicContentDetail(ctx) {
   const parts = ctx.path.split('/');
   const table = parts[2];
   const id = parts[3];
-  if (!['news', 'events', 'activities'].includes(table) || !id) return error('CONTENT_NOT_FOUND','المحتوى غير موجود.',404,ctx.requestId,ctx.cors);
+  if (!['news', 'events', 'activities'].includes(table) || !id) {
+    return error('CONTENT_NOT_FOUND','المحتوى غير موجود.',404,ctx.requestId,ctx.cors);
+  }
+
   const dateColumn = ['events','activities'].includes(table) ? 'event_at' : 'publish_at';
-  const expiryClause = table === 'news' ? " AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)" : '';
-  const row = await queryOne(ctx.env, `SELECT ${table}.*,
+  const expiryClause = table === 'news'
+    ? " AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)"
+    : '';
+
+  let studentId = null;
+  const optionalAuth = await auth(ctx, false);
+  if (optionalAuth?.session?.student_id && !optionalAuth.session.staff_user_id) {
+    studentId = optionalAuth.session.student_id;
+  }
+
+  const type = table === 'news' ? 'news' : table === 'events' ? 'event' : 'activity';
+  const myReactionSql = studentId
+    ? `(SELECT r2.reaction FROM reactions r2 WHERE r2.content_type=? AND r2.content_id=${table}.id AND r2.student_id=?) AS my_reaction`
+    : 'NULL AS my_reaction';
+
+  const params = [type, type];
+  if (studentId) params.push(type, studentId);
+  params.push(id);
+
+  const row = await queryOne(
+    ctx.env,
+    `SELECT ${table}.*,
       (SELECT COUNT(*) FROM comments c WHERE c.content_type=? AND c.content_id=${table}.id AND c.status='visible') AS comment_count,
-      (SELECT COUNT(*) FROM reactions r WHERE r.content_type=? AND r.content_id=${table}.id) AS like_count
-    FROM ${table} WHERE id=? AND status='published' AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP) ${expiryClause}`,
-    table === 'news' ? 'news' : table === 'events' ? 'event' : 'activity',
-    table === 'news' ? 'news' : table === 'events' ? 'event' : 'activity',
-    id);
+      (SELECT COUNT(*) FROM reactions r WHERE r.content_type=? AND r.content_id=${table}.id) AS like_count,
+      ${myReactionSql}
+    FROM ${table}
+    WHERE id=? AND status='published'
+      AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)
+      ${expiryClause}`,
+    ...params,
+  );
+
   if (!row) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح حاليًا.',404,ctx.requestId,ctx.cors);
   return ok(ctx, serializePublicContent(table, row), {source:'d1'});
 }
@@ -279,7 +306,7 @@ function serializePublicContent(table, row) {
   const images = parseJsonValue(row.images_json, []);
   const normalizedImages = Array.isArray(images) ? images.map(v => typeof v === 'string' ? v : (v?.url || '')).filter(Boolean) : [];
   if (row.image_url && !normalizedImages.includes(row.image_url)) normalizedImages.unshift(row.image_url);
-  const common = { id: row.id, title: row.title, body: row.body || null, imageUrl: normalizedImages[0] || null, images: normalizedImages, category: row.category || null, publisher: row.publisher || null, createdAt: row.created_at || null, updatedAt: row.updated_at || null, commentCount: Number(row.comment_count || 0), likeCount: Number(row.like_count || 0) };
+  const common = { id: row.id, title: row.title, body: row.body || null, imageUrl: normalizedImages[0] || null, images: normalizedImages, category: row.category || null, publisher: row.publisher || null, createdAt: row.created_at || null, updatedAt: row.updated_at || null, commentCount: Number(row.comment_count || 0), likeCount: Number(row.like_count || 0), myReaction: row.my_reaction || null };
   if (['events','activities'].includes(table)) Object.assign(common, {eventAt: row.event_at || null, endAt: row.end_at || null, location: row.location || null});
   else Object.assign(common, {publishAt: row.publish_at || null, expiresAt: row.expires_at || null});
   return common;
@@ -292,23 +319,50 @@ async function publicList(ctx, table) {
   const expiryClause = ['news', 'announcements'].includes(table)
     ? " AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)"
     : '';
-  const rows = await queryAll(
-    ctx.env,
-    `SELECT ${table}.*,
+
+  // Public content remains readable without authentication. When a valid
+  // student session is present, also return that student's reaction state so
+  // the UI can survive refresh/navigation without losing the like state.
+  let studentId = null;
+  const optionalAuth = await auth(ctx, false);
+  if (optionalAuth?.session?.student_id && !optionalAuth.session.staff_user_id) {
+    studentId = optionalAuth.session.student_id;
+  }
+
+  const type = table === 'news'
+    ? 'news'
+    : table === 'announcements'
+      ? 'announcement'
+      : table === 'events'
+        ? 'event'
+        : table === 'activities'
+          ? 'activity'
+          : 'achievement';
+
+  const myReactionSql = studentId
+    ? `(SELECT r2.reaction FROM reactions r2 WHERE r2.content_type = ? AND r2.content_id = ${table}.id AND r2.student_id = ?) AS my_reaction`
+    : 'NULL AS my_reaction';
+
+  const sql = `SELECT ${table}.*,
        (SELECT COUNT(*) FROM comments c WHERE c.content_type = ? AND c.content_id = ${table}.id AND c.status = 'visible') AS comment_count,
-       (SELECT COUNT(*) FROM reactions r WHERE r.content_type = ? AND r.content_id = ${table}.id) AS like_count
+       (SELECT COUNT(*) FROM reactions r WHERE r.content_type = ? AND r.content_id = ${table}.id) AS like_count,
+       ${myReactionSql}
      FROM ${table}
      WHERE status = 'published'
        AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)
        ${expiryClause}
-     ORDER BY ${order} LIMIT ?`,
-    table === 'news' ? 'news' : table === 'announcements' ? 'announcement' : table === 'events' ? 'event' : table === 'activities' ? 'activity' : 'achievement',
-    table === 'news' ? 'news' : table === 'announcements' ? 'announcement' : table === 'events' ? 'event' : table === 'activities' ? 'activity' : 'achievement',
-    limit
-  );
+     ORDER BY ${order} LIMIT ?`;
+
+  const params = [type, type];
+  if (studentId) params.push(type, studentId);
+  params.push(limit);
+
+  const rows = await queryAll(ctx.env, sql, ...params);
 
   const data = rows.map(row => {
-    if (table === 'news' || table === 'events' || table === 'activities') return serializePublicContent(table, row);
+    if (table === 'news' || table === 'events' || table === 'activities') {
+      return serializePublicContent(table, row);
+    }
     if (table === 'achievements') return {
       id: row.id,
       title: row.title,
@@ -323,6 +377,9 @@ async function publicList(ctx, table) {
       achievedAt: row.achieved_at || null,
       createdAt: row.created_at || null,
       updatedAt: row.updated_at || null,
+      commentCount: Number(row.comment_count || 0),
+      likeCount: Number(row.like_count || 0),
+      myReaction: row.my_reaction || null,
     };
     return {
       id: row.id,
@@ -1066,8 +1123,11 @@ async function materialFile(ctx, id) {
   if (!row) return error('MATERIAL_NOT_FOUND', 'الملف غير موجود أو غير متاح لهذا الطالب.', 404, ctx.requestId, ctx.cors);
 
   let upstreamUrl = null;
-  if (row.drive_file_id) {
-    upstreamUrl = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(row.drive_file_id)}`;
+  const driveFileId = row.drive_file_id ? encodeURIComponent(row.drive_file_id) : null;
+  if (driveFileId) {
+    // The student never receives this URL. The Worker is the only component
+    // that talks to the upstream storage provider.
+    upstreamUrl = `https://drive.usercontent.google.com/download?id=${driveFileId}&export=download&confirm=t`;
   } else if (row.drive_url) {
     try {
       const candidate = new URL(row.drive_url);

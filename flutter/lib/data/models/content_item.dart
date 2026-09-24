@@ -15,6 +15,7 @@ class ContentItem {
     this.location,
     this.commentCount = 0,
     this.likeCount = 0,
+    this.myReaction,
     this.images = const <String>[],
   });
 
@@ -31,6 +32,7 @@ class ContentItem {
   final String? location;
   final int commentCount;
   final int likeCount;
+  final String? myReaction;
   final List<String> images;
 
   factory ContentItem.fromJson(Map<String, dynamic> json) {
@@ -73,6 +75,7 @@ class ContentItem {
       location: fields['location']?.toString(),
       commentCount: _toInt(fields['commentCount'] ?? fields['comment_count']),
       likeCount: _toInt(fields['likeCount'] ?? fields['like_count']),
+      myReaction: (fields['myReaction'] ?? fields['my_reaction'])?.toString(),
       images: _toImages(fields['images'] ?? fields['images_json']),
     );
   }

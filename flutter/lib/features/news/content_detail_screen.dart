@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
@@ -25,14 +24,15 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _liked = widget.item.myReaction == 'like';
     _loadDetail();
   }
 
   Future<void> _loadDetail() async {
-    final client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
+    final client = await AuthenticatedClient.create();
     try {
       final item = await ContentRepository(client).detail(widget.type, widget.item.id);
-      if (mounted) setState(() => _fresh = item);
+      if (mounted) setState(() { _fresh = item; _liked = item.myReaction == 'like'; });
     } catch (_) {
       // The list item is already usable; detail refresh is best-effort.
     } finally {
@@ -41,7 +41,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   }
 
   Future<void> _like() async {
-    if (_busy) return;
+    if (_busy || _liked) return;
     setState(() => _busy = true);
     ApiClient? client;
     try {
@@ -247,12 +247,8 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   }
 
   Future<List<CommentItem>> _fetch() async {
-    final client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
-    try {
-      return await InteractionsRepository(client).comments(widget.type, widget.item.id);
-    } finally {
-      client.dispose();
-    }
+    _client ??= await AuthenticatedClient.create();
+    return InteractionsRepository(_client!).comments(widget.type, widget.item.id);
   }
 
   Future<void> _send() async {

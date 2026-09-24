@@ -85,9 +85,11 @@ class _MediaCard extends StatefulWidget {
   @override State<_MediaCard> createState() => _MediaCardState();
 }
 class _MediaCardState extends State<_MediaCard> {
-  bool _liked = false, _busy = false;
+  late bool _liked = widget.item.myReaction == 'like';
+  bool _busy = false;
+
   Future<void> _like() async {
-    if (_busy) return;
+    if (_busy || _liked) return;
     setState(() => _busy = true);
     ApiClient? client;
     try {

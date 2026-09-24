@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
@@ -22,7 +21,14 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   bool _reacting = false;
   int _likeDelta = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    _liked = widget.item.myReaction == 'like';
+  }
+
   Future<void> _toggleLike() async {
+    if (_liked || _reacting) return;
     setState(() => _reacting = true);
     try {
       _client ??= await AuthenticatedClient.create();
@@ -166,12 +172,8 @@ class _NewsCommentsSheetState extends State<NewsCommentsSheet> {
   }
 
   Future<List<CommentItem>> _fetchComments() async {
-    final client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
-    try {
-      return await InteractionsRepository(client).comments('news', widget.item.id);
-    } finally {
-      client.dispose();
-    }
+    _client ??= await AuthenticatedClient.create();
+    return InteractionsRepository(_client!).comments('news', widget.item.id);
   }
 
   Future<void> _addComment() async {
@@ -231,7 +233,7 @@ class _NewsCommentsSheetState extends State<NewsCommentsSheet> {
                 future: _comments,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                  if (snapshot.hasError) return Center(child: Text(l10n.t('connectionFailed')));
+                  if (snapshot.hasError) return Center(child: Text(snapshot.error is ApiException ? (snapshot.error as ApiException).message : l10n.t('connectionFailed')));
                   final list = List<CommentItem>.from(snapshot.data ?? const <CommentItem>[]);
                   if (list.isEmpty) return Center(child: Text(l10n.t('noComments'), textAlign: TextAlign.center));
                   return ListView.separated(
