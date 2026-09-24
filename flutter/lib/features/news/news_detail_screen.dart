@@ -20,13 +20,14 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   ApiClient? _client;
   bool _liked = false;
   bool _reacting = false;
+  int _likeDelta = 0;
 
   Future<void> _toggleLike() async {
     setState(() => _reacting = true);
     try {
       _client ??= await AuthenticatedClient.create();
       await InteractionsRepository(_client!).react('news', widget.item.id, 'like');
-      if (mounted) setState(() => _liked = true);
+      if (mounted) setState(() { _liked = true; _likeDelta = 1; });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -106,7 +107,9 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                         child: OutlinedButton.icon(
                           onPressed: _reacting ? null : _toggleLike,
                           icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 16),
-                          label: Text(_liked ? l10n.t('liked') : l10n.t('like')),
+                          label: Text(
+                            '${_liked ? l10n.t('liked') : l10n.t('like')} ${widget.item.likeCount + _likeDelta}',
+                          ),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -229,7 +232,7 @@ class _NewsCommentsSheetState extends State<NewsCommentsSheet> {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                   if (snapshot.hasError) return Center(child: Text(l10n.t('connectionFailed')));
-                  final list = snapshot.data ?? const <CommentItem>[];
+                  final list = List<CommentItem>.from(snapshot.data ?? const <CommentItem>[]);
                   if (list.isEmpty) return Center(child: Text(l10n.t('noComments'), textAlign: TextAlign.center));
                   return ListView.separated(
                     padding: const EdgeInsets.all(12),
@@ -237,11 +240,31 @@ class _NewsCommentsSheetState extends State<NewsCommentsSheet> {
                     separatorBuilder: (_, _) => Divider(height: 12, color: cs.outline),
                     itemBuilder: (_, index) {
                       final comment = list[index];
-                      return ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(comment.body, textAlign: TextAlign.start, style: const TextStyle(fontSize: 11.5, height: 1.45)),
-                        subtitle: Text(comment.studentName, textAlign: TextAlign.start, style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)),
+                      return _CommentTile(
+                        comment: comment,
+                        onLike: () async {
+                          try {
+                            await InteractionsRepository(
+                              _client ??= await AuthenticatedClient.create(),
+                            ).reactComment(comment.id, 'like');
+                            if (!mounted) return;
+                            setState(() {
+                              list[index] = comment.copyWith(
+                                liked: true,
+                                reactionCount: comment.reactionCount + (comment.liked ? 0 : 1),
+                              );
+                            });
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e is ApiException ? e.message : l10n.t('likeFailed'),
+                                ),
+                              ),
+                            );
+                          }
+                        },
                       );
                     },
                   );
@@ -263,6 +286,79 @@ class _NewsCommentsSheetState extends State<NewsCommentsSheet> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+
+class _CommentTile extends StatefulWidget {
+  const _CommentTile({required this.comment, required this.onLike});
+
+  final CommentItem comment;
+  final Future<void> Function() onLike;
+
+  @override
+  State<_CommentTile> createState() => _CommentTileState();
+}
+
+class _CommentTileState extends State<_CommentTile> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final comment = widget.comment;
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        comment.body,
+        textAlign: TextAlign.start,
+        style: const TextStyle(fontSize: 11.5, height: 1.45),
+      ),
+      subtitle: Text(
+        comment.studentName,
+        textAlign: TextAlign.start,
+        style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant),
+      ),
+      trailing: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: comment.liked || _busy
+            ? null
+            : () async {
+                setState(() => _busy = true);
+                try {
+                  await widget.onLike();
+                } finally {
+                  if (mounted) setState(() => _busy = false);
+                }
+              },
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                comment.liked
+                    ? Icons.thumb_up_rounded
+                    : Icons.thumb_up_alt_outlined,
+                size: 16,
+                color: comment.liked ? cs.primary : cs.onSurfaceVariant,
+              ),
+              if (comment.reactionCount > 0) ...[
+                const SizedBox(width: 3),
+                Text(
+                  '${comment.reactionCount}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: comment.liked ? cs.primary : cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

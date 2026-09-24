@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/storage/auth_storage.dart';
 import '../../data/models/material_item.dart';
 import '../../data/repositories/materials_repository.dart';
 import '../../data/repositories/progress_repository.dart';
@@ -73,9 +75,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
     if (url == null || url.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('رابط الملف غير متاح حاليًا'),
-          ),
+          const SnackBar(content: Text('الملف غير متاح حاليًا')),
         );
       }
       return;
@@ -84,30 +84,51 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
     try {
       _client ??= await AuthenticatedClient.create();
 
+      // Progress is recorded against the material ID, never against a
+      // provider/Drive URL.
       await ProgressRepository(_client!).record(
         materialId: material.id,
         eventType: 'open',
         progressPercent: 0,
       );
-    } catch (_) {}
 
-    final uri = Uri.tryParse(url);
+      final storage = await AuthStorage.create();
+      final token = await storage.accessToken;
+      if (token == null || token.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('يجب تسجيل الدخول لفتح الملف')),
+          );
+        }
+        return;
+      }
 
-    if (uri == null || !await canLaunchUrl(uri)) {
+      if ((material.mimeType ?? '').toLowerCase() != 'application/pdf') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('هذا الملف ليس PDF')),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PdfMaterialViewerScreen(
+            title: material.name,
+            url: Uri.parse('${AppConstants.apiBaseUrl}/materials/${Uri.encodeComponent(material.id)}/file'),
+            accessToken: token,
+          ),
+        ),
+      );
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تعذر فتح الملف'),
-          ),
+          SnackBar(content: Text(e is ApiException ? e.message : 'تعذر فتح الملف')),
         );
       }
-      return;
     }
-
-    await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
   }
 
   @override
@@ -284,9 +305,9 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                                 ),
                               ),
                               subtitle: Text(
-                                material.size == null
+                                material.size == null || material.size! <= 0
                                     ? ''
-                                    : '${material.size} bytes',
+                                    : _formatFileSize(material.size!),
                                 style: TextStyle(
                                   fontSize: 9,
                                   color: context
@@ -308,6 +329,66 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+
+String _formatFileSize(int bytes) {
+  if (bytes <= 0) return '';
+  const units = <String>['B', 'KB', 'MB', 'GB', 'TB'];
+  var value = bytes.toDouble();
+  var index = 0;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index++;
+  }
+  final decimals = index == 0 ? 0 : (value >= 10 ? 1 : 2);
+  return '${value.toStringAsFixed(decimals)} ${units[index]}';
+}
+
+class PdfMaterialViewerScreen extends StatelessWidget {
+  const PdfMaterialViewerScreen({
+    required this.title,
+    required this.url,
+    required this.accessToken,
+    super.key,
+  });
+
+  final String title;
+  final Uri url;
+  final String accessToken;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      body: PdfViewer.uri(
+        url,
+        headers: <String, String>{
+          'Authorization': 'Bearer $accessToken',
+        },
+        preferRangeAccess: true,
+        useProgressiveLoading: true,
+        params: PdfViewerParams(
+          backgroundColor: cs.surfaceContainerHighest,
+          maxImageBytesCachedOnMemory: 64 * 1024 * 1024,
+          verticalCacheExtent: 1.5,
+          // Do not provide an external URL handler here. PDF files are
+          // rendered inside the app and are fetched only from our API proxy.
+          linkHandlerParams: PdfLinkHandlerParams(
+            onLinkTap: (_) {},
+          ),
+        ),
       ),
     );
   }

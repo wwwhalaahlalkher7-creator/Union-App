@@ -96,6 +96,7 @@ export default {
       if (path === '/departments' && request.method === 'GET') return departments(ctx);
       if (path === '/subjects' && request.method === 'GET') return subjects(ctx);
       if (path === '/materials' && request.method === 'GET') return materials(ctx);
+      if (/^\/materials\/[^/]+\/file$/.test(path) && request.method === 'GET') return materialFile(ctx, path.split('/')[2]);
       if (/^\/materials\/[^/]+$/.test(path) && request.method === 'GET') return materialById(ctx, path.split('/')[2]);
       if (path === '/schedule' && request.method === 'GET') return schedule(ctx);
 
@@ -1026,21 +1027,99 @@ async function materials(ctx) {
   const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
   const semester = await effectiveMaterialSemester(ctx, a.session, requestedSemester);
   if (semester.error) return semester.error;
-  const rows = await queryAll(ctx.env, `SELECT m.id, m.subject_id, m.title, m.description, m.drive_file_id, m.drive_url, m.drive_web_view_url, m.mime_type, m.size_bytes, m.pinned, m.sort_order, m.created_at, m.updated_at, s.code AS subject_code, s.name_ar AS subject_name, s.name_en AS subject_name_en, s.semester_id, s.department_id
+  const rows = await queryAll(ctx.env, `SELECT m.id, m.subject_id, m.title, m.description, m.mime_type, m.size_bytes, m.pinned, m.sort_order, m.created_at, m.updated_at, s.code AS subject_code, s.name_ar AS subject_name, s.name_en AS subject_name_en, s.semester_id, s.department_id
     FROM materials m JOIN subjects s ON s.id = m.subject_id
     WHERE m.active = 1 AND s.active = 1 AND s.department_id = ?
       AND (? IS NULL OR s.semester_id = ?)
       AND (? IS NULL OR m.subject_id = ?)
     ORDER BY m.pinned DESC, s.sort_order, s.name_ar, m.sort_order, m.title LIMIT ?`,
     a.session.department_id, semester.id, semester.id, subjectId, subjectId, limit);
-  return ok(ctx, rows, { semesterId: semester.id, departmentId: a.session.department_id, count: rows.length, limit });
+  const data = rows.map(row => ({
+    ...row,
+    file_url: `/api/v1/materials/${encodeURIComponent(row.id)}/file`,
+  }));
+  return ok(ctx, data, { semesterId: semester.id, departmentId: a.session.department_id, count: data.length, limit });
 }
 
 async function materialById(ctx, id) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
   const row = await queryOne(ctx.env, 'SELECT m.*, s.name_ar AS subject_name, s.name_en AS subject_name_en, s.code AS subject_code, s.semester_id, s.department_id FROM materials m JOIN subjects s ON s.id = m.subject_id WHERE m.id = ? AND m.active = 1 AND s.active = 1 AND s.department_id = ?', id, a.session.department_id);
   if (!row) return error('MATERIAL_NOT_FOUND', 'المادة غير موجودة أو غير متاحة لهذا الطالب.', 404, ctx.requestId, ctx.cors);
+  delete row.drive_file_id;
+  delete row.drive_url;
+  delete row.drive_web_view_url;
+  row.file_url = `/api/v1/materials/${encodeURIComponent(row.id)}/file`;
   return ok(ctx, row);
+}
+
+async function materialFile(ctx, id) {
+  const a = await studentAuth(ctx);
+  if (a.response) return a.response;
+
+  const row = await queryOne(ctx.env, `
+    SELECT m.id, m.drive_file_id, m.drive_url, m.mime_type, m.size_bytes
+    FROM materials m
+    JOIN subjects s ON s.id = m.subject_id
+    WHERE m.id = ? AND m.active = 1 AND s.active = 1 AND s.department_id = ?
+  `, id, a.session.department_id);
+
+  if (!row) return error('MATERIAL_NOT_FOUND', 'الملف غير موجود أو غير متاح لهذا الطالب.', 404, ctx.requestId, ctx.cors);
+
+  let upstreamUrl = null;
+  if (row.drive_file_id) {
+    upstreamUrl = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(row.drive_file_id)}`;
+  } else if (row.drive_url) {
+    try {
+      const candidate = new URL(row.drive_url);
+      if (candidate.hostname === 'drive.google.com' || candidate.hostname.endsWith('.googleusercontent.com')) {
+        upstreamUrl = candidate.toString();
+      }
+    } catch (_) {}
+  }
+
+  if (!upstreamUrl) {
+    return error('MATERIAL_FILE_UNAVAILABLE', 'ملف المادة غير متاح حاليًا.', 404, ctx.requestId, ctx.cors);
+  }
+
+  const upstreamHeaders = new Headers();
+  const range = ctx.request.headers.get('Range');
+  if (range) upstreamHeaders.set('Range', range);
+  upstreamHeaders.set('Accept', 'application/pdf');
+
+  const upstream = await fetch(upstreamUrl, {
+    method: 'GET',
+    headers: upstreamHeaders,
+    redirect: 'follow',
+  });
+
+  const contentType = upstream.headers.get('content-type') || row.mime_type || 'application/pdf';
+  if (!upstream.ok || !contentType.toLowerCase().includes('pdf')) {
+    console.error(`[${ctx.requestId}] material file upstream failed`, {
+      materialId: id,
+      status: upstream.status,
+      contentType,
+    });
+    return error('MATERIAL_FILE_UNAVAILABLE', 'تعذر تحميل ملف المادة حاليًا.', 502, ctx.requestId, ctx.cors);
+  }
+
+  const headers = {
+    ...ctx.cors,
+    'content-type': 'application/pdf',
+    'content-disposition': 'inline',
+    'cache-control': 'private, max-age=300',
+    'x-content-type-options': 'nosniff',
+    'accept-ranges': upstream.headers.get('accept-ranges') || 'bytes',
+  };
+
+  for (const name of ['content-length', 'content-range', 'etag', 'last-modified']) {
+    const value = upstream.headers.get(name);
+    if (value) headers[name] = value;
+  }
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers,
+  });
 }
 
 async function schedule(ctx) {
@@ -1101,8 +1180,10 @@ async function xp(ctx) {
   const events = await queryAll(ctx.env, 'SELECT event_type, source_id, xp, created_at FROM xp_events WHERE student_id = ? ORDER BY created_at DESC LIMIT 100', a.session.student_id);
   const total = Number(stats?.xp_total || 0);
   const level = calculateLevel(total);
-  const nextLevelXp = XP_LEVEL_BASE * level;
-  return ok(ctx, { stats: { xp_total: total, level, level_xp: total - XP_LEVEL_BASE * (level - 1), next_level_xp: nextLevelXp }, events });
+  const levelStartXp = XP_LEVEL_BASE * (level - 1);
+  const levelXp = Math.max(0, total - levelStartXp);
+  const nextLevelXp = XP_LEVEL_BASE;
+  return ok(ctx, { stats: { xp_total: total, level, level_xp: levelXp, next_level_xp: nextLevelXp, level_start_xp: levelStartXp }, events });
 }
 async function badges(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
@@ -1301,9 +1382,17 @@ async function interactionAllowed(ctx, studentId, action) {
   return !row || Number(row.count) <= rule.limit;
 }
 async function comments(ctx) {
+  const a = await studentAuth(ctx); if (a.response) return a.response;
+  const studentId = a.session.student_id;
   const [, type, id] = ctx.path.split('/'); if (!ALLOWED_CONTENT_TYPES.has(type)) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
   const limit = clampInt(ctx.url.searchParams.get('limit'),20,1,50); const offset = clampInt(ctx.url.searchParams.get('offset'),0,0,10000);
-  const rows = await queryAll(ctx.env, `SELECT c.*, s.full_name, (SELECT COUNT(*) FROM comment_reactions cr WHERE cr.comment_id=c.id) AS reaction_count FROM comments c JOIN students s ON s.id=c.student_id WHERE c.content_type=? AND c.content_id=? AND c.status='visible' ORDER BY c.created_at DESC LIMIT ? OFFSET ?`, type,id,limit,offset);
+  const rows = await queryAll(ctx.env, `SELECT c.*, s.full_name,
+      (SELECT COUNT(*) FROM comment_reactions cr WHERE cr.comment_id=c.id) AS reaction_count,
+      (SELECT cr2.reaction FROM comment_reactions cr2 WHERE cr2.comment_id=c.id AND cr2.student_id=?) AS my_reaction
+    FROM comments c JOIN students s ON s.id=c.student_id
+    WHERE c.content_type=? AND c.content_id=? AND c.status='visible'
+    ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`,
+    studentId, type, id, limit, offset);
   const total = await queryOne(ctx.env, `SELECT COUNT(*) AS count FROM comments WHERE content_type=? AND content_id=? AND status='visible'`, type,id);
   return ok(ctx,rows,{count:rows.length,total:Number(total?.count||0),offset,limit});
 }

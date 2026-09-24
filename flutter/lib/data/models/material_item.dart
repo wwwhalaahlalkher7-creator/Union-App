@@ -9,6 +9,7 @@ class MaterialItem {
     this.semesterId,
     this.semester,
     this.url,
+    this.mimeType,
     this.size,
     this.pinned = false,
   });
@@ -22,6 +23,7 @@ class MaterialItem {
   final String? semesterId;
   final int? semester;
   final String? url;
+  final String? mimeType;
   final int? size;
   final bool pinned;
 
@@ -36,7 +38,10 @@ class MaterialItem {
       department: (json['department'] ?? json['sectionName'] ?? json['section'])?.toString(),
       semesterId: json['semester_id']?.toString(),
       semester: int.tryParse(semesterValue?.toString() ?? ''),
-      url: (json['drive_web_view_url'] ?? json['drive_url'] ?? json['url'] ?? json['downloadLink'] ?? json['webViewLink'] ?? json['link'])?.toString(),
+      // Students only receive the application's authenticated file endpoint.
+      // Raw Drive URLs are intentionally not exposed to the app.
+      url: (json['file_url'] ?? json['fileUrl'] ?? json['url'])?.toString(),
+      mimeType: (json['mime_type'] ?? json['mimeType'] ?? 'application/pdf')?.toString(),
       size: int.tryParse((json['size_bytes'] ?? json['size'] ?? '').toString()),
       pinned: json['pinned'] == true || json['pinned'] == 1,
     );
