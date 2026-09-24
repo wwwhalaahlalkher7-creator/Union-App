@@ -66,6 +66,9 @@ for path in sorted(flutter_paths):
         documented=True
     elif '/api/v1/public/$type/$id' in path:
         documented=True
+    elif normalized == '/api/v1/public/':
+        # This is a cache-prefix check in api_client.dart, not an HTTP endpoint.
+        documented=True
     elif normalized.startswith('/api/v1/public/'):
         resource=normalized[len('/api/v1/public/'):].split('/')[0]
         documented=resource in {'news','events','announcements','activities','achievements','settings','materials'}
