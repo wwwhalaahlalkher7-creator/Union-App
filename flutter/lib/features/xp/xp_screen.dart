@@ -7,6 +7,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/models/xp_snapshot.dart';
 import '../../data/repositories/xp_repository.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/login_required_card.dart';
 import '../../shared/widgets/app_section.dart';
 import '../../shared/widgets/list_skeleton.dart';
 
@@ -23,6 +24,7 @@ class _XpScreenState extends State<XpScreen> {
   XpSnapshot? _snapshot;
   String? _error;
   bool _loading = true;
+  bool _lastErrorIsAuth = false;
 
   @override
   void initState() {
@@ -31,7 +33,7 @@ class _XpScreenState extends State<XpScreen> {
   }
 
   Future<void> _load() async {
-    if (mounted) setState(() => _loading = true);
+    if (mounted) setState(() { _loading = true; _lastErrorIsAuth = false; });
     try {
       _client ??= await AuthenticatedClient.create();
       _repo ??= XpRepository(_client!);
@@ -45,9 +47,9 @@ class _XpScreenState extends State<XpScreen> {
     } catch (e) {
       if (mounted) {
         setState(
-          () => _error = e is ApiException
+          () { _error = e is ApiException
               ? e.message
-              : AppLocalizations.of(context).t('xpLoadError'),
+              : AppLocalizations.of(context).t('xpLoadError'); _lastErrorIsAuth = e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED'); },
         );
       }
     } finally {
@@ -70,7 +72,7 @@ class _XpScreenState extends State<XpScreen> {
     if (_loading && snapshot == null) {
       body = const ListSkeleton(count: 5);
     } else if (_error != null && snapshot == null) {
-      body = _XpError(message: _error!, retry: _load);
+      body = (_lastErrorIsAuth) ? const LoginRequiredCard() : _XpError(message: _error!, retry: _load);
     } else {
       // Both guarded branches above require a null snapshot, so reaching this
       // branch means a snapshot is available. Keep the promotion explicit for

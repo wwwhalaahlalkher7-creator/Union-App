@@ -23,9 +23,6 @@ GET /api/v1/health?deep=true
 1. `FREE_AI_BASE_URL` مضبوط على `https://api.free.ai/v1` (ولا تضف `/chat/completions` في المتغير).
 2. يمكن أن يحتوي العنوان على `/v1`، والكود يتعامل مع ذلك.
 3. `FREE_AI_API_KEY` صحيح داخل GitHub/Cloudflare Secrets.
-4. `OMNIROUTE_API_KEY` هو مفتاح Gateway من OmniRoute → API Keys، وليس مفتاح Mistral/المزود نفسه.
-5. `EINO_MODEL=auto` هو الوضع الافتراضي؛ وإذا رفضت نسخة OmniRoute الحالية alias `auto` يحاول Adapter اختيار نموذج محادثة صالح من `/v1/models`.
-6. راقب telemetry من لوحة الإدارة، وتحقق من `/v1/models` في OmniRoute قبل فحص Flutter.
 
 ## 3. Flutter لا يمر CI
 

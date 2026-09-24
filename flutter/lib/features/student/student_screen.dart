@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
+import '../../core/storage/auth_storage.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/student_profile.dart';
 import '../../data/repositories/student_repository.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/login_required_card.dart';
 
 class StudentScreen extends StatefulWidget {
   const StudentScreen({super.key});
@@ -26,7 +28,9 @@ class _StudentScreenState extends State<StudentScreen> {
     _future = _load();
   }
 
-  Future<_StudentData> _load() async {
+  Future<_StudentData?> _load() async {
+    final storage = await AuthStorage.create();
+    if (!await storage.isLoggedIn) return null;
     _client ??= await AuthenticatedClient.create();
 
     final repository = StudentRepository(_client!);
@@ -54,7 +58,7 @@ class _StudentScreenState extends State<StudentScreen> {
   Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: _reload,
-      child: FutureBuilder<_StudentData>(
+      child: FutureBuilder<_StudentData?>(
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -65,6 +69,9 @@ class _StudentScreenState extends State<StudentScreen> {
 
           if (snapshot.hasError) {
             final e = snapshot.error;
+            if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) {
+              return const LoginRequiredCard();
+            }
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -82,7 +89,11 @@ class _StudentScreenState extends State<StudentScreen> {
             );
           }
 
-          final data = snapshot.data!;
+          final data = snapshot.data;
+          if (data == null) return const LoginRequiredCard(
+            title: AppLocalizations.of(context).t('studentProfileGuestTitle'),
+            subtitle: AppLocalizations.of(context).t('studentProfileGuestSubtitle'),
+          );
           final profile = data.profile;
           final stats = data.stats;
 

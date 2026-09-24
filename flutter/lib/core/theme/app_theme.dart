@@ -38,10 +38,10 @@ class AppTheme {
       onSecondary: Colors.white,
       tertiary: accent.primary,
       onTertiary: Colors.white,
-      surface: Colors.white,
-      onSurface: const Color(0xFF172033),
-      outline: const Color(0xFFD7DEE8),
-      outlineVariant: const Color(0xFFE5EAF1),
+      surface: AppColors.lightSurface,
+      onSurface: AppColors.lightText,
+      outline: AppColors.lightBorder,
+      outlineVariant: AppColors.lightBorder,
     );
     return _base(scheme, Brightness.light);
   }
@@ -67,13 +67,13 @@ class AppTheme {
 
     return base.copyWith(
       scaffoldBackgroundColor:
-          dark ? AppColors.background : const Color(0xFFF5F7FA),
+          dark ? AppColors.background : AppColors.lightBackground,
       textTheme: text.apply(
-        bodyColor: dark ? AppColors.text : const Color(0xFF172033),
-        displayColor: dark ? AppColors.text : const Color(0xFF172033),
+        bodyColor: dark ? AppColors.text : AppColors.lightText,
+        displayColor: dark ? AppColors.text : AppColors.lightText,
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: dark ? AppColors.background : const Color(0xFFF5F7FA),
+        backgroundColor: dark ? AppColors.background : AppColors.lightBackground,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -82,19 +82,19 @@ class AppTheme {
         titleTextStyle: text.titleLarge?.copyWith(color: scheme.onSurface),
       ),
       cardTheme: CardThemeData(
-        color: dark ? AppColors.surface : Colors.white,
+        color: dark ? AppColors.surface : AppColors.lightSurface,
         elevation: 0,
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(DesignTokens.radius16),
           side: BorderSide(
-            color: dark ? AppColors.border : const Color(0xFFE1E7EF),
+            color: dark ? AppColors.border : AppColors.lightBorder,
           ),
         ),
       ),
       dividerTheme: DividerThemeData(
-        color: dark ? AppColors.border : const Color(0xFFE1E7EF),
+        color: dark ? AppColors.border : AppColors.lightBorder,
         thickness: 1,
         space: 1,
       ),
@@ -136,19 +136,19 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: dark ? AppColors.surface : Colors.white,
+        fillColor: dark ? AppColors.surface : AppColors.lightSurface,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(DesignTokens.radius12),
           borderSide: BorderSide(
-            color: dark ? AppColors.border : const Color(0xFFE1E7EF),
+            color: dark ? AppColors.border : AppColors.lightBorder,
           ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(DesignTokens.radius12),
           borderSide: BorderSide(
-            color: dark ? AppColors.border : const Color(0xFFE1E7EF),
+            color: dark ? AppColors.border : AppColors.lightBorder,
           ),
         ),
         focusedBorder: OutlineInputBorder(

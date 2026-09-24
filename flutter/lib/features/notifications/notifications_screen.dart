@@ -6,6 +6,7 @@ import '../../core/network/authenticated_client.dart';
 import '../../data/models/notification_item.dart';
 import '../../data/repositories/notifications_repository.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/login_required_card.dart';
 import '../../shared/widgets/list_skeleton.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -89,12 +90,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             return const ListSkeleton(count: 5);
           }
           if (snapshot.hasError) {
-            return _StateView(
-              icon: Icons.cloud_off_rounded,
-              title: snapshot.error is ApiException ? (snapshot.error as ApiException).message : l10n.t('connectionFailed'),
-              action: l10n.t('retry'),
-              onAction: _reload,
-            );
+            final e = snapshot.error;
+            if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
+            return _StateView(icon: Icons.cloud_off_rounded, title: e is ApiException ? e.message : l10n.t('connectionFailed'), action: l10n.t('retry'), onAction: _reload);
           }
 
           final all = snapshot.data ?? const <NotificationItem>[];

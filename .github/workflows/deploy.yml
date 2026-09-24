@@ -122,6 +122,15 @@ jobs:
       - name: Validate Syntax (Node Check)
         run: node --check src/index.js
 
+      - name: Test Eino Provider Routing Matrix
+        run: node ../ci/eino_provider_matrix_check.mjs
+
+      - name: Validate Color & Theme Tokens
+        run: python3 ../ci/color_theme_check.py
+
+      - name: Validate Offline-First Cache Architecture
+        run: python3 ../ci/offline_cache_check.py
+
       - name: Validate D1 Schema & Backend Hardening
         run: |
           python3 ../ci/backend_schema_check.py
@@ -147,103 +156,24 @@ jobs:
           if [ -n "${{ secrets.FREE_AI_API_KEY }}" ]; then
             echo "${{ secrets.FREE_AI_API_KEY }}" | npx wrangler secret put FREE_AI_API_KEY
           fi
+          if [ -n "${{ secrets.MISTRAL_API_KEY }}" ]; then
+            echo "${{ secrets.MISTRAL_API_KEY }}" | npx wrangler secret put MISTRAL_API_KEY
+          fi
+          if [ -n "${{ secrets.GROQ_API_KEY }}" ]; then
+            echo "${{ secrets.GROQ_API_KEY }}" | npx wrangler secret put GROQ_API_KEY
+          fi
           if [ -n "${{ secrets.FREE_AI_BASE_URL }}" ]; then
             echo "${{ secrets.FREE_AI_BASE_URL }}" | npx wrangler secret put FREE_AI_BASE_URL
           fi
-          if [ -z "${{ secrets.OMNIROUTE_API_KEY }}" ]; then
-            echo "::error::OMNIROUTE_API_KEY is required for the configured OmniRoute Eino gateway. Create a gateway API key in OmniRoute → API Keys and add it to GitHub Secrets."
-            exit 1
+          if [ -n "${{ secrets.EINO_EMBEDDING_API_KEY }}" ]; then
+            echo "${{ secrets.EINO_EMBEDDING_API_KEY }}" | npx wrangler secret put EINO_EMBEDDING_API_KEY
           fi
-          echo "${{ secrets.OMNIROUTE_API_KEY }}" | npx wrangler secret put OMNIROUTE_API_KEY
           if [ -n "${{ secrets.GOOGLE_APPS_SCRIPT_TOKEN }}" ]; then
             echo "${{ secrets.GOOGLE_APPS_SCRIPT_TOKEN }}" | npx wrangler secret put GOOGLE_APPS_SCRIPT_TOKEN
           fi
           if [ -n "${{ secrets.STAFF_BOOTSTRAP_TOKEN }}" ]; then
             echo "${{ secrets.STAFF_BOOTSTRAP_TOKEN }}" | npx wrangler secret put STAFF_BOOTSTRAP_TOKEN
           fi
-
-      - name: Verify OmniRoute Gateway Before Worker Deploy
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_CF == 'true'
-        env:
-          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
-          OMNIROUTE_BASE_URL: https://omnirouteopen-sse-production.up.railway.app/v1
-          HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
-        run: |
-          if [ -z "$OMNIROUTE_API_KEY" ]; then
-            echo "::error::OMNIROUTE_API_KEY is missing."
-            exit 1
-          fi
-          status=$(curl -sS -o /tmp/omniroute-models.json -w "%{http_code}" \
-            -H "Authorization: Bearer $OMNIROUTE_API_KEY" \
-            -H "Accept: application/json" \
-            "$OMNIROUTE_BASE_URL/models")
-          echo "OmniRoute /v1/models HTTP $status"
-          if [ "$status" != "200" ]; then
-            echo "::error::OmniRoute rejected the gateway key or is unavailable. HTTP $status"
-            cat /tmp/omniroute-models.json
-            exit 1
-          fi
-          python3 - <<'PY2'
-          import json
-          from pathlib import Path
-          p=Path('/tmp/omniroute-models.json')
-          data=json.loads(p.read_text())
-          models=data.get('data', []) if isinstance(data, dict) else []
-          print(f'OmniRoute models visible: {len(models)}')
-          if not models:
-              raise SystemExit('::error::OmniRoute is reachable but exposes no models. Add/enable at least one provider/model in OmniRoute.')
-          blocked=('embedding','embed','image','audio','tts','stt','vision')
-          selected=''
-          for item in models:
-              model=str(item.get('id','')).strip() if isinstance(item, dict) else ''
-              if model and not any(x in model.lower() for x in blocked):
-                  selected=model
-                  break
-          if not selected:
-              raise SystemExit('::error::OmniRoute returned models, but no chat-capable model could be selected for the smoke test.')
-          Path('/tmp/omniroute-chat-model.txt').write_text(selected)
-          print(f'OmniRoute smoke-test model: {selected}')
-          PY2
-
-      - name: Smoke Test OmniRoute Chat
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_CF == 'true'
-        env:
-          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
-          OMNIROUTE_BASE_URL: https://omnirouteopen-sse-production.up.railway.app/v1
-          HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
-        run: |
-          model=$(cat /tmp/omniroute-chat-model.txt)
-          payload=$(python3 - "$model" <<'PY3'
-          import json, sys
-          print(json.dumps({
-              'model': sys.argv[1],
-              'messages': [{'role': 'user', 'content': 'Reply with exactly: PONG'}],
-              'temperature': 0,
-              'max_tokens': 8,
-              'stream': False,
-          }))
-          PY3
-          )
-          status=$(curl -sS -o /tmp/omniroute-chat.json -w "%{http_code}" \
-            -H "Authorization: Bearer $OMNIROUTE_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$payload" \
-            "$OMNIROUTE_BASE_URL/chat/completions")
-          echo "OmniRoute /v1/chat/completions HTTP $status"
-          if [ "$status" != "200" ]; then
-            echo "::error::OmniRoute is reachable, but a real chat completion failed. Check the selected provider/model, routing combo, and provider credentials."
-            cat /tmp/omniroute-chat.json
-            exit 1
-          fi
-          python3 - <<'PY4'
-          import json
-          from pathlib import Path
-          data=json.loads(Path('/tmp/omniroute-chat.json').read_text())
-          content=data.get('choices',[{}])[0].get('message',{}).get('content','') if isinstance(data,dict) else ''
-          if not str(content).strip():
-              raise SystemExit('::error::OmniRoute returned HTTP 200 but no chat content.')
-          print('OmniRoute chat smoke test passed.')
-          PY4
 
       - name: Deploy Cloudflare Worker
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_CF == 'true'

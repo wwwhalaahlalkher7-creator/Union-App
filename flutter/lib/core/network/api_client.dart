@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../storage/auth_storage.dart';
+import 'offline_cache.dart';
+import 'offline_state.dart';
 
 class _CachedResponse {
   const _CachedResponse(this.value, this.expiresAt);
@@ -23,6 +25,26 @@ class ApiClient {
   static Future<bool>? _refreshInFlight;
   ApiClient({required this.baseUrl, http.Client? client, this.authStorage}) : _client = client ?? http.Client();
   final String baseUrl; final http.Client _client; final AuthStorage? authStorage;
+
+  static const _offlineCacheMaxStale = Duration(days: 7);
+
+  bool _offlineCacheAllowed(String path) {
+    final p = path.toLowerCase();
+    if (!p.startsWith('/api/v1/')) return false;
+    if (p.contains('/auth/')) return false;
+    if (p.contains('/eino/')) return false;
+    return p.startsWith('/api/v1/public/') ||
+        p.startsWith('/api/v1/departments') ||
+        p.startsWith('/api/v1/semesters') ||
+        p.startsWith('/api/v1/subjects') ||
+        p.startsWith('/api/v1/materials') ||
+        p.startsWith('/api/v1/schedule') ||
+        p.startsWith('/api/v1/student/stats') ||
+        p.startsWith('/api/v1/progress') ||
+        p.startsWith('/api/v1/xp') ||
+        p.startsWith('/api/v1/badges');
+  }
+
 
   Future<Map<String, dynamic>> getJson(String path, {Map<String, String>? query, Duration? cacheTtl, bool forceRefresh = false}) async => _request('GET', path, query: query, cacheTtl: cacheTtl, forceRefresh: forceRefresh);
   Future<Map<String, dynamic>> postJson(String path, {Map<String, dynamic> body = const {}}) async => _request('POST', path, body: body);
@@ -82,6 +104,9 @@ class ApiClient {
   }) async {
     final uri = _buildUri(path, query);
     final cacheKey = uri.toString();
+    final persistentCacheKey = method == 'GET' && _offlineCacheAllowed(path)
+        ? await _persistentCacheKey(cacheKey)
+        : cacheKey;
     final canCache = method == 'GET' && cacheTtl != null && authStorage == null;
     if (canCache && !forceRefresh) {
       final cached = _publicCache[cacheKey];
@@ -106,14 +131,39 @@ class ApiClient {
         }
       }
       final decoded = _decode(response);
+      OfflineState.instance.markOnline();
       if (canCache) {
         _publicCache[cacheKey] = _CachedResponse(decoded, DateTime.now().add(cacheTtl));
       }
+      if (method == 'GET' && _offlineCacheAllowed(path)) {
+        await OfflineCache.instance.write(persistentCacheKey, decoded);
+      }
       return decoded;
     } on ApiException { rethrow; }
-      on TimeoutException catch (e) { throw ApiException('انتهت مهلة الاتصال بالخدمة. أعد المحاولة.', cause: e, kind: ApiErrorKind.timeout, retryable: true); }
-      on SocketException catch (e) { throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true); }
-      on http.ClientException catch (e) { throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true); }
+      on TimeoutException catch (e) {
+        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('انتهت مهلة الاتصال بالخدمة. أعد المحاولة.', cause: e, kind: ApiErrorKind.timeout, retryable: true));
+      }
+      on SocketException catch (e) {
+        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true));
+      }
+      on http.ClientException catch (e) {
+        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true));
+      }
+  }
+
+  Future<String> _persistentCacheKey(String uri) async {
+    final studentNumber = await authStorage?.studentNumber;
+    if (studentNumber == null || studentNumber.trim().isEmpty) return 'public|$uri';
+    return 'student:${studentNumber.trim()}|$uri';
+  }
+
+  Future<Map<String, dynamic>> _offlineFallbackOrThrow(String cacheKey, String path, ApiException error) async {
+    OfflineState.instance.markOffline();
+    if (_offlineCacheAllowed(path)) {
+      final cached = await OfflineCache.instance.read(cacheKey, maxStale: _offlineCacheMaxStale);
+      if (cached != null) return cached;
+    }
+    throw error;
   }
 
   Duration _requestTimeout(String path) {

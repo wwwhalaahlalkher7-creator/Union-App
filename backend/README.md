@@ -1,55 +1,34 @@
-# TRINEX API
+# Backend
 
-Cloudflare Worker + D1 API الموحد للتطبيق والموقع ولوحة الإدارة.
+Cloudflare Worker + D1 API for the association application.
 
-## Quick start
+## Eino provider architecture
 
-```bash
-npm install --no-audit --no-fund
-node --check src/index.js
-npm run migrate:local
-npm run dev
-```
+Eino is capability-first and routes each task through providers that explicitly advertise support for that capability.
+Provider selection is handled by `src/providers/registry.js` and routes each
+capability through providers that explicitly advertise support for it.
 
-## Production
+Current provider configuration:
 
-- Worker config: `wrangler.toml`
-- Entry point: `src/index.js`
-- Database: D1 `leo-association-db`
-- Migrations: `migrations/`
-- Drive adapter: `apps-script/`
+- `mistral`: primary Text/Vision/OCR provider, with Mistral Small 4 (`mistral-small-2603`) for text/vision and Mistral OCR for documents.
+- `groq`: primary STT/TTS provider, with Whisper Large V3 Turbo for transcription and Orpheus Arabic for Arabic speech generation; it is also a text/vision fallback.
+- `free.ai`: optional final fallback for capabilities it supports.
 
-## Important
+Current capability chains:
 
-Google Apps Script ليس API عامًا للتطبيق؛ دوره الحالي هو قراءة وفهرسة Google Drive عبر adapter محمي بـtoken. التطبيق والموقع واللوحة يتعاملون مع TRINEX API فقط.
+- Text: Mistral Small 4 → Groq GPT-OSS 120B → Free.ai.
+- Vision: Mistral Small 4 → Groq Qwen 3.8 27B → Free.ai.
+- OCR: Mistral OCR → Free.ai.
+- STT: Groq Whisper Large V3 Turbo → Mistral Voxtral Transcribe → Free.ai.
+- TTS: Groq Orpheus Arabic → Mistral Voxtral TTS → Free.ai.
 
-الأسرار لا تُحفظ في Git. راجع `../docs/CONFIGURATION.md`.
+The router selects by capability first and only uses a fallback when the selected provider reports a retryable failure. Provider credentials are never sent to Flutter.
 
-API contract: `docs/PUBLIC_API_CONTRACT.md`.
-## Eino + Leo OmniRoute
+Embeddings remain separately configurable through `EINO_EMBEDDING_BASE_URL`, `EINO_EMBEDDING_API_KEY` and `EINO_EMBEDDING_MODEL`.
 
-Eino now supports Leo OmniRoute as the primary OpenAI-compatible chat gateway.
-Set `OMNIROUTE_BASE_URL` in `wrangler.toml` to either the full `/v1/chat/completions`
-URL or the `/v1` base URL. `OMNIROUTE_API_KEY` must be configured as a Cloudflare secret when the OmniRoute gateway requires authentication. The Railway deployment template enables API-key protection by default, so store the gateway key as the Cloudflare secret `OMNIROUTE_API_KEY` (and in the deployment secret store used by CI if CI performs the deploy).
+## Memory
 
-Routing is controlled by `EINO_PROVIDER`: `auto` prefers OmniRoute and falls
-back to the existing Free.ai adapter for retryable upstream failures; `omniroute`
-forces OmniRoute for chat; `free.ai` preserves the previous provider.
-
-The `/api/v1/eino/capabilities` endpoint exposes the active provider/model and
-capability metadata to the Flutter client without exposing credentials.
-
-## Eino AI Core + long-term memory
-
-Eino chat now routes through Leo OmniRoute first when `OMNIROUTE_BASE_URL` is configured, with Free.ai available as a retryable fallback. `GET /api/v1/eino/capabilities` exposes the current online capabilities without exposing provider credentials.
-
-Long-term memory is student-owned and opt-in through `POST /api/v1/eino/memory`. D1 stores the canonical memory record and ownership metadata. When a self-hosted Chroma deployment is configured, the API also creates an embedding through OmniRoute and indexes the memory in Chroma. Chat retrieves relevant memories before constructing the model context. If Chroma is unavailable, Eino safely falls back to the latest D1 memories instead of failing the chat request.
-
-Chroma configuration is optional and intentionally empty in the repository until a zero-cost/self-hosted instance is provisioned:
-- `CHROMA_BASE_URL`
-- `CHROMA_TENANT`
-- `CHROMA_DATABASE`
-- `CHROMA_COLLECTION_ID`
-- secret `CHROMA_TOKEN` when authentication is enabled
-
-The Flutter repository exposes `capabilities()`, `memories()`, `remember()`, and `forgetMemory()` so the Eino UI can surface these controls in a later UI phase.
+Student-owned Eino memory is stored canonically in D1. Semantic indexing is
+optional through Chroma and a separately configured embedding provider. If the
+embedding/Chroma path is unavailable, Eino safely falls back to the D1 memory
+records.

@@ -10,6 +10,7 @@ import '../core/update/update_service.dart';
 import '../core/update/update_info.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'router.dart';
+import '../shared/widgets/offline_banner.dart';
 
 class TrinexApp extends StatefulWidget {
   const TrinexApp({
@@ -151,6 +152,7 @@ class _TrinexAppState extends State<TrinexApp> {
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       routerConfig: _router,
+      builder: (context, child) => OfflineBanner(child: child ?? const SizedBox.shrink()),
     );
   }
 }

@@ -12,16 +12,25 @@ EINO_GLOBAL_DAILY_LIMIT = "2000"
 APP_UPDATE_URL = ""
 APP_RELEASE_NOTES = ""
 API_VERSION = "v1"
-EINO_MODEL = "auto"
-# Optional Leo OmniRoute OpenAI-compatible endpoint. Can be the full /v1/chat/completions URL or /v1 base URL.
-OMNIROUTE_BASE_URL = "https://omnirouteopen-sse-production.up.railway.app/v1"
 # Optional self-hosted Chroma. Keep empty until a Chroma server is provisioned.
 CHROMA_BASE_URL = ""
 CHROMA_TENANT = ""
 CHROMA_DATABASE = ""
 CHROMA_COLLECTION_ID = ""
+EINO_TEXT_MODEL = "auto"
+EINO_MISTRAL_BASE_URL = "https://api.mistral.ai"
+EINO_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+EINO_MISTRAL_TEXT_MODEL = "mistral-small-2603"
+EINO_MISTRAL_VISION_MODEL = "mistral-small-2603"
+EINO_MISTRAL_OCR_MODEL = "mistral-ocr-latest"
+EINO_MISTRAL_STT_MODEL = "voxtral-mini-2602"
+EINO_MISTRAL_TTS_MODEL = "voxtral-mini-tts-2603"
+EINO_GROQ_TEXT_MODEL = "openai/gpt-oss-120b"
+EINO_GROQ_VISION_MODEL = "qwen/qwen3.8-27b"
+EINO_GROQ_STT_MODEL = "whisper-large-v3-turbo"
+EINO_GROQ_TTS_MODEL = "canopylabs/orpheus-arabic-saudi"
+EINO_EMBEDDING_BASE_URL = ""
 EINO_EMBEDDING_MODEL = ""
-EINO_PROVIDER = "auto"
 # Optional JSON model catalog. Keep empty to use the safe metadata-only fallback.
 EINO_MODEL_CATALOG_JSON = ""
 # Google Drive is accessed through the deployed Google Apps Script adapter.
@@ -37,9 +46,6 @@ migrations_dir = "migrations"
 
 # Secrets are intentionally not stored in this file.
 # Required Eino upstream credentials are supplied through Cloudflare/GitHub secrets.
-# Required when the OmniRoute gateway has REQUIRE_API_KEY=true (the Railway deployment template does by default).
 # CHROMA_TOKEN is added only when Chroma authentication is enabled.
-# OMNIROUTE_API_KEY is a Cloudflare secret containing the OmniRoute gateway key; never put it in this file.
-# OMNIROUTE_BASE_URL is intentionally a var so the endpoint can be changed without code edits.
 
 # Comma-separated production origins. Configure as a secret/var in deployment.

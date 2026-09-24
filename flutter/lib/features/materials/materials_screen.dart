@@ -9,6 +9,7 @@ import '../../data/models/material_item.dart';
 import '../../data/repositories/materials_repository.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/login_required_card.dart';
 
 class MaterialsScreen extends StatefulWidget {
   const MaterialsScreen({super.key});
@@ -126,8 +127,10 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
           }
 
           if (snapshot.hasError) {
+            final e = snapshot.error;
+            if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
             return _State(
-              message: snapshot.error is ApiException
+              message: e is ApiException
                   ? (snapshot.error as ApiException).message
                   : l10n.t('connectionFailed'),
               retry: _reload,

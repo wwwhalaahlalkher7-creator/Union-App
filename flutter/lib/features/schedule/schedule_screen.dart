@@ -78,13 +78,9 @@ class _ScheduleScreenState
           }
 
           if (snapshot.hasError) {
-            return _Msg(
-              message: snapshot.error is ApiException
-                  ? (snapshot.error as ApiException).message
-                  : AppLocalizations.of(context)
-                      .t('connectionFailed'),
-              retry: _reload,
-            );
+            final e = snapshot.error;
+            if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
+            return _Msg(message: e is ApiException ? e.message : AppLocalizations.of(context).t('connectionFailed'), retry: _reload);
           }
 
           final data = snapshot.data!;

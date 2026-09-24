@@ -6,6 +6,7 @@ import '../../core/network/authenticated_client.dart';
 import '../../data/models/material_progress.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/login_required_card.dart';
 import '../../shared/widgets/app_section.dart';
 import '../../shared/widgets/list_skeleton.dart';
 
@@ -22,19 +23,20 @@ class _ProgressScreenState extends State<ProgressScreen> {
   ProgressSnapshot? _snapshot;
   String? _error;
   bool _loading = true;
+  bool _lastErrorIsAuth = false;
 
   @override
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    if (mounted) setState(() { _loading = true; _error = null; });
+    if (mounted) setState(() { _loading = true; _error = null; _lastErrorIsAuth = false; });
     try {
       _client ??= await AuthenticatedClient.create();
       _repo ??= ProgressRepository(_client!);
       final snapshot = await _repo!.getProgress();
       if (mounted) setState(() => _snapshot = snapshot);
     } catch (e) {
-      if (mounted) setState(() => _error = e is ApiException ? e.message : AppLocalizations.of(context).t('progressLoadError'));
+      if (mounted) setState(() { _error = e is ApiException ? e.message : AppLocalizations.of(context).t('progressLoadError'); _lastErrorIsAuth = e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED'); });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -56,7 +58,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     if (_loading && snapshot == null) {
       body = const ListSkeleton(count: 6);
     } else if (_error != null && snapshot == null) {
-      body = _ErrorView(message: _error!, retry: _load);
+      body = (_lastErrorIsAuth) ? const LoginRequiredCard() : _ErrorView(message: _error!, retry: _load);
     } else {
       body = RefreshIndicator(
         onRefresh: _load,

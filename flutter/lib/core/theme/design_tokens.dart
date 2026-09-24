@@ -97,12 +97,22 @@ class AppAccentColor {
 class AppColors {
   AppColors._();
 
+  // Dark semantic palette.
   static const background = Color(0xFF070B14);
   static const surface = Color(0xFF101722);
   static const elevated = Color(0xFF172231);
   static const border = Color(0xFF263445);
   static const text = Color(0xFFF6F8FC);
   static const muted = Color(0xFF9AA8BB);
+
+  // Light semantic palette. Screens should use ColorScheme rather than these
+  // directly; these values are centralized here for theme construction.
+  static const lightBackground = Color(0xFFF5F7FA);
+  static const lightSurface = Color(0xFFFFFFFF);
+  static const lightElevated = Color(0xFFFFFFFF);
+  static const lightBorder = Color(0xFFE1E7EF);
+  static const lightText = Color(0xFF172033);
+  static const lightMuted = Color(0xFF64748B);
 
   static const success = Color(0xFF16A67A);
   static const danger = Color(0xFFE55363);
