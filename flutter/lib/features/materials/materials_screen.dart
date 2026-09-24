@@ -12,6 +12,7 @@ import '../../data/repositories/materials_repository.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/login_required_card.dart';
+import '../../shared/widgets/trinex_shell.dart';
 
 class MaterialsScreen extends StatefulWidget {
   const MaterialsScreen({super.key});
@@ -348,7 +349,7 @@ String _formatFileSize(int bytes) {
   return '${value.toStringAsFixed(decimals)} ${units[index]}';
 }
 
-class PdfMaterialViewerScreen extends StatelessWidget {
+class PdfMaterialViewerScreen extends StatefulWidget {
   const PdfMaterialViewerScreen({
     required this.title,
     required this.url,
@@ -361,34 +362,79 @@ class PdfMaterialViewerScreen extends StatelessWidget {
   final String accessToken;
 
   @override
+  State<PdfMaterialViewerScreen> createState() => _PdfMaterialViewerScreenState();
+}
+
+class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 3),
+  )..repeat();
+  bool _einoVisible = false;
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  void _summonEino(DragEndDetails details) {
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final velocity = details.primaryVelocity ?? 0;
+    final summoned = rtl ? velocity < -350 : velocity > 350;
+    if (summoned && mounted) setState(() => _einoVisible = true);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          title,
+          widget.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
       ),
-      body: PdfViewer.uri(
-        url,
-        headers: <String, String>{
-          'Authorization': 'Bearer $accessToken',
-        },
-        preferRangeAccess: true,
-        useProgressiveLoading: true,
-        params: PdfViewerParams(
-          backgroundColor: cs.surfaceContainerHighest,
-          maxImageBytesCachedOnMemory: 64 * 1024 * 1024,
-          verticalCacheExtent: 1.5,
+      body: Stack(
+        children: [
+          PdfViewer.uri(
+            widget.url,
+            headers: <String, String>{
+              'Authorization': 'Bearer ${widget.accessToken}',
+            },
+            preferRangeAccess: true,
+            useProgressiveLoading: true,
+            params: PdfViewerParams(
+              backgroundColor: cs.surfaceContainerHighest,
+              maxImageBytesCachedOnMemory: 64 * 1024 * 1024,
+              verticalCacheExtent: 1.5,
           // Do not provide an external URL handler here. PDF files are
           // rendered inside the app and are fetched only from our API proxy.
-          linkHandlerParams: PdfLinkHandlerParams(
-            onLinkTap: (_) {},
+              linkHandlerParams: PdfLinkHandlerParams(
+                onLinkTap: (_) {},
+              ),
+            ),
           ),
-        ),
+          if (_einoVisible)
+            PositionedDirectional(
+              end: 16,
+              bottom: 18,
+              child: EinoFloatingButton(animation: _pulse),
+            ),
+          PositionedDirectional(
+            start: 0,
+            top: 0,
+            bottom: 0,
+            width: 24,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragEnd: _summonEino,
+            ),
+          ),
+        ],
       ),
     );
   }

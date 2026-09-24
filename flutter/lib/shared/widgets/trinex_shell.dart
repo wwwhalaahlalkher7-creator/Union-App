@@ -27,12 +27,26 @@ class _TrinexShellState extends State<TrinexShell>
     duration: const Duration(seconds: 3),
   )..repeat();
 
-  bool _einoVisible = true;
+  bool _einoVisible = false;
+
+  bool get _readingMode =>
+      widget.location == '/media/detail' || widget.location == '/news/detail';
 
   @override
   void initState() {
     super.initState();
+    _einoVisible = !_readingMode;
     FocusManager.instance.addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant TrinexShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.location != widget.location && _readingMode) {
+      _einoVisible = false;
+    } else if (oldWidget.location != widget.location && !_readingMode) {
+      _einoVisible = true;
+    }
   }
 
   void _handleFocusChange() {
@@ -42,7 +56,7 @@ class _TrinexShellState extends State<TrinexShell>
     if (!mounted) return;
     if (isEditing && _einoVisible) {
       setState(() => _einoVisible = false);
-    } else if (!isEditing && !_einoVisible) {
+    } else if (!isEditing && !_einoVisible && !_readingMode) {
       setState(() => _einoVisible = true);
     }
   }
@@ -83,7 +97,7 @@ class _TrinexShellState extends State<TrinexShell>
                     PositionedDirectional(
                       end: 16,
                       bottom: 18,
-                      child: _EinoButton(animation: _pulse),
+                      child: EinoFloatingButton(animation: _pulse),
                     ),
                   // A narrow edge gesture lets the student summon Eino again
                   // without adding another permanent button to the UI.
@@ -315,8 +329,8 @@ class _Avatar extends StatelessWidget {
   }
 }
 
-class _EinoButton extends StatelessWidget {
-  const _EinoButton({required this.animation});
+class EinoFloatingButton extends StatelessWidget {
+  const EinoFloatingButton({required this.animation, super.key});
 
   final Animation<double> animation;
 
