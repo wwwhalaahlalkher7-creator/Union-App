@@ -27,8 +27,29 @@ class _TrinexShellState extends State<TrinexShell>
     duration: const Duration(seconds: 3),
   )..repeat();
 
+  bool _einoVisible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    FocusManager.instance.addListener(_handleFocusChange);
+  }
+
+  void _handleFocusChange() {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    final isEditing =
+        focusContext?.findAncestorWidgetOfExactType<EditableText>() != null;
+    if (!mounted) return;
+    if (isEditing && _einoVisible) {
+      setState(() => _einoVisible = false);
+    } else if (!isEditing && !_einoVisible) {
+      setState(() => _einoVisible = true);
+    }
+  }
+
   @override
   void dispose() {
+    FocusManager.instance.removeListener(_handleFocusChange);
     _pulse.dispose();
     super.dispose();
   }
@@ -58,10 +79,30 @@ class _TrinexShellState extends State<TrinexShell>
               child: Stack(
                 children: [
                   widget.child,
+                  if (_einoVisible)
+                    PositionedDirectional(
+                      end: 16,
+                      bottom: 18,
+                      child: _EinoButton(animation: _pulse),
+                    ),
+                  // A narrow edge gesture lets the student summon Eino again
+                  // without adding another permanent button to the UI.
                   PositionedDirectional(
-                    end: 16,
-                    bottom: 18,
-                    child: _EinoButton(animation: _pulse),
+                    start: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 24,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragEnd: (details) {
+                        final rtl = Directionality.of(context) == TextDirection.rtl;
+                        final velocity = details.primaryVelocity ?? 0;
+                        final summoned = rtl ? velocity < -350 : velocity > 350;
+                        if (summoned && !_einoVisible && mounted) {
+                          setState(() => _einoVisible = true);
+                        }
+                      },
+                    ),
                   ),
                 ],
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
+import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/content_item.dart';
@@ -29,27 +30,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<_HomeData> _load() async {
-    try {
-      final newsFuture = ContentRepository().news();
+    final newsFuture = ContentRepository().news();
 
-      _client ??= await AuthenticatedClient.create();
+    _client ??= await AuthenticatedClient.create();
 
-      final studentRepo = StudentRepository(_client!);
-      final profileFuture = studentRepo.profile();
-      final statsFuture = studentRepo.stats();
+    final studentRepo = StudentRepository(_client!);
+    final profileFuture = studentRepo.profile();
+    final statsFuture = studentRepo.stats();
 
-      final values = await Future.wait<dynamic>([
-        newsFuture,
-        profileFuture,
-        statsFuture,
-      ]);
+    final values = await Future.wait<dynamic>([
+      newsFuture,
+      profileFuture,
+      statsFuture,
+    ]);
 
-      return _HomeData(
-        values[0] as List<ContentItem>,
-        values[1] as StudentProfile,
-        values[2] as Map<String, dynamic>,
-      );
-    }
+    return _HomeData(
+      values[0] as List<ContentItem>,
+      values[1] as StudentProfile,
+      values[2] as Map<String, dynamic>,
+    );
   }
 
   @override
