@@ -17,7 +17,7 @@ class ContentListScreen extends StatefulWidget {
 
 class _ContentListScreenState extends State<ContentListScreen> {
   late final ApiClient _client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
-  late final ContentRepository _repository = ContentRepository(_client);
+  late final ContentRepository _repository = ContentRepository();
   late Future<List<ContentItem>> _future = widget.loader(_repository);
 
   @override void dispose() { _client.dispose(); super.dispose(); }

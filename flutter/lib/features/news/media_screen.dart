@@ -17,7 +17,7 @@ class MediaScreen extends StatefulWidget {
 
 class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStateMixin {
   late final ApiClient _client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
-  late final ContentRepository _repo = ContentRepository(_client);
+  late final ContentRepository _repo = ContentRepository();
   late final TabController _tabs = TabController(length: 3, vsync: this);
   int _index = 0;
   Future<List<ContentItem>>? _future;

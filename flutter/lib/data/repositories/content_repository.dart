@@ -3,10 +3,6 @@ import '../../core/network/authenticated_client.dart';
 import '../models/content_item.dart';
 
 class ContentRepository {
-  ContentRepository(this._client);
-
-  final ApiClient _client;
-
   Future<List<ContentItem>> news() => _list('/api/v1/public/news');
   Future<List<ContentItem>> announcements() => _list('/api/v1/public/announcements');
   Future<List<ContentItem>> events() => _list('/api/v1/public/events');

@@ -31,7 +31,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   Future<void> _loadDetail() async {
     final client = await AuthenticatedClient.create();
     try {
-      final item = await ContentRepository(client).detail(widget.type, widget.item.id);
+      final item = await ContentRepository().detail(widget.type, widget.item.id);
       if (mounted) setState(() { _fresh = item; _liked = item.myReaction == 'like'; });
     } catch (_) {
       // The list item is already usable; detail refresh is best-effort.

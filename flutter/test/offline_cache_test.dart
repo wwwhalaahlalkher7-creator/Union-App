@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../lib/core/network/offline_cache.dart';
+import 'package:leo_association/core/network/offline_cache.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));

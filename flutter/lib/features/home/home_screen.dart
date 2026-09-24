@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/content_item.dart';
@@ -31,12 +29,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<_HomeData> _load() async {
-    final publicClient = ApiClient(
-      baseUrl: AppConstants.apiBaseUrl,
-    );
-
     try {
-      final newsFuture = ContentRepository(publicClient).news();
+      final newsFuture = ContentRepository().news();
 
       _client ??= await AuthenticatedClient.create();
 
@@ -55,8 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
         values[1] as StudentProfile,
         values[2] as Map<String, dynamic>,
       );
-    } finally {
-      publicClient.dispose();
     }
   }
 

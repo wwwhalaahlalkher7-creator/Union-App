@@ -21,7 +21,7 @@ class NewsScreen extends StatefulWidget {
 
 class _NewsScreenState extends State<NewsScreen> {
   late final ApiClient _client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
-  late final ContentRepository _repo = ContentRepository(_client);
+  late final ContentRepository _repo = ContentRepository();
   late Future<List<ContentItem>> _future = _repo.news();
 
   String _filter = 'all';
