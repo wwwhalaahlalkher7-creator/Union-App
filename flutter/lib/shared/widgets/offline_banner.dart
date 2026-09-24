@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/offline_state.dart';
-import '../../core/theme/design_tokens.dart';
 
 class OfflineBanner extends StatelessWidget {
   const OfflineBanner({super.key, required this.child});

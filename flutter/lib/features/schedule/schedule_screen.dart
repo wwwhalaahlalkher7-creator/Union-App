@@ -6,6 +6,7 @@ import '../../core/network/authenticated_client.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/schedule_item.dart';
 import '../../data/repositories/schedule_repository.dart';
+import '../../shared/widgets/login_required_card.dart';
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});

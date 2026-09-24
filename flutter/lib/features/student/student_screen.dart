@@ -20,7 +20,7 @@ class StudentScreen extends StatefulWidget {
 
 class _StudentScreenState extends State<StudentScreen> {
   ApiClient? _client;
-  late Future<_StudentData> _future;
+  late Future<_StudentData?> _future;
 
   @override
   void initState() {
@@ -90,10 +90,12 @@ class _StudentScreenState extends State<StudentScreen> {
           }
 
           final data = snapshot.data;
-          if (data == null) return const LoginRequiredCard(
-            title: AppLocalizations.of(context).t('studentProfileGuestTitle'),
-            subtitle: AppLocalizations.of(context).t('studentProfileGuestSubtitle'),
-          );
+          if (data == null) {
+            return LoginRequiredCard(
+              title: AppLocalizations.of(context).t('studentProfileGuestTitle'),
+              subtitle: AppLocalizations.of(context).t('studentProfileGuestSubtitle'),
+            );
+          }
           final profile = data.profile;
           final stats = data.stats;
 

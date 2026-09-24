@@ -8,7 +8,6 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/models/badge_item.dart';
 import '../../data/repositories/badges_repository.dart';
 import '../../shared/widgets/app_card.dart';
-import '../../shared/widgets/login_required_card.dart';
 import '../../shared/widgets/app_section.dart';
 import '../../shared/widgets/list_skeleton.dart';
 

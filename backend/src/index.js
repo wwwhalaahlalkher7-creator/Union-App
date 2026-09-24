@@ -2713,3 +2713,5 @@ async function adminDriveSyncStatus(ctx) {
   const rows = await queryAll(ctx.env, 'SELECT * FROM drive_sync_runs ORDER BY started_at DESC LIMIT 10');
   return ok(ctx, rows);
 }
+
+}
