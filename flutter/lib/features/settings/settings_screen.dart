@@ -194,24 +194,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.palette_outlined,
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final columns = constraints.maxWidth >= 560 ? 4 : 2;
+                          // Compact color-picker: circles only, with accessible
+                          // semantic labels and a tooltip on long-press.
+                          const itemSize = 52.0;
                           const gap = 10.0;
-                          final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
-                          return Wrap(
-                            spacing: gap,
-                            runSpacing: gap,
-                            children: [
-                              for (final color in AppAccentColor.presets)
-                                SizedBox(
-                                  width: width,
-                                  child: _AccentOption(
-                                    color: color,
-                                    selected: selectedAccentId == color.id,
-                                    languageCode: languageCode,
-                                    onTap: widget.onAccentColorChanged == null ? null : () => _changeAccent(color.id),
-                                  ),
-                                ),
-                            ],
+                          final columns = ((constraints.maxWidth + gap) / (itemSize + gap)).floor().clamp(4, 8).toInt();
+                          final totalWidth = columns * itemSize + (columns - 1) * gap;
+                          return Center(
+                            child: SizedBox(
+                              width: totalWidth,
+                              child: Wrap(
+                                alignment: WrapAlignment.start,
+                                spacing: gap,
+                                runSpacing: gap,
+                                children: [
+                                  for (final color in AppAccentColor.presets)
+                                    _AccentOption(
+                                      color: color,
+                                      selected: selectedAccentId == color.id,
+                                      languageCode: languageCode,
+                                      onTap: widget.onAccentColorChanged == null ? null : () => _changeAccent(color.id),
+                                    ),
+                                ],
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -505,7 +511,13 @@ class _ChoiceOption extends StatelessWidget {
 }
 
 class _AccentOption extends StatelessWidget {
-  const _AccentOption({required this.color, required this.selected, required this.languageCode, required this.onTap});
+  const _AccentOption({
+    required this.color,
+    required this.selected,
+    required this.languageCode,
+    required this.onTap,
+  });
+
   final AppAccentColor color;
   final bool selected;
   final String languageCode;
@@ -515,52 +527,53 @@ class _AccentOption extends StatelessWidget {
   Widget build(BuildContext context) {
     final primary = color.primary;
     final label = color.localizedName(languageCode);
+
     return Semantics(
       selected: selected,
       button: true,
       label: label,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: AnimatedContainer(
-            duration: DesignTokens.normal,
-            curve: Curves.easeOut,
-            height: 72,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: selected ? primary.withValues(alpha: .11) : context.colors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: selected ? primary : context.colors.outlineVariant, width: selected ? 1.8 : 1),
-              boxShadow: selected
-                  ? [BoxShadow(color: primary.withValues(alpha: .26), blurRadius: 15, spreadRadius: 0)]
-                  : const [],
-            ),
-            child: Row(
-              children: [
-                AnimatedContainer(
-                  duration: DesignTokens.normal,
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: primary,
-                    shape: BoxShape.circle,
-                    boxShadow: selected ? [BoxShadow(color: primary.withValues(alpha: .40), blurRadius: 9)] : const [],
-                  ),
-                  child: selected ? const Icon(Icons.check_rounded, size: 18, color: Colors.white) : null,
+      hint: selected ? 'محدد' : 'اضغط لاختيار اللون',
+      child: Tooltip(
+        message: label,
+        waitDuration: const Duration(milliseconds: 450),
+        child: Material(
+          color: Colors.transparent,
+          child: InkResponse(
+            onTap: onTap,
+            radius: 28,
+            containedInkWell: true,
+            highlightShape: BoxShape.circle,
+            child: AnimatedContainer(
+              duration: DesignTokens.normal,
+              curve: Curves.easeOut,
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: primary,
+                border: Border.all(
+                  color: selected ? context.colors.onSurface : Colors.transparent,
+                  width: selected ? 3 : 0,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: selected ? primary : context.colors.onSurfaceVariant),
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withValues(alpha: selected ? .38 : .20),
+                    blurRadius: selected ? 12 : 6,
+                    spreadRadius: selected ? 1 : 0,
                   ),
-                ),
-                if (selected) Icon(Icons.radio_button_checked_rounded, size: 18, color: primary),
-              ],
+                ],
+              ),
+              child: AnimatedSwitcher(
+                duration: DesignTokens.fast,
+                child: selected
+                    ? const Icon(
+                        Icons.check_rounded,
+                        key: ValueKey('selected'),
+                        size: 24,
+                        color: Colors.white,
+                      )
+                    : const SizedBox(key: ValueKey('empty')),
+              ),
             ),
           ),
         ),

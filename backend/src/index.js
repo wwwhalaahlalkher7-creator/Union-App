@@ -1247,7 +1247,15 @@ async function xp(ctx) {
 }
 async function badges(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
-  const newlyAwarded = await evaluateBadges(ctx, a.session.student_id);
+  let newlyAwarded = [];
+  try {
+    newlyAwarded = await evaluateBadges(ctx, a.session.student_id);
+  } catch (e) {
+    // Badge awarding is derived state. A transient write/schema problem must
+    // not turn the read-only badge catalogue into a server error. The next
+    // request can retry the award operation.
+    console.error(`[${ctx.requestId}] badge evaluation failed`, e);
+  }
   const rows = await queryAll(ctx.env, `SELECT b.*, sb.awarded_at, CASE WHEN sb.student_id IS NULL THEN 0 ELSE 1 END AS earned
     FROM badges b LEFT JOIN student_badges sb ON sb.badge_id=b.id AND sb.student_id=?
     WHERE b.active=1 ORDER BY CASE WHEN sb.student_id IS NULL THEN 1 ELSE 0 END, b.sort_order ASC, b.id ASC`, a.session.student_id);
@@ -1423,9 +1431,25 @@ async function evaluateBadges(ctx, studentId) {
 
 const INTERACTION_RULES = { comment: { limit: 10, minutes: 10 }, reply: { limit: 15, minutes: 10 }, reaction: { limit: 40, minutes: 10 } };
 const ALLOWED_REACTIONS = new Set(['like','helpful','love','celebrate']);
-const ALLOWED_CONTENT_TYPES = new Set(['news','event','activity','announcement','achievement']);
+const CONTENT_TYPE_ALIASES = Object.freeze({
+  news: 'news',
+  event: 'event',
+  events: 'event',
+  activity: 'activity',
+  activities: 'activity',
+  announcement: 'announcement',
+  announcements: 'announcement',
+  achievement: 'achievement',
+  achievements: 'achievement',
+});
+const ALLOWED_CONTENT_TYPES = new Set(Object.values(CONTENT_TYPE_ALIASES));
+
+function canonicalContentType(value) {
+  return CONTENT_TYPE_ALIASES[String(value || '').trim().toLowerCase()] || null;
+}
 
 async function contentIsCommentable(ctx, type, id) {
+  type = canonicalContentType(type);
   if (!ALLOWED_CONTENT_TYPES.has(type) || !id) return false;
   const table = type === 'event' ? 'events' : type === 'activity' ? 'activities' : type === 'announcement' ? 'announcements' : type === 'achievement' ? 'achievements' : 'news';
   const dateColumn = ['events', 'activities'].includes(table) ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
@@ -1444,7 +1468,9 @@ async function interactionAllowed(ctx, studentId, action) {
 async function comments(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
   const studentId = a.session.student_id;
-  const [, type, id] = ctx.path.split('/'); if (!ALLOWED_CONTENT_TYPES.has(type)) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
+  const [, rawType, id] = ctx.path.split('/');
+  const type = canonicalContentType(rawType);
+  if (!type) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
   const limit = clampInt(ctx.url.searchParams.get('limit'),20,1,50); const offset = clampInt(ctx.url.searchParams.get('offset'),0,0,10000);
   const rows = await queryAll(ctx.env, `SELECT c.*, s.full_name,
       (SELECT COUNT(*) FROM comment_reactions cr WHERE cr.comment_id=c.id) AS reaction_count,
@@ -1464,11 +1490,12 @@ async function replies(ctx) {
 }
 async function createComment(ctx) {
   const a=await studentAuth(ctx); if(a.response) return a.response; const parts=ctx.path.split('/');
-  if(!ALLOWED_CONTENT_TYPES.has(parts[2])) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
+  const type = canonicalContentType(parts[2]);
+  if(!type) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
   const body=await parseJson(ctx.request); const text=String(body?.body||'').trim(); if(!text || text.length>2000) return error('COMMENT_INVALID','نص التعليق غير صالح.',400,ctx.requestId,ctx.cors);
   if(!(await contentIsCommentable(ctx, parts[2], parts[3]))) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح للتعليق حاليًا.',404,ctx.requestId,ctx.cors);
   if(!(await interactionAllowed(ctx,a.session.student_id,'comment'))) return error('RATE_LIMITED','تم تجاوز حد التعليقات مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
-  const id=crypto.randomUUID(); await ctx.env.DB.prepare('INSERT INTO comments (id,student_id,content_type,content_id,body) VALUES (?,?,?,?,?)').bind(id,a.session.student_id,parts[2],parts[3],text).run();
+  const id=crypto.randomUUID(); await ctx.env.DB.prepare('INSERT INTO comments (id,student_id,content_type,content_id,body) VALUES (?,?,?,?,?)').bind(id,a.session.student_id,type,parts[3],text).run();
   return ok(ctx,{id,body:text,status:'visible'},null,201);
 }
 async function createReply(ctx) {
@@ -1478,11 +1505,11 @@ async function createReply(ctx) {
   const replyId=crypto.randomUUID(); await ctx.env.DB.prepare('INSERT INTO comment_replies (id,comment_id,student_id,body) VALUES (?,?,?,?)').bind(replyId,id,a.session.student_id,text).run(); return ok(ctx,{id:replyId,commentId:id,body:text,status:'visible'},null,201);
 }
 async function reaction(ctx) {
-  const a=await studentAuth(ctx); if(a.response) return a.response; const parts=ctx.path.split('/'); if(!ALLOWED_CONTENT_TYPES.has(parts[2])) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
+  const a=await studentAuth(ctx); if(a.response) return a.response; const parts=ctx.path.split('/'); const type=canonicalContentType(parts[2]); if(!type) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
   const body=await parseJson(ctx.request); const value=String(body?.reaction||'').trim().toLowerCase(); if(!ALLOWED_REACTIONS.has(value)) return error('REACTION_INVALID','نوع التفاعل غير مدعوم.',400,ctx.requestId,ctx.cors);
   if(!(await contentIsCommentable(ctx, parts[2], parts[3]))) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح للتفاعل حاليًا.',404,ctx.requestId,ctx.cors);
   if(!(await interactionAllowed(ctx,a.session.student_id,'reaction'))) return error('RATE_LIMITED','تم تجاوز حد التفاعلات مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
-  await ctx.env.DB.prepare('INSERT INTO reactions (id,student_id,content_type,content_id,reaction) VALUES (?,?,?,?,?) ON CONFLICT(student_id,content_type,content_id) DO UPDATE SET reaction=excluded.reaction').bind(crypto.randomUUID(),a.session.student_id,parts[2],parts[3],value).run(); return ok(ctx,{reaction:value});
+  await ctx.env.DB.prepare('INSERT INTO reactions (id,student_id,content_type,content_id,reaction) VALUES (?,?,?,?,?) ON CONFLICT(student_id,content_type,content_id) DO UPDATE SET reaction=excluded.reaction').bind(crypto.randomUUID(),a.session.student_id,type,parts[3],value).run(); return ok(ctx,{reaction:value});
 }
 async function commentReaction(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;

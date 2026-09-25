@@ -28,6 +28,7 @@ import '../features/system/system_screen.dart';
 import '../features/tools/tools_screen.dart';
 import '../features/xp/xp_screen.dart';
 import '../shared/widgets/trinex_shell.dart';
+import '../shared/widgets/student_access_gate.dart';
 
 GoRouter buildRouter({
   required ValueChanged<ThemeMode> onThemeModeChanged,
@@ -47,7 +48,7 @@ GoRouter buildRouter({
     ShellRoute(builder: (context, state, child) => TrinexShell(location: state.uri.path, child: child), routes: [
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/student', builder: (_, _) => const StudentScreen()),
-      GoRoute(path: '/system', builder: (_, _) => const SystemScreen()),
+      GoRoute(path: '/system', builder: (_, _) => const StudentAccessGate(child: SystemScreen())),
       GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
       GoRoute(path: '/materials', builder: (_, _) => const MaterialsScreen()),
       GoRoute(path: '/news', redirect: (_, _) => '/media'),
@@ -63,9 +64,9 @@ GoRouter buildRouter({
     GoRoute(path: '/achievements', builder: (_, _) => const AchievementsScreen()),
     GoRoute(path: '/favorites', builder: (_, _) => const FavoritesScreen()),
     GoRoute(path: '/recent', builder: (_, _) => const RecentScreen()),
-    GoRoute(path: '/progress', builder: (_, _) => const ProgressScreen()),
-    GoRoute(path: '/xp', builder: (_, _) => const XpScreen()),
-    GoRoute(path: '/badges', builder: (_, _) => const BadgesScreen()),
+    GoRoute(path: '/progress', builder: (_, _) => const StudentAccessGate(child: ProgressScreen())),
+    GoRoute(path: '/xp', builder: (_, _) => const StudentAccessGate(child: XpScreen())),
+    GoRoute(path: '/badges', builder: (_, _) => const StudentAccessGate(child: BadgesScreen())),
     GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
     GoRoute(path: '/eino', builder: (_, state) => EinoScreen(source: state.uri.queryParameters['from'] ?? 'home')),
     GoRoute(path: '/about', builder: (_, _) => const AboutScreen()),
