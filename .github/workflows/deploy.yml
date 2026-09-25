@@ -26,11 +26,20 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Java JDK (Java 17)
+      - name: Setup Java JDK (Java 17) with Gradle Cache
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            flutter/android/**/gradle-wrapper.properties
+            flutter/android/**/gradle.properties
+            flutter/android/**/settings.gradle
+            flutter/android/**/settings.gradle.kts
+            flutter/android/**/build.gradle
+            flutter/android/**/build.gradle.kts
+            flutter/android/**/gradle.lockfile
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -63,9 +72,7 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
-      # Build and publish the APK first. The AAB build starts only after
-      # this upload completes, so a usable APK artifact is available even
-      # if the later AAB build fails.
+      # APK is built and uploaded first.
       - name: Build Android APK
         run: flutter build apk --release
 
@@ -81,7 +88,7 @@ jobs:
           path: flutter/build/app/outputs/flutter-apk/app-release-apk.zip
           if-no-files-found: error
 
-      # Only after the APK ZIP has been uploaded do we start the AAB build.
+      # AAB starts only after APK upload completes.
       - name: Build Android App Bundle (AAB)
         run: flutter build appbundle --release
 
@@ -193,7 +200,6 @@ jobs:
             echo "::error::GOOGLE_APPS_SCRIPT_TOKEN is required for Google Drive synchronization. Set it to the same API_TOKEN configured in Google Apps Script."
             exit 1
           fi
-
 
   # -------------------------------------------------------------
   # Job 3: Package & Deploy Public Website & Admin Dashboard
