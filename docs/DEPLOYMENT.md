@@ -11,7 +11,7 @@ push main
 
 ## Backend
 
-Workflow: `.github/workflows/deploy.yml` (job: `backend-deploy`)
+Workflow: `.github/workflows/release.yml` (job: `backend-deploy`)
 
 يعمل على `main` ويقوم بـ:
 
@@ -23,13 +23,13 @@ Workflow: `.github/workflows/deploy.yml` (job: `backend-deploy`)
 
 ## Flutter
 
-Workflow: `.github/workflows/deploy.yml` (job: `flutter-build`)
+Workflow: `.github/workflows/release.yml` (job: `flutter-build`)
 
 يستخدم Flutter stable، ويشغّل analyze/test على كل push/PR، ويبني APK/AAB موقّعين بالإنتاج على `main` فقط. الـproduction signing secrets مطلوبة لبناء artifacts النهائية.
 
 ## Website
 
-Workflow: `.github/workflows/deploy.yml`
+Workflow: `.github/workflows/release.yml`
 
 يتحقق من JavaScript والملفات المطلوبة وسياسة المصادر القديمة، ثم ينشر الموقع ولوحة الإدارة إلى InfinityFree عبر FTPS.
 

@@ -2,7 +2,8 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 index = (root / 'backend/src/index.js').read_text()
 registry = (root / 'backend/src/providers/registry.js').read_text()
-workflow = (root / '.github/workflows/deploy.yml').read_text()
+workflow_path = root / '.github/workflows/release.yml'
+workflow = workflow_path.read_text(encoding='utf-8') if workflow_path.exists() else ''
 wrangler = (root / 'backend/wrangler.toml').read_text()
 provider_file = root / 'backend/src/providers/omniroute.js'
 checks = {
@@ -14,6 +15,7 @@ checks = {
         'EINO_CAPABILITIES.VISION', 'EINO_CAPABILITIES.OCR',
         'EINO_CAPABILITIES.STT', 'EINO_CAPABILITIES.TTS'
     ]),
+    'release workflow exists': bool(workflow),
     'no omniroute workflow references': 'OMNIROUTE' not in workflow and 'OmniRoute' not in workflow,
     'no omniroute wrangler references': 'OMNIROUTE' not in wrangler and 'OmniRoute' not in wrangler,
     'text model is explicit': 'EINO_TEXT_MODEL' in wrangler,
