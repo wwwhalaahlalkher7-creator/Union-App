@@ -51,7 +51,7 @@ jobs:
 
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: flutter-coverage
           path: flutter/coverage/lcov.info
@@ -135,7 +135,7 @@ jobs:
           python3 ci/admin_ui_payload_check.py
 
       - name: Upload website artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: website-dist
           path: dist/
