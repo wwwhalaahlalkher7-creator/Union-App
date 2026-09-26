@@ -1,0 +1,104 @@
+name: Dependabot Auto-Merge
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Auto-merge safe Dependabot updates
+    if: >
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inspect changed files
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          files="$(gh api --paginate \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[].filename')"
+
+          blocked="false"
+
+          while IFS= read -r file; do
+            case "$file" in
+              flutter/pubspec.yaml|\
+              flutter/pubspec.lock|\
+              flutter/android/gradle/*|\
+              flutter/android/gradle.properties|\
+              flutter/android/settings.gradle|\
+              flutter/android/settings.gradle.kts|\
+              flutter/android/build.gradle|\
+              flutter/android/build.gradle.kts|\
+              flutter/android/app/build.gradle|\
+              flutter/android/app/build.gradle.kts|\
+              flutter/android/gradle/libs.versions.toml)
+                blocked="true"
+                ;;
+            esac
+          done <<< "$files"
+
+          echo "blocked=$blocked" >> "$GITHUB_OUTPUT"
+
+          echo "Changed files:"
+          printf '%s\n' "$files"
+
+      - name: Check PR metadata
+        id: metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          title="$(gh pr view "$PR_NUMBER" \
+            --repo "$REPO" \
+            --json title \
+            --jq '.title')"
+
+          body="$(gh pr view "$PR_NUMBER" \
+            --repo "$REPO" \
+            --json body \
+            --jq '.body // ""')"
+
+          blocked="false"
+
+          if printf '%s\n%s\n' "$title" "$body" | grep -Eiq \
+            '(Gradle|Android Gradle Plugin|AGP|Kotlin|Flutter|Dart|pubspec|pub\.dev)'; then
+            blocked="true"
+          fi
+
+          echo "blocked=$blocked" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge
+        if: >
+          steps.changes.outputs.blocked != 'true' &&
+          steps.metadata.outputs.blocked != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr merge \
+            ${{ github.event.pull_request.number }} \
+            --repo "${{ github.repository }}" \
+            --auto \
+            --squash
