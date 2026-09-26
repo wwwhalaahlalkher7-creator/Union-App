@@ -241,7 +241,7 @@ jobs:
         run: npm run build
 
       - name: Deploy website via FTPS
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ftpupload.net
           username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
