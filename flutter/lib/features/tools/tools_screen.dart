@@ -588,7 +588,7 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
             children: [
               Text(l10n.t('tolerance'), style: const TextStyle(fontWeight: FontWeight.w600)),
               SegmentedButton<double>(
-                segments: const [
+                segments: [
                   ButtonSegment(value: 5.0, label: Text(l10n.t('goldTolerance'))),
                   ButtonSegment(value: 10.0, label: Text(l10n.t('silverTolerance'))),
                 ],
@@ -615,6 +615,8 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
     required int value,
     required ValueChanged<int> onChanged,
   }) {
+    final l10n = AppLocalizations.of(context);
+
     return AppCard(
       padding: const EdgeInsets.symmetric(horizontal: 12.88, vertical: 7.36),
       child: DropdownButtonFormField<int>(
