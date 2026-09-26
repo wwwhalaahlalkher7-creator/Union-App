@@ -1,0 +1,12 @@
+# Wrangler local development secrets.
+# Copy to backend/.dev.vars and replace placeholders.
+# backend/.dev.vars is ignored by Git.
+
+FREE_AI_API_KEY=""
+FREE_AI_BASE_URL=""
+MISTRAL_API_KEY=""
+GROQ_API_KEY=""
+EINO_EMBEDDING_API_KEY=""
+GOOGLE_APPS_SCRIPT_TOKEN=""
+STAFF_BOOTSTRAP_TOKEN=""
+CHROMA_TOKEN=""

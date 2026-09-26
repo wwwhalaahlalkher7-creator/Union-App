@@ -100,11 +100,13 @@ python3 ci/xss_dom_check.py
 python3 ci/flutter_secure_storage_check.py
 ```
 
-## النشر
+## النشر والإصدارات
 
-النشر المعتاد يتم عبر GitHub Actions عند الدفع إلى `main`، مع أسرار الإنتاج داخل GitHub Secrets. لا تُرفع ملفات `.env` أو مفاتيح Android أو مفاتيح Free.ai إلى Git.
+`main` مخصص للتحقق المستمر (CI). الإصدار الإنتاجي يتم عبر GitHub Actions عند إنشاء tag من نوع `vMAJOR.MINOR.PATCH` أو تشغيل Release يدويًا. ينتج الـRelease الرسمي APK وAAB موقّعين وملف `SHA256SUMS.txt` ويضعها في GitHub Releases.
 
-للتفاصيل: `docs/DEPLOYMENT.md`.
+أسرار الإنتاج تبقى داخل GitHub Secrets / Cloudflare Secrets. لا تُرفع ملفات `.env` أو مفاتيح Android أو مفاتيح المزودين إلى Git.
+
+للتفاصيل: `docs/DEPLOYMENT.md` و`docs/RELEASE.md`.
 
 ## سياسة التغيير
 

@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Flutter Analyze & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-coverage
+          path: flutter/coverage/lcov.info
+          if-no-files-found: ignore
+
+      - name: Project verification
+        working-directory: .
+        run: python3 ci/verify_project.py
+
+      - name: Release checks
+        working-directory: .
+        run: |
+          python3 ci/release_check.py
+          python3 ci/final_release_check.py
+          python3 ci/flutter_secure_storage_check.py
+          python3 ci/offline_cache_check.py
+          python3 ci/color_theme_check.py
+
+  backend:
+    name: Backend Validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Syntax check
+        run: npm run check
+
+      - name: Contract & security checks
+        working-directory: .
+        run: |
+          python3 ci/backend_schema_check.py
+          python3 ci/backend_schema_audit.py
+          python3 ci/backend_api_integrity_check.py
+          python3 ci/backend_api_contract_check.py
+          python3 ci/admin_crud_check.py
+          python3 ci/auth_hardening_check.py
+          python3 ci/web_security_check.py
+          python3 ci/xss_dom_check.py
+          python3 ci/eino_provider_check.py
+          python3 ci/eino_dashboard_check.py
+          python3 ci/eino_observability_check.py
+          node ci/eino_provider_matrix_check.mjs
+
+      - name: Wrangler dry run
+        run: npx wrangler deploy --dry-run
+
+  website:
+    name: Website Build & Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build distribution
+        run: npm run build
+
+      - name: Web security checks
+        run: |
+          python3 ci/web_security_check.py
+          python3 ci/xss_dom_check.py
+          python3 ci/admin_ui_payload_check.py
+
+      - name: Upload website artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-dist
+          path: dist/
+          if-no-files-found: error

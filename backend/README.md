@@ -32,3 +32,7 @@ Student-owned Eino memory is stored canonically in D1. Semantic indexing is
 optional through Chroma and a separately configured embedding provider. If the
 embedding/Chroma path is unavailable, Eino safely falls back to the D1 memory
 records.
+
+## Local environment
+
+For local Worker secrets, copy `backend/.dev.vars.example` to `backend/.dev.vars` and replace the placeholders. The file is ignored by Git and must never contain values that are committed to the repository.

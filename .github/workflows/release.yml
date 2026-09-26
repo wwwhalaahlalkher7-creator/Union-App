@@ -1,0 +1,295 @@
+name: Production Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v2.0.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION_FILE: flutter/VERSION
+
+jobs:
+  gate:
+    name: Release Gate
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version matches flutter/VERSION
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ACTUAL="$(tr -d '[:space:]' < flutter/VERSION)"
+          test "$ACTUAL" = "$RELEASE_VERSION" || {
+            echo "Release tag is $RELEASE_VERSION but flutter/VERSION is $ACTUAL"
+            exit 1
+          }
+
+      - name: Run project verification
+        run: |
+          python3 ci/verify_project.py
+          python3 ci/release_check.py
+          python3 ci/final_release_check.py
+
+  android:
+    name: Android Release
+    needs: gate
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    defaults:
+      run:
+        working-directory: flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Configure production signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_STORE_PASSWORD ANDROID_KEY_PASSWORD ANDROID_KEY_ALIAS; do
+            test -n "${!name}" || { echo "Missing $name"; exit 1; }
+          done
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          cat > android/key.properties <<EOF2
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF2
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test
+
+      - name: Build signed APK
+        run: flutter build apk --release
+
+      - name: Build signed AAB
+        run: flutter build appbundle --release
+
+      - name: Prepare release assets
+        env:
+          RELEASE_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-assets
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            build/release-assets/Union-App-v${RELEASE_VERSION}.apk
+          cp build/app/outputs/bundle/release/app-release.aab \
+            build/release-assets/Union-App-v${RELEASE_VERSION}.aab
+          cd build/release-assets
+          sha256sum *.apk *.aab > SHA256SUMS.txt
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-${{ github.ref_name }}
+          path: flutter/build/release-assets/
+          if-no-files-found: error
+
+  backend:
+    name: Production Backend
+    needs: gate
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Validate required production secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GOOGLE_APPS_SCRIPT_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$GOOGLE_APPS_SCRIPT_TOKEN"
+
+      - name: Apply production migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply leo-association-db --remote
+
+      - name: Sync AI and integration secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FREE_AI_API_KEY: ${{ secrets.FREE_AI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          FREE_AI_BASE_URL: ${{ secrets.FREE_AI_BASE_URL }}
+          EINO_EMBEDDING_API_KEY: ${{ secrets.EINO_EMBEDDING_API_KEY }}
+          GOOGLE_APPS_SCRIPT_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_TOKEN }}
+          STAFF_BOOTSTRAP_TOKEN: ${{ secrets.STAFF_BOOTSTRAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          for pair in \
+            FREE_AI_API_KEY\
+            MISTRAL_API_KEY\
+            GROQ_API_KEY\
+            FREE_AI_BASE_URL\
+            EINO_EMBEDDING_API_KEY\
+            GOOGLE_APPS_SCRIPT_TOKEN\
+            STAFF_BOOTSTRAP_TOKEN; do
+            value="${!pair:-}"
+            if [ -n "$value" ]; then
+              printf '%s' "$value" | npx wrangler secret put "$pair"
+            fi
+          done
+
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+      - name: Verify production API
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          test -n "$API_BASE_URL" || { echo 'API_BASE_URL production variable is required'; exit 1; }
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 "$API_BASE_URL/health"
+
+  website:
+    name: Production Website
+    needs: gate
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build distribution
+        run: npm run build
+
+      - name: Deploy website via FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ftpupload.net
+          username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: /ush-eng.great-site.net/htdocs/
+          dangerous-clean-slate: false
+
+      - name: Verify production website
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          test -n "$SITE_URL" || { echo 'SITE_URL production variable is required'; exit 1; }
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 "$SITE_URL/"
+
+  publish:
+    name: Publish GitHub Release
+    needs: [gate, android, backend, website]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Download Android artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: android-release-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: Rename release assets
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.gate.outputs.version }}"
+          mkdir -p release-assets/final
+          cp release-assets/Union-App-v${VERSION}.apk release-assets/final/Union-App-v${VERSION}.apk
+          cp release-assets/Union-App-v${VERSION}.aab release-assets/final/Union-App-v${VERSION}.aab
+          cp release-assets/SHA256SUMS.txt release-assets/final/SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.gate.outputs.tag }}"
+          gh release create "$TAG" release-assets/final/* \
+            --generate-notes \
+            --title "Union App ${TAG}" \
+            --verify-tag

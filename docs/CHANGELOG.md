@@ -1,3 +1,13 @@
+# Changelog
+
+## 2026-09-27 — Release Infrastructure Polish
+
+- فصل CI عن Production Release في GitHub Actions.
+- تجهيز GitHub Releases رسمية تحتوي على APK وAAB وSHA-256 checksums فقط.
+- إضافة `.env.example` حقيقي كمرجع للإعدادات المحلية، مع `backend/.dev.vars.example` لأسرار Wrangler المحلية.
+- إضافة قواعد Git وEditorConfig وDependabot وقالب Pull Request وسياسة Security.
+- توحيد إصدار Worker مع إصدار التطبيق الحالي `2.0.0`.
+
 
 ## Backend Hardening — 2026-09-22
 

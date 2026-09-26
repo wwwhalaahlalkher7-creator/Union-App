@@ -37,7 +37,7 @@ python3 ../ci/release_check.py
 - [ ] `flutter test` ناجح.
 - [ ] `flutter build apk --release` ناجح.
 - [ ] `flutter build appbundle --release` ناجح.
-- [ ] production signing secrets متاحة على `main`.
+- [ ] production signing secrets متاحة داخل GitHub Environment باسم `production`.
 - [ ] health/version بعد النشر مطابقان للنسخة المتوقعة.
 - [ ] لا توجد secrets أو ملفات build حساسة في Git.
 
@@ -51,3 +51,7 @@ python3 ../ci/release_check.py
 ## بعد الإصدار
 
 لا تكتب `STAGE_*` أو `README_STAGE*` جديدًا. إذا تغير behavior، حدّث `CHANGELOG.md` ووثيقة التشغيل المتأثرة فقط.
+
+## GitHub Release
+
+أنشئ tag مثل `v2.0.0` بعد اجتياز فحوصات CI. Workflow الإصدار ينشئ GitHub Release رسميًا ويضيف فقط: `Union-App-vX.Y.Z.apk` و`Union-App-vX.Y.Z.aab` و`SHA256SUMS.txt`. GitHub يوفر source archives تلقائيًا؛ لا نكررها كـbackend أو source artifacts إضافية داخل الـRelease.
