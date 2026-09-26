@@ -11,7 +11,7 @@ GET /api/v1/health?deep=true
 فرّق بين:
 
 - D1 غير متصل → راجع binding/database/migrations.
-- Eino/Free.ai غير متاح → راجع `FREE_AI_BASE_URL` و`FREE_AI_API_KEY` وحالة Free.ai.
+- Eino غير متاح → راجع مزود المهمة المحددة في `backend/wrangler.toml` وأسرار المزود المناسبة (Mistral/Groq/Free.ai) وسجلات Worker.
 - Drive غير مهيأ → راجع `GOOGLE_APPS_SCRIPT_URL` و`GOOGLE_APPS_SCRIPT_TOKEN`.
 
 لا تغيّر Flutter قبل تحديد الطبقة الفاشلة.

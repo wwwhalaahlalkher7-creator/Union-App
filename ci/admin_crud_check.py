@@ -15,8 +15,8 @@ SCHEMA_ABSENT_COLUMNS = {
     'schedules': {'created_at'},
 }
 
-TABLES = ['news','announcements','activities','achievements','subjects','materials','schedules','students','badges']
-CONTENT = ['news','activities','announcements','achievements']
+TABLES = ['news','announcements','events','activities','achievements','subjects','materials','schedules','students','badges']
+CONTENT = ['news','events','activities','announcements','achievements']
 ACTIVE = ['materials','schedules','students','subjects','badges']
 
 # Verify every field exposed by ADMIN_FIELDS actually exists in the final D1 schema.
@@ -43,8 +43,10 @@ try:
         if not select_match:
             errors.append(f'Missing ADMIN_SELECT_COLUMNS entry: {table}')
         else:
-            selected = [x.strip() for x in select_match.group(1).split(',')]
-            missing_select = [f for f in selected if f not in actual]
+            raw_selected = [x.strip() for x in select_match.group(1).split(',')]
+            # SELECT projections may contain safe derived fields (e.g. registered).
+            selected = [x.split(' AS ')[-1].strip() if ' AS ' in x.upper() else x for x in raw_selected]
+            missing_select = [f for f in selected if f not in actual and f != 'registered']
             if missing_select:
                 errors.append(f'{table}: ADMIN_SELECT_COLUMNS contains unknown columns: {missing_select}')
             forbidden_select = sorted(set(selected) & forbidden)
@@ -57,8 +59,14 @@ except Exception as exc:
 # Content records are permanently removed after dependent comments/reactions are cleaned.
 # Operational records are also hard-deleted; active=0 remains only for the separate
 # disable/deactivate controls and must not be used as the DELETE contract.
-if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'activities', 'announcements', 'achievements']))" not in SOURCE:
-    errors.append('CONTENT_TABLES contract is missing or incomplete')
+expected_content = {'news','events','activities','announcements','achievements'}
+content_match = re.search(r"const CONTENT_TABLES = Object.freeze\(new Set\(\[(.*?)\]\)\);", SOURCE, re.S)
+if not content_match:
+    errors.append('CONTENT_TABLES contract is missing')
+else:
+    declared_content = set(re.findall(r"['\"]([^'\"]+)['\"]", content_match.group(1)))
+    if declared_content != expected_content:
+        errors.append(f'CONTENT_TABLES contract mismatch: expected {sorted(expected_content)}, got {sorted(declared_content)}')
 if "DELETE FROM ${table} WHERE id=?" not in SOURCE:
     errors.append('Admin hard-delete SQL contract is missing')
 if "mode:'hard_delete'" not in SOURCE:
@@ -82,6 +90,7 @@ try:
     # Validate content update attribution matches the actual schema.
     update_rows = {
         'news': "UPDATE news SET title=?, updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        'events': "UPDATE events SET title=?, updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
         'activities': "UPDATE activities SET title=?, updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
         'announcements': "UPDATE announcements SET title=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
         'achievements': "UPDATE achievements SET title=?, updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
@@ -90,6 +99,8 @@ try:
     for table in CONTENT:
         if table == 'news':
             con.execute("INSERT INTO news(id,title,body,status,created_by) VALUES('test-news','t','b','published','staff-1')")
+        elif table == 'events':
+            con.execute("INSERT INTO events(id,title,body,status,created_by) VALUES('test-events','t','b','published','staff-1')")
         elif table == 'activities':
             con.execute("INSERT INTO activities(id,title,body,status,created_by) VALUES('test-activities','t','b','published','staff-1')")
         elif table == 'announcements':
@@ -97,7 +108,7 @@ try:
         elif table == 'achievements':
             con.execute("INSERT INTO achievements(id,title,status,created_by) VALUES('test-achievements','t','published','staff-1')")
 
-        if table in {'news','activities','achievements'}:
+        if table in {'news','events','activities','achievements'}:
             con.execute(update_rows[table], ('updated', 'staff-1', f'test-{table}'))
         else:
             con.execute(update_rows[table], ('updated', f'test-{table}'))

@@ -71,12 +71,13 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
   }
 
   Future<void> _openMaterial(MaterialItem material) async {
+    final l10n = AppLocalizations.of(context);
     final url = material.url?.trim();
 
     if (url == null || url.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('الملف غير متاح حاليًا')),
+          SnackBar(content: Text(l10n.t('openMaterialUnavailable'))),
         );
       }
       return;
@@ -98,7 +99,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
       if (token == null || token.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('يجب تسجيل الدخول لفتح الملف')),
+            SnackBar(content: Text(l10n.t('loginToOpenMaterial'))),
           );
         }
         return;
@@ -107,7 +108,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
       if ((material.mimeType ?? '').toLowerCase() != 'application/pdf') {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('هذا الملف ليس PDF')),
+            SnackBar(content: Text(l10n.t('notPdf'))),
           );
         }
         return;
@@ -126,7 +127,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e is ApiException ? e.message : 'تعذر فتح الملف')),
+          SnackBar(content: Text(e is ApiException ? e.message : l10n.t('openMaterialFailed'))),
         );
       }
     }
@@ -178,7 +179,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
           for (final material in filtered) {
             groups
                 .putIfAbsent(
-                  material.subject ?? 'مواد',
+                  material.subject ?? l10n.t('materials'),
                   () => <MaterialItem>[],
                 )
                 .add(material);
@@ -192,8 +193,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
               92,
             ),
             children: [
-              const Text(
-                'المواد الدراسية',
+              Text(
+                l10n.t('materialsTitle'),
                 textAlign: TextAlign.end,
                 style: TextStyle(
                   fontSize: 20.2,
@@ -202,7 +203,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'المواد المتاحة حسب تخصصك وفصلك الدراسي',
+                l10n.t('materialsSubtitle'),
                 textAlign: TextAlign.end,
                 style: TextStyle(
                   color: context.colors.onSurfaceVariant,
@@ -217,8 +218,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                       onChanged: (value) {
                         setState(() => _query = value);
                       },
-                      decoration: const InputDecoration(
-                        hintText: 'بحث',
+                      decoration: InputDecoration(
+                        hintText: l10n.t('search'),
                         prefixIcon: Icon(
                           Icons.search_rounded,
                         ),
@@ -287,7 +288,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                           ),
                         ),
                         subtitle: Text(
-                          '${entry.value.length} ملفات',
+                          l10n.t('filesCount', {'count': '${entry.value.length}'}),
                           style: TextStyle(
                             color:
                                 context.colors.onSurfaceVariant,

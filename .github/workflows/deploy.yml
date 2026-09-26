@@ -59,8 +59,8 @@ jobs:
       - name: Run Unit & Integration Tests
         run: flutter test
 
-      - name: Configure Android Signing Keystore (Optional for Release)
-        if: env.HAS_KEYSTORE == 'true'
+      - name: Configure Android Signing Keystore (Production Release)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_KEYSTORE == 'true'
         env:
           HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         run: |
@@ -72,16 +72,35 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
-      # APK is built and uploaded first.
+      - name: Require Android production signing on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_STORE_PASSWORD ANDROID_KEY_PASSWORD ANDROID_KEY_ALIAS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is required for production Android release builds."
+              exit 1
+            fi
+          done
+
+      # Production artifacts are built only on main, where signing secrets are available.
+      # PRs still run analyze/tests above without requiring production credentials.
       - name: Build Android APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: flutter build apk --release
 
       - name: Package APK as ZIP
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           cd build/app/outputs/flutter-apk
           zip -j app-release-apk.zip app-release.apk
 
       - name: Upload APK ZIP
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: trinex-android-apk
@@ -90,14 +109,17 @@ jobs:
 
       # AAB starts only after APK upload completes.
       - name: Build Android App Bundle (AAB)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: flutter build appbundle --release
 
       - name: Package AAB as ZIP
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           cd build/app/outputs/bundle/release
           zip -j app-release-aab.zip app-release.aab
 
       - name: Upload AAB ZIP
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: trinex-android-aab

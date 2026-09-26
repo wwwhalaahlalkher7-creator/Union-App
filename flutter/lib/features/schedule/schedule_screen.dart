@@ -51,21 +51,22 @@ class _ScheduleScreenState
     super.dispose();
   }
 
-  String _day(int number) {
-    return const {
-          0: 'الأحد',
-          1: 'الإثنين',
-          2: 'الثلاثاء',
-          3: 'الأربعاء',
-          4: 'الخميس',
-          5: 'الجمعة',
-          6: 'السبت',
+  String _day(AppLocalizations l10n, int number) {
+    return {
+          0: l10n.t('daySunday'),
+          1: l10n.t('dayMonday'),
+          2: l10n.t('dayTuesday'),
+          3: l10n.t('dayWednesday'),
+          4: l10n.t('dayThursday'),
+          5: l10n.t('dayFriday'),
+          6: l10n.t('daySaturday'),
         }[number] ??
-        'اليوم';
+        l10n.t('today');
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return RefreshIndicator(
       onRefresh: _reload,
       child: FutureBuilder<ScheduleData>(
@@ -116,8 +117,8 @@ class _ScheduleScreenState
               92,
             ),
             children: [
-              const Text(
-                'الجدول الدراسي',
+              Text(
+                l10n.t('scheduleTitle'),
                 textAlign: TextAlign.end,
                 style: TextStyle(
                   fontSize: 20.2,
@@ -136,14 +137,14 @@ class _ScheduleScreenState
               ),
               const SizedBox(height: 10),
               SegmentedButton<bool>(
-                segments: const [
+                segments: [
                   ButtonSegment(
                     value: false,
-                    label: Text('اليوم'),
+                    label: Text(l10n.t('today')),
                   ),
                   ButtonSegment(
                     value: true,
-                    label: Text('الأسبوع'),
+                    label: Text(l10n.t('week')),
                   ),
                 ],
                 selected: {_week},
@@ -173,7 +174,7 @@ class _ScheduleScreenState
 
                       return ChoiceChip(
                         label: Text(
-                          _day(day),
+                          _day(l10n, day),
                           style: const TextStyle(
                             fontSize: 10,
                           ),
@@ -203,7 +204,7 @@ class _ScheduleScreenState
                     ),
                   ),
                   child: Text(
-                    'لا توجد محاضرات مجدولة.',
+                    l10n.t('noScheduledLectures'),
                     style: TextStyle(
                       color:
                           context.colors.onSurfaceVariant,

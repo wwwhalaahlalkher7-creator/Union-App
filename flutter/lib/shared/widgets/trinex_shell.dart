@@ -229,15 +229,16 @@ class _MainNav extends StatelessWidget {
   final int selected;
 
   static const items = [
-    ('الطالب', Icons.person_outline_rounded, '/student'),
-    ('النظام', Icons.workspace_premium_outlined, '/system'),
-    ('الجداول', Icons.calendar_month_outlined, '/schedule'),
-    ('المواد', Icons.menu_book_outlined, '/materials'),
-    ('الإعلام', Icons.campaign_outlined, '/media'),
+    ('navStudent', Icons.person_outline_rounded, '/student'),
+    ('navSystem', Icons.workspace_premium_outlined, '/system'),
+    ('navSchedule', Icons.calendar_month_outlined, '/schedule'),
+    ('navMaterials', Icons.menu_book_outlined, '/materials'),
+    ('navMedia', Icons.campaign_outlined, '/media'),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return NavigationBar(
       selectedIndex: selected.clamp(0, items.length - 1),
       height: 68,
@@ -252,7 +253,7 @@ class _MainNav extends StatelessWidget {
           NavigationDestination(
             icon: Icon(item.$2),
             selectedIcon: Icon(item.$2),
-            label: item.$1,
+            label: l10n.t(item.$1),
           ),
       ],
     );

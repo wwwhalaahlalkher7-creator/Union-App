@@ -108,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      'مرحباً ${data.profile.name.split(' ').first} 👋',
+                      l10n.t('hello', {'name': data.profile.name.split(' ').first}),
                       style: const TextStyle(
                         fontSize: 23,
                         fontWeight: FontWeight.w900,
@@ -127,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Expanded(
                           child: _QuickStat(
-                            'المستوى',
+                            l10n.t('levelShort'),
                             '$level',
                             context.colors.primary,
                           ),
@@ -143,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: _QuickStat(
-                            'الفصل',
+                            l10n.t('semesterShort'),
                             data.profile.semesterName ?? '—',
                             context.colors.tertiary,
                           ),
@@ -154,8 +154,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: DesignTokens.space24),
-              const Text(
-                'الوصول السريع',
+              Text(
+                l10n.t('quickAccess'),
                 textAlign: TextAlign.end,
                 style: TextStyle(
                   fontSize: 19,
@@ -167,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Expanded(
                     child: _Tile(
-                      'المواد',
+                      l10n.t('materials'),
                       Icons.menu_book_rounded,
                       context.colors.secondary,
                       () => context.go('/materials'),
@@ -176,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _Tile(
-                      'الجداول',
+                      l10n.t('schedule'),
                       Icons.calendar_month_rounded,
                       context.colors.primary,
                       () => context.go('/schedule'),
@@ -185,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _Tile(
-                      'نظام XP',
+                      l10n.t('xpLevel'),
                       Icons.workspace_premium_rounded,
                       context.colors.tertiary,
                       () => context.go('/xp'),
@@ -208,8 +208,8 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  const Text(
-                    'أحدث الأخبار',
+                  Text(
+                    l10n.t('newsLatest'),
                     style: TextStyle(
                       fontSize: 20.5,
                       fontWeight: FontWeight.w900,

@@ -19,7 +19,7 @@
 
 - لا تحفظ prompts أو responses في telemetry.
 - توجد حدود burst وحدود يومية للطالب والزائر والحد العالمي.
-- Free.ai هو مزود Eino الحالي؛ طبقة المزود داخل Worker قابلة للاستبدال لاحقًا.
+- Eino يستخدم توجيهًا capability-first بين Mistral وGroq وFree.ai كاحتياطي؛ أسرار المزود تبقى داخل Worker ولا تصل إلى العملاء.
 - `FREE_AI_API_KEY` لا يصل إلى Flutter.
 
 ## Data handling

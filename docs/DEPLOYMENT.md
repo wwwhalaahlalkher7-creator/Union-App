@@ -11,7 +11,7 @@ push main
 
 ## Backend
 
-Workflow: `.github/workflows/backend.yml`
+Workflow: `.github/workflows/deploy.yml` (job: `backend-deploy`)
 
 يعمل على `main` ويقوم بـ:
 
@@ -23,9 +23,9 @@ Workflow: `.github/workflows/backend.yml`
 
 ## Flutter
 
-Workflow: `.github/workflows/flutter.yml`
+Workflow: `.github/workflows/deploy.yml` (job: `flutter-build`)
 
-يستخدم Flutter stable `3.47.2` حاليًا، ويشغّل analyze/test ثم يبني APK/AAB. على `main` يتطلب production signing secrets.
+يستخدم Flutter stable، ويشغّل analyze/test على كل push/PR، ويبني APK/AAB موقّعين بالإنتاج على `main` فقط. الـproduction signing secrets مطلوبة لبناء artifacts النهائية.
 
 ## Website
 

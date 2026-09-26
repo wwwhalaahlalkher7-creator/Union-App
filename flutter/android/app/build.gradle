@@ -45,9 +45,9 @@ android {
 
     buildTypes {
         release {
-            // CI/local production builds must provide key.properties.
-            // Keeping the debug fallback preserves development builds only.
-            signingConfig = hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            // Production releases must be signed with the configured production key.
+            // Debug signing is intentionally never used for release artifacts.
+            if (hasReleaseSigning) signingConfig = signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -64,4 +64,14 @@ android {
 
 flutter {
     source = "../.."
+}
+
+afterEvaluate {
+    tasks.matching { it.name == 'assembleRelease' || it.name == 'bundleRelease' }.configureEach {
+        doFirst {
+            if (!hasReleaseSigning) {
+                throw new GradleException('Release signing is not configured. Create android/key.properties with keyAlias, keyPassword, storeFile, and storePassword before building a release artifact.')
+            }
+        }
+    }
 }

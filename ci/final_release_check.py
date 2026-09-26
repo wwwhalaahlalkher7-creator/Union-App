@@ -51,8 +51,15 @@ if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'activities'
     errors.append('Admin content lifecycle contract is missing')
 if "UPDATE ${table} SET status='archived'" not in backend_source:
     errors.append('Admin content DELETE must archive by status')
-if "students: 'id,student_number,full_name,department_id,current_semester_id,active,created_at,updated_at'" not in backend_source:
-    errors.append('Admin student projection must exclude authentication secrets')
+student_projection_match = re.search(r"students:\s*'([^']+)'", backend_source[backend_source.find('const ADMIN_SELECT_COLUMNS'):])
+if not student_projection_match:
+    errors.append('Missing admin student projection')
+else:
+    student_projection = student_projection_match.group(1)
+    if 'auth_secret_hash,' in student_projection or 'auth_secret_salt' in student_projection or 'auth_secret_algo' in student_projection:
+        errors.append('Admin student projection exposes authentication secret columns')
+    if 'AS registered' not in student_projection:
+        errors.append('Admin student projection lost the safe derived registration flag')
 if "mode:'hard_delete'" not in backend_source:
     errors.append('Admin hard-delete audit contract is missing')
 if "mode:'archive'" not in backend_source:

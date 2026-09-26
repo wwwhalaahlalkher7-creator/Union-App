@@ -64,6 +64,14 @@ class _UnitConverterTab extends StatefulWidget {
 class _UnitConverterTabState extends State<_UnitConverterTab> {
   final _inputController = TextEditingController(text: '1');
   String _category = 'Length';
+
+  String _categoryLabel(AppLocalizations l10n, String category) => switch (category) {
+    'Length' => l10n.t('unitLength'),
+    'Force' => l10n.t('unitForce'),
+    'Pressure / Stress' => l10n.t('unitPressureStress'),
+    'Energy / Power' => l10n.t('unitEnergyPower'),
+    _ => category,
+  };
   String _fromUnit = 'm';
   String _toUnit = 'cm';
   double _result = 100.0;
@@ -77,13 +85,17 @@ class _UnitConverterTabState extends State<_UnitConverterTab> {
       'inch': 0.0254,
       'ft': 0.3048,
     },
-    'Force / Stress': {
+    'Force': {
       'N': 1.0,
       'kN': 1000.0,
-      'MPa': 1000000.0,
+      'lbf': 4.4482216153,
+    },
+    'Pressure / Stress': {
+      'Pa': 1.0,
       'kPa': 1000.0,
+      'MPa': 1000000.0,
       'bar': 100000.0,
-      'psi': 6894.76,
+      'psi': 6894.757293168,
     },
     'Energy / Power': {
       'J': 1.0,
@@ -148,7 +160,7 @@ class _UnitConverterTabState extends State<_UnitConverterTab> {
               return Padding(
                 padding: const EdgeInsetsDirectional.only(end: 7.36),
                 child: FilterChip(
-                  label: Text(cat),
+                  label: Text(_categoryLabel(l10n, cat)),
                   selected: selected,
                   onSelected: (_) => _onCategoryChanged(cat),
                 ),
@@ -313,12 +325,12 @@ class _GpaCalculatorTabState extends State<_GpaCalculatorTab> {
     return _courses.fold(0.0, (sum, c) => sum + c.credits);
   }
 
-  String _standingText(double gpa) {
-    if (gpa >= 3.5) return 'امتياز';
-    if (gpa >= 3.0) return 'جيد جدًا';
-    if (gpa >= 2.5) return 'جيد';
-    if (gpa >= 2.0) return 'مقبول';
-    return 'إنذار';
+  String _standingText(AppLocalizations l10n, double gpa) {
+    if (gpa >= 3.5) return l10n.t('standingExcellent');
+    if (gpa >= 3.0) return l10n.t('standingVeryGood');
+    if (gpa >= 2.5) return l10n.t('standingGood');
+    if (gpa >= 2.0) return l10n.t('standingPass');
+    return l10n.t('standingWarning');
   }
 
   @override
@@ -360,7 +372,7 @@ class _GpaCalculatorTabState extends State<_GpaCalculatorTab> {
                   borderRadius: BorderRadius.circular(14.4),
                 ),
                 child: Text(
-                  _standingText(gpa),
+                  _standingText(l10n, gpa),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: gpa >= 3.0 ? Colors.green.shade700 : Colors.red.shade700,
@@ -439,7 +451,7 @@ class _GpaCalculatorTabState extends State<_GpaCalculatorTab> {
             });
           },
           icon: const Icon(Icons.add_rounded),
-          label: const Text('إضافة مقرر آخر'),
+          label: Text(l10n.t('addCourse')),
         ),
       ],
     );
@@ -463,16 +475,16 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
   double _tolerance = 5.0; // Gold (+/- 5%)
 
   static const List<Map<String, dynamic>> _colors = [
-    {'name': 'أسود (0)', 'color': Colors.black, 'val': 0},
-    {'name': 'بني (1)', 'color': Color(0xFF8D6E63), 'val': 1},
-    {'name': 'أحمر (2)', 'color': Colors.red, 'val': 2},
-    {'name': 'برتقالي (3)', 'color': Colors.orange, 'val': 3},
-    {'name': 'أصفر (4)', 'color': Colors.amber, 'val': 4},
-    {'name': 'أخضر (5)', 'color': Colors.green, 'val': 5},
-    {'name': 'أزرق (6)', 'color': Colors.blue, 'val': 6},
-    {'name': 'بنفسجي (7)', 'color': Colors.purple, 'val': 7},
-    {'name': 'رمادي (8)', 'color': Colors.grey, 'val': 8},
-    {'name': 'أبيض (9)', 'color': Colors.white, 'val': 9},
+    {'name': 'resistorBlack', 'color': Colors.black, 'val': 0},
+    {'name': 'resistorBrown', 'color': Color(0xFF8D6E63), 'val': 1},
+    {'name': 'resistorRed', 'color': Colors.red, 'val': 2},
+    {'name': 'resistorOrange', 'color': Colors.orange, 'val': 3},
+    {'name': 'resistorYellow', 'color': Colors.amber, 'val': 4},
+    {'name': 'resistorGreen', 'color': Colors.green, 'val': 5},
+    {'name': 'resistorBlue', 'color': Colors.blue, 'val': 6},
+    {'name': 'resistorViolet', 'color': Colors.purple, 'val': 7},
+    {'name': 'resistorGray', 'color': Colors.grey, 'val': 8},
+    {'name': 'resistorWhite', 'color': Colors.white, 'val': 9},
   ];
 
   String get _resistanceString {
@@ -502,6 +514,7 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
     return ListView(
@@ -545,7 +558,7 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
 
         // Band 1
         _buildColorDropdown(
-          label: 'النطاق 1 (العشرات)',
+          label: l10n.t('resistorBand1'),
           value: _band1,
           onChanged: (v) => setState(() => _band1 = v),
         ),
@@ -553,7 +566,7 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
 
         // Band 2
         _buildColorDropdown(
-          label: 'النطاق 2 (الآحاد)',
+          label: l10n.t('resistorBand2'),
           value: _band2,
           onChanged: (v) => setState(() => _band2 = v),
         ),
@@ -561,7 +574,7 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
 
         // Multiplier
         _buildColorDropdown(
-          label: 'المضاعف (Multiplier)',
+          label: l10n.t('resistorMultiplier'),
           value: _multiplierIndex,
           onChanged: (v) => setState(() => _multiplierIndex = v),
         ),
@@ -573,11 +586,11 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('نسبة التفاوت (Tolerance)', style: TextStyle(fontWeight: FontWeight.w600)),
+              Text(l10n.t('tolerance'), style: const TextStyle(fontWeight: FontWeight.w600)),
               SegmentedButton<double>(
                 segments: const [
-                  ButtonSegment(value: 5.0, label: Text('Gold ±5%')),
-                  ButtonSegment(value: 10.0, label: Text('Silver ±10%')),
+                  ButtonSegment(value: 5.0, label: Text(l10n.t('goldTolerance'))),
+                  ButtonSegment(value: 10.0, label: Text(l10n.t('silverTolerance'))),
                 ],
                 selected: {_tolerance},
                 onSelectionChanged: (set) => setState(() => _tolerance = set.first),
@@ -626,7 +639,7 @@ class _ResistorCalculatorTabState extends State<_ResistorCalculatorTab> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text(c['name'] as String),
+                Text(l10n.t(c['name'] as String)),
               ],
             ),
           );
@@ -647,39 +660,16 @@ class _EngineeringReferencesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
     final references = [
-      {
-        'title': 'قانون أوم والقدرة الكهربائية',
-        'formula': 'V = I × R  |  P = V × I = I² × R',
-        'desc': 'V: الجهد (فولت), I: التيار (أمبير), R: المقاومة (أوم), P: القدرة (واط)',
-      },
-      {
-        'title': 'عزم الانحناء والإجهاد (Bending Stress)',
-        'formula': 'σ = (M × y) / I',
-        'desc': 'σ: إجهاد الانحناء, M: عزم الانحناء, y: البعد عن المحور المحايد, I: عزم القصور الذاتي',
-      },
-      {
-        'title': 'قانون هوك ومعامل المرونة (Hooke’s Law)',
-        'formula': 'σ = E × ε',
-        'desc': 'σ: الإجهاد (Stress), E: معامل يونغ (Young’s Modulus), ε: الانفعال (Strain)',
-      },
-      {
-        'title': 'معادلة برنولي الهيدروليكية',
-        'formula': 'P + 0.5 × ρ × v² + ρ × g × h = ثابت',
-        'desc': 'حفظ الطاقة للسريان اللزج المستقر عبر الموائع المتصلة',
-      },
-      {
-        'title': 'مقاسات اللوحات المعمارية والهندسية القياسية',
-        'formula': 'A0: 841×1189 mm | A1: 594×841 mm | A2: 420×594 mm | A3: 297×420 mm',
-        'desc': 'المقاييس الدولية المعتمدة لمخططات الرسم الهندسي والمعماري',
-      },
-      {
-        'title': 'مقاييس الرسم المعماري الشائعة (Architectural Scales)',
-        'formula': '1:100 (المخططات العامة) | 1:50 (المساقط التفصيلية) | 1:20 / 1:10 (التفاصيل التنفيذية)',
-        'desc': 'النسب القياسية لتطابق أبعاد الرسومات مع الواقع على أرض الموقع',
-      },
+      {'title': l10n.t('refOhmTitle'), 'formula': 'V = I × R  |  P = V × I = I² × R', 'desc': l10n.t('refOhmDesc')},
+      {'title': l10n.t('refBendingTitle'), 'formula': 'σ = (M × y) / I', 'desc': l10n.t('refBendingDesc')},
+      {'title': l10n.t('refHookeTitle'), 'formula': 'σ = E × ε', 'desc': l10n.t('refHookeDesc')},
+      {'title': l10n.t('refBernoulliTitle'), 'formula': 'P + 0.5 × ρ × v² + ρ × g × h = constant', 'desc': l10n.t('refBernoulliDesc')},
+      {'title': l10n.t('refPaperSizesTitle'), 'formula': 'A0: 841×1189 mm | A1: 594×841 mm | A2: 420×594 mm | A3: 297×420 mm', 'desc': l10n.t('refPaperSizesDesc')},
+      {'title': l10n.t('refScalesTitle'), 'formula': '1:100 | 1:50 | 1:20 | 1:10', 'desc': l10n.t('refScalesDesc')},
     ];
 
     return ListView.builder(

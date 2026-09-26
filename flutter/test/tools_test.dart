@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leo_association/core/localization/app_localizations.dart';
 
@@ -20,6 +21,17 @@ void main() {
         'guestWelcomeTitle',
         'studentLockedCardTitle',
         'updateSemesterTitle',
+        'navStudent',
+        'materialsTitle',
+        'scheduleTitle',
+        'unitPressureStress',
+        'resistorBand1',
+        'resistorBand2',
+        'resistorMultiplier',
+        'goldTolerance',
+        'silverTolerance',
+        'refOhmTitle',
+        'refBernoulliTitle',
       ];
 
       for (final locale in AppLocalizations.supportedLocales) {
@@ -28,6 +40,37 @@ void main() {
           final val = l10n.t(key);
           expect(val, isNotEmpty, reason: 'Key $key was empty in locale ${locale.languageCode}');
           expect(val, isNot(equals(key)), reason: 'Key $key was not translated in locale ${locale.languageCode}');
+        }
+      }
+    });
+
+
+    test('new UI strings are not falling back to Arabic in English or French', () {
+      const keys = [
+        'navStudent',
+        'navSystem',
+        'navSchedule',
+        'navMaterials',
+        'navMedia',
+        'materialsTitle',
+        'materialsSubtitle',
+        'scheduleTitle',
+        'today',
+        'week',
+        'unitLength',
+        'unitForce',
+        'unitPressureStress',
+        'unitEnergyPower',
+        'resistorBlack',
+        'resistorWhite',
+      ];
+
+      for (final language in ['en', 'fr']) {
+        final l10n = AppLocalizations(Locale(language));
+        for (final key in keys) {
+          final value = l10n.t(key);
+          expect(value, isNotEmpty, reason: '$key is empty in $language');
+          expect(value, isNot(contains(RegExp(r'[\u0600-\u06FF]'))), reason: '$key fell back to Arabic in $language');
         }
       }
     });

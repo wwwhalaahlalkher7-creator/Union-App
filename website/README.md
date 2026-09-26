@@ -26,4 +26,4 @@ website/
 
 ## Deployment
 
-النشر الآلي موثق في `../docs/DEPLOYMENT.md` ويُدار عبر `.github/workflows/deploy-website.yml`.
+النشر الحالي موثق في `../docs/DEPLOYMENT.md` ويُدار عبر `.github/workflows/deploy.yml` ضمن job باسم `website-deploy`. ملفات Cloudflare Worker الموجودة هنا تمثل مسار الاستضافة البديل/المستقبلي ولا تدخل في حزمة FTPS الحالية.
