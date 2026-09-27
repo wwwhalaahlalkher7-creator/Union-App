@@ -51,47 +51,74 @@ jobs:
       - name: Resolve release version
         id: version
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
           INPUT_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          VERSION_FILE="$(sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p; q' flutter/VERSION)"
-          VERSION="${VERSION_FILE%%+*}"
-          TAG="v${VERSION}"
+
+          read_version() {
+            sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p; q' "$1"
+          }
+
+          parse_version() {
+            local value="$1"
+            VERSION_NAME="${value%%+*}"
+            BUILD_NUMBER="${value#*+}"
+          }
+
+          CURRENT_RAW="$(read_version flutter/VERSION)"
+          parse_version "$CURRENT_RAW"
+          CURRENT_VERSION="$VERSION_NAME"
+          CURRENT_BUILD="$BUILD_NUMBER"
+          TAG="v${CURRENT_VERSION}"
+          SHOULD_RELEASE=false
 
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             TAG="$INPUT_TAG"
             EXPECTED="${TAG#v}"
-            test "$VERSION" = "$EXPECTED" || {
-              echo "Selected tag is $EXPECTED but flutter/VERSION is $VERSION"
+            test "$CURRENT_VERSION" = "$EXPECTED" || {
+              echo "Selected tag is $EXPECTED but flutter/VERSION is $CURRENT_VERSION"
               exit 1
             }
             SHOULD_RELEASE=true
           else
-            TAG_EXISTS=false
-            RELEASE_EXISTS=false
-            if gh api -H 'Accept: application/vnd.github+json' \
-              "/repos/$REPO/git/ref/tags/$TAG" >/dev/null 2>&1; then
-              TAG_EXISTS=true
-            fi
-            if gh api -H 'Accept: application/vnd.github+json' \
-              "/repos/$REPO/releases/tags/$TAG" >/dev/null 2>&1; then
-              RELEASE_EXISTS=true
-            fi
+            if git rev-parse HEAD^ >/dev/null 2>&1; then
+              if git show HEAD^:flutter/VERSION >/tmp/previous-version 2>/dev/null; then
+                PREVIOUS_RAW="$(read_version /tmp/previous-version)"
+                parse_version "$PREVIOUS_RAW"
+                PREVIOUS_VERSION="$VERSION_NAME"
+                PREVIOUS_BUILD="$BUILD_NUMBER"
 
-            if [[ "$RELEASE_EXISTS" == "true" ]]; then
-              echo "GitHub Release $TAG already exists; nothing to release."
-              SHOULD_RELEASE=false
+                if [[ "$CURRENT_VERSION" == "$PREVIOUS_VERSION" ]]; then
+                  if (( CURRENT_BUILD < PREVIOUS_BUILD )); then
+                    echo "Build number must not decrease for version $CURRENT_VERSION: previous=$PREVIOUS_BUILD current=$CURRENT_BUILD"
+                    exit 1
+                  fi
+                  if (( CURRENT_BUILD == PREVIOUS_BUILD )); then
+                    echo "No release change: VERSION is still $CURRENT_VERSION+$CURRENT_BUILD."
+                    SHOULD_RELEASE=false
+                  else
+                    echo "Same release version with a new build: $CURRENT_VERSION+$CURRENT_BUILD (previous build $PREVIOUS_BUILD)."
+                    SHOULD_RELEASE=true
+                  fi
+                else
+                  echo "New release version: $CURRENT_VERSION+$CURRENT_BUILD (previous $PREVIOUS_VERSION+$PREVIOUS_BUILD)."
+                  SHOULD_RELEASE=true
+                fi
+              else
+                echo "No previous flutter/VERSION found; treating this as the first release."
+                SHOULD_RELEASE=true
+              fi
             else
+              echo "No parent commit; treating this as the first release."
               SHOULD_RELEASE=true
             fi
           fi
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$CURRENT_BUILD" >> "$GITHUB_OUTPUT"
           echo "should_release=$SHOULD_RELEASE" >> "$GITHUB_OUTPUT"
 
       - name: Run project verification
@@ -422,30 +449,43 @@ jobs:
             printf 'Union App %s\n' "$GATE_VERSION" > RELEASE_NOTES.md
           fi
 
-      - name: Create release tag from canonical version
-        if: github.event_name == 'push'
+      - name: Create or update release tag from canonical version
         env:
           TAG: ${{ needs.gate.outputs.tag }}
         run: |
           set -euo pipefail
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists; reusing it."
+            echo "Tag $TAG exists; moving it to the current release commit."
+            git tag -fa "$TAG" -m "Union App $TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG" --force
           else
-            git tag -a "$TAG" -m "Union App $TAG"
-            git push origin "$TAG"
+            git tag -a "$TAG" -m "Union App $TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG"
           fi
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.gate.outputs.tag }}
           VERSION: ${{ needs.gate.outputs.version }}
         run: |
           set -euo pipefail
-          gh release create "$TAG" \
-            "release-assets/Union-App-v${VERSION}.apk" \
-            "release-assets/Union-App-v${VERSION}.aab" \
-            release-assets/SHA256SUMS.txt \
-            --notes-file RELEASE_NOTES.md \
-            --title "Union App ${TAG}" \
-            --verify-tag
+          ASSETS=(
+            "release-assets/Union-App-v${VERSION}.apk"
+            "release-assets/Union-App-v${VERSION}.aab"
+            "release-assets/SHA256SUMS.txt"
+          )
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Updating existing GitHub Release $TAG with the new build."
+            gh release edit "$TAG" \
+              --notes-file RELEASE_NOTES.md \
+              --title "Union App ${TAG}"
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+          else
+            echo "Creating GitHub Release $TAG."
+            gh release create "$TAG" "${ASSETS[@]}" \
+              --notes-file RELEASE_NOTES.md \
+              --title "Union App ${TAG}" \
+              --verify-tag
+          fi
