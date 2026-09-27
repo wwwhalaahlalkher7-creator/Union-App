@@ -8,7 +8,7 @@ version_file = flutter / 'VERSION'
 pubspec = flutter / 'pubspec.yaml'
 app_version = flutter / 'lib/core/app_version.dart'
 
-version = version_file.read_text(encoding='utf-8').strip()
+version = next((line.strip() for line in version_file.read_text(encoding='utf-8').splitlines() if line.strip() and not line.lstrip().startswith('#')), '')
 m = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)\+(\d+)', version)
 if not m:
     raise SystemExit(f'Invalid VERSION: {version!r}')
