@@ -434,6 +434,12 @@ jobs:
             printf 'Union App %s\n' "$GATE_VERSION" > RELEASE_NOTES.md
           fi
 
+      - name: Configure Git identity
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Create or update release tag from canonical version
         env:
           TAG: ${{ needs.gate.outputs.tag }}
