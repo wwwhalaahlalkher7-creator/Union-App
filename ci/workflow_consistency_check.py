@@ -31,10 +31,25 @@ for action, version in {
 if 'actions/download-artifact@v8' not in release:
     raise SystemExit('Release workflow must use download-artifact@v8')
 
-if 'SamKirkland/FTP-Deploy-Action@v4.4.0' not in release:
-    raise SystemExit('Release workflow must use FTP-Deploy-Action@v4.4.0')
+if 'SamKirkland/FTP-Deploy-Action@v4.4.0' not in ci:
+    raise SystemExit('CI workflow must use FTP-Deploy-Action@v4.4.0 for website deployment')
 
-if 'dangerous-clean-slate: true' in release:
+if 'SamKirkland/FTP-Deploy-Action@v4.4.0' in release:
+    raise SystemExit('Production app release must not deploy the website')
+
+if 'npx wrangler deploy' not in ci:
+    raise SystemExit('CI workflow must contain the backend deployment path')
+
+if 'npx wrangler deploy' in release:
+    raise SystemExit('Production app release must not deploy the backend')
+
+if 'releases/latest/download/Union-App.apk' not in (ROOT / 'website/download.html').read_text(encoding='utf-8'):
+    raise SystemExit('Download page must use the stable GitHub latest APK URL')
+
+if 'downloads/release.json' in (ROOT / 'website/download.html').read_text(encoding='utf-8'):
+    raise SystemExit('Download page must not depend on website-side release.json')
+
+if 'dangerous-clean-slate: true' in ci + release:
     raise SystemExit('Production website deployment must not use dangerous-clean-slate: true')
 
 print('Workflow consistency check passed')

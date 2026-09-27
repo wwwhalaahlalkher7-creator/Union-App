@@ -3,35 +3,50 @@
 ## المسار الطبيعي
 
 ```text
-push main
-   ├── Flutter CI → analyze/test → Android APK/AAB
-   ├── Backend CI → syntax/contracts/migrations → Cloudflare Worker + D1
-   └── Website CI → validate/package → InfinityFree
+push main / Pull Request
+   ├── Flutter-related changes → Flutter CI → analyze/test → Debug APK + Debug AAB artifacts
+   ├── Backend-related changes → Backend CI → validate → deploy Worker + D1 on main
+   └── Website-related changes → Website CI → build/security → deploy to InfinityFree on main
+
+manual Production App Release
+   └── Signed APK + AAB → GitHub Release → stable download asset Union-App.apk
 ```
 
 ## Backend
 
-Workflow: `.github/workflows/release.yml` (job: `backend-deploy`)
+Workflow: `.github/workflows/ci.yml` (job: `backend`)
 
-يعمل على `main` ويقوم بـ:
-
-1. تثبيت Node.
-2. فحص syntax.
-3. تشغيل contract checks.
-4. تطبيق D1 migrations.
-5. نشر Worker مع Eino secrets.
+يعمل عند تغيّر ملفات الـBackend ذات الصلة. على Pull Request يكتفي بالتحقق وdry-run، وعلى `main` ينفذ النشر إلى Cloudflare Worker وتطبيق D1 migrations ومزامنة الأسرار المطلوبة.
 
 ## Flutter
 
-Workflow: `.github/workflows/release.yml` (job: `flutter-build`)
+Workflow: `.github/workflows/ci.yml` (job: `flutter`)
 
-يستخدم Flutter stable، ويشغّل analyze/test على كل push/PR، ويبني APK/AAB موقّعين بالإنتاج على `main` فقط. الـproduction signing secrets مطلوبة لبناء artifacts النهائية.
+يعمل عند تغيّر ملفات Flutter ذات الصلة، ويشغّل analyze/test ويبني **Debug APK وDebug AAB** كـArtifacts للاختبار. هذه ليست النسخة الرسمية للطلاب ولا تستخدم production signing.
 
-## Website
+الإصدار الرسمي للتطبيق منفصل في `.github/workflows/release.yml` ويُشغّل يدويًا فقط.
+
+## Production App Release
 
 Workflow: `.github/workflows/release.yml`
 
-يتحقق من JavaScript والملفات المطلوبة وسياسة المصادر القديمة، ثم ينشر الموقع ولوحة الإدارة إلى InfinityFree عبر FTPS.
+يقرأ `flutter/VERSION`، يتحقق من version/build، ثم يبني APK وAAB موقّعين بمفتاح الإنتاج وينشرهما في GitHub Releases. الملف الرسمي الذي يستهدفه زر التنزيل اسمه دائمًا `Union-App.apk`.
+
+رابط التنزيل الثابت في الموقع هو:
+
+```text
+https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/Union-App.apk
+```
+
+هذا الـworkflow لا ينشر الموقع ولا الـBackend.
+
+## Website
+
+Workflow: `.github/workflows/ci.yml` (job: `website`)
+
+يتحقق من JavaScript والملفات المطلوبة وسياسة المصادر القديمة، ثم ينشر `dist/` إلى InfinityFree عبر FTPS عند تغيّر ملفات الموقع على `main`.
+
+صفحة تحميل التطبيق لا تعتمد على `release.json` مستضاف على InfinityFree؛ زر التنزيل مرتبط مباشرةً بأحدث GitHub Release Asset.
 
 ## تحقق بعد النشر
 
@@ -57,6 +72,7 @@ GET /api/v1/version
 - `/admin/`.
 - تسجيل دخول الإدارة.
 - تحميل المحتوى من API.
+- زر تنزيل التطبيق وأنه يشير إلى GitHub Releases.
 
 ### Eino
 

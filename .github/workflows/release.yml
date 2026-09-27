@@ -1,10 +1,10 @@
-name: Production Release
+name: Production App Release
 
 on:
   workflow_dispatch:
     inputs:
       confirm_release:
-        description: 'Confirm that the current flutter/VERSION is ready for production release'
+        description: 'Confirm that the current flutter/VERSION is ready for production app release'
         required: true
         default: false
         type: boolean
@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: production-release
+  group: production-app-release
   cancel-in-progress: false
 
 env:
@@ -21,7 +21,7 @@ env:
 
 jobs:
   gate:
-    name: Release Gate
+    name: App Release Gate
     runs-on: ubuntu-latest
     outputs:
       should_release: ${{ steps.version.outputs.should_release }}
@@ -49,7 +49,7 @@ jobs:
           set -euo pipefail
 
           test "$CONFIRM_RELEASE" = "true" || {
-            echo "Production release requires explicit confirmation."
+            echo "Production app release requires explicit confirmation."
             exit 1
           }
 
@@ -82,31 +82,24 @@ jobs:
             PRODUCTION_VERSION="$VERSION_NAME"
             PRODUCTION_BUILD="$BUILD_NUMBER"
 
-            if [[ "$CURRENT_VERSION" != "$PRODUCTION_VERSION" ]]; then
+            [[ "$CURRENT_VERSION" == "$PRODUCTION_VERSION" ]] || {
               echo "Tag $TAG points to an unexpected version: $PRODUCTION_VERSION"
               exit 1
-            fi
-            if (( CURRENT_BUILD < PRODUCTION_BUILD )); then
+            }
+            (( CURRENT_BUILD >= PRODUCTION_BUILD )) || {
               echo "Build number cannot decrease: production=$PRODUCTION_BUILD current=$CURRENT_BUILD"
               exit 1
-            fi
+            }
+
             if (( CURRENT_BUILD == PRODUCTION_BUILD )); then
               echo "Same production build detected: $CURRENT_VERSION+$CURRENT_BUILD."
-              echo "Checking whether the existing GitHub Release is complete..."
-
+              echo "Checking whether the GitHub Release contains the official APK asset..."
               RELEASE_ASSETS="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | sort | join("\n")' 2>/dev/null || true)"
-              EXPECTED_APK="Union-App-v${CURRENT_VERSION}.apk"
-              EXPECTED_AAB="Union-App-v${CURRENT_VERSION}.aab"
-              EXPECTED_SUMS="SHA256SUMS.txt"
-
-              if grep -Fxq "$EXPECTED_APK" <<< "$RELEASE_ASSETS" \
-                && grep -Fxq "$EXPECTED_AAB" <<< "$RELEASE_ASSETS" \
-                && grep -Fxq "$EXPECTED_SUMS" <<< "$RELEASE_ASSETS"; then
-                echo "No new production build: $CURRENT_VERSION+$CURRENT_BUILD is already fully published."
+              if grep -Fxq "Union-App.apk" <<< "$RELEASE_ASSETS"; then
+                echo "No new production build: $CURRENT_VERSION+$CURRENT_BUILD is already published."
                 exit 1
               fi
-
-              echo "Existing release is incomplete; rebuilding and repairing release $TAG."
+              echo "The existing release is missing Union-App.apk; repairing it."
             else
               echo "Updating existing release $TAG from build $PRODUCTION_BUILD to $CURRENT_BUILD."
             fi
@@ -120,14 +113,13 @@ jobs:
           echo "should_release=true" >> "$GITHUB_OUTPUT"
 
       - name: Run project verification
-        if: steps.version.outputs.should_release == 'true'
         run: |
           python3 ci/verify_project.py
           python3 ci/release_check.py
           python3 ci/final_release_check.py
 
   android:
-    name: Android Release
+    name: Build Signed Production APK & AAB
     needs: gate
     if: needs.gate.outputs.should_release == 'true'
     runs-on: ubuntu-latest
@@ -174,8 +166,6 @@ jobs:
           storePassword=$ANDROID_STORE_PASSWORD
           keyPassword=$ANDROID_KEY_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
-          # build.gradle resolves storeFile relative to android/app, while the
-          # decoded keystore is kept in android/.
           storeFile=../upload-keystore.jks
           EOF2
 
@@ -197,217 +187,26 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/release-assets
-          cp build/app/outputs/flutter-apk/app-release.apk \
-            build/release-assets/Union-App-v${RELEASE_VERSION}.apk
-          cp build/app/outputs/bundle/release/app-release.aab \
-            build/release-assets/Union-App-v${RELEASE_VERSION}.aab
+          cp build/app/outputs/flutter-apk/app-release.apk build/release-assets/Union-App.apk
+          cp build/app/outputs/flutter-apk/app-release.apk "build/release-assets/Union-App-v${RELEASE_VERSION}.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "build/release-assets/Union-App-v${RELEASE_VERSION}.aab"
           cd build/release-assets
-          sha256sum *.apk *.aab > SHA256SUMS.txt
+          sha256sum Union-App.apk "Union-App-v${RELEASE_VERSION}.apk" "Union-App-v${RELEASE_VERSION}.aab" > SHA256SUMS.txt
 
-      - name: Upload Android artifacts
+      - name: Upload Android release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: android-release-${{ needs.gate.outputs.version }}
+          name: android-production-${{ needs.gate.outputs.version }}
           path: flutter/build/release-assets/
           if-no-files-found: error
 
-  backend:
-    name: Production Backend
-    needs: gate
-    if: needs.gate.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    environment:
-      name: production
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-
-      - name: Synchronize release metadata from flutter/VERSION
-        working-directory: .
-        run: python3 ci/sync_release_metadata.py
-
-      - name: Install dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
-
-      - name: Validate required production secrets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          GOOGLE_APPS_SCRIPT_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_TOKEN }}
-        run: |
-          set -euo pipefail
-          test -n "$CLOUDFLARE_API_TOKEN"
-          test -n "$CLOUDFLARE_ACCOUNT_ID"
-          test -n "$GOOGLE_APPS_SCRIPT_TOKEN"
-
-      - name: Apply production migrations
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler d1 migrations apply leo-association-db --remote
-
-      - name: Sync AI and integration secrets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          FREE_AI_API_KEY: ${{ secrets.FREE_AI_API_KEY }}
-          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          FREE_AI_BASE_URL: ${{ secrets.FREE_AI_BASE_URL }}
-          EINO_EMBEDDING_API_KEY: ${{ secrets.EINO_EMBEDDING_API_KEY }}
-          GOOGLE_APPS_SCRIPT_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_TOKEN }}
-          STAFF_BOOTSTRAP_TOKEN: ${{ secrets.STAFF_BOOTSTRAP_TOKEN }}
-        run: |
-          set -euo pipefail
-          for pair in \
-            FREE_AI_API_KEY \
-            MISTRAL_API_KEY \
-            GROQ_API_KEY \
-            FREE_AI_BASE_URL \
-            EINO_EMBEDDING_API_KEY \
-            GOOGLE_APPS_SCRIPT_TOKEN \
-            STAFF_BOOTSTRAP_TOKEN; do
-            value="${!pair:-}"
-            if [ -n "$value" ]; then
-              printf '%s' "$value" | npx wrangler secret put "$pair"
-            fi
-          done
-
-      - name: Deploy Worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy
-
-      - name: Verify production API
-        env:
-          API_BASE_URL: ${{ vars.API_BASE_URL || 'https://leo-association-api.www-halaahlalkher7.workers.dev' }}
-        run: |
-          set -euo pipefail
-          HEALTH_URL="${API_BASE_URL%/}/api/v1/health"
-          echo "Verifying production API: $HEALTH_URL"
-          curl --fail --silent --show-error --retry 8 --retry-delay 5 --retry-all-errors "$HEALTH_URL"
-
-  website:
-    name: Production Website
-    needs: [gate, android, publish]
-    if: needs.gate.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    environment:
-      name: production
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Build distribution
-        run: npm run build
-
-      - name: Download Android release artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: android-release-${{ needs.gate.outputs.version }}
-          path: release-assets
-
-
-      - name: Generate website release metadata
-        env:
-          RELEASE_VERSION: ${{ needs.gate.outputs.version }}
-          RELEASE_BUILD: ${{ needs.gate.outputs.build }}
-          RELEASE_STARTED_AT: ${{ github.run_started_at }}
-        run: |
-          set -euo pipefail
-          NOTES="$(sed -n 's/^[[:space:]]*#[[:space:]]*//p' flutter/VERSION | sed '/^[[:space:]]*$/d' | paste -sd '\\n' -)"
-          APK_PATH="release-assets/Union-App-v${RELEASE_VERSION}.apk"
-          APK_BYTES="$(stat -c '%s' "$APK_PATH")"
-          python3 - "$RELEASE_VERSION" "$RELEASE_BUILD" "$NOTES" "$APK_BYTES" "$RELEASE_STARTED_AT" > dist/downloads/release.json <<'PY'
-          import json, sys
-
-          version, build, notes, size_bytes, updated_at = sys.argv[1:]
-          size = int(size_bytes)
-          file_size = f"{size / (1024 * 1024):.1f} MB" if size >= 1024 * 1024 else f"{size / 1024:.1f} KB"
-          payload = {
-              "version": version,
-              "build": build,
-              "releaseNotes": notes,
-              "fileSize": file_size,
-              "fileSizeBytes": size,
-              "updatedAt": updated_at,
-              "androidRequirement": "Android 8.0 (API 26) أو أحدث",
-              "downloadUrl": "https://ush-eng.great-site.net/download.html",
-              "apkUrl": f"https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/download/v{version}/Union-App-v{version}.apk"
-          }
-          print(json.dumps(payload, ensure_ascii=False, indent=2))
-          PY
-
-      - name: Verify website release payload
-        run: |
-          test -s dist/downloads/release.json
-          test -s dist/download.html
-          test -s dist/index.html
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          data = json.loads(Path("dist/downloads/release.json").read_text(encoding="utf-8"))
-          required = ["version", "build", "releaseNotes", "fileSize", "fileSizeBytes", "updatedAt", "androidRequirement", "downloadUrl", "apkUrl"]
-          missing = [key for key in required if key not in data]
-          if missing:
-              raise SystemExit(f"Missing release metadata: {missing}")
-          expected_page = "https://ush-eng.great-site.net/download.html"
-          expected_apk = f"https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/download/v{data['version']}/Union-App-v{data['version']}.apk"
-          if data["downloadUrl"] != expected_page:
-              raise SystemExit("downloadUrl must point to the stable download page")
-          if data["apkUrl"] != expected_apk:
-              raise SystemExit("apkUrl must point to the GitHub Release APK")
-          if int(data["fileSizeBytes"]) <= 0:
-              raise SystemExit("APK size must be positive")
-          PY
-
-      - name: Web security checks
-        run: |
-          python3 ci/web_security_check.py
-          python3 ci/xss_dom_check.py
-          python3 ci/admin_ui_payload_check.py
-
-      - name: Deploy website via FTPS
-        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
-        with:
-          server: ftpupload.net
-          username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
-          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
-          local-dir: ./dist/
-          server-dir: /ush-eng.great-site.net/htdocs/
-          dangerous-clean-slate: false
-
-      - name: Verify production website
-        env:
-          SITE_URL: ${{ vars.SITE_URL }}
-        run: |
-          test -n "$SITE_URL" || { echo 'SITE_URL production variable is required'; exit 1; }
-          curl --fail --silent --show-error --retry 5 --retry-delay 3 "$SITE_URL/"
-
   publish:
     name: Publish GitHub Release
-    needs: [gate, android, backend]
+    needs: [gate, android]
     if: needs.gate.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout release commit
+      - name: Checkout current main
         uses: actions/checkout@v7
         with:
           ref: main
@@ -418,35 +217,34 @@ jobs:
           python3 flutter/tool/sync_version.py
           python3 ci/sync_release_metadata.py
 
-      - name: Download Android artifacts
+      - name: Download Android release artifacts
         uses: actions/download-artifact@v8
         with:
-          name: android-release-${{ needs.gate.outputs.version }}
+          name: android-production-${{ needs.gate.outputs.version }}
           path: release-assets
 
       - name: Prepare release notes
         env:
-          GATE_VERSION: ${{ needs.gate.outputs.version }}
+          RELEASE_VERSION: ${{ needs.gate.outputs.version }}
         run: |
           set -euo pipefail
           sed -n 's/^[[:space:]]*#[[:space:]]*//p' flutter/VERSION | sed '/^[[:space:]]*$/d' > RELEASE_NOTES.md
           if [ ! -s RELEASE_NOTES.md ]; then
-            printf 'Union App %s\n' "$GATE_VERSION" > RELEASE_NOTES.md
+            printf 'Union App %s\n' "$RELEASE_VERSION" > RELEASE_NOTES.md
           fi
 
       - name: Configure Git identity
         run: |
-          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Create or update release tag from canonical version
+      - name: Create or update release tag
         env:
           TAG: ${{ needs.gate.outputs.tag }}
         run: |
           set -euo pipefail
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG exists; moving it to the current release commit."
+            git fetch --quiet origin "refs/tags/$TAG:refs/tags/$TAG"
             git tag -fa "$TAG" -m "Union App $TAG" "$GITHUB_SHA"
             git push origin "refs/tags/$TAG" --force
           else
@@ -462,20 +260,21 @@ jobs:
         run: |
           set -euo pipefail
           ASSETS=(
+            "release-assets/Union-App.apk"
             "release-assets/Union-App-v${VERSION}.apk"
             "release-assets/Union-App-v${VERSION}.aab"
             "release-assets/SHA256SUMS.txt"
           )
 
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Updating existing GitHub Release $TAG with the new build."
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
               --notes-file RELEASE_NOTES.md \
               --title "Union App ${TAG}"
-            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+            gh release upload "$TAG" "${ASSETS[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            echo "Creating GitHub Release $TAG."
             gh release create "$TAG" "${ASSETS[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
               --notes-file RELEASE_NOTES.md \
               --title "Union App ${TAG}" \
               --verify-tag

@@ -57,24 +57,21 @@
     <div class="download-icon"><i class="fas fa-mobile-screen-button" aria-hidden="true"></i></div>
     <h1>تحميل تطبيق الرابطة</h1>
     <p class="lead">النسخة الرسمية من تطبيق رابطة كلية الهندسة والعمارة، المبنية والمنشورة ضمن آخر إصدار للمشروع.</p>
-    <a class="download-button" id="downloadButton" href="#" rel="noopener">
+    <a class="download-button" id="downloadButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/Union-App.apk" rel="noopener">
       <i class="fas fa-download" aria-hidden="true"></i>
       تحميل التطبيق
     </a>
 
     <div class="download-meta">
-      <div class="meta-card"><span class="meta-label">الإصدار</span><span class="meta-value" id="appVersion">—</span></div>
-      <div class="meta-card"><span class="meta-label">رقم البناء</span><span class="meta-value" id="appBuild">—</span></div>
-      <div class="meta-card"><span class="meta-label">حجم التطبيق</span><span class="meta-value" id="appSize">—</span></div>
-      <div class="meta-card"><span class="meta-label">آخر تحديث</span><span class="meta-value" id="appUpdatedAt">—</span></div>
-      <div class="meta-card"><span class="meta-label">متطلبات Android</span><span class="meta-value" id="androidRequirement">—</span></div>
+      <div class="meta-card"><span class="meta-label">مصدر النسخة الرسمية</span><span class="meta-value">GitHub Releases</span></div>
+      <div class="meta-card"><span class="meta-label">متطلبات Android</span><span class="meta-value">Android 8.0 (API 26) أو أحدث</span></div>
     </div>
 
     <div class="release-notes">
-      <h2><i class="fas fa-list-check" aria-hidden="true"></i> ملاحظات الإصدار</h2>
-      <p id="releaseNotes">الإصدار الأساسي بعد توحيد نظام الإصدار والتحديثات التلقائية.</p>
+      <h2><i class="fas fa-list-check" aria-hidden="true"></i> النسخة الرسمية</h2>
+      <p>زر التنزيل مرتبط دائمًا بأحدث إصدار إنتاجي معتمد من التطبيق.</p>
     </div>
-    <p class="download-note">يتم تحديث بيانات هذه الصفحة تلقائيًا مع كل إصدار إنتاجي جديد، بينما يُستضاف ملف APK الرسمي عبر GitHub Releases.</p>
+    <p class="download-note">يتم نشر ملف APK الرسمي عبر GitHub Releases، بينما يبقى رابط التنزيل في هذه الصفحة ثابتًا.</p>
   </section>
 </main>
 
@@ -99,30 +96,6 @@
   window.addEventListener('click', (e) => {
     if (!navMenu.contains(e.target) && !menuToggle.contains(e.target) && navMenu.classList.contains('active')) menuToggle.click();
   });
-</script>
-<script>
-  fetch('downloads/release.json', { cache: 'no-store' })
-    .then(r => r.ok ? r.json() : Promise.reject(new Error('metadata unavailable')))
-    .then(data => {
-      if (!data) return;
-      if (data.version) document.getElementById('appVersion').textContent = data.version;
-      if (data.build) document.getElementById('appBuild').textContent = data.build;
-      if (data.releaseNotes) document.getElementById('releaseNotes').textContent = data.releaseNotes;
-      if (data.fileSize) document.getElementById('appSize').textContent = data.fileSize;
-      if (data.updatedAt) {
-        const date = new Date(data.updatedAt);
-        document.getElementById('appUpdatedAt').textContent = Number.isNaN(date.getTime())
-          ? data.updatedAt
-          : new Intl.DateTimeFormat('ar', { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
-      }
-      if (data.androidRequirement) document.getElementById('androidRequirement').textContent = data.androidRequirement;
-      if (data.apkUrl) {
-        const button = document.getElementById('downloadButton');
-        button.href = data.apkUrl;
-        button.setAttribute('download', '');
-      }
-    })
-    .catch(() => {});
 </script>
 <script src="site-settings.js"></script>
 <script src="ui-pro.js?v=5"></script>
