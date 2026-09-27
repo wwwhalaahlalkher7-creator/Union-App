@@ -21,6 +21,10 @@
     .download-hero .lead { color:var(--text-muted); max-width:650px; margin:0 auto 26px; }
     .download-button { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-width:230px; min-height:54px; padding:0 24px; border-radius:16px; background:var(--primary); color:#101010; font-weight:800; text-decoration:none; box-shadow:var(--shadow-glow); transition:transform .25s var(--ease), filter .25s; }
     .download-button:hover { transform:translateY(-2px); filter:brightness(1.08); }
+    .download-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:14px; }
+    .download-button.secondary { background:transparent; color:var(--text); border:1px solid var(--line); box-shadow:none; }
+    .download-button.secondary:hover { background:rgba(255,255,255,.05); }
+    .download-subnote { max-width:650px; margin:12px auto 0; color:var(--text-soft); font-size:.82rem; }
     .download-meta { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; max-width:650px; margin:28px auto 0; }
     .meta-card { padding:18px; border:1px solid var(--line); border-radius:18px; background:rgba(255,255,255,.025); text-align:right; }
     .meta-label { display:block; color:var(--text-soft); font-size:.82rem; margin-bottom:5px; }
@@ -57,10 +61,17 @@
     <div class="download-icon"><i class="fas fa-mobile-screen-button" aria-hidden="true"></i></div>
     <h1>تحميل تطبيق الرابطة</h1>
     <p class="lead">النسخة الرسمية من تطبيق رابطة كلية الهندسة والعمارة، المبنية والمنشورة ضمن آخر إصدار للمشروع.</p>
-    <a class="download-button" id="downloadButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/Union-App.apk" rel="noopener">
-      <i class="fas fa-download" aria-hidden="true"></i>
-      تحميل التطبيق
-    </a>
+    <div class="download-actions">
+      <a class="download-button" id="downloadButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.apk" rel="noopener">
+        <i class="fas fa-download" aria-hidden="true"></i>
+        تحميل التطبيق
+      </a>
+      <a class="download-button secondary" id="downloadZipButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.zip" rel="noopener">
+        <i class="fas fa-file-zipper" aria-hidden="true"></i>
+        تحميل النسخة المضغوطة
+      </a>
+    </div>
+    <p class="download-subnote">النسخة المضغوطة مناسبة لمن يفضل تنزيل ملف ZIP أولًا، ثم استخراج التطبيق وتثبيته.</p>
 
     <div class="download-meta">
       <div class="meta-card"><span class="meta-label">مصدر النسخة الرسمية</span><span class="meta-value">GitHub Releases</span></div>
@@ -69,9 +80,9 @@
 
     <div class="release-notes">
       <h2><i class="fas fa-list-check" aria-hidden="true"></i> النسخة الرسمية</h2>
-      <p>زر التنزيل مرتبط دائمًا بأحدث إصدار إنتاجي معتمد من التطبيق.</p>
+      <p>زر تنزيل التطبيق مرتبط دائمًا بأحدث إصدار إنتاجي معتمد من التطبيق، بينما يوفر الزر الثاني نفس الإصدار داخل ملف ZIP.</p>
     </div>
-    <p class="download-note">يتم نشر ملف APK الرسمي عبر GitHub Releases، بينما يبقى رابط التنزيل في هذه الصفحة ثابتًا.</p>
+    <p class="download-note">يتم نشر ملفي TRINEX.apk وTRINEX.zip عبر GitHub Releases، بينما تبقى روابط التنزيل في هذه الصفحة ثابتة.</p>
   </section>
 </main>
 

@@ -60,10 +60,10 @@ MAJOR.MINOR.PATCH+BUILD
 
 ## GitHub Release
 
-الـ Release الرسمي يحتوي فقط على:
+الـ Release الرسمي يحتوي على:
 
-- `Union-App-vX.Y.Z.apk`
-- `Union-App-vX.Y.Z.aab`
-- `SHA256SUMS.txt`
+- `TRINEX.apk` — ملف APK الرسمي الذي يستخدمه رابط التنزيل الثابت.
+- `TRINEX.zip` — نسخة مضغوطة من نفس `TRINEX.apk` محفوظة داخل الـTag/Release.
+- `SHA256SUMS.txt` — بصمات SHA-256 للملفين.
 
 GitHub يوفر source archives تلقائيًا للـ tag، لذلك لا نضيف source zip إضافيًا.

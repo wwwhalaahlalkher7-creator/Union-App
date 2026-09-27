@@ -4,12 +4,12 @@
 
 ```text
 push main / Pull Request
-   ├── Flutter-related changes → Flutter CI → analyze/test → Debug APK + Debug AAB artifacts
+   ├── Flutter-related changes → Flutter CI → analyze/test → signed APK/AAB → compressed `TRINEX APK.zip` + `TRINEX AAB.zip` artifacts
    ├── Backend-related changes → Backend CI → validate → deploy Worker + D1 on main
    └── Website-related changes → Website CI → build/security → deploy to InfinityFree on main
 
 manual Production App Release
-   └── Signed APK + AAB → GitHub Release → stable download asset Union-App.apk
+   └── Signed APK + AAB → GitHub Release → stable download asset `TRINEX.apk` plus compressed release backup `TRINEX.zip`
 ```
 
 ## Backend
@@ -22,7 +22,7 @@ Workflow: `.github/workflows/ci.yml` (job: `backend`)
 
 Workflow: `.github/workflows/ci.yml` (job: `flutter`)
 
-يعمل عند تغيّر ملفات Flutter ذات الصلة، ويشغّل analyze/test ويبني **Debug APK وDebug AAB** كـArtifacts للاختبار. هذه ليست النسخة الرسمية للطلاب ولا تستخدم production signing.
+يعمل عند تغيّر ملفات Flutter ذات الصلة، ويشغّل analyze/test ويبني **APK وAAB موقّعين فعليًا** ويضعهما في ملفين مضغوطين `TRINEX APK.zip` و`TRINEX AAB.zip` كـArtifacts للاختبار. تستخدم هذه النسخ نفس آلية Android release signing، لكنها ليست Release منشورًا.
 
 الإصدار الرسمي للتطبيق منفصل في `.github/workflows/release.yml` ويُشغّل يدويًا فقط.
 
@@ -30,12 +30,12 @@ Workflow: `.github/workflows/ci.yml` (job: `flutter`)
 
 Workflow: `.github/workflows/release.yml`
 
-يقرأ `flutter/VERSION`، يتحقق من version/build، ثم يبني APK وAAB موقّعين بمفتاح الإنتاج وينشرهما في GitHub Releases. الملف الرسمي الذي يستهدفه زر التنزيل اسمه دائمًا `Union-App.apk`.
+يقرأ `flutter/VERSION`، يتحقق من version/build، ثم يبني APK وAAB موقّعين بمفتاح الإنتاج وينشرهما في GitHub Releases. الملف الرسمي الذي يستهدفه زر التنزيل اسمه دائمًا `TRINEX.apk`، وتُحفظ معه نسخة مضغوطة `TRINEX.zip`.
 
 رابط التنزيل الثابت في الموقع هو:
 
 ```text
-https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/Union-App.apk
+https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.apk
 ```
 
 هذا الـworkflow لا ينشر الموقع ولا الـBackend.

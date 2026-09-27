@@ -95,11 +95,11 @@ jobs:
               echo "Same production build detected: $CURRENT_VERSION+$CURRENT_BUILD."
               echo "Checking whether the GitHub Release contains the official APK asset..."
               RELEASE_ASSETS="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | sort | join("\n")' 2>/dev/null || true)"
-              if grep -Fxq "Union-App.apk" <<< "$RELEASE_ASSETS"; then
+              if grep -Fxq "TRINEX.apk" <<< "$RELEASE_ASSETS" && grep -Fxq "TRINEX.zip" <<< "$RELEASE_ASSETS"; then
                 echo "No new production build: $CURRENT_VERSION+$CURRENT_BUILD is already published."
                 exit 1
               fi
-              echo "The existing release is missing Union-App.apk; repairing it."
+              echo "The existing release is missing TRINEX.apk or TRINEX.zip; repairing it."
             else
               echo "Updating existing release $TAG from build $PRODUCTION_BUILD to $CURRENT_BUILD."
             fi
@@ -181,17 +181,28 @@ jobs:
       - name: Build signed AAB
         run: flutter build appbundle --release
 
+      - name: Verify Android signatures
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          AAB="build/app/outputs/bundle/release/app-release.aab"
+          APKSIGNER="${ANDROID_HOME}/build-tools/$(ls -1 "${ANDROID_HOME}/build-tools" | sort -V | tail -1)/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
+          jarsigner -verify -verbose -certs "$AAB" >/tmp/trinex-release-aab-signature.txt
+          grep -q 'jar verified' /tmp/trinex-release-aab-signature.txt
+
       - name: Prepare release assets
         env:
           RELEASE_VERSION: ${{ needs.gate.outputs.version }}
         run: |
           set -euo pipefail
           mkdir -p build/release-assets
-          cp build/app/outputs/flutter-apk/app-release.apk build/release-assets/Union-App.apk
-          cp build/app/outputs/flutter-apk/app-release.apk "build/release-assets/Union-App-v${RELEASE_VERSION}.apk"
-          cp build/app/outputs/bundle/release/app-release.aab "build/release-assets/Union-App-v${RELEASE_VERSION}.aab"
+          cp build/app/outputs/flutter-apk/app-release.apk build/release-assets/TRINEX.apk
           cd build/release-assets
-          sha256sum Union-App.apk "Union-App-v${RELEASE_VERSION}.apk" "Union-App-v${RELEASE_VERSION}.aab" > SHA256SUMS.txt
+          zip -9 -q TRINEX.zip TRINEX.apk
+          unzip -t TRINEX.zip
+          sha256sum TRINEX.apk TRINEX.zip > SHA256SUMS.txt
 
       - name: Upload Android release artifacts
         uses: actions/upload-artifact@v7
@@ -260,9 +271,8 @@ jobs:
         run: |
           set -euo pipefail
           ASSETS=(
-            "release-assets/Union-App.apk"
-            "release-assets/Union-App-v${VERSION}.apk"
-            "release-assets/Union-App-v${VERSION}.aab"
+            "release-assets/TRINEX.apk"
+            "release-assets/TRINEX.zip"
             "release-assets/SHA256SUMS.txt"
           )
 

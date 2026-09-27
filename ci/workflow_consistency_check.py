@@ -43,7 +43,7 @@ if 'npx wrangler deploy' not in ci:
 if 'npx wrangler deploy' in release:
     raise SystemExit('Production app release must not deploy the backend')
 
-if 'releases/latest/download/Union-App.apk' not in (ROOT / 'website/download.html').read_text(encoding='utf-8'):
+if 'releases/latest/download/TRINEX.apk' not in (ROOT / 'website/download.html').read_text(encoding='utf-8'):
     raise SystemExit('Download page must use the stable GitHub latest APK URL')
 
 if 'downloads/release.json' in (ROOT / 'website/download.html').read_text(encoding='utf-8'):

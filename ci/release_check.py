@@ -43,11 +43,10 @@ for base in (FLUTTER/'lib', DASHBOARD, BACKEND/'src'):
                 errors.append(f'Legacy/commercial reference in active source: {p} -> {token}')
                 break
 
-# Release config sanity: debug signing is permitted only as a CI/test fallback,
-# but must be explicitly documented as NOT production signing.
+# Release config sanity: production builds must require explicit release signing.
 gradle=(FLUTTER/'android/app/build.gradle').read_text(encoding='utf-8')
 if 'signingConfig = hasReleaseSigning ? signingConfigs.release : signingConfigs.debug' in gradle:
-    print('WARNING: release build currently uses debug signing; RC is test-installable, NOT production/Play signed.')
+    errors.append('Release build must not fall back to debug signing')
 
 # Production security invariants.
 backend_source = (BACKEND / 'src/index.js').read_text(encoding='utf-8')

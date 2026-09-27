@@ -83,7 +83,7 @@ jobs:
           echo "Flutter: $flutter | Website: $website | Backend: $backend"
 
   flutter:
-    name: Flutter Analyze, Test & Debug Artifacts
+    name: Flutter Analyze, Test & Signed Artifacts
     needs: changes
     if: needs.changes.outputs.flutter == 'true'
     runs-on: ubuntu-latest
@@ -135,11 +135,53 @@ jobs:
           python3 ci/offline_cache_check.py
           python3 ci/color_theme_check.py
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+      - name: Configure Android signing for CI artifacts
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_STORE_PASSWORD ANDROID_KEY_PASSWORD ANDROID_KEY_ALIAS; do
+            test -n "${!name}" || { echo "Missing $name"; exit 1; }
+          done
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          cat > android/key.properties <<EOF2
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=../upload-keystore.jks
+          EOF2
 
-      - name: Build debug AAB
-        run: flutter build appbundle --debug
+      - name: Build signed APK
+        run: flutter build apk --release
+
+      - name: Build signed AAB
+        run: flutter build appbundle --release
+
+      - name: Verify Android signatures
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          AAB="build/app/outputs/bundle/release/app-release.aab"
+          APKSIGNER="${ANDROID_HOME}/build-tools/$(ls -1 "${ANDROID_HOME}/build-tools" | sort -V | tail -1)/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
+          jarsigner -verify -verbose -certs "$AAB" >/tmp/trinex-aab-signature.txt
+          grep -q 'jar verified' /tmp/trinex-aab-signature.txt
+
+      - name: Prepare compressed CI artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p build/ci-artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk "build/ci-artifacts/TRINEX.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "build/ci-artifacts/TRINEX.aab"
+          cd build/ci-artifacts
+          zip -9 -q "TRINEX APK.zip" TRINEX.apk
+          zip -9 -q "TRINEX AAB.zip" TRINEX.aab
+          unzip -t "TRINEX APK.zip"
+          unzip -t "TRINEX AAB.zip"
 
       - name: Upload Flutter coverage
         if: always()
@@ -149,18 +191,18 @@ jobs:
           path: flutter/coverage/lcov.info
           if-no-files-found: ignore
 
-      - name: Upload debug APK
+      - name: Upload signed APK zip
         uses: actions/upload-artifact@v7
         with:
-          name: union-app-debug-apk-${{ github.sha }}
-          path: flutter/build/app/outputs/flutter-apk/app-debug.apk
+          name: TRINEX APK.zip
+          path: flutter/build/ci-artifacts/TRINEX APK.zip
           if-no-files-found: error
 
-      - name: Upload debug AAB
+      - name: Upload signed AAB zip
         uses: actions/upload-artifact@v7
         with:
-          name: union-app-debug-aab-${{ github.sha }}
-          path: flutter/build/app/outputs/bundle/debug/app-debug.aab
+          name: TRINEX AAB.zip
+          path: flutter/build/ci-artifacts/TRINEX AAB.zip
           if-no-files-found: error
 
   backend:
