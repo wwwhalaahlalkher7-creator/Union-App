@@ -31,26 +31,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          files="$(gh api --paginate \
-            -H 'Accept: application/vnd.github+json' \
-            "/repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" \
-            --jq '.[].filename')"
+          files="$(gh api --paginate             -H 'Accept: application/vnd.github+json'             "/repos/$REPO/pulls/$PR_NUMBER/files?per_page=100"             --jq '.[].filename')"
 
           blocked="false"
 
           while IFS= read -r file; do
             case "$file" in
-              flutter/pubspec.yaml|\
-              flutter/pubspec.lock|\
-              flutter/android/gradle/*|\
-              flutter/android/gradle.properties|\
-              flutter/android/settings.gradle|\
-              flutter/android/settings.gradle.kts|\
-              flutter/android/build.gradle|\
-              flutter/android/build.gradle.kts|\
-              flutter/android/app/build.gradle|\
-              flutter/android/app/build.gradle.kts|\
-              flutter/android/gradle/libs.versions.toml)
+              flutter/pubspec.yaml|              flutter/pubspec.lock|              flutter/android/gradle/*|              flutter/android/gradle/wrapper/gradle-wrapper.properties|              flutter/android/gradle.properties|              flutter/android/settings.gradle|              flutter/android/settings.gradle.kts|              flutter/android/build.gradle|              flutter/android/build.gradle.kts|              flutter/android/app/build.gradle|              flutter/android/app/build.gradle.kts|              flutter/android/gradle/libs.versions.toml)
                 blocked="true"
                 ;;
             esac
@@ -71,20 +58,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          title="$(gh pr view "$PR_NUMBER" \
-            --repo "$REPO" \
-            --json title \
-            --jq '.title')"
+          title="$(gh pr view "$PR_NUMBER"             --repo "$REPO"             --json title             --jq '.title')"
 
-          body="$(gh pr view "$PR_NUMBER" \
-            --repo "$REPO" \
-            --json body \
-            --jq '.body // ""')"
+          body="$(gh pr view "$PR_NUMBER"             --repo "$REPO"             --json body             --jq '.body // ""')"
 
           blocked="false"
 
-          if printf '%s\n%s\n' "$title" "$body" | grep -Eiq \
-            '(Gradle|Android Gradle Plugin|AGP|Kotlin|Flutter|Dart|pubspec|pub\.dev)'; then
+          if printf '%s\n%s\n' "$title" "$body" | grep -Eiq             '(Gradle|gradle-wrapper|Android Gradle Plugin|AGP|com\.android\.application|com\.android\.tools\.build|Kotlin|org\.jetbrains\.kotlin|Flutter|Dart|pubspec|pub\.dev)'; then
             blocked="true"
           fi
 
@@ -97,8 +77,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr merge \
-            ${{ github.event.pull_request.number }} \
-            --repo "${{ github.repository }}" \
-            --auto \
-            --squash
+          gh pr merge             "${{ github.event.pull_request.number }}"             --repo "${{ github.repository }}"             --auto             --squash

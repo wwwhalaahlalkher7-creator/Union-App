@@ -157,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 l10n.t('quickAccess'),
                 textAlign: TextAlign.end,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w900,
                 ),
@@ -210,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     l10n.t('newsLatest'),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 20.5,
                       fontWeight: FontWeight.w900,
                     ),

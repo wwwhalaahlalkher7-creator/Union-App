@@ -196,7 +196,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
               Text(
                 l10n.t('materialsTitle'),
                 textAlign: TextAlign.end,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 20.2,
                   fontWeight: FontWeight.w900,
                 ),

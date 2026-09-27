@@ -29,9 +29,15 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout pushed tag
+        if: github.event_name == 'push'
+        uses: actions/checkout@v7
+
+      - name: Checkout manually selected tag
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ inputs.tag }}
 
       - name: Resolve release version
         id: version
@@ -262,9 +268,17 @@ jobs:
     needs: [gate, android, backend, website]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout pushed tag
+        if: github.event_name == 'push'
+        uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Checkout manually selected tag
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
           fetch-depth: 0
 
       - name: Download Android artifacts

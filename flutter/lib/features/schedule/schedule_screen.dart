@@ -120,7 +120,7 @@ class _ScheduleScreenState
               Text(
                 l10n.t('scheduleTitle'),
                 textAlign: TextAlign.end,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 20.2,
                   fontWeight: FontWeight.w900,
                 ),
