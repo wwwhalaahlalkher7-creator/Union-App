@@ -286,10 +286,10 @@ jobs:
 
       - name: Verify production API
         env:
-          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          API_BASE_URL: ${{ vars.API_BASE_URL || 'https://leo-association-api.www-halaahlalkher7.workers.dev' }}
         run: |
-          test -n "$API_BASE_URL" || { echo 'API_BASE_URL production variable is required'; exit 1; }
-          curl --fail --silent --show-error --retry 5 --retry-delay 3 "$API_BASE_URL/health"
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 "${API_BASE_URL%/}/health"
 
   website:
     name: Production Website
