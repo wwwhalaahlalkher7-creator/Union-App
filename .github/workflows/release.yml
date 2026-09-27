@@ -174,7 +174,9 @@ jobs:
           storePassword=$ANDROID_STORE_PASSWORD
           keyPassword=$ANDROID_KEY_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
-          storeFile=upload-keystore.jks
+          # build.gradle resolves storeFile relative to android/app, while the
+          # decoded keystore is kept in android/.
+          storeFile=../upload-keystore.jks
           EOF2
 
       - name: Analyze
