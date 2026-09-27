@@ -9,7 +9,7 @@ DASHBOARD = ROOT / 'website/admin'
 errors=[]
 
 # Version source of truth
-version=(FLUTTER/'VERSION').read_text(encoding='utf-8').strip()
+version=next((line.strip() for line in (FLUTTER/'VERSION').read_text(encoding='utf-8').splitlines() if line.strip() and not line.lstrip().startswith('#')), '')
 m=re.fullmatch(r'(\d+)\.(\d+)\.(\d+)\+(\d+)', version)
 if not m: errors.append(f'Invalid VERSION: {version}')
 else:

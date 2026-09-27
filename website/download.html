@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <title>تحميل التطبيق | رابطة كلية الهندسة والعمارة</title>
+  <meta name="description" content="صفحة التحميل الرسمية لتطبيق رابطة كلية الهندسة والعمارة.">
+  <link rel="canonical" href="https://ush-eng.great-site.net/download.html">
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="ui-pro.css?v=3">
+  <style>
+    .download-page { max-width: 900px; margin: 0 auto; padding: 150px 20px 80px; }
+    .download-hero { text-align:center; padding: 42px 24px; border:1px solid var(--line); border-radius:var(--radius-xl); background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018)); box-shadow:var(--shadow-soft); }
+    .download-icon { width:82px;height:82px;margin:0 auto 18px;border-radius:24px;display:grid;place-items:center;font-size:2rem;color:var(--primary-glow);background:rgba(var(--primary-rgb),.12);border:1px solid rgba(var(--primary-rgb),.24); }
+    .download-hero h1 { font-size:clamp(1.7rem,5vw,2.7rem); margin-bottom:10px; }
+    .download-hero .lead { color:var(--text-muted); max-width:650px; margin:0 auto 26px; }
+    .download-button { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-width:230px; min-height:54px; padding:0 24px; border-radius:16px; background:var(--primary); color:#101010; font-weight:800; text-decoration:none; box-shadow:var(--shadow-glow); transition:transform .25s var(--ease), filter .25s; }
+    .download-button:hover { transform:translateY(-2px); filter:brightness(1.08); }
+    .download-meta { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; max-width:650px; margin:28px auto 0; }
+    .meta-card { padding:18px; border:1px solid var(--line); border-radius:18px; background:rgba(255,255,255,.025); text-align:right; }
+    .meta-label { display:block; color:var(--text-soft); font-size:.82rem; margin-bottom:5px; }
+    .meta-value { font-weight:700; font-size:1.05rem; }
+    .release-notes { max-width:650px; margin:18px auto 0; padding:20px; border:1px solid var(--line); border-radius:18px; background:rgba(255,255,255,.025); text-align:right; }
+    .release-notes h2 { font-size:1.05rem; margin-bottom:10px; }
+    .release-notes p { color:var(--text-muted); white-space:pre-line; }
+    .download-note { color:var(--text-soft); font-size:.82rem; margin-top:18px; }
+    @media (max-width:600px) { .download-meta { grid-template-columns:1fr; } .download-page { padding-top:130px; } }
+  </style>
+</head>
+<body>
+<header id="header">
+  <div class="logo">
+    <h2 id="siteLogoName">رابطة كلية الهندسة والعمارة</h2>
+    <p>جامعة شندي</p>
+  </div>
+  <div class="menu-toggle" id="menuToggle" aria-label="قائمة التنقل" aria-expanded="false"><i class="fas fa-bars"></i></div>
+  <nav id="navMenu">
+    <ul>
+      <li><a href="index.html">الرئيسية</a></li>
+      <li><a href="Injazat.html">الإنجازات</a></li>
+      <li><a href="courses.html">المواد الدراسية</a></li>
+      <li><a href="activities.html">النشاطات</a></li>
+      <li><a href="committees.html">الأمانات الأخرى</a></li>
+      <li><a href="news.html">آخر الأخبار</a></li>
+      <li><a href="download.html" class="active" aria-current="page"><i class="fas fa-mobile-screen-button" aria-hidden="true"></i> تحميل التطبيق</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main class="download-page">
+  <section class="download-hero">
+    <div class="download-icon"><i class="fas fa-mobile-screen-button" aria-hidden="true"></i></div>
+    <h1>تحميل تطبيق الرابطة</h1>
+    <p class="lead">النسخة الرسمية من تطبيق رابطة كلية الهندسة والعمارة، المبنية والمنشورة ضمن آخر إصدار للمشروع.</p>
+    <a class="download-button" href="downloads/Union-App.apk" download>
+      <i class="fas fa-download" aria-hidden="true"></i>
+      تحميل التطبيق
+    </a>
+
+    <div class="download-meta">
+      <div class="meta-card"><span class="meta-label">الإصدار</span><span class="meta-value" id="appVersion">—</span></div>
+      <div class="meta-card"><span class="meta-label">رقم البناء</span><span class="meta-value" id="appBuild">—</span></div>
+      <div class="meta-card"><span class="meta-label">حجم التطبيق</span><span class="meta-value" id="appSize">—</span></div>
+      <div class="meta-card"><span class="meta-label">آخر تحديث</span><span class="meta-value" id="appUpdatedAt">—</span></div>
+      <div class="meta-card"><span class="meta-label">متطلبات Android</span><span class="meta-value" id="androidRequirement">—</span></div>
+    </div>
+
+    <div class="release-notes">
+      <h2><i class="fas fa-list-check" aria-hidden="true"></i> ملاحظات الإصدار</h2>
+      <p id="releaseNotes">الإصدار الأساسي بعد توحيد نظام الإصدار والتحديثات التلقائية.</p>
+    </div>
+    <p class="download-note">يتم تحديث هذه الصفحة وملف التطبيق تلقائيًا مع كل إصدار إنتاجي جديد.</p>
+  </section>
+</main>
+
+<footer>
+  <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
+  <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
+</footer>
+
+<script>
+  window.addEventListener('scroll', () => {
+    const header = document.getElementById('header');
+    if (window.scrollY > 40) header.classList.add('scrolled'); else header.classList.remove('scrolled');
+  });
+  const menuToggle = document.getElementById('menuToggle');
+  const navMenu = document.getElementById('navMenu');
+  menuToggle.addEventListener('click', () => {
+    navMenu.classList.toggle('active');
+    menuToggle.setAttribute('aria-expanded', navMenu.classList.contains('active'));
+    const icon = menuToggle.querySelector('i');
+    icon.classList.toggle('fa-bars'); icon.classList.toggle('fa-times');
+  });
+  window.addEventListener('click', (e) => {
+    if (!navMenu.contains(e.target) && !menuToggle.contains(e.target) && navMenu.classList.contains('active')) menuToggle.click();
+  });
+</script>
+<script>
+  fetch('downloads/release.json', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('metadata unavailable')))
+    .then(data => {
+      if (!data) return;
+      if (data.version) document.getElementById('appVersion').textContent = data.version;
+      if (data.build) document.getElementById('appBuild').textContent = data.build;
+      if (data.releaseNotes) document.getElementById('releaseNotes').textContent = data.releaseNotes;
+      if (data.fileSize) document.getElementById('appSize').textContent = data.fileSize;
+      if (data.updatedAt) {
+        const date = new Date(data.updatedAt);
+        document.getElementById('appUpdatedAt').textContent = Number.isNaN(date.getTime())
+          ? data.updatedAt
+          : new Intl.DateTimeFormat('ar', { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
+      }
+      if (data.androidRequirement) document.getElementById('androidRequirement').textContent = data.androidRequirement;
+    })
+    .catch(() => {});
+</script>
+<script src="site-settings.js"></script>
+<script src="ui-pro.js?v=5"></script>
+</body>
+</html>

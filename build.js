@@ -65,6 +65,7 @@ const requiredFiles = [
   path.join(distDir, 'index.html'),
   path.join(distDir, 'courses.html'),
   path.join(distDir, 'news.html'),
+  path.join(distDir, 'download.html'),
   path.join(distAdminDir, 'index.html'),
   path.join(distAdminDir, 'login.html'),
   path.join(distAdminDir, 'config.js'),

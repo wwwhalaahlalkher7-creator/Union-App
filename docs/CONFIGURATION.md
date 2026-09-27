@@ -10,10 +10,10 @@
 
 | المتغير | النوع | الغرض |
 |---|---|---|
-| `APP_VERSION` | Variable | آخر إصدار يعلنه API |
+| `APP_VERSION` | Variable | آخر إصدار يعلنه API؛ يولّد من `flutter/VERSION` أثناء الـRelease |
 | `MINIMUM_APP_VERSION` | Variable | أقل إصدار مدعوم |
-| `APP_UPDATE_URL` | Variable | صفحة التحديث إن وجدت |
-| `APP_RELEASE_NOTES` | Variable | ملاحظات الإصدار |
+| `APP_UPDATE_URL` | Variable | صفحة التحديث الثابتة؛ تبقى فارغة حتى تجهيز صفحة التحميل |
+| `APP_RELEASE_NOTES` | Variable | ملاحظات الإصدار؛ تؤخذ من تعليقات `flutter/VERSION` |
 | `API_VERSION` | Variable | عقد API، حاليًا `v1` |
 | `EINO_*_DAILY_LIMIT` | Variable | حدود Eino اليومية |
 | `GOOGLE_APPS_SCRIPT_URL` | Variable | رابط Drive adapter |

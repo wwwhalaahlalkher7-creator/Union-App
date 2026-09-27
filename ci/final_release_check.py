@@ -4,7 +4,7 @@ import re, sqlite3, sys
 ROOT = Path(__file__).resolve().parents[1]
 errors = []
 
-version = (ROOT / 'flutter/VERSION').read_text(encoding='utf-8').strip()
+version = next((line.strip() for line in (ROOT / 'flutter/VERSION').read_text(encoding='utf-8').splitlines() if line.strip() and not line.lstrip().startswith('#')), '')
 m = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)\+(\d+)', version)
 if not m:
     errors.append(f'Invalid VERSION: {version}')

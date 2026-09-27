@@ -4,7 +4,8 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+lines = (ROOT / "VERSION").read_text(encoding="utf-8").splitlines()
+version = next((line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")), "")
 match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)\+(\d+)", version)
 if not match:
     raise SystemExit("VERSION must use MAJOR.MINOR.PATCH+BUILD")

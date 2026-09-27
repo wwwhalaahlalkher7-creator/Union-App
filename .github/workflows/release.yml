@@ -2,12 +2,12 @@ name: Production Release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag, for example v2.0.0'
+        description: 'Existing release tag to publish, for example v2.0.0'
         required: true
         type: string
 
@@ -26,43 +26,76 @@ jobs:
     name: Release Gate
     runs-on: ubuntu-latest
     outputs:
+      should_release: ${{ steps.version.outputs.should_release }}
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Checkout pushed tag
+      - name: Checkout main
         if: github.event_name == 'push'
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
-      - name: Checkout manually selected tag
+      - name: Checkout selected tag
         if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      - name: Synchronize generated version files
+        run: |
+          python3 flutter/tool/sync_version.py
+          python3 ci/sync_release_metadata.py
 
       - name: Resolve release version
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            TAG="${{ inputs.tag }}"
+          set -euo pipefail
+          VERSION_FILE="$(sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p; q' flutter/VERSION)"
+          VERSION="${VERSION_FILE%%+*}"
+          TAG="v${VERSION}"
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            TAG="$INPUT_TAG"
+            EXPECTED="${TAG#v}"
+            test "$VERSION" = "$EXPECTED" || {
+              echo "Selected tag is $EXPECTED but flutter/VERSION is $VERSION"
+              exit 1
+            }
+            SHOULD_RELEASE=true
           else
-            TAG="${GITHUB_REF_NAME}"
+            TAG_EXISTS=false
+            RELEASE_EXISTS=false
+            if gh api -H 'Accept: application/vnd.github+json' \
+              "/repos/$REPO/git/ref/tags/$TAG" >/dev/null 2>&1; then
+              TAG_EXISTS=true
+            fi
+            if gh api -H 'Accept: application/vnd.github+json' \
+              "/repos/$REPO/releases/tags/$TAG" >/dev/null 2>&1; then
+              RELEASE_EXISTS=true
+            fi
+
+            if [[ "$RELEASE_EXISTS" == "true" ]]; then
+              echo "GitHub Release $TAG already exists; nothing to release."
+              SHOULD_RELEASE=false
+            else
+              SHOULD_RELEASE=true
+            fi
           fi
-          VERSION="${TAG#v}"
+
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Verify version matches flutter/VERSION
-        env:
-          RELEASE_VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          ACTUAL="$(tr -d '[:space:]' < flutter/VERSION)"
-          test "$ACTUAL" = "$RELEASE_VERSION" || {
-            echo "Release tag is $RELEASE_VERSION but flutter/VERSION is $ACTUAL"
-            exit 1
-          }
+          echo "should_release=$SHOULD_RELEASE" >> "$GITHUB_OUTPUT"
 
       - name: Run project verification
+        if: steps.version.outputs.should_release == 'true'
         run: |
           python3 ci/verify_project.py
           python3 ci/release_check.py
@@ -71,6 +104,7 @@ jobs:
   android:
     name: Android Release
     needs: gate
+    if: needs.gate.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -92,6 +126,9 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Synchronize version
+        run: python3 tool/sync_version.py
 
       - name: Resolve dependencies
         run: flutter pub get
@@ -143,13 +180,14 @@ jobs:
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: android-release-${{ github.ref_name }}
+          name: android-release-${{ needs.gate.outputs.version }}
           path: flutter/build/release-assets/
           if-no-files-found: error
 
   backend:
     name: Production Backend
     needs: gate
+    if: needs.gate.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -163,6 +201,10 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: '24'
+
+      - name: Synchronize release metadata from flutter/VERSION
+        working-directory: .
+        run: python3 ci/sync_release_metadata.py
 
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
@@ -198,12 +240,12 @@ jobs:
         run: |
           set -euo pipefail
           for pair in \
-            FREE_AI_API_KEY\
-            MISTRAL_API_KEY\
-            GROQ_API_KEY\
-            FREE_AI_BASE_URL\
-            EINO_EMBEDDING_API_KEY\
-            GOOGLE_APPS_SCRIPT_TOKEN\
+            FREE_AI_API_KEY \
+            MISTRAL_API_KEY \
+            GROQ_API_KEY \
+            FREE_AI_BASE_URL \
+            EINO_EMBEDDING_API_KEY \
+            GOOGLE_APPS_SCRIPT_TOKEN \
             STAFF_BOOTSTRAP_TOKEN; do
             value="${!pair:-}"
             if [ -n "$value" ]; then
@@ -226,7 +268,8 @@ jobs:
 
   website:
     name: Production Website
-    needs: gate
+    needs: [gate, android]
+    if: needs.gate.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -245,6 +288,82 @@ jobs:
 
       - name: Build distribution
         run: npm run build
+
+      - name: Download Android release artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: android-release-${{ needs.gate.outputs.version }}
+          path: release-assets
+
+      - name: Bundle latest APK into website distribution
+        env:
+          RELEASE_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/downloads
+          cp "release-assets/Union-App-v${RELEASE_VERSION}.apk" dist/downloads/Union-App.apk
+          cp "release-assets/Union-App-v${RELEASE_VERSION}.apk" "dist/downloads/Union-App-v${RELEASE_VERSION}.apk"
+
+      - name: Generate website release metadata
+        env:
+          RELEASE_VERSION: ${{ needs.gate.outputs.version }}
+          RELEASE_STARTED_AT: ${{ github.run_started_at }}
+        run: |
+          set -euo pipefail
+          VERSION_FILE="$(sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p; q' flutter/VERSION)"
+          BUILD_NUMBER="${VERSION_FILE#*+}"
+          NOTES="$(sed -n 's/^[[:space:]]*#[[:space:]]*//p' flutter/VERSION | sed '/^[[:space:]]*$/d' | paste -sd '\\n' -)"
+          APK_PATH="dist/downloads/Union-App.apk"
+          APK_BYTES="$(stat -c '%s' "$APK_PATH")"
+          python3 - "$RELEASE_VERSION" "$BUILD_NUMBER" "$NOTES" "$APK_BYTES" "$RELEASE_STARTED_AT" > dist/downloads/release.json <<'PY'
+          import json, sys
+
+          version, build, notes, size_bytes, updated_at = sys.argv[1:]
+          size = int(size_bytes)
+          if size < 1024 * 1024:
+              file_size = f"{size / 1024:.1f} KB"
+          else:
+              file_size = f"{size / (1024 * 1024):.1f} MB"
+
+          payload = {
+              "version": version,
+              "build": build,
+              "releaseNotes": notes,
+              "fileSize": file_size,
+              "fileSizeBytes": size,
+              "updatedAt": updated_at,
+              "androidRequirement": "Android 8.0 (API 26) أو أحدث",
+              "downloadUrl": "https://ush-eng.great-site.net/download.html",
+              "apkUrl": "downloads/Union-App.apk"
+          }
+          print(json.dumps(payload, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Verify website release payload
+        run: |
+          test -s dist/downloads/Union-App.apk
+          test -s dist/downloads/release.json
+          test -s dist/download.html
+          test -s dist/index.html
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("dist/downloads/release.json").read_text(encoding="utf-8"))
+          required = ["version", "build", "releaseNotes", "fileSize", "fileSizeBytes", "updatedAt", "androidRequirement", "downloadUrl", "apkUrl"]
+          missing = [key for key in required if key not in data]
+          if missing:
+              raise SystemExit(f"Missing release metadata: {missing}")
+          if data["downloadUrl"] != "https://ush-eng.great-site.net/download.html":
+              raise SystemExit("downloadUrl must point to the stable download page")
+          if data["apkUrl"] != "downloads/Union-App.apk":
+              raise SystemExit("apkUrl must point to the bundled APK")
+          PY
+
+      - name: Web security checks
+        run: |
+          python3 ci/web_security_check.py
+          python3 ci/xss_dom_check.py
+          python3 ci/admin_ui_payload_check.py
 
       - name: Deploy website via FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
@@ -266,44 +385,67 @@ jobs:
   publish:
     name: Publish GitHub Release
     needs: [gate, android, backend, website]
+    if: needs.gate.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout pushed tag
+      - name: Checkout main commit
         if: github.event_name == 'push'
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Checkout manually selected tag
+      - name: Checkout selected tag
         if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
 
+      - name: Synchronize generated version files
+        run: |
+          python3 flutter/tool/sync_version.py
+          python3 ci/sync_release_metadata.py
+
       - name: Download Android artifacts
         uses: actions/download-artifact@v8
         with:
-          pattern: android-release-*
-          merge-multiple: true
+          name: android-release-${{ needs.gate.outputs.version }}
           path: release-assets
 
-      - name: Rename release assets
+      - name: Prepare release notes
+        env:
+          GATE_VERSION: ${{ needs.gate.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION="${{ needs.gate.outputs.version }}"
-          mkdir -p release-assets/final
-          cp release-assets/Union-App-v${VERSION}.apk release-assets/final/Union-App-v${VERSION}.apk
-          cp release-assets/Union-App-v${VERSION}.aab release-assets/final/Union-App-v${VERSION}.aab
-          cp release-assets/SHA256SUMS.txt release-assets/final/SHA256SUMS.txt
+          sed -n 's/^[[:space:]]*#[[:space:]]*//p' flutter/VERSION | sed '/^[[:space:]]*$/d' > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            printf 'Union App %s\n' "$GATE_VERSION" > RELEASE_NOTES.md
+          fi
+
+      - name: Create release tag from canonical version
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ needs.gate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; reusing it."
+          else
+            git tag -a "$TAG" -m "Union App $TAG"
+            git push origin "$TAG"
+          fi
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.gate.outputs.tag }}
+          VERSION: ${{ needs.gate.outputs.version }}
         run: |
           set -euo pipefail
-          TAG="${{ needs.gate.outputs.tag }}"
-          gh release create "$TAG" release-assets/final/* \
-            --generate-notes \
+          gh release create "$TAG" \
+            "release-assets/Union-App-v${VERSION}.apk" \
+            "release-assets/Union-App-v${VERSION}.aab" \
+            release-assets/SHA256SUMS.txt \
+            --notes-file RELEASE_NOTES.md \
             --title "Union App ${TAG}" \
             --verify-tag

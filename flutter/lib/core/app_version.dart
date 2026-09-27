@@ -7,5 +7,4 @@ class AppVersion {
   static const build = 2;
   static const full = '$name+$build';
   static const version = name;
-  static const current = name;
 }
