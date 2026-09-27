@@ -1,15 +1,13 @@
 name: Production Release
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Existing release tag to publish, for example v2.0.0'
+      confirm_release:
+        description: 'Confirm that the current flutter/VERSION is ready for production release'
         required: true
-        type: string
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -30,17 +28,10 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Checkout main
-        if: github.event_name == 'push'
+      - name: Checkout current main
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-
-      - name: Checkout selected tag
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.tag }}
+          ref: main
           fetch-depth: 0
 
       - name: Synchronize generated version files
@@ -51,11 +42,15 @@ jobs:
       - name: Resolve release version
         id: version
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_TAG: ${{ inputs.tag }}
+          CONFIRM_RELEASE: ${{ inputs.confirm_release }}
         shell: bash
         run: |
           set -euo pipefail
+
+          test "$CONFIRM_RELEASE" = "true" || {
+            echo "Production release requires explicit confirmation."
+            exit 1
+          }
 
           read_version() {
             sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p; q' "$1"
@@ -65,6 +60,8 @@ jobs:
             local value="$1"
             VERSION_NAME="${value%%+*}"
             BUILD_NUMBER="${value#*+}"
+            [[ "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid semantic version: $VERSION_NAME"; exit 1; }
+            [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid build number: $BUILD_NUMBER"; exit 1; }
           }
 
           CURRENT_RAW="$(read_version flutter/VERSION)"
@@ -72,54 +69,39 @@ jobs:
           CURRENT_VERSION="$VERSION_NAME"
           CURRENT_BUILD="$BUILD_NUMBER"
           TAG="v${CURRENT_VERSION}"
-          SHOULD_RELEASE=false
 
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            TAG="$INPUT_TAG"
-            EXPECTED="${TAG#v}"
-            test "$CURRENT_VERSION" = "$EXPECTED" || {
-              echo "Selected tag is $EXPECTED but flutter/VERSION is $CURRENT_VERSION"
+          echo "Canonical release: $CURRENT_VERSION+$CURRENT_BUILD"
+          echo "Release tag: $TAG"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git fetch --quiet origin "refs/tags/$TAG:refs/tags/$TAG"
+            PRODUCTION_RAW="$(git show "refs/tags/$TAG:flutter/VERSION")"
+            PRODUCTION_RAW="$(printf '%s\n' "$PRODUCTION_RAW" | sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p; q')"
+            parse_version "$PRODUCTION_RAW"
+            PRODUCTION_VERSION="$VERSION_NAME"
+            PRODUCTION_BUILD="$BUILD_NUMBER"
+
+            if [[ "$CURRENT_VERSION" != "$PRODUCTION_VERSION" ]]; then
+              echo "Tag $TAG points to an unexpected version: $PRODUCTION_VERSION"
               exit 1
-            }
-            SHOULD_RELEASE=true
-          else
-            if git rev-parse HEAD^ >/dev/null 2>&1; then
-              if git show HEAD^:flutter/VERSION >/tmp/previous-version 2>/dev/null; then
-                PREVIOUS_RAW="$(read_version /tmp/previous-version)"
-                parse_version "$PREVIOUS_RAW"
-                PREVIOUS_VERSION="$VERSION_NAME"
-                PREVIOUS_BUILD="$BUILD_NUMBER"
-
-                if [[ "$CURRENT_VERSION" == "$PREVIOUS_VERSION" ]]; then
-                  if (( CURRENT_BUILD < PREVIOUS_BUILD )); then
-                    echo "Build number must not decrease for version $CURRENT_VERSION: previous=$PREVIOUS_BUILD current=$CURRENT_BUILD"
-                    exit 1
-                  fi
-                  if (( CURRENT_BUILD == PREVIOUS_BUILD )); then
-                    echo "No release change: VERSION is still $CURRENT_VERSION+$CURRENT_BUILD."
-                    SHOULD_RELEASE=false
-                  else
-                    echo "Same release version with a new build: $CURRENT_VERSION+$CURRENT_BUILD (previous build $PREVIOUS_BUILD)."
-                    SHOULD_RELEASE=true
-                  fi
-                else
-                  echo "New release version: $CURRENT_VERSION+$CURRENT_BUILD (previous $PREVIOUS_VERSION+$PREVIOUS_BUILD)."
-                  SHOULD_RELEASE=true
-                fi
-              else
-                echo "No previous flutter/VERSION found; treating this as the first release."
-                SHOULD_RELEASE=true
-              fi
-            else
-              echo "No parent commit; treating this as the first release."
-              SHOULD_RELEASE=true
             fi
+            if (( CURRENT_BUILD < PRODUCTION_BUILD )); then
+              echo "Build number cannot decrease: production=$PRODUCTION_BUILD current=$CURRENT_BUILD"
+              exit 1
+            fi
+            if (( CURRENT_BUILD == PRODUCTION_BUILD )); then
+              echo "No new production build: $CURRENT_VERSION+$CURRENT_BUILD is already published."
+              exit 1
+            fi
+            echo "Updating existing release $TAG from build $PRODUCTION_BUILD to $CURRENT_BUILD."
+          else
+            echo "Creating new production release $TAG at build $CURRENT_BUILD."
           fi
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
           echo "build=$CURRENT_BUILD" >> "$GITHUB_OUTPUT"
-          echo "should_release=$SHOULD_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
 
       - name: Run project verification
         if: steps.version.outputs.should_release == 'true'
@@ -295,7 +277,7 @@ jobs:
 
   website:
     name: Production Website
-    needs: [gate, android]
+    needs: [gate, android, publish]
     if: needs.gate.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     environment:
@@ -322,36 +304,23 @@ jobs:
           name: android-release-${{ needs.gate.outputs.version }}
           path: release-assets
 
-      - name: Bundle latest APK into website distribution
-        env:
-          RELEASE_VERSION: ${{ needs.gate.outputs.version }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist/downloads
-          cp "release-assets/Union-App-v${RELEASE_VERSION}.apk" dist/downloads/Union-App.apk
-          cp "release-assets/Union-App-v${RELEASE_VERSION}.apk" "dist/downloads/Union-App-v${RELEASE_VERSION}.apk"
 
       - name: Generate website release metadata
         env:
           RELEASE_VERSION: ${{ needs.gate.outputs.version }}
+          RELEASE_BUILD: ${{ needs.gate.outputs.build }}
           RELEASE_STARTED_AT: ${{ github.run_started_at }}
         run: |
           set -euo pipefail
-          VERSION_FILE="$(sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p; q' flutter/VERSION)"
-          BUILD_NUMBER="${VERSION_FILE#*+}"
           NOTES="$(sed -n 's/^[[:space:]]*#[[:space:]]*//p' flutter/VERSION | sed '/^[[:space:]]*$/d' | paste -sd '\\n' -)"
-          APK_PATH="dist/downloads/Union-App.apk"
+          APK_PATH="release-assets/Union-App-v${RELEASE_VERSION}.apk"
           APK_BYTES="$(stat -c '%s' "$APK_PATH")"
-          python3 - "$RELEASE_VERSION" "$BUILD_NUMBER" "$NOTES" "$APK_BYTES" "$RELEASE_STARTED_AT" > dist/downloads/release.json <<'PY'
+          python3 - "$RELEASE_VERSION" "$RELEASE_BUILD" "$NOTES" "$APK_BYTES" "$RELEASE_STARTED_AT" > dist/downloads/release.json <<'PY'
           import json, sys
 
           version, build, notes, size_bytes, updated_at = sys.argv[1:]
           size = int(size_bytes)
-          if size < 1024 * 1024:
-              file_size = f"{size / 1024:.1f} KB"
-          else:
-              file_size = f"{size / (1024 * 1024):.1f} MB"
-
+          file_size = f"{size / (1024 * 1024):.1f} MB" if size >= 1024 * 1024 else f"{size / 1024:.1f} KB"
           payload = {
               "version": version,
               "build": build,
@@ -361,14 +330,13 @@ jobs:
               "updatedAt": updated_at,
               "androidRequirement": "Android 8.0 (API 26) أو أحدث",
               "downloadUrl": "https://ush-eng.great-site.net/download.html",
-              "apkUrl": "downloads/Union-App.apk"
+              "apkUrl": f"https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/download/v{version}/Union-App-v{version}.apk"
           }
           print(json.dumps(payload, ensure_ascii=False, indent=2))
           PY
 
       - name: Verify website release payload
         run: |
-          test -s dist/downloads/Union-App.apk
           test -s dist/downloads/release.json
           test -s dist/download.html
           test -s dist/index.html
@@ -380,10 +348,14 @@ jobs:
           missing = [key for key in required if key not in data]
           if missing:
               raise SystemExit(f"Missing release metadata: {missing}")
-          if data["downloadUrl"] != "https://ush-eng.great-site.net/download.html":
+          expected_page = "https://ush-eng.great-site.net/download.html"
+          expected_apk = f"https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/download/v{data['version']}/Union-App-v{data['version']}.apk"
+          if data["downloadUrl"] != expected_page:
               raise SystemExit("downloadUrl must point to the stable download page")
-          if data["apkUrl"] != "downloads/Union-App.apk":
-              raise SystemExit("apkUrl must point to the bundled APK")
+          if data["apkUrl"] != expected_apk:
+              raise SystemExit("apkUrl must point to the GitHub Release APK")
+          if int(data["fileSizeBytes"]) <= 0:
+              raise SystemExit("APK size must be positive")
           PY
 
       - name: Web security checks
@@ -411,21 +383,14 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    needs: [gate, android, backend, website]
+    needs: [gate, android, backend]
     if: needs.gate.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main commit
-        if: github.event_name == 'push'
+      - name: Checkout release commit
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-
-      - name: Checkout selected tag
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.tag }}
+          ref: main
           fetch-depth: 0
 
       - name: Synchronize generated version files

@@ -57,7 +57,7 @@
     <div class="download-icon"><i class="fas fa-mobile-screen-button" aria-hidden="true"></i></div>
     <h1>تحميل تطبيق الرابطة</h1>
     <p class="lead">النسخة الرسمية من تطبيق رابطة كلية الهندسة والعمارة، المبنية والمنشورة ضمن آخر إصدار للمشروع.</p>
-    <a class="download-button" href="downloads/Union-App.apk" download>
+    <a class="download-button" id="downloadButton" href="#" rel="noopener">
       <i class="fas fa-download" aria-hidden="true"></i>
       تحميل التطبيق
     </a>
@@ -74,7 +74,7 @@
       <h2><i class="fas fa-list-check" aria-hidden="true"></i> ملاحظات الإصدار</h2>
       <p id="releaseNotes">الإصدار الأساسي بعد توحيد نظام الإصدار والتحديثات التلقائية.</p>
     </div>
-    <p class="download-note">يتم تحديث هذه الصفحة وملف التطبيق تلقائيًا مع كل إصدار إنتاجي جديد.</p>
+    <p class="download-note">يتم تحديث بيانات هذه الصفحة تلقائيًا مع كل إصدار إنتاجي جديد، بينما يُستضاف ملف APK الرسمي عبر GitHub Releases.</p>
   </section>
 </main>
 
@@ -116,6 +116,11 @@
           : new Intl.DateTimeFormat('ar', { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
       }
       if (data.androidRequirement) document.getElementById('androidRequirement').textContent = data.androidRequirement;
+      if (data.apkUrl) {
+        const button = document.getElementById('downloadButton');
+        button.href = data.apkUrl;
+        button.setAttribute('download', '');
+      }
     })
     .catch(() => {});
 </script>
