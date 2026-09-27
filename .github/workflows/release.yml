@@ -27,6 +27,7 @@ jobs:
       should_release: ${{ steps.version.outputs.should_release }}
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
+      build: ${{ steps.version.outputs.build }}
     steps:
       - name: Checkout current main
         uses: actions/checkout@v7
@@ -90,10 +91,25 @@ jobs:
               exit 1
             fi
             if (( CURRENT_BUILD == PRODUCTION_BUILD )); then
-              echo "No new production build: $CURRENT_VERSION+$CURRENT_BUILD is already published."
-              exit 1
+              echo "Same production build detected: $CURRENT_VERSION+$CURRENT_BUILD."
+              echo "Checking whether the existing GitHub Release is complete..."
+
+              RELEASE_ASSETS="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | sort | join("\n")' 2>/dev/null || true)"
+              EXPECTED_APK="Union-App-v${CURRENT_VERSION}.apk"
+              EXPECTED_AAB="Union-App-v${CURRENT_VERSION}.aab"
+              EXPECTED_SUMS="SHA256SUMS.txt"
+
+              if grep -Fxq "$EXPECTED_APK" <<< "$RELEASE_ASSETS" \
+                && grep -Fxq "$EXPECTED_AAB" <<< "$RELEASE_ASSETS" \
+                && grep -Fxq "$EXPECTED_SUMS" <<< "$RELEASE_ASSETS"; then
+                echo "No new production build: $CURRENT_VERSION+$CURRENT_BUILD is already fully published."
+                exit 1
+              fi
+
+              echo "Existing release is incomplete; rebuilding and repairing release $TAG."
+            else
+              echo "Updating existing release $TAG from build $PRODUCTION_BUILD to $CURRENT_BUILD."
             fi
-            echo "Updating existing release $TAG from build $PRODUCTION_BUILD to $CURRENT_BUILD."
           else
             echo "Creating new production release $TAG at build $CURRENT_BUILD."
           fi
