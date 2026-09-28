@@ -67,7 +67,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     final cs = Theme.of(context).colorScheme;
     final images = item.images.isNotEmpty
         ? item.images
-        : (item.imageUrl?.trim().isNotEmpty == true ? [item.imageUrl!] : const <String>[]);
+        : (item.imageUrl?.trim().isNotEmpty == true ? [item.imageUrl!] : item.images);
     final label = widget.type == 'news'
         ? l10n.t('news')
         : widget.type == 'event'

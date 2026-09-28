@@ -516,13 +516,31 @@ async function publicContentDetail(ctx) {
   );
 
   if (!row) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح حاليًا.',404,ctx.requestId,ctx.cors);
-  return ok(ctx, serializePublicContent(table, row), {source:'d1'});
+  return ok(ctx, serializePublicContent(table, row, ctx), {source:'d1'});
 }
 
-function serializePublicContent(table, row) {
+function normalizePublicMediaUrl(ctx, value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  // Older admin records may contain a media key/path instead of the absolute
+  // API URL returned by the current R2 uploader. Normalize those records at
+  // the API boundary so existing news keeps rendering without a migration.
+  if (raw.startsWith('media/')) return mediaUrlFor(ctx, raw);
+  if (raw.startsWith('/media/')) return mediaUrlFor(ctx, raw.slice(1));
+  if (raw.startsWith('/api/v1/media/')) {
+    try { return new URL(raw, new URL(ctx.request.url).origin).toString(); } catch (_) {}
+  }
+  return raw;
+}
+
+function serializePublicContent(table, row, ctx = null) {
   const images = parseJsonValue(row.images_json, []);
-  const normalizedImages = Array.isArray(images) ? images.map(v => typeof v === 'string' ? v : (v?.url || '')).filter(Boolean) : [];
-  if (row.image_url && !normalizedImages.includes(row.image_url)) normalizedImages.unshift(row.image_url);
+  const normalizedImages = Array.isArray(images) ? images
+    .map(v => typeof v === 'string' ? v : (v?.url || ''))
+    .map(v => ctx ? normalizePublicMediaUrl(ctx, v) : v)
+    .filter(Boolean) : [];
+  const imageUrl = ctx ? normalizePublicMediaUrl(ctx, row.image_url) : (row.image_url || null);
+  if (imageUrl && !normalizedImages.includes(imageUrl)) normalizedImages.unshift(imageUrl);
   const common = { id: row.id, title: row.title, body: row.body || null, imageUrl: normalizedImages[0] || null, images: normalizedImages, category: row.category || null, publisher: row.publisher || null, createdAt: row.created_at || null, updatedAt: row.updated_at || null, commentCount: Number(row.comment_count || 0), likeCount: Number(row.like_count || 0), myReaction: row.my_reaction || null };
   if (['events','activities'].includes(table)) Object.assign(common, {eventAt: row.event_at || null, endAt: row.end_at || null, location: row.location || null});
   else Object.assign(common, {publishAt: row.publish_at || null, expiresAt: row.expires_at || null});
@@ -578,7 +596,7 @@ async function publicList(ctx, table) {
 
   const data = rows.map(row => {
     if (table === 'news' || table === 'events' || table === 'activities') {
-      return serializePublicContent(table, row);
+      return serializePublicContent(table, row, ctx);
     }
     if (table === 'achievements') return {
       id: row.id,
@@ -1339,42 +1357,61 @@ async function materialFile(ctx, id) {
 
   if (!row) return error('MATERIAL_NOT_FOUND', 'الملف غير موجود أو غير متاح لهذا الطالب.', 404, ctx.requestId, ctx.cors);
 
-  let upstreamUrl = null;
-  const driveFileId = row.drive_file_id ? encodeURIComponent(row.drive_file_id) : null;
-  if (driveFileId) {
-    // The student never receives this URL. The Worker is the only component
-    // that talks to the upstream storage provider.
-    upstreamUrl = `https://drive.usercontent.google.com/download?id=${driveFileId}&export=download&confirm=t`;
-  } else if (row.drive_url) {
+  const extractDriveId = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    // Accept the common Drive URL forms used by the Apps Script indexer and
+    // by manually-created material records.
+    const match = raw.match(/(?:\/d\/|[?&]id=)([A-Za-z0-9_-]{10,})/);
+    return match ? match[1] : null;
+  };
+
+  const driveId = String(row.drive_file_id || '').trim() || extractDriveId(row.drive_url) || extractDriveId(row.drive_web_view_url);
+  const upstreamCandidates = [];
+  if (driveId) {
+    const encodedId = encodeURIComponent(driveId);
+    upstreamCandidates.push(`https://drive.usercontent.google.com/download?id=${encodedId}&export=download&confirm=t`);
+    upstreamCandidates.push(`https://drive.google.com/uc?export=download&id=${encodedId}`);
+  }
+  for (const value of [row.drive_url, row.drive_web_view_url]) {
     try {
-      const candidate = new URL(row.drive_url);
+      const candidate = new URL(String(value || ''));
       if (candidate.hostname === 'drive.google.com' || candidate.hostname.endsWith('.googleusercontent.com')) {
-        upstreamUrl = candidate.toString();
+        upstreamCandidates.push(candidate.toString());
       }
     } catch (_) {}
   }
 
-  if (!upstreamUrl) {
+  if (!upstreamCandidates.length) {
     return error('MATERIAL_FILE_UNAVAILABLE', 'ملف المادة غير متاح حاليًا.', 404, ctx.requestId, ctx.cors);
   }
 
   const upstreamHeaders = new Headers();
   const range = ctx.request.headers.get('Range');
   if (range) upstreamHeaders.set('Range', range);
-  upstreamHeaders.set('Accept', 'application/pdf');
+  upstreamHeaders.set('Accept', 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.1');
 
-  const upstream = await fetch(upstreamUrl, {
-    method: 'GET',
-    headers: upstreamHeaders,
-    redirect: 'follow',
-  });
+  let upstream = null;
+  let contentType = '';
+  for (const candidateUrl of [...new Set(upstreamCandidates)]) {
+    const candidate = await fetch(candidateUrl, {
+      method: 'GET',
+      headers: upstreamHeaders,
+      redirect: 'follow',
+    });
+    const candidateType = (candidate.headers.get('content-type') || '').toLowerCase();
+    if (candidate.ok && (candidateType.includes('pdf') || candidateType.includes('octet-stream') || !candidateType)) {
+      upstream = candidate;
+      contentType = candidateType || 'application/pdf';
+      break;
+    }
+    try { await candidate.body?.cancel(); } catch (_) {}
+  }
 
-  const contentType = upstream.headers.get('content-type') || row.mime_type || 'application/pdf';
-  if (!upstream.ok || !contentType.toLowerCase().includes('pdf')) {
+  if (!upstream) {
     console.error(`[${ctx.requestId}] material file upstream failed`, {
       materialId: id,
-      status: upstream.status,
-      contentType,
+      candidates: upstreamCandidates.length,
     });
     return error('MATERIAL_FILE_UNAVAILABLE', 'تعذر تحميل ملف المادة حاليًا.', 502, ctx.requestId, ctx.cors);
   }

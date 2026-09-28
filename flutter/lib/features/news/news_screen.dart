@@ -200,7 +200,7 @@ class _NewsCardState extends State<_NewsCard> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final item = widget.item;
-    final imageUrl = item.imageUrl?.trim();
+    final imageUrl = (item.imageUrl?.trim().isNotEmpty == true ? item.imageUrl!.trim() : (item.images.isNotEmpty ? item.images.first.trim() : null));
     final category = item.category?.trim().isNotEmpty == true
         ? item.category!.trim()
         : l10n.t('news');
