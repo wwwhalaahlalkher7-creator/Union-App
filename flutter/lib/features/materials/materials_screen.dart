@@ -119,7 +119,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
         MaterialPageRoute(
           builder: (_) => PdfMaterialViewerScreen(
             title: material.name,
-            url: Uri.parse('${AppConstants.apiBaseUrl}/materials/${Uri.encodeComponent(material.id)}/file'),
+            url: Uri.parse('${AppConstants.apiBaseUrl}/api/v1/materials/${Uri.encodeComponent(material.id)}/file'),
             accessToken: token,
           ),
         ),

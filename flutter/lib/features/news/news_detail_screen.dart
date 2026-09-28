@@ -54,7 +54,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   Widget build(BuildContext context) {
     final item = widget.item;
     final cs = Theme.of(context).colorScheme;
-    final imageUrl = (item.imageUrl?.trim().isNotEmpty == true ? item.imageUrl!.trim() : (item.images.isNotEmpty ? item.images.first.trim() : null));
+    final imageUrl = item.imageUrl?.trim();
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(

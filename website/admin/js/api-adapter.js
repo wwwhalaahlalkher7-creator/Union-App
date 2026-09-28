@@ -94,39 +94,80 @@ window.Adapter = (() => {
     return {success:true};
   }
   async function listUsers(){return (await req('/admin/staff')).map(r=>({id:r.id,fields:{Names:r.display_name,Username:r.user_id,Email:r.email||'',Role:roleLabel(r.role_id),RoleId:r.role_id,Active:!!r.active,LastLogin:r.last_login_at}}));}
-  // Content schemas are kept here because the admin editor is schema-driven.
-  // Field keys intentionally match contentPayload()/rowContent() and the backend.
-  const schemas = Object.freeze({
-    news:{label:'خبر',labelPlural:'الأخبار',dateField:'Date',fields:[
-      {key:'Title',label:'العنوان',required:true},{key:'Content',label:'المحتوى',type:'textarea',required:true},
-      {key:'Category',label:'التصنيف',default:'إعلان هام'},{key:'Publisher',label:'الناشر',default:'أمانة الإعلام'},
-      {key:'Date',label:'تاريخ النشر',type:'date'},{key:'Image',label:'صورة الخبر',type:'image'}]},
-    events:{label:'فعالية',labelPlural:'الفعاليات',dateField:'Date',fields:[
-      {key:'Title',label:'العنوان',required:true},{key:'Content',label:'الوصف',type:'textarea',required:true},
-      {key:'Category',label:'التصنيف'},{key:'Location',label:'المكان'},{key:'Publisher',label:'الناشر',default:'أمانة الإعلام'},
-      {key:'Date',label:'تاريخ الفعالية',type:'date'},{key:'EndDate',label:'تاريخ الانتهاء',type:'date'},{key:'Image',label:'صورة الفعالية',type:'image'}]},
-    activities:{label:'نشاط',labelPlural:'الأنشطة',dateField:'Date',fields:[
-      {key:'Title',label:'العنوان',required:true},{key:'Content',label:'الوصف',type:'textarea',required:true},
-      {key:'Category',label:'التصنيف'},{key:'Location',label:'المكان'},{key:'Publisher',label:'الناشر',default:'أمانة الإعلام'},
-      {key:'Date',label:'تاريخ النشاط',type:'date'},{key:'EndDate',label:'تاريخ الانتهاء',type:'date'},{key:'Image',label:'صورة النشاط',type:'image'}]},
-    announcements:{label:'إعلان',labelPlural:'الإعلانات',dateField:'Date',fields:[
-      {key:'Title',label:'العنوان',required:true},{key:'Content',label:'المحتوى',type:'textarea',required:true},
-      {key:'Type',label:'النوع',type:'select',options:[{value:'general',label:'عام'},{value:'academic',label:'أكاديمي'},{value:'urgent',label:'مهم'}],default:'general'},
-      {key:'Date',label:'تاريخ النشر',type:'date'},{key:'ExpiresAt',label:'تاريخ الانتهاء',type:'date'},
-      {key:'DepartmentId',label:'معرّف القسم'},{key:'SemesterId',label:'معرّف الفصل'}]},
-    achievements:{label:'إنجاز',labelPlural:'الإنجازات',dateField:'PublishDate',fields:[
-      {key:'Title',label:'العنوان',required:true},{key:'Intro',label:'المقدمة',type:'textarea'},
-      {key:'HighlightsTitle',label:'عنوان المحاور',default:'أبرز المحاور'},{key:'Highlights',label:'المحاور',type:'highlights'},
-      {key:'Badge',label:'الشارة'},{key:'Publisher',label:'الناشر',default:'أمانة الإعلام'},
-      {key:'PublishDate',label:'تاريخ الإنجاز',type:'date'},{key:'Image',label:'صور الإنجاز',type:'images'}]},
-  });
-
   const ROLE_IDS={
     'مدير عام':'super_admin',
     'محرر محتوى':'content_manager',
     'مسؤول أكاديمي':'academic_manager',
     super_admin:'super_admin',content_manager:'content_manager',academic_manager:'academic_manager',moderator:'moderator', 'مشرف':'moderator'
   };
+  // Content editor schemas. Keep these definitions in the adapter so the admin UI
+  // cannot start with an undefined `schemas` object (which previously broke the
+  // content editor before image fields could be uploaded to R2).
+  const schemas = {
+    news: {
+      label: 'خبر', labelPlural: 'الأخبار',
+      fields: [
+        {key:'Title', label:'العنوان', type:'text', required:true},
+        {key:'Content', label:'المحتوى', type:'textarea', required:true},
+        {key:'Category', label:'التصنيف', type:'text'},
+        {key:'Publisher', label:'الناشر', type:'text'},
+        {key:'Date', label:'تاريخ النشر', type:'date'},
+        {key:'Image', label:'صورة الخبر', type:'image'}
+      ]
+    },
+    events: {
+      label: 'فعالية', labelPlural: 'الفعاليات',
+      fields: [
+        {key:'Title', label:'العنوان', type:'text', required:true},
+        {key:'Content', label:'المحتوى', type:'textarea', required:true},
+        {key:'Category', label:'التصنيف', type:'text'},
+        {key:'Location', label:'المكان', type:'text'},
+        {key:'Publisher', label:'الناشر', type:'text'},
+        {key:'Date', label:'تاريخ الفعالية', type:'date'},
+        {key:'EndDate', label:'تاريخ الانتهاء', type:'date'},
+        {key:'Image', label:'صورة الفعالية', type:'image'}
+      ]
+    },
+    activities: {
+      label: 'نشاط', labelPlural: 'الأنشطة',
+      fields: [
+        {key:'Title', label:'العنوان', type:'text', required:true},
+        {key:'Content', label:'المحتوى', type:'textarea', required:true},
+        {key:'Category', label:'التصنيف', type:'text'},
+        {key:'Location', label:'المكان', type:'text'},
+        {key:'Publisher', label:'الناشر', type:'text'},
+        {key:'Date', label:'تاريخ النشاط', type:'date'},
+        {key:'EndDate', label:'تاريخ الانتهاء', type:'date'},
+        {key:'Image', label:'صورة النشاط', type:'image'}
+      ]
+    },
+    announcements: {
+      label: 'إشعار', labelPlural: 'الإشعارات',
+      fields: [
+        {key:'Title', label:'العنوان', type:'text', required:true},
+        {key:'Content', label:'المحتوى', type:'textarea', required:true},
+        {key:'Type', label:'النوع', type:'select', options:[{value:'general',label:'عام'},{value:'urgent',label:'عاجل'}], default:'general'},
+        {key:'DepartmentId', label:'القسم المستهدف', type:'text'},
+        {key:'SemesterId', label:'الفصل المستهدف', type:'text'},
+        {key:'Date', label:'تاريخ النشر', type:'date'},
+        {key:'ExpiresAt', label:'تاريخ الانتهاء', type:'date'}
+      ]
+    },
+    achievements: {
+      label: 'إنجاز', labelPlural: 'الإنجازات',
+      fields: [
+        {key:'Title', label:'العنوان', type:'text', required:true},
+        {key:'Intro', label:'المقدمة', type:'textarea'},
+        {key:'HighlightsTitle', label:'عنوان المحاور', type:'text'},
+        {key:'Highlights', label:'المحاور', type:'highlights'},
+        {key:'Badge', label:'الشارة', type:'text'},
+        {key:'Publisher', label:'الناشر', type:'text'},
+        {key:'PublishDate', label:'تاريخ الإنجاز', type:'date'},
+        {key:'Image', label:'صور الإنجاز', type:'images'}
+      ]
+    }
+  };
+
   const ROLE_BADGE={super_admin:'badge-danger',content_manager:'badge-info',academic_manager:'badge-success',moderator:'badge-warning'};
   const ROLE_LABEL={super_admin:'مدير عام',content_manager:'محرر محتوى',academic_manager:'مسؤول أكاديمي',moderator:'مشرف'};
   function roleId(value){return ROLE_IDS[value]||value||'content_manager';}
