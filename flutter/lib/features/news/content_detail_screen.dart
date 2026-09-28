@@ -19,6 +19,7 @@ class ContentDetailScreen extends StatefulWidget {
 class _ContentDetailScreenState extends State<ContentDetailScreen> {
   ContentItem? _fresh;
   bool _liked = false;
+  late int _likeCount = widget.item.likeCount;
   bool _busy = false;
 
   @override
@@ -32,7 +33,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     final client = await AuthenticatedClient.create();
     try {
       final item = await ContentRepository().detail(widget.type, widget.item.id);
-      if (mounted) setState(() { _fresh = item; _liked = item.myReaction == 'like'; });
+      if (mounted) setState(() { _fresh = item; _liked = item.myReaction == 'like'; _likeCount = item.likeCount; });
     } catch (_) {
       // The list item is already usable; detail refresh is best-effort.
     } finally {
@@ -47,7 +48,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     try {
       client = await AuthenticatedClient.create();
       await InteractionsRepository(client).react(widget.type, widget.item.id, 'like');
-      if (mounted) setState(() => _liked = true);
+      if (mounted) setState(() { _liked = true; _likeCount = (_fresh ?? widget.item).likeCount + 1; });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -119,7 +120,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                     FilledButton.icon(
                       onPressed: _busy ? null : _like,
                       icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 16),
-                      label: Text('${l10n.t('like')} ${item.likeCount + (_liked ? 1 : 0)}'),
+                      label: Text('${l10n.t('like')} $_likeCount'),
                     ),
                     OutlinedButton.icon(
                       onPressed: () => _openComments(context, item),

@@ -406,8 +406,11 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
             headers: <String, String>{
               'Authorization': 'Bearer ${widget.accessToken}',
             },
-            preferRangeAccess: true,
-            useProgressiveLoading: true,
+            // Google Drive does not reliably honor byte-range requests through
+            // the Worker proxy. Use a normal authenticated download so pdfrx
+            // receives one complete PDF response.
+            preferRangeAccess: false,
+            useProgressiveLoading: false,
             params: PdfViewerParams(
               backgroundColor: cs.surfaceContainerHighest,
               maxImageBytesCachedOnMemory: 64 * 1024 * 1024,

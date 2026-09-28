@@ -86,6 +86,7 @@ class _MediaCard extends StatefulWidget {
 }
 class _MediaCardState extends State<_MediaCard> {
   late bool _liked = widget.item.myReaction == 'like';
+  late int _likeCount = widget.item.likeCount;
   bool _busy = false;
 
   Future<void> _like() async {
@@ -95,7 +96,7 @@ class _MediaCardState extends State<_MediaCard> {
     try {
       client = await AuthenticatedClient.create();
       await InteractionsRepository(client).react(widget.type, widget.item.id, 'like');
-      if (mounted) setState(() => _liked = true);
+      if (mounted) setState(() { _liked = true; _likeCount = widget.item.likeCount + 1; });
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(context).t('likeFailed'))));
     } finally {
@@ -114,7 +115,7 @@ class _MediaCardState extends State<_MediaCard> {
         const SizedBox(height: 0),
         GestureDetector(onTap: widget.onDetails, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Text(widget.item.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, height: 1.35)), if (widget.item.body?.trim().isNotEmpty == true) ...[const SizedBox(height: 5), Text(widget.item.body!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.6, color: cs.onSurfaceVariant))]])),
         const SizedBox(height: 9),
-        Row(children: [Text(_date(widget.item.eventAt ?? widget.item.createdAt), style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)), const Spacer(), IconButton(visualDensity: VisualDensity.compact, onPressed: _busy ? null : _like, icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 18, color: _liked ? cs.primary : cs.onSurfaceVariant)), Text('${widget.item.likeCount + (_liked ? 1 : 0)}', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)), const SizedBox(width: 4), IconButton(visualDensity: VisualDensity.compact, onPressed: () => _openComments(context), icon: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: cs.onSurfaceVariant)), Text('${widget.item.commentCount}', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant))])
+        Row(children: [Text(_date(widget.item.eventAt ?? widget.item.createdAt), style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)), const Spacer(), IconButton(visualDensity: VisualDensity.compact, onPressed: _busy ? null : _like, icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 18, color: _liked ? cs.primary : cs.onSurfaceVariant)), Text('$_likeCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)), const SizedBox(width: 4), IconButton(visualDensity: VisualDensity.compact, onPressed: () => _openComments(context), icon: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: cs.onSurfaceVariant)), Text('${widget.item.commentCount}', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant))])
       ]))
     ]));
   }

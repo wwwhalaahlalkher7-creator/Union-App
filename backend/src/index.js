@@ -1344,7 +1344,7 @@ async function materialFile(ctx, id) {
   if (driveFileId) {
     // The student never receives this URL. The Worker is the only component
     // that talks to the upstream storage provider.
-    upstreamUrl = `https://drive.usercontent.google.com/download?id=${driveFileId}&export=download&confirm=t`;
+    upstreamUrl = `https://drive.google.com/uc?export=download&id=${driveFileId}`;
   } else if (row.drive_url) {
     try {
       const candidate = new URL(row.drive_url);
@@ -1369,8 +1369,12 @@ async function materialFile(ctx, id) {
     redirect: 'follow',
   });
 
-  const contentType = upstream.headers.get('content-type') || row.mime_type || 'application/pdf';
-  if (!upstream.ok || !contentType.toLowerCase().includes('pdf')) {
+  const upstreamContentType = (upstream.headers.get('content-type') || '').toLowerCase();
+  const storedMimeType = String(row.mime_type || '').toLowerCase();
+  const contentType = upstreamContentType || storedMimeType || 'application/pdf';
+  const upstreamLooksPdf = upstreamContentType.includes('pdf') ||
+    (!upstreamContentType || upstreamContentType.includes('octet-stream')) && storedMimeType.includes('pdf');
+  if (!upstream.ok || !upstreamLooksPdf) {
     console.error(`[${ctx.requestId}] material file upstream failed`, {
       materialId: id,
       status: upstream.status,
@@ -1473,10 +1477,18 @@ async function badges(ctx) {
     // request can retry the award operation.
     console.error(`[${ctx.requestId}] badge evaluation failed`, e);
   }
-  const rows = await queryAll(ctx.env, `SELECT b.*, sb.awarded_at, CASE WHEN sb.student_id IS NULL THEN 0 ELSE 1 END AS earned
-    FROM badges b LEFT JOIN student_badges sb ON sb.badge_id=b.id AND sb.student_id=?
-    WHERE b.active=1 ORDER BY CASE WHEN sb.student_id IS NULL THEN 1 ELSE 0 END, b.sort_order ASC, b.id ASC`, a.session.student_id);
-  return ok(ctx, {badges: rows, earnedCount: rows.filter(r=>Number(r.earned)===1).length, totalCount: rows.length, newlyAwarded});
+  try {
+    const rows = await queryAll(ctx.env, `SELECT b.*, sb.awarded_at, CASE WHEN sb.student_id IS NULL THEN 0 ELSE 1 END AS earned
+      FROM badges b LEFT JOIN student_badges sb ON sb.badge_id=b.id AND sb.student_id=?
+      WHERE b.active=1 ORDER BY CASE WHEN sb.student_id IS NULL THEN 1 ELSE 0 END, b.sort_order ASC, b.id ASC`, a.session.student_id);
+    return ok(ctx, {badges: rows, earnedCount: rows.filter(r=>Number(r.earned)===1).length, totalCount: rows.length, newlyAwarded});
+  } catch (e) {
+    // Keep the achievement/system screens usable during a partial migration.
+    // The deployment migration repairs the catalogue; until then an empty
+    // catalogue is preferable to taking down the whole system screen.
+    console.error(`[${ctx.requestId}] badge catalogue read failed`, e);
+    return ok(ctx, {badges: [], earnedCount: 0, totalCount: 0, newlyAwarded}, {degraded: true});
+  }
 }
 
 async function materialProgress(ctx, materialId) {
@@ -1685,7 +1697,9 @@ async function interactionAllowed(ctx, studentId, action) {
 async function comments(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
   const studentId = a.session.student_id;
-  const [, rawType, id] = ctx.path.split('/');
+  const parts = ctx.path.split('/');
+  const rawType = parts[2];
+  const id = parts[3];
   const type = canonicalContentType(rawType);
   if (!type) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
   const limit = clampInt(ctx.url.searchParams.get('limit'),20,1,50); const offset = clampInt(ctx.url.searchParams.get('offset'),0,0,10000);

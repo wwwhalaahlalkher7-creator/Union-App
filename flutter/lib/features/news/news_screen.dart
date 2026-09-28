@@ -171,7 +171,7 @@ class _NewsCardState extends State<_NewsCard> {
   ApiClient? _client;
   bool _liked = false;
   bool _reacting = false;
-  int _likeDelta = 0;
+  late int _likeCount = widget.item.likeCount;
 
   Future<void> _toggleLike() async {
     if (_reacting || _liked) return;
@@ -179,7 +179,7 @@ class _NewsCardState extends State<_NewsCard> {
     try {
       _client ??= await AuthenticatedClient.create();
       await InteractionsRepository(_client!).react('news', widget.item.id, 'like');
-      if (mounted) setState(() { _liked = true; _likeDelta = 1; });
+      if (mounted) setState(() { _liked = true; _likeCount = widget.item.likeCount + 1; });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -312,7 +312,7 @@ class _NewsCardState extends State<_NewsCard> {
               children: [
                 _ActionButton(
                   tooltip: l10n.t('like'),
-                  count: widget.item.likeCount + _likeDelta,
+                  count: _likeCount,
                   onPressed: _reacting ? null : _toggleLike,
                   icon: _liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined,
                   active: _liked,
