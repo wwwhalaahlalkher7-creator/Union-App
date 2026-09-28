@@ -285,25 +285,12 @@ body[data-page="settings"] #pageContent > * {
     const fields = {};
     new FormData(form).forEach((value, key) => { fields[key] = value.trim(); });
 
-    // ✅ جديد — إن اختار المستخدم شعاراً جديداً، اقرأه كـ base64 وأرسله
-    // منفصلاً (logoBase64) بدل fields.Logo — نفس فكرة ImageBase64 في
-    // content.html. لم يختر شعاراً جديداً؟ يبقى الشعار الحالي كما هو.
-    let logoBase64 = "";
+    // نمرر ملف الشعار نفسه إلى Adapter لرفعه إلى R2؛ وإذا لم يختر المستخدم ملفاً يبقى الشعار الحالي كما هو.
     const logoInput = document.getElementById("imgInput-Logo");
     const logoFile = logoInput && logoInput.files && logoInput.files[0];
-    if (logoFile) {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(logoFile);
-      });
-      logoBase64 = dataUrl.split(",")[1] || "";
-    }
-
     const btn = document.getElementById("saveBtn");
     try {
-      await Feedback.busy(btn, () => Adapter.updateSiteSettings(fields, logoBase64), {
+      await Feedback.busy(btn, () => Adapter.updateSiteSettings(fields, logoFile), {
         busyLabel: "جارٍ الحفظ...",
         successMessage: "تم حفظ الإعدادات بنجاح",
         errorPrefix: "تعذّر حفظ الإعدادات"

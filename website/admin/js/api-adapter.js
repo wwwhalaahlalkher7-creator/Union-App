@@ -7,13 +7,33 @@ window.Adapter = (() => {
     if(!r.ok||d?.success===false) { const detail=d?.error?.details||d?.error?.message||d?.error; throw new Error(typeof detail==='string'?detail:'تعذّر تنفيذ الطلب'); }
     return d?.data ?? d;
   }
-  const schemas={
-    news:{label:'خبر',labelPlural:'الأخبار',dateField:'Date',fields:[{key:'Title',label:'العنوان',type:'text',required:true},{key:'Content',label:'المحتوى',type:'textarea',required:true},{key:'Category',label:'التصنيف',type:'select',options:['إعلان هام','بيان رسمي','تغطية إعلامية','نشاط أكاديمي'],default:'إعلان هام'},{key:'Publisher',label:'الناشر',type:'text',default:'أمانة الإعلام'},{key:'Date',label:'تاريخ النشر',type:'date'},{key:'Image',label:'الصور',type:'images'}]},
-    announcements:{label:'إشعار',labelPlural:'الإشعارات',dateField:'Date',fields:[{key:'Title',label:'العنوان',type:'text',required:true},{key:'Content',label:'النص',type:'textarea',required:true},{key:'Type',label:'النوع',type:'select',options:[{value:'general',label:'عام'},{value:'urgent',label:'عاجل'},{value:'academic',label:'أكاديمي'},{value:'administrative',label:'إداري'}],default:'general'},{key:'DepartmentId',label:'معرّف القسم (اختياري)',type:'text'},{key:'SemesterId',label:'معرّف الفصل (اختياري)',type:'text'},{key:'Date',label:'وقت النشر',type:'datetime-local'},{key:'ExpiresAt',label:'وقت الانتهاء',type:'datetime-local'}]},
-    achievements:{label:'إنجاز',labelPlural:'الإنجازات',dateField:'PublishDate',fields:[{key:'Title',label:'العنوان',type:'text',required:true},{key:'Intro',label:'المقدمة',type:'textarea'},{key:'HighlightsTitle',label:'عنوان المحاور',type:'text',default:'أبرز المحاور'},{key:'Highlights',label:'المحاور',type:'textarea'},{key:'Badge',label:'التصنيف',type:'text'},{key:'Publisher',label:'الناشر',type:'text',default:'أمانة الإعلام'},{key:'PublishDate',label:'تاريخ النشر',type:'date'},{key:'Image',label:'الصور',type:'images'}]},
-    events:{label:'فعالية',labelPlural:'الفعاليات',dateField:'Date',fields:[{key:'Title',label:'العنوان',type:'text',required:true},{key:'Content',label:'الوصف',type:'textarea',required:true},{key:'Category',label:'التصنيف',type:'text',default:'فعالية'},{key:'Location',label:'الموقع',type:'text'},{key:'Publisher',label:'الناشر',type:'text',default:'أمانة الإعلام'},{key:'Date',label:'تاريخ البداية',type:'date',required:true},{key:'EndDate',label:'تاريخ الانتهاء',type:'date'},{key:'Image',label:'الصور',type:'images'}]},
-    activities:{label:'نشاط',labelPlural:'الأنشطة',dateField:'Date',fields:[{key:'Title',label:'العنوان',type:'text',required:true},{key:'Content',label:'الوصف',type:'textarea',required:true},{key:'Category',label:'التصنيف',type:'text',default:'فعالية'},{key:'Location',label:'الموقع',type:'text'},{key:'Publisher',label:'الناشر',type:'text',default:'أمانة الإعلام'},{key:'Date',label:'تاريخ البداية',type:'date',required:true},{key:'EndDate',label:'تاريخ الانتهاء',type:'date'},{key:'Image',label:'الصور',type:'images'}]}
-  };
+  async function reqMultipart(path, formData){
+    const headers={}; if(token()) headers.Authorization='Bearer '+token();
+    const r=await fetch(base()+path,{method:'POST',body:formData,headers}); let d=null; try{d=await r.json();}catch{}
+    if(!r.ok||d?.success===false) { const detail=d?.error?.details||d?.error?.message||d?.error; throw new Error(typeof detail==='string'?detail:'تعذّر رفع الوسيط'); }
+    return d?.data ?? d;
+  }
+  async function uploadMediaFiles(files){
+    const list=Array.from(files||[]).filter(Boolean);
+    if(!list.length) return [];
+    if(list.length>5) throw new Error('الحد الأقصى 5 صور في المحتوى الواحد.');
+    const form=new FormData(); list.forEach(file=>form.append('file',file,file.name));
+    const data=await reqMultipart('/admin/media',form);
+    return Array.isArray(data?.items)?data.items:[];
+  }
+  async function uploadMedia(file){const items=await uploadMediaFiles([file]);return items[0];}
+  async function prepareContentFields(fields){
+    const out={...(fields||{})};
+    const single=out._ImageFile;
+    const multiple=out._ImagesFiles;
+    delete out._ImageFile; delete out._ImagesFiles; delete out.ImageBase64; delete out.ImagesBase64;
+    if(single){ const uploaded=await uploadMedia(single); out.Image=[{url:uploaded.url}]; }
+    else if(Array.isArray(multiple) && multiple.length){
+      const uploaded=await uploadMediaFiles(multiple.slice(0,5));
+      out.Image=uploaded.map(x=>({url:x.url}));
+    }
+    return out;
+  }
   function parseJsonArray(value){if(!value)return[];if(Array.isArray(value))return value;try{const parsed=JSON.parse(value);return Array.isArray(parsed)?parsed:[];}catch{return[];}}
   function rowContent(type,r){
     const x={id:r.id,createdTime:r.created_at,fields:{Status:r.status||'draft'}};
@@ -33,8 +53,8 @@ window.Adapter = (() => {
     return o;
   }
   async function listContent(type){const rows=await req('/admin/'+type+'?limit=100');return rows.map(r=>rowContent(type,r));}
-  async function createContent(type,fields){return req('/admin/'+type,{method:'POST',body:JSON.stringify(contentPayload(type,fields))});}
-  async function updateContent(type,id,fields){return req('/admin/'+type+'/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(contentPayload(type,fields))});}
+  async function createContent(type,fields){const prepared=await prepareContentFields(fields);return req('/admin/'+type,{method:'POST',body:JSON.stringify(contentPayload(type,prepared))});}
+  async function updateContent(type,id,fields){const prepared=await prepareContentFields(fields);return req('/admin/'+type+'/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(contentPayload(type,prepared))});}
   async function deleteContent(type,id){return req('/admin/'+type+'/'+encodeURIComponent(id),{method:'DELETE'});} async function sendNotification(announcementId){return req('/admin/notifications/send',{method:'POST',body:JSON.stringify({announcementId})});} async function listNotifications(){return req('/admin/notifications?limit=100');}
   const asArray = value => Array.isArray(value) ? value : (Array.isArray(value?.items) ? value.items : (Array.isArray(value?.rows) ? value.rows : (Array.isArray(value?.data) ? value.data : [])));
   async function listStudentsAdmin(filters={}){
@@ -67,7 +87,12 @@ window.Adapter = (() => {
   async function createMaterialFolder(semesterId,name,departmentId){const subjects=await req('/admin/subjects?limit=100');const dep=departmentId||subjects.find(x=>x.semester_id===semesterId)?.department_id;if(!dep)throw new Error('اختر القسم أولاً.');return req('/admin/subjects',{method:'POST',body:JSON.stringify({semester_id:semesterId,department_id:dep,name_ar:name,name_en:name,active:1,sort_order:0})});}
   async function renameMaterialItem(){throw new Error('تعديل ملفات Drive المباشر غير مفعّل في هذه المرحلة. استخدم المزامنة الآمنة.');} async function deleteMaterialItem(id){return req('/admin/materials/'+id,{method:'DELETE'});} async function deleteSubject(id){return req('/admin/subjects/'+id,{method:'DELETE'});} async function uploadMaterialPdf(){throw new Error('رفع ملفات Drive المباشر غير مفعّل في هذه المرحلة.');}
   async function getSiteSettings(){const rows=await req('/admin/settings');const o={};for(const r of rows){try{o[r.key]=JSON.parse(r.value_json);}catch{o[r.key]=r.value_json;}}return o;}
-  async function updateSiteSettings(fields){for(const [key,value] of Object.entries(fields||{}))await req('/admin/settings/'+encodeURIComponent(key),{method:'PATCH',body:JSON.stringify({key,value})});return {success:true};}
+  async function updateSiteSettings(fields,logoFile=null){
+    const payload={...(fields||{})}; delete payload._LogoFile;
+    if(logoFile){const uploaded=await uploadMedia(logoFile); payload.Logo=uploaded.url;}
+    for(const [key,value] of Object.entries(payload)) await req('/admin/settings/'+encodeURIComponent(key),{method:'PATCH',body:JSON.stringify({key,value})});
+    return {success:true};
+  }
   async function listUsers(){return (await req('/admin/staff')).map(r=>({id:r.id,fields:{Names:r.display_name,Username:r.user_id,Email:r.email||'',Role:roleLabel(r.role_id),RoleId:r.role_id,Active:!!r.active,LastLogin:r.last_login_at}}));}
   const ROLE_IDS={
     'مدير عام':'super_admin',

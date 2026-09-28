@@ -49,3 +49,7 @@ migrations_dir = "migrations"
 # CHROMA_TOKEN is added only when Chroma authentication is enabled.
 
 # Comma-separated production origins. Configure as a secret/var in deployment.
+
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "trinex-media"

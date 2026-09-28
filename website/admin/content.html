@@ -272,8 +272,8 @@ body[data-page="news"] #pageContent > * {
     }
     if (f.type === "image") {
       // ✅ جديد — رفع فعلي: مدخل ملف حقيقي + معاينة فورية بالمتصفح، بلا
-      // أي رفع للخادم إلا عند الضغط على "نشر/حفظ" (submitForm يقرأ
-      // الملف كـ base64 عندها فقط). عند التعديل: تُعرض الصورة الحالية
+      // أي رفع للخادم إلا عند الضغط على "نشر/حفظ" (submitForm يمرر
+      // الملف إلى Adapter عندها فقط). عند التعديل: تُعرض الصورة الحالية
       // (البيانات القادمة من Association API تحتوي على رابط الصورة مباشرة) إن
       // وُجدت، ولا تُستبدل إلا باختيار ملف جديد صراحةً.
       const existingValue = record ? record.fields.Image : "";
@@ -480,44 +480,20 @@ body[data-page="news"] #pageContent > * {
       fields[f.key] = input ? input.value.trim() : "";
     });
 
-    // ✅ جديد — إن اختار المستخدم صورة جديدة، اقرأها كـ base64 وأرسلها
-    // ضمن fields.ImageBase64 (يقرأها Adapter.createContent/updateContent
-    // ويرسلها عبر Association API). لم يختر صورة؟ يبقى الحقل فارغاً
-    // فلا يتغيّر شيء في الصورة الحالية عند التعديل.
+    // يمرر الملف نفسه إلى Adapter ليُرفع مباشرة إلى R2 عند الحفظ؛ لا نرسل Base64 إلى API.
     const imageField = schema.fields.find(f => f.type === "image");
     if (imageField) {
       const fileInput = document.getElementById("imgInput-" + imageField.key);
       const file = fileInput && fileInput.files && fileInput.files[0];
-      if (file) {
-        const dataUrl = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        fields.ImageBase64 = dataUrl.split(",")[1] || ""; // إسقاط بادئة data:image/...;base64,
-      } else if (record) {
-        fields.Image = record.fields.Image || "";
-      }
+      if (file) fields._ImageFile = file;
+      else if (record) fields.Image = record.fields.Image || "";
     }
 
-    // ✅ جديد — نفس فكرة الصورة المفردة أعلاه، لكن لصور متعددة: يقرأ كل
-    // ملف مختار في _pendingImages[key] كـ base64 ويبنيها في مصفوفة
-    // واحدة fields.ImagesBase64. لم يختر المستخدم أي صورة جديدة؟ تبقى
-    // المصفوفة فارغة فلا يتغيّر شيء في الصور الحالية عند التعديل.
     const imagesField = schema.fields.find(f => f.type === "images");
     if (imagesField) {
       const pending = _pendingImages[imagesField.key] || [];
-      if (pending.length) {
-        fields.ImagesBase64 = await Promise.all(pending.map(file => new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve((reader.result.split(",")[1]) || "");
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        })));
-      } else if (record) {
-        fields.Image = record.fields.Image || [];
-      }
+      if (pending.length) fields._ImagesFiles = pending.slice(0, 5);
+      else if (record) fields.Image = record.fields.Image || [];
     }
 
     // ⚠️ لا نغلق النافذة ولا نحدّث القائمة إلا بعد تأكيد نجاح الخادم

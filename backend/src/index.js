@@ -27,6 +27,20 @@ const EINO_STUDENT_DAILY_LIMIT_DEFAULT = 100;
 const EINO_GUEST_DAILY_LIMIT_DEFAULT = 20;
 const EINO_GLOBAL_DAILY_LIMIT_DEFAULT = 2000;
 
+// R2 safety budget: deliberately below Cloudflare's free-tier ceiling.
+// The Worker itself is also on the Free plan, so routing media reads through
+// this Worker bounds application-driven R2 Class B reads by the Worker request
+// ceiling. R2 Standard storage is capped much lower here as an extra margin.
+const R2_MAX_OBJECT_BYTES = 3 * 1024 * 1024;
+const R2_MAX_STORAGE_BYTES = 6 * 1024 * 1024 * 1024; // 6 GiB
+const R2_MAX_CLASS_A_MONTHLY = 100000;
+const R2_MAX_UPLOAD_FILES_PER_REQUEST = 1;
+const R2_ALLOWED_TYPES = Object.freeze({
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+});
+
 export default {
   async fetch(request, env) {
     const requestId = crypto.randomUUID();
@@ -72,6 +86,7 @@ export default {
       if (request.method === 'GET' && /^\/public\/(news|events|activities)\/[^/]+$/.test(path)) return publicContentDetail(ctx);
       if (request.method === 'GET' && path === '/public/settings') return publicSettings(ctx);
       if (request.method === 'GET' && path === '/public/materials') return publicMaterials(ctx);
+      if (request.method === 'GET' && /^\/media\//.test(path)) return mediaGet(ctx);
 
       if (path === '/auth/login' && request.method === 'POST') return login(ctx);
       if (path === '/auth/register' && request.method === 'POST') return registerStudent(ctx);
@@ -115,6 +130,7 @@ export default {
 
       if (path === '/admin/drive/sync' && request.method === 'POST') return adminDriveSync(ctx);
       if (path === '/admin/drive/sync-status' && request.method === 'GET') return adminDriveSyncStatus(ctx);
+      if (path === '/admin/media' && request.method === 'POST') return adminMediaUpload(ctx);
       if (path === '/admin/notifications' && request.method === 'GET') return adminNotifications(ctx);
       if (path === '/admin/notifications/send' && request.method === 'POST') return adminNotificationSend(ctx, null);
       if (path === '/admin/security/auth-events' && request.method === 'GET') return adminAuthEvents(ctx);
@@ -255,6 +271,207 @@ async function health(ctx) {
 function parseJsonValue(value, fallback = null) {
   if (value === null || value === undefined || value === '') return fallback;
   try { return JSON.parse(value); } catch { return fallback; }
+}
+
+function currentQuotaMonth() {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function mediaUrlFor(ctx, key) {
+  return `${new URL(ctx.request.url).origin}/api/v1/media/${key.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+function mediaKeyFromUrl(ctx, value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, new URL(ctx.request.url).origin);
+    if (url.origin !== new URL(ctx.request.url).origin) return null;
+    const prefix = '/api/v1/media/';
+    if (!url.pathname.startsWith(prefix)) return null;
+    const encoded = url.pathname.slice(prefix.length);
+    if (!encoded || encoded.includes('..')) return null;
+    return encoded.split('/').map(decodeURIComponent).join('/');
+  } catch (_) { return null; }
+}
+
+function imageMagicValid(type, bytes) {
+  if (type === 'image/jpeg') return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (type === 'image/png') return bytes.length >= 8 && bytes.slice(0, 8).every((v, i) => v === [137,80,78,71,13,10,26,10][i]);
+  if (type === 'image/webp') return bytes.length >= 12 && new TextDecoder().decode(bytes.slice(0,4)) === 'RIFF' && new TextDecoder().decode(bytes.slice(8,12)) === 'WEBP';
+  return false;
+}
+
+async function reserveR2Upload(ctx, sizeBytes) {
+  const month = currentQuotaMonth();
+  const result = await ctx.env.DB.prepare(`
+    UPDATE media_quota
+       SET storage_bytes = storage_bytes + ?,
+           class_a_used = CASE WHEN quota_month = ? THEN class_a_used + 1 ELSE 1 END,
+           quota_month = ?,
+           updated_at = CURRENT_TIMESTAMP
+     WHERE id = 1
+       AND storage_bytes + ? <= ?
+       AND (CASE WHEN quota_month = ? THEN class_a_used ELSE 0 END) < ?
+  `).bind(sizeBytes, month, month, sizeBytes, R2_MAX_STORAGE_BYTES, month, R2_MAX_CLASS_A_MONTHLY).run();
+  return Boolean(result.meta?.changes);
+}
+
+async function releaseR2Reservation(ctx, sizeBytes) {
+  await ctx.env.DB.prepare(`
+    UPDATE media_quota
+       SET storage_bytes = MAX(0, storage_bytes - ?), updated_at = CURRENT_TIMESTAMP
+     WHERE id = 1
+  `).bind(sizeBytes).run();
+}
+
+async function cleanupUnattachedMedia(ctx) {
+  if (!ctx.env.MEDIA_BUCKET) return;
+  const rows = await queryAll(ctx.env, `SELECT object_key,size_bytes FROM media_assets WHERE attached_at IS NULL AND created_at < datetime('now','-1 hour') LIMIT 50`);
+  if (!rows.length) return;
+  const deleted = [];
+  for (const row of rows) {
+    try { await ctx.env.MEDIA_BUCKET.delete(row.object_key); deleted.push(row); } catch (_) {}
+  }
+  if (!deleted.length) return;
+  try {
+    await ctx.env.DB.prepare(`DELETE FROM media_assets WHERE object_key IN (${deleted.map(() => '?').join(',')})`).bind(...deleted.map(r => r.object_key)).run();
+    await releaseR2Reservation(ctx, deleted.reduce((sum, r) => sum + Number(r.size_bytes || 0), 0));
+  } catch (_) {}
+}
+
+async function adminMediaUpload(ctx) {
+  const a = await requireAdminPermission(ctx, 'content.write');
+  if (a.response) return a.response;
+  if (!ctx.env.MEDIA_BUCKET) return error('R2_NOT_CONFIGURED', 'تخزين الوسائط غير مهيأ على الخادم.', 503, ctx.requestId, ctx.cors);
+
+  let form;
+  try { form = await ctx.request.formData(); } catch (_) { return error('MEDIA_MULTIPART_REQUIRED', 'أرسل الملف بصيغة multipart/form-data.', 400, ctx.requestId, ctx.cors); }
+  await cleanupUnattachedMedia(ctx);
+  const files = form.getAll('file').filter(v => v instanceof File);
+  if (!files.length || files.length > 5) return error('MEDIA_FILE_COUNT_INVALID', 'يمكن رفع من 1 إلى 5 صور في الطلب الواحد.', 400, ctx.requestId, ctx.cors);
+
+  const prepared = [];
+  for (const file of files) {
+    const type = String(file.type || '').toLowerCase();
+    const ext = R2_ALLOWED_TYPES[type];
+    if (!ext) return error('MEDIA_TYPE_NOT_ALLOWED', 'مسموح فقط بصور JPEG أو PNG أو WebP.', 415, ctx.requestId, ctx.cors);
+    if (!Number.isFinite(file.size) || file.size <= 0 || file.size > R2_MAX_OBJECT_BYTES) return error('MEDIA_SIZE_EXCEEDED', 'حجم كل صورة يجب ألا يتجاوز 3MB.', 413, ctx.requestId, ctx.cors);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!imageMagicValid(type, bytes)) return error('MEDIA_CONTENT_INVALID', 'محتوى أحد الملفات لا يطابق نوع الصورة المعلن.', 400, ctx.requestId, ctx.cors);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const sha = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+    prepared.push({ file, type, ext, bytes, sha });
+  }
+
+  const totalBytes = prepared.reduce((sum, item) => sum + item.bytes.byteLength, 0);
+  const month = currentQuotaMonth();
+  // Reserve the whole request up front so a multi-image publish cannot partially
+  // consume the safety budget. One R2 PutObject is expected per image (all files
+  // are deliberately capped at 3MB to avoid multipart uploads).
+  const reserved = await ctx.env.DB.prepare(`
+    UPDATE media_quota
+       SET storage_bytes = storage_bytes + ?,
+           class_a_used = CASE WHEN quota_month = ? THEN class_a_used + ? ELSE ? END,
+           quota_month = ?,
+           updated_at = CURRENT_TIMESTAMP
+     WHERE id = 1
+       AND storage_bytes + ? <= ?
+       AND (CASE WHEN quota_month = ? THEN class_a_used ELSE 0 END) + ? <= ?
+  `).bind(totalBytes, month, prepared.length, prepared.length, month, totalBytes, R2_MAX_STORAGE_BYTES, month, prepared.length, R2_MAX_CLASS_A_MONTHLY).run();
+  if (!reserved.meta?.changes) return error('MEDIA_FREE_QUOTA_REACHED', 'تم بلوغ حد تخزين/رفع الوسائط الآمن. لا توجد عملية مدفوعة مسموحة.', 429, ctx.requestId, ctx.cors);
+
+  const stored = [];
+  const insertedKeys = [];
+  try {
+    for (const item of prepared) {
+      const key = `media/${month}/${crypto.randomUUID()}.${item.ext}`;
+      await ctx.env.MEDIA_BUCKET.put(key, item.bytes, {
+        httpMetadata: { contentType: item.type, cacheControl: 'public, max-age=86400, s-maxage=86400, immutable' },
+        customMetadata: { sha256: item.sha, originalName: String(item.file.name || '').slice(0, 200) },
+      });
+      stored.push({ key, sizeBytes: item.bytes.byteLength });
+      await ctx.env.DB.prepare(`INSERT INTO media_assets (id, object_key, content_type, size_bytes, sha256, original_name, created_by) VALUES (?,?,?,?,?,?,?)`)
+        .bind(crypto.randomUUID(), key, item.type, item.bytes.byteLength, item.sha, String(item.file.name || '').slice(0, 200), a.session.staff_user_id).run();
+      insertedKeys.push(key);
+    }
+  } catch (e) {
+    const deleted = [];
+    for (const entry of stored) {
+      try { await ctx.env.MEDIA_BUCKET.delete(entry.key); deleted.push(entry); } catch (_) {}
+    }
+    const deletedKeys = new Set(deleted.map(x => x.key));
+    const insertedDeletedKeys = insertedKeys.filter(key => deletedKeys.has(key));
+    if (insertedDeletedKeys.length) {
+      try { await ctx.env.DB.prepare(`DELETE FROM media_assets WHERE object_key IN (${insertedDeletedKeys.map(() => '?').join(',')})`).bind(...insertedDeletedKeys).run(); } catch (_) {}
+    }
+    if (deleted.length) await releaseR2Reservation(ctx, deleted.reduce((sum, x) => sum + x.sizeBytes, 0));
+    throw e;
+  }
+
+  const items = prepared.map((item, i) => ({
+    key: stored[i].key,
+    url: mediaUrlFor(ctx, stored[i].key),
+    sizeBytes: item.bytes.byteLength,
+    contentType: item.type,
+    sha256: item.sha,
+  }));
+  await writeAudit(ctx, a.session.staff_user_id, 'upload', 'media', stored.map(x => x.key).join(','), { count: items.length, total_size_bytes: totalBytes, items: items.map(x => ({ key: x.key, size_bytes: x.sizeBytes, content_type: x.contentType })) });
+  return ok(ctx, { items, key: items[0].key, url: items[0].url, sizeBytes: items[0].sizeBytes, contentType: items[0].contentType, sha256: items[0].sha256 }, null, 201);
+}
+
+async function mediaGet(ctx) {
+  if (!ctx.env.MEDIA_BUCKET) return error('R2_NOT_CONFIGURED', 'تخزين الوسائط غير مهيأ على الخادم.', 503, ctx.requestId, ctx.cors);
+  const prefix = '/media/';
+  const rawKey = ctx.path.slice(prefix.length);
+  let key;
+  try { key = rawKey.split('/').map(decodeURIComponent).join('/'); } catch (_) { return error('MEDIA_KEY_INVALID', 'معرّف الوسيط غير صالح.', 400, ctx.requestId, ctx.cors); }
+  if (!key || key.includes('..') || !key.startsWith('media/')) return error('MEDIA_KEY_INVALID', 'معرّف الوسيط غير صالح.', 400, ctx.requestId, ctx.cors);
+  const object = await ctx.env.MEDIA_BUCKET.get(key);
+  if (!object) return error('MEDIA_NOT_FOUND', 'الوسيط غير موجود.', 404, ctx.requestId, ctx.cors);
+  const h = new Headers();
+  object.writeHttpMetadata(h);
+  h.set('etag', object.httpEtag);
+  h.set('cache-control', h.get('cache-control') || 'public, max-age=86400, s-maxage=86400, immutable');
+  h.set('x-content-type-options', 'nosniff');
+  h.set('content-security-policy', "default-src 'none'; frame-ancestors 'none'; object-src 'none'");
+  return new Response(object.body, { status: 200, headers: h });
+}
+
+async function deleteOwnedMediaUrls(ctx, urls) {
+  if (!ctx.env.MEDIA_BUCKET) return;
+  const keys = [...new Set((urls || []).map(v => mediaKeyFromUrl(ctx, v)).filter(Boolean))];
+  if (!keys.length) return;
+  const rows = await queryAll(ctx.env, `SELECT object_key,size_bytes FROM media_assets WHERE object_key IN (${keys.map(() => '?').join(',')})`, ...keys);
+  const deletedKeys = [];
+  for (const key of keys) {
+    try { await ctx.env.MEDIA_BUCKET.delete(key); deletedKeys.push(key); } catch (_) {}
+  }
+  const deletedRows = rows.filter(r => deletedKeys.includes(r.object_key));
+  if (deletedRows.length) {
+    try {
+      await ctx.env.DB.prepare(`DELETE FROM media_assets WHERE object_key IN (${deletedRows.map(() => '?').join(',')})`).bind(...deletedRows.map(r => r.object_key)).run();
+      await releaseR2Reservation(ctx, deletedRows.reduce((sum, r) => sum + Number(r.size_bytes || 0), 0));
+    } catch (_) {}
+  }
+}
+
+function extractMediaUrlsFromRow(ctx, row) {
+  const urls = [];
+  if (row?.image_url) urls.push(row.image_url);
+  const images = parseJsonValue(row?.images_json, []);
+  if (Array.isArray(images)) for (const item of images) {
+    const url = typeof item === 'string' ? item : item?.url;
+    if (url) urls.push(url);
+  }
+  return [...new Set(urls)];
+}
+
+async function markOwnedMediaAttached(ctx, urls) {
+  const keys = [...new Set((urls || []).map(v => mediaKeyFromUrl(ctx, v)).filter(Boolean))];
+  if (!keys.length) return;
+  await ctx.env.DB.prepare(`UPDATE media_assets SET attached_at=CURRENT_TIMESTAMP WHERE object_key IN (${keys.map(() => '?').join(',')})`).bind(...keys).run();
 }
 
 async function publicContentDetail(ctx) {
@@ -1775,6 +1992,7 @@ async function adminCrud(ctx, table, id, actorId) {
     if (table === 'schedules') { cols.push('created_by','updated_by'); vals.push(actorId,actorId); }
     const marks = cols.map(()=>'?').join(',');
     await ctx.env.DB.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${marks})`).bind(...vals.map(sqlValue)).run();
+    if (CONTENT_TABLES.has(table)) await markOwnedMediaAttached(ctx, extractMediaUrlsFromRow(ctx, fields));
     await writeAudit(ctx, actorId, 'create', table, id, { fields: Object.keys(fields) });
     return ok(ctx, await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id), null, 201);
   }
@@ -1794,6 +2012,7 @@ async function adminCrud(ctx, table, id, actorId) {
     }
     const existing = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
     if (!existing) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
+    const oldMediaUrls = CONTENT_TABLES.has(table) ? extractMediaUrlsFromRow(ctx, existing) : [];
     const academicError = await validateAcademicReferences(ctx, table, fields, existing);
     if (academicError) return academicError;
     if (CONTENT_UPDATED_BY_TABLES.has(table)) { fields.updated_by = actorId; fields.updated_at = new Date().toISOString(); }
@@ -1803,8 +2022,15 @@ async function adminCrud(ctx, table, id, actorId) {
     const sets = Object.keys(fields).map(k=>`${k}=?`).join(',');
     const result = await ctx.env.DB.prepare(`UPDATE ${table} SET ${sets} WHERE id=?`).bind(...Object.values(fields).map(sqlValue), id).run();
     if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
+    const updatedRow = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
+    if (CONTENT_TABLES.has(table)) {
+      const newMediaUrls = extractMediaUrlsFromRow(ctx, updatedRow);
+      await markOwnedMediaAttached(ctx, newMediaUrls);
+      const removed = oldMediaUrls.filter(u => !newMediaUrls.includes(u));
+      if (removed.length) await deleteOwnedMediaUrls(ctx, removed);
+    }
     await writeAudit(ctx, actorId, 'update', table, id, { fields: Object.keys(fields) });
-    return ok(ctx, await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id));
+    return ok(ctx, updatedRow);
   }
   if (ctx.request.method === 'DELETE') {
     const existing = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
@@ -1988,8 +2214,15 @@ async function adminSettings(ctx, id) {
   const body = await parseJson(ctx.request); const key = String(body?.key || id || '').trim();
   if (!key || key.length > 128) return error('SETTING_KEY_INVALID','مفتاح الإعداد غير صالح.',400,ctx.requestId,ctx.cors);
   if (ctx.request.method !== 'PUT' && ctx.request.method !== 'PATCH' && ctx.request.method !== 'POST') return error('METHOD_NOT_ALLOWED','الطريقة غير مدعومة.',405,ctx.requestId,ctx.cors);
+  const previous = key === 'Logo' ? await queryOne(ctx.env, 'SELECT value_json FROM app_settings WHERE key=?', key) : null;
   const value = JSON.stringify(body?.value ?? body?.value_json ?? null);
   await ctx.env.DB.prepare('INSERT INTO app_settings(key,value_json,updated_by,updated_at) VALUES(?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP').bind(key,value,a.session.staff_user_id).run();
+  if (key === 'Logo') {
+    try {
+      const oldValue = previous ? parseJsonValue(previous.value_json, null) : null;
+      if (oldValue && oldValue !== (body?.value ?? body?.value_json ?? null)) await deleteOwnedMediaUrls(ctx, [oldValue]);
+    } catch (_) {}
+  }
   await writeAudit(ctx,a.session.staff_user_id,'update','app_settings',key);
   return ok(ctx,{key,value_json:value});
 }
