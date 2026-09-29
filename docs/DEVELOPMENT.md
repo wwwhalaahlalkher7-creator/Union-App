@@ -36,7 +36,7 @@ python3 tool/sync_version.py
 ```bash
 cd backend
 npm install --no-audit --no-fund
-node --check src/index.js
+npm run check
 npm run migrate:local
 ```
 

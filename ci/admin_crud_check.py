@@ -3,7 +3,7 @@ import re, sqlite3, sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / 'backend'
-SOURCE = (BACKEND / 'src/index.js').read_text(encoding='utf-8')
+SOURCE = '\n'.join(p.read_text(encoding='utf-8') for p in (BACKEND / 'src').rglob('*.js'))
 errors = []
 
 # Regression guards for schema mismatches found during the Phase 1 audit.

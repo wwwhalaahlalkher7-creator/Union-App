@@ -6,7 +6,7 @@ dash_worker = (root / 'website/admin/worker/index.js').read_text(encoding='utf-8
 auth = (root / 'website/admin/js/auth.js').read_text(encoding='utf-8')
 redirect = (root / 'website/admin/js/auth-check-redirect.js').read_text(encoding='utf-8')
 login = (root / 'website/admin/login.html').read_text(encoding='utf-8')
-api = (root / 'backend/src/index.js').read_text(encoding='utf-8')
+api = '\n'.join(p.read_text(encoding='utf-8') for p in (root / 'backend/src').rglob('*.js'))
 
 checks = {
     'dashboard session-only auth storage': 'sessionStorage.setItem(KEY' in auth and 'sessionStorage.getItem(KEY' in auth and 'sessionStorage.removeItem(KEY' in auth,

@@ -1,6 +1,6 @@
 from pathlib import Path
 root = Path(__file__).resolve().parents[1]
-index = (root / 'backend/src/index.js').read_text()
+index = '\n'.join(p.read_text() for p in (root / 'backend/src').rglob('*.js'))
 registry = (root / 'backend/src/providers/registry.js').read_text()
 workflow_path = root / '.github/workflows/release.yml'
 workflow = workflow_path.read_text(encoding='utf-8') if workflow_path.exists() else ''

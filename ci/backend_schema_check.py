@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
 MIGRATIONS = sorted(BACKEND.glob("migrations/*.sql"))
-INDEX_JS = (BACKEND / "src/index.js").read_text(encoding="utf-8")
+INDEX_JS = '\n'.join(p.read_text(encoding='utf-8') for p in (BACKEND / 'src').rglob('*.js'))
 
 if not MIGRATIONS:
     raise SystemExit("No backend migrations found")

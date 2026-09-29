@@ -40,10 +40,3 @@ python3 tool/sync_version.py
 - `test/` — focused automated tests.
 
 للمعمارية وسياسة الإصدار راجع `../docs/ARCHITECTURE.md` و`../docs/RELEASE.md`.
-
-## TRINEX UI validation / Mock phase
-
-The main TRINEX student surfaces now load through the existing repository/API layer. Public content uses the public API, while student profile, materials, schedule, XP, badges, progress and notifications use authenticated endpoints. The UI no longer depends on the previous `lib/data/mock_data.dart` fixtures.
-
-## UX Pass 4
-Interaction feedback, motion tokens, semantic press states, and UX state guidelines are documented in `docs/UX-PASS-4.md`.

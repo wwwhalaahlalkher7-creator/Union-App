@@ -36,7 +36,7 @@ except Exception as exc:
     errors.append(f'Migration check failed: {exc}')
 
 # Production security invariants.
-backend_source = (ROOT / 'backend/src/index.js').read_text(encoding='utf-8')
+backend_source = '\n'.join(p.read_text(encoding='utf-8') for p in (ROOT / 'backend/src').rglob('*.js'))
 if 'const ADMIN_ROLE_PERMISSIONS = Object.freeze({' not in backend_source:
     errors.append('Missing centralized admin role permission map')
 if 'if(!ADMIN_ROLE_IDS.has(role))' not in backend_source or 'if(!ADMIN_ROLE_IDS.has(nextRole))' not in backend_source:

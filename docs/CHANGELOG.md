@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-29 — Maintenance & Architecture Cleanup
+
+- فصل Worker router عن منطق الـAPI إلى modules حسب النطاق تحت `backend/src/`.
+- تحديث فحوصات CI لتفهم البنية المعيارية الجديدة.
+- حذف `dist/` والوثائق المرحلية/المكررة والملفات Flutter غير المستخدمة.
+- توحيد توثيق بنية الموقع ولوحة الإدارة مع المسارات الحالية.
+
 ## 2026-09-27 — Release Infrastructure Polish
 
 - فصل CI عن Production Release في GitHub Actions.
@@ -19,8 +26,6 @@
 - Converted bulk notification read updates from one query per notification to one set-based update.
 - Kept historical-semester material browsing available, including archived semesters, while constraining access to the student's department.
 - Retained the intentional Google Drive deletion coupling.
-# Changelog
-
 ## 2026-09-15 — Maintenance Baseline
 
 - توحيد الوثائق التشغيلية في `docs/`.

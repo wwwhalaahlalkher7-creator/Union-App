@@ -1,6 +1,6 @@
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
-src=(root/'backend/src/index.js').read_text()
+src='\n'.join(p.read_text() for p in (root/'backend/src').rglob('*.js'))
 mg=(root/'backend/migrations/0017_eino_observability.sql').read_text()
 checks={
  'telemetry table':'CREATE TABLE IF NOT EXISTS eino_telemetry' in mg,

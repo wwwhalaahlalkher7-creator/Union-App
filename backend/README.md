@@ -36,3 +36,11 @@ records.
 ## Local environment
 
 For local Worker secrets, copy `backend/.dev.vars.example` to `backend/.dev.vars` and replace the placeholders. The file is ignored by Git and must never contain values that are committed to the repository.
+
+## Source layout
+
+`src/index.js` هو router وWorker entry point فقط. منطق الـAPI موزع على modules بحسب النطاق:
+`core.js`, `auth.js`, `public.js`, `student.js`, `academic.js`, `interactions.js`,
+`media.js`, `admin.js`, `eino.js`, و`drive.js`.
+
+عند إضافة endpoint جديد، سجّل route في `index.js` وضع handler في module مالك للنطاق.

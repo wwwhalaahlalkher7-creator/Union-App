@@ -8,7 +8,7 @@
     "deploy": "wrangler deploy",
     "migrate:local": "wrangler d1 migrations apply leo-association-db --local",
     "migrate:remote": "wrangler d1 migrations apply leo-association-db --remote",
-    "check": "node --check src/index.js"
+    "check": "find src -name '*.js' -print0 | xargs -0 -n1 node --check"
   },
   "devDependencies": {
     "wrangler": "^4.34.0"

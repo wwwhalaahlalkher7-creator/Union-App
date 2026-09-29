@@ -36,19 +36,23 @@ lib/
 
 ## 3. Backend
 
-`backend/src/index.js` هو Worker entry point الحالي. داخله توجد حدود واضحة نسبيًا:
+`backend/src/index.js` هو **Worker entry point + HTTP router فقط**. منطق المجال مفصول حسب المسؤولية:
 
-- public/version/health
-- authentication + sessions
-- student services
-- content/materials/schedule
-- progress/XP/badges
-- comments/reactions
-- admin permissions + CRUD + audit
-- Eino gateway + quota + telemetry
-- Drive synchronization adapter
+```text
+src/index.js
+├── core.js          response, parsing, DB/query, crypto, shared limits
+├── auth.js          student/staff sessions and authentication
+├── public.js        public content, settings and public materials
+├── student.js       student profile, notifications and devices
+├── academic.js      semesters, subjects, materials, schedule, progress, XP, badges
+├── interactions.js  comments, replies and reactions
+├── media.js         R2 media upload/read/ownership/quota
+├── admin.js         permissions, CRUD, moderation, audit and admin settings
+├── eino.js          Eino gateway, memory, media, quota and telemetry
+└── drive.js         Google Drive synchronization adapter
+```
 
-قاعدة الصيانة: عند إضافة نطاق كبير جديد، أنشئ module مستقلًا بدل زيادة حجم `index.js` أكثر. نقل الكود إلى modules يجب أن يكون تدريجيًا مع إبقاء API contract ثابتًا.
+قاعدة الصيانة: أضف المسار إلى `index.js`، وضع منطق التنفيذ في module مالك للنطاق. الوحدات لا تتعامل مع HTTP routing مباشرة؛ تستقبل `ctx` موحدًا وتعيد `Response` عبر helpers الموجودة في `core.js`. لا تعيد دمج domain logic داخل `index.js`.
 
 ## 4. D1
 

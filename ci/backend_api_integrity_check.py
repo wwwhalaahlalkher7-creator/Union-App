@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-src = (ROOT / 'backend/src/index.js').read_text(encoding='utf-8')
+src = '\n'.join(p.read_text(encoding='utf-8') for p in (ROOT / 'backend/src').rglob('*.js'))
 
 required = {
     'content target validation': r'async function contentIsCommentable\(',
@@ -19,7 +19,10 @@ for name, pattern in required.items():
         raise SystemExit(f'Missing API integrity invariant: {name}')
 
 # The authenticated material query must not require an active semester.
-material_block = src[src.find('async function materials(ctx)'):src.find('\nasync function materialById', src.find('async function materials(ctx)'))]
+material_match = re.search(r'(?:export\s+)?async function materials\(ctx\)(.*?)(?=(?:export\s+)?async function materialById)', src, re.S)
+material_block = material_match.group(0) if material_match else ''
+if not material_block:
+    raise SystemExit('Missing materials handler')
 if re.search(r'JOIN semesters\s+sem', material_block, re.I) or re.search(r'semesters\s+WHERE[^;]+active\s*=\s*1', material_block, re.I):
     raise SystemExit('Authenticated material API accidentally became current-semester-only')
 
