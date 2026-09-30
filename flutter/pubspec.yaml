@@ -11,6 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.4.0
+  connectivity_plus: ^7.3.1
   shared_preferences: ^2.5.3
   flutter_secure_storage: ^10.3.4
   flutter_localizations:

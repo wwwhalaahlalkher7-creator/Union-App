@@ -28,7 +28,6 @@ class ApiClient {
   final String baseUrl; final http.Client _client; final AuthStorage? authStorage;
 
   static const _offlineCacheMaxStale = Duration(days: 7);
-  static const _offlineCacheRefreshAfter = Duration(minutes: 10);
 
   bool _offlineCacheAllowed(String path) {
     final p = path.toLowerCase();
@@ -83,8 +82,20 @@ class ApiClient {
     } on TimeoutException catch (e) {
       throw ApiException('انتهت مهلة معالجة الملف. أعد المحاولة.', cause: e, kind: ApiErrorKind.timeout, retryable: true);
     } on SocketException catch (e) {
+      final hasNetwork = await OfflineState.instance.hasNetworkInterface();
+      if (hasNetwork) {
+        OfflineState.instance.markOnline();
+      } else {
+        OfflineState.instance.markOffline();
+      }
       throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true);
     } on http.ClientException catch (e) {
+      final hasNetwork = await OfflineState.instance.hasNetworkInterface();
+      if (hasNetwork) {
+        OfflineState.instance.markOnline();
+      } else {
+        OfflineState.instance.markOffline();
+      }
       throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true);
     }
   }
@@ -110,29 +121,32 @@ class ApiClient {
         ? await _persistentCacheKey(cacheKey)
         : cacheKey;
     final canCache = method == 'GET' && cacheTtl != null && authStorage == null;
-    if (canCache && !forceRefresh) {
+    if (canCache) {
       final cached = _publicCache[cacheKey];
-      if (cached != null && cached.expiresAt.isAfter(DateTime.now())) return cached.value;
-      if (cached != null) _publicCache.remove(cacheKey);
-    }
-
-    // Stale-while-revalidate: if we already have a persistent, non-secret
-    // response, return it immediately and refresh in the background once it
-    // becomes older than the short freshness window. Network failures do not
-    // replace the usable cached value.
-    if (method == 'GET' && _offlineCacheAllowed(path) && !forceRefresh) {
-      final cachedEntry = await OfflineCache.instance.readEntry(
-        persistentCacheKey,
-        maxStale: _offlineCacheMaxStale,
-      );
-      if (cachedEntry != null) {
-        if (cachedEntry.age < _offlineCacheRefreshAfter) return cachedEntry.value;
-        unawaited(_refreshStaleCache(
-          method, path, query: query, cacheTtl: cacheTtl, cacheKey: persistentCacheKey,
-        ));
-        return cachedEntry.value;
+      if (cached != null && cached.expiresAt.isBefore(DateTime.now())) {
+        _publicCache.remove(cacheKey);
       }
     }
+
+    // Network-first:
+    // - If Wi-Fi/mobile data is unavailable, do not waste time attempting HTTP.
+    //   Fall back to the persisted cache immediately.
+    // - If a network interface exists, always try the server first so fresh
+    //   content wins. Persistent/in-memory cache is only a fallback after a
+    //   failed request.
+    if (!await OfflineState.instance.hasNetworkInterface()) {
+      OfflineState.instance.markOffline();
+      return _offlineFallbackOrThrow(
+        persistentCacheKey,
+        path,
+        const ApiException(
+          'لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.',
+          kind: ApiErrorKind.offline,
+          retryable: true,
+        ),
+      );
+    }
+
     try {
       final headers = <String, String>{'Accept': 'application/json'};
       final token = await authStorage?.accessToken;
@@ -159,38 +173,61 @@ class ApiClient {
         await OfflineCache.instance.write(persistentCacheKey, decoded);
       }
       return decoded;
-    } on ApiException { rethrow; }
-      on TimeoutException catch (e) {
-        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('انتهت مهلة الاتصال بالخدمة. أعد المحاولة.', cause: e, kind: ApiErrorKind.timeout, retryable: true));
+    } on ApiException catch (e) {
+        // Server/application errors do not mean the device is offline, but a
+        // stale response is still preferable to a blank page for cacheable GETs.
+        if (method == 'GET' &&
+            _offlineCacheAllowed(path) &&
+            (e.kind == ApiErrorKind.server || e.kind == ApiErrorKind.timeout)) {
+          return _cacheFallbackOrThrow(
+            cacheKey: persistentCacheKey,
+            publicCacheKey: cacheKey,
+            path: path,
+            error: e,
+          );
+        }
+        rethrow;
+      } on TimeoutException catch (e) {
+        // A timeout does not prove that the device is offline. Keep the
+        // offline banner hidden when Wi-Fi/mobile data are still available.
+        return _cacheFallbackOrThrow(
+          cacheKey: persistentCacheKey,
+          publicCacheKey: cacheKey,
+          path: path,
+          error: ApiException(
+            'انتهت مهلة الاتصال بالخدمة. أعد المحاولة.',
+            cause: e,
+            kind: ApiErrorKind.timeout,
+            retryable: true,
+          ),
+        );
       }
       on SocketException catch (e) {
-        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true));
+        return _networkFailureFallback(
+          cacheKey: persistentCacheKey,
+          publicCacheKey: cacheKey,
+          path: path,
+          error: ApiException(
+            'لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.',
+            cause: e,
+            kind: ApiErrorKind.offline,
+            retryable: true,
+          ),
+        );
       }
       on http.ClientException catch (e) {
-        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true));
+        return _networkFailureFallback(
+          cacheKey: persistentCacheKey,
+          publicCacheKey: cacheKey,
+          path: path,
+          error: ApiException(
+            'لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.',
+            cause: e,
+            kind: ApiErrorKind.offline,
+            retryable: true,
+          ),
+        );
       }
-  }
-
-  Future<void> _refreshStaleCache(
-    String method,
-    String path, {
-    Map<String, String>? query,
-    Duration? cacheTtl,
-    required String cacheKey,
-  }) async {
-    try {
-      await _request(
-        method,
-        path,
-        query: query,
-        retry: false,
-        cacheTtl: cacheTtl,
-        forceRefresh: true,
-      );
-    } catch (_) {
-      // SWR deliberately keeps the stale value when the background refresh
-      // fails. The normal request path already records offline state.
-    }
   }
 
   Future<String> _persistentCacheKey(String uri) async {
@@ -199,10 +236,59 @@ class ApiClient {
     return 'student:${studentNumber.trim()}|$uri';
   }
 
-  Future<Map<String, dynamic>> _offlineFallbackOrThrow(String cacheKey, String path, ApiException error) async {
+  Future<Map<String, dynamic>> _offlineFallbackOrThrow(
+    String cacheKey,
+    String path,
+    ApiException error,
+  ) async {
     OfflineState.instance.markOffline();
+    return _cacheFallbackOrThrow(
+      cacheKey: cacheKey,
+      publicCacheKey: null,
+      path: path,
+      error: error,
+    );
+  }
+
+  Future<Map<String, dynamic>> _networkFailureFallback({
+    required String cacheKey,
+    required String publicCacheKey,
+    required String path,
+    required ApiException error,
+  }) async {
+    // A socket/client error may be caused by the server, DNS, or a temporary
+    // route failure. Only expose "offline" when the network interface is
+    // actually gone. Otherwise the user should not see a misleading banner.
+    final hasNetwork = await OfflineState.instance.hasNetworkInterface();
+    if (hasNetwork) {
+      OfflineState.instance.markOnline();
+    } else {
+      OfflineState.instance.markOffline();
+    }
+
+    return _cacheFallbackOrThrow(
+      cacheKey: cacheKey,
+      publicCacheKey: publicCacheKey,
+      path: path,
+      error: error,
+    );
+  }
+
+  Future<Map<String, dynamic>> _cacheFallbackOrThrow({
+    required String cacheKey,
+    required String? publicCacheKey,
+    required String path,
+    required ApiException error,
+  }) async {
     if (_offlineCacheAllowed(path)) {
-      final cached = await OfflineCache.instance.read(cacheKey, maxStale: _offlineCacheMaxStale);
+      if (publicCacheKey != null) {
+        final memory = _publicCache[publicCacheKey];
+        if (memory != null) return memory.value;
+      }
+      final cached = await OfflineCache.instance.read(
+        cacheKey,
+        maxStale: _offlineCacheMaxStale,
+      );
       if (cached != null) return cached;
     }
     throw error;
