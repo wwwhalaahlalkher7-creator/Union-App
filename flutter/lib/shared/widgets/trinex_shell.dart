@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/app_version.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../features/eino/eino_face.dart';
@@ -148,74 +147,69 @@ class _TopHeader extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, box) {
           final compact = box.maxWidth < 600;
-          final button = compact ? 44.0 : 48.0;
-          final avatar = compact ? 36.0 : 40.0;
-          final logo = compact ? 40.0 : 44.0;
+          final button = compact ? 48.0 : 52.0;
+          final avatar = compact ? 46.0 : 50.0;
+          final logo = compact ? 52.0 : 56.0;
           final primary = context.colors.primary;
 
-          return Row(
-            children: [
-              _HeaderIcon(
-                icon: Icons.storefront_outlined,
-                size: button,
-                tooltip: l10n.t('market'),
-                onTap: () => context.push('/market'),
-              ),
-              const SizedBox(width: 4),
-              _Avatar(
-                size: avatar,
-                onTap: () => context.go('/student'),
-              ),
-              const Spacer(),
-              if (!compact)
-                Container(
-                  height: 34,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: context.colors.surfaceContainerHigh,
-                    border: Border.all(color: context.colors.outlineVariant),
-                    borderRadius:
-                        BorderRadius.circular(DesignTokens.radius12),
+          // The header is intentionally LTR so its physical layout stays
+          // consistent in the Arabic UI:
+          // left  -> TRINEX + app icon (app icon opens Settings)
+          // right -> profile + System
+          return Directionality(
+            textDirection: TextDirection.ltr,
+            child: Row(
+              children: [
+                // Left side: brand name + tappable application icon.
+                Text(
+                  'TRINEX',
+                  style: TextStyle(
+                    fontSize: compact ? 18 : 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .3,
                   ),
-                  child: Text(
-                    'V${AppVersion.name}',
-                    style: TextStyle(
-                      color: context.colors.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 11,
+                ),
+                const SizedBox(width: 10),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(DesignTokens.radius14),
+                    onTap: () => context.push('/settings'),
+                    child: Tooltip(
+                      message: l10n.t('settings'),
+                      child: Container(
+                        width: logo,
+                        height: logo,
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: primary,
+                          borderRadius:
+                              BorderRadius.circular(DesignTokens.radius14),
+                        ),
+                        child: Image.asset(
+                          'assets/icons/trinex_icon.png',
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              if (!compact) const SizedBox(width: 8),
-              Text(
-                'TRINEX',
-                style: TextStyle(
-                  fontSize: compact ? 17 : 19,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: .3,
+                const Spacer(),
+                // Right side: profile + System page.
+                _Avatar(
+                  size: avatar,
+                  onTap: () => context.go('/student'),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: logo,
-                height: logo,
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: primary,
-                  borderRadius:
-                      BorderRadius.circular(DesignTokens.radius12),
+                const SizedBox(width: 6),
+                _HeaderIcon(
+                  icon: Icons.workspace_premium_outlined,
+                  size: button,
+                  tooltip: l10n.t('navSystem'),
+                  onTap: () => context.go('/system'),
                 ),
-                child: Image.asset('assets/icons/trinex_icon.png'),
-              ),
-              const SizedBox(width: 4),
-              _HeaderIcon(
-                icon: Icons.settings_outlined,
-                size: button,
-                tooltip: l10n.t('settings'),
-                onTap: () => context.push('/settings'),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -350,17 +344,17 @@ class EinoFloatingButton extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               onTap: () => context.push('/eino?from=shell'),
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(40),
               child: Container(
-                width: 58,
-                height: 58,
-                padding: const EdgeInsets.all(3),
+                width: 78,
+                height: 78,
+                padding: const EdgeInsets.all(3.5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: context.colors.surface,
                   border: Border.all(
                     color: context.colors.primary,
-                    width: 2.5,
+                    width: 2.8,
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -370,7 +364,7 @@ class EinoFloatingButton extends StatelessWidget {
                   ],
                 ),
                 child: const EinoFace(
-                  size: 52,
+                  size: 72,
                   mood: EinoMood.happy,
                 ),
               ),
