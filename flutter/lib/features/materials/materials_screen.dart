@@ -10,6 +10,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/storage/auth_storage.dart';
 import '../../data/models/material_item.dart';
+import '../../data/models/student_profile.dart';
 import '../../data/repositories/materials_repository.dart';
 import '../../data/repositories/student_repository.dart';
 import '../../data/repositories/progress_repository.dart';
@@ -47,7 +48,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
       studentRepo.profile(),
     ]);
     final semesters = results[0] as List<Map<String, dynamic>>;
-    final profile = results[1];
+    final profile = results[1] as StudentProfile;
     final registeredSemesterId = profile.semesterId?.trim();
     final registeredExists = registeredSemesterId != null &&
         semesters.any((semester) => semester['id']?.toString() == registeredSemesterId);
