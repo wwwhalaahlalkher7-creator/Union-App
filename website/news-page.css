@@ -1,24 +1,101 @@
+:root {
+            --bg-main: #0a0f14;         
+            --bg-surface: #121b24;      
+            --bg-surface-glow: #1a2734; 
+            --primary: #ff9100;         
+            --primary-glow: #ffb45c;
+        --primary-rgb: 255, 145, 0;    
+            --accent: #005f73;          
+            --text-main: #f4f6f8;       
+            --text-muted: #94a3b8;      
+            --transition-smooth: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Cairo', sans-serif;
+            scroll-behavior: smooth;
+        }
 
-        
-
-        
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
 
         /* الخلفية المضيئة الموزعة */
-        
+        body::before {
+            content: '';
+            position: fixed;
+            top: -10%;
+            left: -10%;
+            width: 120%;
+            height: 120%;
+            background: radial-gradient(circle at 15% 15%, rgba(255, 145, 0, 0.05) 0%, transparent 45%),
+                        radial-gradient(circle at 85% 85%, rgba(0, 95, 115, 0.07) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
 
         /* الهيدر المطور الموحد */
-        
+        header {
+            background-color: rgba(18, 27, 36, 0.75);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 100%;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 145, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 8%;
+            transition: var(--transition-smooth);
+        }
 
-        
+        header.scrolled {
+            padding: 12px 8%;
+            background-color: rgba(10, 15, 20, 0.92);
+            border-bottom: 1px solid rgba(255, 145, 0, 0.25);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
 
-        
+        .logo h2 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #fff;
+            background: linear-gradient(45deg, #fff, var(--primary-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
 
-        
+        .logo p {
+            font-size: 0.8rem;
+            color: var(--primary);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-top: -2px;
+        }
 
-        
+        .menu-toggle {
+            display: none;
+            color: var(--text-main);
+            font-size: 1.4rem;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
 
-        
+        .menu-toggle:hover {
+            color: var(--primary-glow);
+        }
 
         nav ul {
             display: flex;
@@ -42,7 +119,7 @@
         }
 
         nav ul li a::after {
-            content: "";
+            content: '';
             position: absolute;
             bottom: 0;
             right: 0;
@@ -325,7 +402,7 @@
             border: 1px solid rgba(255, 145, 0, 0.12);
             border-radius: 12px;
             color: var(--text-main);
-            font-family: "Cairo", sans-serif;
+            font-family: 'Cairo', sans-serif;
             font-size: 0.95rem;
             padding: 13px 46px 13px 16px;
             transition: var(--transition-smooth);
@@ -449,7 +526,7 @@
             border: none;
             color: var(--text-muted);
             text-align: right;
-            font-family: "Cairo", sans-serif;
+            font-family: 'Cairo', sans-serif;
             font-size: 0.9rem;
             font-weight: 600;
             padding: 11px 14px;
@@ -570,7 +647,7 @@
             background: var(--bg-surface-glow);
             border: 1px solid rgba(255, 145, 0, 0.15);
             color: var(--text-main);
-            font-family: "Cairo", sans-serif;
+            font-family: 'Cairo', sans-serif;
             font-weight: 700;
             font-size: 0.85rem;
             padding: 9px 16px;
@@ -590,7 +667,15 @@
         }
 
         /* الفوتر المتناسق الموحد */
-        
+        footer {
+            background-color: #05080b;
+            padding: 35px 8%;
+            text-align: center;
+            border-top: 1px solid rgba(255, 145, 0, 0.08);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: auto;
+        }
 
         .developer-credit {
             margin-top: 10px;
@@ -602,13 +687,13 @@
 
         /* التجاوب مع مختلف الشاشات والأجهزة */
         @media (max-width: 992px) {
-            
-            
+            header { padding: 15px 5%; }
+            header.scrolled { padding: 10px 5%; }
             .news-container { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
         }
 
         @media (max-width: 768px) {
-            
+            .menu-toggle { display: block; }
             
             nav {
                 position: absolute; 
