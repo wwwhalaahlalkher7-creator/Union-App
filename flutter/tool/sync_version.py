@@ -1,14 +1,32 @@
 #!/usr/bin/env python3
-"""Synchronize the single Flutter release version into generated project files."""
+"""Synchronize the canonical Flutter release version into generated project files."""
 from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-lines = (ROOT / "VERSION").read_text(encoding="utf-8").splitlines()
-version = next((line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")), "")
+VERSION_FILE = ROOT / "VERSION"
+VERSION_RE = re.compile(r"^\s*(\d+\.\d+\.\d+\+\d+)(?:\s+#.*)?\s*$")
+
+
+def read_version() -> str:
+    values = []
+    for line in VERSION_FILE.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = VERSION_RE.fullmatch(line)
+        if not match:
+            raise SystemExit(f"Invalid VERSION value: {stripped!r}")
+        values.append(match.group(1))
+    if len(values) != 1:
+        raise SystemExit("flutter/VERSION must contain exactly one version value")
+    return values[0]
+
+
+version = read_version()
 match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)\+(\d+)", version)
-if not match:
-    raise SystemExit("VERSION must use MAJOR.MINOR.PATCH+BUILD")
+# read_version already validates the complete value; this keeps the generated fields explicit.
+assert match is not None
 
 name = ".".join(match.group(i) for i in range(1, 4))
 build_number = match.group(4)
@@ -16,7 +34,7 @@ build_number = match.group(4)
 pubspec = ROOT / "pubspec.yaml"
 text = pubspec.read_text(encoding="utf-8")
 text, count = re.subn(
-    r"^version: .*?$",
+    r"^version:\s*.*?$",
     f"version: {version}",
     text,
     count=1,

@@ -54,7 +54,12 @@ jobs:
           }
 
           read_version() {
-            sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p; q' "$1"
+            local values count
+            values="$(sed -E '/^[[:space:]]*#/d; /^[[:space:]]*$/d; s/[[:space:]]+#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$1")"
+            [[ -n "$values" ]] || { echo "flutter/VERSION contains no version value"; exit 1; }
+            count="$(printf '%s\n' "$values" | wc -l | tr -d ' ')"
+            [[ "$count" == "1" ]] || { echo "flutter/VERSION must contain exactly one version value"; exit 1; }
+            printf '%s\n' "$values"
           }
 
           parse_version() {
@@ -234,9 +239,8 @@ jobs:
         run: |
           set -euo pipefail
           sed -n 's/^[[:space:]]*#[[:space:]]*//p' flutter/VERSION | sed '/^[[:space:]]*$/d' > RELEASE_NOTES.md
-          if [ ! -s RELEASE_NOTES.md ]; then
-            printf 'Union App %s\n' "$RELEASE_VERSION" > RELEASE_NOTES.md
-          fi
+          # Release notes come only from comments in flutter/VERSION.
+          # An empty notes file is valid; no default text is injected.
 
       - name: Configure Git identity
         run: |

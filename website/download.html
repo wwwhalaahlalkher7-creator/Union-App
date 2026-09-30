@@ -42,7 +42,7 @@
 
     <div class="app-identity">
       <span class="app-name" id="appName">TRINEX</span>
-      <span class="app-version" id="appVersion">الإصدار 2.0.0</span>
+      <span class="app-version" id="appVersion"></span>
     </div>
 
     <div class="download-actions">
@@ -71,7 +71,7 @@
         <i class="fas fa-list-check" aria-hidden="true"></i>
         <span>ملاحظات الإصدار</span>
       </div>
-      <p class="release-notes" id="releaseNotes">الإصدار الأولي لتطبيق رابطة كلية الهندسة و العمارة.</p>
+      <p class="release-notes" id="releaseNotes"></p>
     </div>
 
     <p class="download-error" id="releaseError" aria-live="polite"></p>
@@ -86,15 +86,14 @@
 
 <script>
   const RELEASE_API = 'https://api.github.com/repos/wwwhalaahlalkher7-creator/Union-App/releases/latest';
-  // Verified against the current production GitHub Release (v2.0.0).
-  const FALLBACK_VERSION = '2.0.0';
-  const FALLBACK_RELEASE_DATE = '2026-09-27T00:05:36Z';
-  const FALLBACK_APK_SIZE = 86119776;
-  const FALLBACK_NOTES = 'الإصدار الأولي لتطبيق رابطة كلية الهندسة و العمارة.';
   const versionEl = document.getElementById('appVersion');
   const notesEl = document.getElementById('releaseNotes');
   const dateEl = document.getElementById('releaseDate');
   const sizeEl = document.getElementById('releaseSize');
+  const errorEl = document.getElementById('releaseError');
+  const downloadButton = document.getElementById('downloadButton');
+  const downloadZipButton = document.getElementById('downloadZipButton');
+  const releaseCard = document.querySelector('.release-card');
 
   function formatBytes(bytes) {
     if (!Number.isFinite(bytes) || bytes <= 0) return '';
@@ -113,12 +112,24 @@
   function formatReleaseDate(iso) {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return '';
-    return `آخر تحديث: ${date.toLocaleDateString('ar-SD', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+    return `آخر تحديث: ${date.toLocaleDateString('ar-SD', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })}`;
   }
 
-  versionEl.textContent = `الإصدار ${FALLBACK_VERSION}`;
-  setMeta(dateEl, formatReleaseDate(FALLBACK_RELEASE_DATE));
-  setMeta(sizeEl, `حجم التطبيق: ${formatBytes(FALLBACK_APK_SIZE)}`);
+  function setDownloadButton(button, url) {
+    if (url) {
+      button.href = url;
+      button.removeAttribute('aria-disabled');
+      button.removeAttribute('tabindex');
+    } else {
+      button.removeAttribute('href');
+      button.setAttribute('aria-disabled', 'true');
+      button.setAttribute('tabindex', '-1');
+    }
+  }
 
   async function loadLatestRelease() {
     try {
@@ -127,20 +138,52 @@
         cache: 'no-store'
       });
       if (!response.ok) throw new Error(`GitHub Releases: ${response.status}`);
+
       const release = await response.json();
-      const version = String(release.tag_name || '').replace(/^v/i, '') || FALLBACK_VERSION;
-      const notes = String(release.body || '').trim() || FALLBACK_NOTES;
-      const apk = Array.isArray(release.assets) ? release.assets.find(asset => asset.name === 'TRINEX.apk') : null;
+      const version = String(release.tag_name || '').replace(/^v/i, '').trim();
+      if (!version) throw new Error('The latest release has no version tag.');
 
       versionEl.textContent = `الإصدار ${version}`;
+
+      const notes = String(release.body || '').trim();
       notesEl.textContent = notes;
-      if (release.published_at) setMeta(dateEl, formatReleaseDate(release.published_at));
-      if (apk) setMeta(sizeEl, `حجم التطبيق: ${formatBytes(apk.size)}`);
-    } catch (_) {
-      // Keep verified production values if GitHub is temporarily unavailable.
+      releaseCard.hidden = !notes;
+
+      const releaseDate = formatReleaseDate(release.published_at);
+      if (releaseDate) setMeta(dateEl, releaseDate);
+
+      const assets = Array.isArray(release.assets) ? release.assets : [];
+      const apk = assets.find(asset => asset.name === 'TRINEX.apk');
+      const zip = assets.find(asset => asset.name === 'TRINEX.zip');
+
+      if (apk) {
+        setMeta(sizeEl, `حجم التطبيق: ${formatBytes(apk.size)}`);
+        setDownloadButton(
+          downloadButton,
+          'https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.apk'
+        );
+      } else {
+        setDownloadButton(downloadButton, '');
+      }
+
+      setDownloadButton(
+        downloadZipButton,
+        zip
+          ? 'https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.zip'
+          : ''
+      );
+    } catch (error) {
+      versionEl.textContent = '';
+      notesEl.textContent = '';
+      releaseCard.hidden = true;
+      errorEl.textContent = 'تعذر تحميل معلومات الإصدار الرسمية حالياً. يرجى المحاولة لاحقاً.';
+      setDownloadButton(downloadButton, '');
+      setDownloadButton(downloadZipButton, '');
     }
   }
 
+  setDownloadButton(downloadButton, '');
+  setDownloadButton(downloadZipButton, '');
   loadLatestRelease();
 </script>
 <script src="site-settings.js"></script>

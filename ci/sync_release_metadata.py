@@ -6,6 +6,7 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 VERSION_FILE = ROOT / "flutter" / "VERSION"
 WRANGLER = ROOT / "backend" / "wrangler.toml"
+VERSION_RE = re.compile(r"^\s*(\d+\.\d+\.\d+\+\d+)(?:\s+#.*)?\s*$")
 
 raw_lines = VERSION_FILE.read_text(encoding="utf-8").splitlines()
 value = ""
@@ -19,15 +20,18 @@ for line in raw_lines:
         if note:
             notes.append(note)
         continue
-    if not value:
-        value = stripped
-    else:
+    match = VERSION_RE.fullmatch(line)
+    if not match:
+        raise SystemExit(f"Invalid flutter/VERSION value: {stripped!r}")
+    if value:
         raise SystemExit("flutter/VERSION must contain exactly one version value")
+    value = match.group(1)
+
+if not value:
+    raise SystemExit("flutter/VERSION must contain exactly one version value")
 
 match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)\+(\d+)", value)
-if not match:
-    raise SystemExit("flutter/VERSION must use MAJOR.MINOR.PATCH+BUILD")
-
+assert match is not None
 version = ".".join(match.group(i) for i in range(1, 4))
 release_notes = "\\n".join(notes)
 
@@ -41,7 +45,6 @@ text, count = re.subn(r'^APP_RELEASE_NOTES\s*=\s*".*?"$', f'APP_RELEASE_NOTES = 
 if count != 1:
     raise SystemExit("APP_RELEASE_NOTES entry not found in backend/wrangler.toml")
 
-# The public update URL is intentionally stable; individual releases never change it.
 UPDATE_URL = "https://ush-eng.great-site.net/download.html"
 text, count = re.subn(r'^APP_UPDATE_URL\s*=\s*".*?"$', f'APP_UPDATE_URL = "{UPDATE_URL}"', text, count=1, flags=re.M)
 if count != 1:

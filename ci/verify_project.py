@@ -8,7 +8,19 @@ version_file = flutter / 'VERSION'
 pubspec = flutter / 'pubspec.yaml'
 app_version = flutter / 'lib/core/app_version.dart'
 
-version = next((line.strip() for line in version_file.read_text(encoding='utf-8').splitlines() if line.strip() and not line.lstrip().startswith('#')), '')
+version_values = []
+for line in version_file.read_text(encoding='utf-8').splitlines():
+    stripped = line.strip()
+    if not stripped or stripped.startswith('#'):
+        continue
+    value = re.sub(r'\s+#.*$', '', stripped).strip()
+    if re.fullmatch(r'\d+\.\d+\.\d+\+\d+', value):
+        version_values.append(value)
+    else:
+        raise SystemExit(f'Invalid VERSION: {stripped!r}')
+if len(version_values) != 1:
+    raise SystemExit('VERSION must contain exactly one version value')
+version = version_values[0]
 m = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)\+(\d+)', version)
 if not m:
     raise SystemExit(f'Invalid VERSION: {version!r}')

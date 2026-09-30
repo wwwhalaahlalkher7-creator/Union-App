@@ -9,7 +9,15 @@ DASHBOARD = ROOT / 'website/admin'
 errors=[]
 
 # Version source of truth
-version=next((line.strip() for line in (FLUTTER/'VERSION').read_text(encoding='utf-8').splitlines() if line.strip() and not line.lstrip().startswith('#')), '')
+version_values=[]
+for line in (FLUTTER/'VERSION').read_text(encoding='utf-8').splitlines():
+    stripped=line.strip()
+    if not stripped or stripped.startswith('#'): continue
+    value=re.sub(r'\s+#.*$', '', stripped).strip()
+    if not re.fullmatch(r'\d+\.\d+\.\d+\+\d+', value): errors.append(f'Invalid VERSION: {stripped}')
+    else: version_values.append(value)
+version=version_values[0] if len(version_values)==1 else ''
+if len(version_values)!=1: errors.append('VERSION must contain exactly one version value')
 m=re.fullmatch(r'(\d+)\.(\d+)\.(\d+)\+(\d+)', version)
 if not m: errors.append(f'Invalid VERSION: {version}')
 else:

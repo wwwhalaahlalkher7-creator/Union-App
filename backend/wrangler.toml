@@ -3,14 +3,14 @@ main = "src/index.js"
 compatibility_date = "2026-09-10"
 
 [vars]
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.0.1"
 MINIMUM_APP_VERSION = "2.0.0"
 # Eino governance defaults. Override per environment without changing code.
 EINO_STUDENT_DAILY_LIMIT = "100"
 EINO_GUEST_DAILY_LIMIT = "20"
 EINO_GLOBAL_DAILY_LIMIT = "2000"
 APP_UPDATE_URL = "https://ush-eng.great-site.net/download.html"
-APP_RELEASE_NOTES = "الإصدار الأساسي بعد توحيد نظام الإصدار والتحديثات التلقائية."
+APP_RELEASE_NOTES = "الإصدار الجديد للتطبيق مع تحسين واجهة التطبيق و دمج نظام مساعد ذكاء صناعي و بناء نظام تسجيل دخول و ملف شخصي و بناء صفحة مخصصة للمواد الدراسية منظمة حسب التخصص"
 API_VERSION = "v1"
 # Optional self-hosted Chroma. Keep empty until a Chroma server is provisioned.
 CHROMA_BASE_URL = ""
