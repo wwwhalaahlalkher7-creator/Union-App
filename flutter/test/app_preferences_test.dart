@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:leo_association/core/storage/app_preferences.dart';
+import 'package:leo_association/core/theme/design_tokens.dart';
 
 void main() {
   test('uses Amber as the default accent', () async {
