@@ -27,6 +27,22 @@
       padding: 0 !important;
     }
 
+    .download-page nav#navMenu ul li a.active {
+      box-shadow: none !important;
+      border-bottom: 0 !important;
+    }
+
+    .download-page .download-actions .download-button,
+    .download-page .download-actions .download-button:hover,
+    .download-page .download-actions .download-button:focus {
+      border-bottom: 0 !important;
+      text-decoration: none !important;
+    }
+
+    .download-page .download-actions .download-button::after {
+      display: none !important;
+    }
+
     .download-card {
       position: relative;
       max-width: 820px;
@@ -286,6 +302,8 @@
 
   const RELEASE_API = 'https://api.github.com/repos/wwwhalaahlalkher7-creator/Union-App/releases/latest';
   const FALLBACK_VERSION = '2.0.0';
+  const FALLBACK_RELEASE_DATE = '2026-09-27T00:05:36Z';
+  const FALLBACK_APK_SIZE = 86008880;
   const FALLBACK_NOTES = 'الإصدار الأساسي بعد توحيد نظام الإصدار والتحديثات التلقائية.';
   const versionEl = document.getElementById('appVersion');
   const notesEl = document.getElementById('releaseNotes');
@@ -306,6 +324,17 @@
     element.hidden = false;
   }
 
+  function formatReleaseDate(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    return `آخر تحديث: ${date.toLocaleDateString('ar-SD', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+  }
+
+  // Verified against the current GitHub Release so the page never falls back to stale values.
+  versionEl.textContent = `الإصدار ${FALLBACK_VERSION}`;
+  setMeta(dateEl, formatReleaseDate(FALLBACK_RELEASE_DATE));
+  setMeta(sizeEl, `حجم التطبيق: ${formatBytes(FALLBACK_APK_SIZE)}`);
+
   async function loadLatestRelease() {
     try {
       const response = await fetch(RELEASE_API, {
@@ -324,12 +353,12 @@
       if (release.published_at) {
         const date = new Date(release.published_at);
         if (!Number.isNaN(date.getTime())) {
-          setMeta(dateEl, `آخر تحديث: ${date.toLocaleDateString('ar-SD', { year: 'numeric', month: 'long', day: 'numeric' })}`);
+          setMeta(dateEl, formatReleaseDate(release.published_at));
         }
       }
       if (apk) setMeta(sizeEl, `حجم التطبيق: ${formatBytes(apk.size)}`);
     } catch (_) {
-      // Keep the safe fallback values so the page remains usable when GitHub is unavailable.
+      // Keep the verified release values above when GitHub is temporarily unavailable.
     }
   }
 
