@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="favicon.png">
   <title>تحميل التطبيق | رابطة كلية الهندسة والعمارة</title>
-  <meta name="description" content="صفحة التحميل الرسمية لتطبيق رابطة كلية الهندسة والعمارة.">
+  <meta name="description" content="تحميل تطبيق TRINEX الرسمي لرابطة كلية الهندسة والعمارة.">
   <link rel="canonical" href="https://ush-eng.great-site.net/download.html">
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
@@ -14,35 +14,148 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="ui-pro.css?v=3">
   <style>
-    .download-page { max-width: 900px; margin: 0 auto; padding: 150px 20px 80px; }
-    .download-hero { text-align:center; padding: 42px 24px; border:1px solid var(--line); border-radius:var(--radius-xl); background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018)); box-shadow:var(--shadow-soft); }
-    .download-icon { width:82px;height:82px;margin:0 auto 18px;border-radius:24px;display:grid;place-items:center;font-size:2rem;color:var(--primary-glow);background:rgba(var(--primary-rgb),.12);border:1px solid rgba(var(--primary-rgb),.24); }
-    .download-hero h1 { font-size:clamp(1.7rem,5vw,2.7rem); margin-bottom:10px; }
-    .download-hero .lead { color:var(--text-muted); max-width:650px; margin:0 auto 26px; }
-    .download-button { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-width:230px; min-height:54px; padding:0 24px; border-radius:16px; background:var(--primary); color:#101010; font-weight:800; text-decoration:none; box-shadow:var(--shadow-glow); transition:transform .25s var(--ease), filter .25s; }
-    .download-button:hover { transform:translateY(-2px); filter:brightness(1.08); }
-    .download-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:14px; }
-    .download-button.secondary { background:transparent; color:var(--text); border:1px solid var(--line); box-shadow:none; }
-    .download-button.secondary:hover { background:rgba(255,255,255,.05); }
-    .download-subnote { max-width:650px; margin:12px auto 0; color:var(--text-soft); font-size:.82rem; }
-    .download-meta { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; max-width:650px; margin:28px auto 0; }
-    .meta-card { padding:18px; border:1px solid var(--line); border-radius:18px; background:rgba(255,255,255,.025); text-align:right; }
-    .meta-label { display:block; color:var(--text-soft); font-size:.82rem; margin-bottom:5px; }
-    .meta-value { font-weight:700; font-size:1.05rem; }
-    .release-notes { max-width:650px; margin:18px auto 0; padding:20px; border:1px solid var(--line); border-radius:18px; background:rgba(255,255,255,.025); text-align:right; }
-    .release-notes h2 { font-size:1.05rem; margin-bottom:10px; }
-    .release-notes p { color:var(--text-muted); white-space:pre-line; }
-    .download-note { color:var(--text-soft); font-size:.82rem; margin-top:18px; }
-    @media (max-width:600px) { .download-meta { grid-template-columns:1fr; } .download-page { padding-top:130px; } }
+    .download-content {
+      width: min(var(--content-w), calc(100% - 32px));
+      margin: 0 auto;
+      padding: 10px 0 82px;
+    }
+
+    .download-card {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: clamp(24px, 5vw, 42px);
+      text-align: center;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018));
+      box-shadow: var(--shadow-soft), inset 0 1px rgba(255,255,255,.035);
+    }
+
+    .app-icon {
+      width: 112px;
+      height: 112px;
+      display: block;
+      margin: 0 auto 22px;
+      border-radius: 26px;
+      object-fit: cover;
+      box-shadow: 0 18px 45px rgba(0,0,0,.28), 0 0 0 1px rgba(255,255,255,.08);
+    }
+
+    .app-identity {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .app-name {
+      color: #fff;
+      font-size: clamp(1.45rem, 5vw, 2rem);
+      font-weight: 800;
+      letter-spacing: .01em;
+    }
+
+    .app-version {
+      color: var(--primary-glow);
+      font-size: .98rem;
+      font-weight: 700;
+      direction: ltr;
+    }
+
+    .download-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 30px;
+    }
+
+    .download-button {
+      min-width: 220px;
+      min-height: 52px;
+      border-radius: 16px !important;
+    }
+
+    .release-card {
+      text-align: right;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,.025);
+    }
+
+    .release-heading {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 10px;
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .release-heading i { color: var(--primary); }
+
+    .release-notes {
+      margin: 0;
+      color: var(--text-muted);
+      white-space: pre-line;
+      line-height: 1.9;
+    }
+
+    .release-meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .release-meta-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 38px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--text-soft);
+      background: rgba(255,255,255,.018);
+      font-size: .84rem;
+    }
+
+    .release-meta-item i { color: var(--primary); }
+
+    .download-error {
+      margin-top: 12px;
+      color: #ffb4b4;
+      font-size: .84rem;
+      min-height: 1.4em;
+    }
+
+    @media (max-width: 600px) {
+      .download-content { padding-bottom: 62px; }
+      .download-card { padding: 24px 16px; }
+      .app-icon { width: 96px; height: 96px; border-radius: 22px; }
+      .download-button { width: 100%; min-width: 0; }
+      .release-card { padding: 18px; }
+    }
   </style>
 </head>
+
 <body>
 <header id="header">
   <div class="logo">
     <h2 id="siteLogoName">رابطة كلية الهندسة والعمارة</h2>
     <p>جامعة شندي</p>
   </div>
-  <div class="menu-toggle" id="menuToggle" aria-label="قائمة التنقل" aria-expanded="false"><i class="fas fa-bars"></i></div>
+
+  <div class="menu-toggle" id="menuToggle" aria-label="قائمة التنقل" aria-expanded="false">
+    <i class="fas fa-bars"></i>
+  </div>
+
   <nav id="navMenu">
     <ul>
       <li><a href="index.html">الرئيسية</a></li>
@@ -56,33 +169,50 @@
   </nav>
 </header>
 
-<main class="download-page">
-  <section class="download-hero">
-    <div class="download-icon"><i class="fas fa-mobile-screen-button" aria-hidden="true"></i></div>
-    <h1>تحميل تطبيق الرابطة</h1>
-    <p class="lead">النسخة الرسمية من تطبيق رابطة كلية الهندسة والعمارة، المبنية والمنشورة ضمن آخر إصدار للمشروع.</p>
+<div class="page-header">
+  <h1>تحميل التطبيق</h1>
+  <p>احصل على أحدث نسخة من تطبيق TRINEX لأجهزة Android.</p>
+</div>
+
+<main class="download-content">
+  <section class="download-card" aria-labelledby="appName">
+    <img class="app-icon" src="app-icon.png" alt="أيقونة تطبيق TRINEX" width="192" height="192">
+
+    <div class="app-identity">
+      <span class="app-name" id="appName">TRINEX</span>
+      <span class="app-version" id="appVersion">الإصدار 2.0.0</span>
+    </div>
+
     <div class="download-actions">
-      <a class="download-button" id="downloadButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.apk" rel="noopener">
+      <a class="btn" id="downloadButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.apk" rel="noopener">
         <i class="fas fa-download" aria-hidden="true"></i>
         تحميل التطبيق
       </a>
-      <a class="download-button secondary" id="downloadZipButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.zip" rel="noopener">
+      <a class="btn-secondary" id="downloadZipButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.zip" rel="noopener">
         <i class="fas fa-file-zipper" aria-hidden="true"></i>
-        تحميل النسخة المضغوطة
+        تحميل ZIP
       </a>
     </div>
-    <p class="download-subnote">النسخة المضغوطة مناسبة لمن يفضل تنزيل ملف ZIP أولًا، ثم استخراج التطبيق وتثبيته.</p>
 
-    <div class="download-meta">
-      <div class="meta-card"><span class="meta-label">مصدر النسخة الرسمية</span><span class="meta-value">GitHub Releases</span></div>
-      <div class="meta-card"><span class="meta-label">متطلبات Android</span><span class="meta-value">Android 8.0 (API 26) أو أحدث</span></div>
+    <div class="release-card">
+      <div class="release-heading">
+        <i class="fas fa-list-check" aria-hidden="true"></i>
+        <span>ملاحظات الإصدار</span>
+      </div>
+      <p class="release-notes" id="releaseNotes">الإصدار الأساسي بعد توحيد نظام الإصدار والتحديثات التلقائية.</p>
     </div>
 
-    <div class="release-notes">
-      <h2><i class="fas fa-list-check" aria-hidden="true"></i> النسخة الرسمية</h2>
-      <p>زر تنزيل التطبيق مرتبط دائمًا بأحدث إصدار إنتاجي معتمد من التطبيق، بينما يوفر الزر الثاني نفس الإصدار داخل ملف ZIP.</p>
+    <div class="release-meta" aria-label="معلومات الإصدار">
+      <span class="release-meta-item" id="releaseDate" hidden>
+        <i class="far fa-calendar" aria-hidden="true"></i>
+        <span></span>
+      </span>
+      <span class="release-meta-item" id="releaseSize" hidden>
+        <i class="fas fa-file-arrow-down" aria-hidden="true"></i>
+        <span></span>
+      </span>
     </div>
-    <p class="download-note">يتم نشر ملفي TRINEX.apk وTRINEX.zip عبر GitHub Releases، بينما تبقى روابط التنزيل في هذه الصفحة ثابتة.</p>
+    <p class="download-error" id="releaseError" aria-live="polite"></p>
   </section>
 </main>
 
@@ -94,19 +224,89 @@
 <script>
   window.addEventListener('scroll', () => {
     const header = document.getElementById('header');
-    if (window.scrollY > 40) header.classList.add('scrolled'); else header.classList.remove('scrolled');
+    if (window.scrollY > 40) header.classList.add('scrolled');
+    else header.classList.remove('scrolled');
   });
+
   const menuToggle = document.getElementById('menuToggle');
   const navMenu = document.getElementById('navMenu');
   menuToggle.addEventListener('click', () => {
     navMenu.classList.toggle('active');
     menuToggle.setAttribute('aria-expanded', navMenu.classList.contains('active'));
     const icon = menuToggle.querySelector('i');
-    icon.classList.toggle('fa-bars'); icon.classList.toggle('fa-times');
+    icon.classList.toggle('fa-bars');
+    icon.classList.toggle('fa-times');
   });
-  window.addEventListener('click', (e) => {
-    if (!navMenu.contains(e.target) && !menuToggle.contains(e.target) && navMenu.classList.contains('active')) menuToggle.click();
+
+  window.addEventListener('click', (event) => {
+    if (!navMenu.contains(event.target) && !menuToggle.contains(event.target) && navMenu.classList.contains('active')) {
+      menuToggle.click();
+    }
   });
+
+  // GitHub Releases هو المصدر الفعلي لملاحظات الإصدار وحجم الملف وتاريخ النشر.
+  // توجد قيم احتياطية حتى لا تصبح صفحة التحميل فارغة إذا تعذر الوصول إلى API.
+  const RELEASE_API = 'https://api.github.com/repos/wwwhalaahlalkher7-creator/Union-App/releases/latest';
+  const FALLBACK_VERSION = '2.0.0';
+  const FALLBACK_NOTES = 'الإصدار الأساسي بعد توحيد نظام الإصدار والتحديثات التلقائية.';
+
+  const versionEl = document.getElementById('appVersion');
+  const notesEl = document.getElementById('releaseNotes');
+  const dateEl = document.getElementById('releaseDate');
+  const sizeEl = document.getElementById('releaseSize');
+  const errorEl = document.getElementById('releaseError');
+
+  function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit++;
+    }
+    return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+  }
+
+  function setMeta(element, value) {
+    if (!value) return;
+    element.querySelector('span').textContent = value;
+    element.hidden = false;
+  }
+
+  async function loadLatestRelease() {
+    try {
+      const response = await fetch(RELEASE_API, {
+        headers: { Accept: 'application/vnd.github+json' },
+        cache: 'no-store'
+      });
+      if (!response.ok) throw new Error(`GitHub Releases: ${response.status}`);
+
+      const release = await response.json();
+      const version = String(release.tag_name || '').replace(/^v/i, '') || FALLBACK_VERSION;
+      const notes = String(release.body || '').trim() || FALLBACK_NOTES;
+      const apk = Array.isArray(release.assets)
+        ? release.assets.find(asset => asset.name === 'TRINEX.apk')
+        : null;
+
+      versionEl.textContent = `الإصدار ${version}`;
+      notesEl.textContent = notes;
+
+      if (release.published_at) {
+        const date = new Date(release.published_at);
+        if (!Number.isNaN(date.getTime())) {
+          setMeta(dateEl, `آخر تحديث: ${date.toLocaleDateString('ar-SD', { year: 'numeric', month: 'long', day: 'numeric' })}`);
+        }
+      }
+
+      if (apk) setMeta(sizeEl, `حجم التطبيق: ${formatBytes(apk.size)}`);
+    } catch (error) {
+      // القيم الاحتياطية أعلاه تضمن بقاء الصفحة صالحة للاستخدام.
+      errorEl.textContent = '';
+    }
+  }
+
+  loadLatestRelease();
 </script>
 <script src="site-settings.js"></script>
 <script src="ui-pro.js?v=5"></script>
