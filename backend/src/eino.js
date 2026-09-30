@@ -78,7 +78,7 @@ export async function eino(ctx) {
     const filtered = requestedModel ? routes.filter((r) => r.model === requestedModel) : routes;
     const providerResult = await routeText(ctx.env, { model: (filtered[0]?.model || requestedModel || routes[0]?.model), messages, temperature:0.4, maxTokens:900, signal:controller.signal });
     const latencyMs=Date.now()-startedAt; await recordEinoTelemetry(ctx,'success',actorType,latencyMs);
-    return ok(ctx,{message:providerResult.answer,provider:providerResult.provider,capability:'text',model:providerResult.model,routing:{capability:'text',candidates:routes.map(r=>`${r.provider}:${r.model}`),selected:`${providerResult.provider}:${providerResult.route.model}`,fallback:providerResult.route.priority!==routes[0]?.priority},usage:providerResult.usage||null});
+    return ok(ctx,{message:providerResult.answer,provider:providerResult.provider,capability:'text',model:providerResult.model,routing:{capability:'text',candidates:routes.map(r=>`${r.provider}:${r.model}`),selected:`${providerResult.provider}:${providerResult.route.model}`,fallback:providerResult.route.priority!==routes[0]?.priority},usage:providerResult.usage||null,reliability:providerResult.reliability||null});
   } catch(e) {
     await recordEinoTelemetry(ctx,e?.name==='AbortError'?'timeout':'provider_error',actorType,Date.now()-startedAt);
     if(e?.name==='AbortError') return error('EINO_TIMEOUT','استغرق Eino وقتًا أطول من المتوقع. أعد المحاولة.',504,ctx.requestId,ctx.cors);
@@ -358,7 +358,7 @@ export async function einoVision(ctx) {
   try {
     const result = await routeVision(ctx.env, { imageDataUrl: image, prompt: String(body?.mode || 'describe'), signal: controller.signal });
     await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
-    return ok(ctx, { text: String(result?.text || result?.description || result?.caption || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result });
+    return ok(ctx, { text: String(result?.text || result?.description || result?.caption || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null });
   } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
 }
 
@@ -369,7 +369,7 @@ export async function einoOcr(ctx) {
   if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق صورة أو مستند.', 400, ctx.requestId, ctx.cors);
   if (file.size > 10 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الملف يتجاوز 10MB.', 413, ctx.requestId, ctx.cors);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 60000); const started = Date.now();
-  try { const result = await routeOcr(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.content || result?.markdown || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  try { const result = await routeOcr(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.content || result?.markdown || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
 }
 
 export async function einoStt(ctx) {
@@ -379,7 +379,7 @@ export async function einoStt(ctx) {
   if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق ملف صوتي.', 400, ctx.requestId, ctx.cors);
   if (file.size > 25 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الصوت يتجاوز 25MB.', 413, ctx.requestId, ctx.cors);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 60000); const started = Date.now();
-  try { const result = await routeStt(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, language: String(form.get('language') || 'auto'), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.transcript || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  try { const result = await routeStt(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, language: String(form.get('language') || 'auto'), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.transcript || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
 }
 
 export async function einoTts(ctx) {
@@ -387,7 +387,7 @@ export async function einoTts(ctx) {
   const body = await parseJson(ctx.request); const text = String(body?.text || '').trim();
   if (!text || text.length > 6000) return error('EINO_INPUT_INVALID', 'النص غير صالح أو طويل جدًا.', 400, ctx.requestId, ctx.cors);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 30000); const started = Date.now();
-  try { const result = await routeTts(ctx.env, { text, voice: String(body?.voice || ''), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { audioUrl: result?.audio_url || result?.url || null, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  try { const result = await routeTts(ctx.env, { text, voice: String(body?.voice || ''), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { audioUrl: result?.audio_url || result?.url || null, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
 }
 
 export async function einoMediaError(ctx, actorType, e, started) {

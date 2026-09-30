@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import '../storage/auth_storage.dart';
 import 'offline_cache.dart';
@@ -27,6 +28,7 @@ class ApiClient {
   final String baseUrl; final http.Client _client; final AuthStorage? authStorage;
 
   static const _offlineCacheMaxStale = Duration(days: 7);
+  static const _offlineCacheRefreshAfter = Duration(minutes: 10);
 
   bool _offlineCacheAllowed(String path) {
     final p = path.toLowerCase();
@@ -113,6 +115,24 @@ class ApiClient {
       if (cached != null && cached.expiresAt.isAfter(DateTime.now())) return cached.value;
       if (cached != null) _publicCache.remove(cacheKey);
     }
+
+    // Stale-while-revalidate: if we already have a persistent, non-secret
+    // response, return it immediately and refresh in the background once it
+    // becomes older than the short freshness window. Network failures do not
+    // replace the usable cached value.
+    if (method == 'GET' && _offlineCacheAllowed(path) && !forceRefresh) {
+      final cachedEntry = await OfflineCache.instance.readEntry(
+        persistentCacheKey,
+        maxStale: _offlineCacheMaxStale,
+      );
+      if (cachedEntry != null) {
+        if (cachedEntry.age < _offlineCacheRefreshAfter) return cachedEntry.value;
+        unawaited(_refreshStaleCache(
+          method, path, query: query, cacheTtl: cacheTtl, cacheKey: persistentCacheKey,
+        ));
+        return cachedEntry.value;
+      }
+    }
     try {
       final headers = <String, String>{'Accept': 'application/json'};
       final token = await authStorage?.accessToken;
@@ -149,6 +169,28 @@ class ApiClient {
       on http.ClientException catch (e) {
         return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true));
       }
+  }
+
+  Future<void> _refreshStaleCache(
+    String method,
+    String path, {
+    Map<String, String>? query,
+    Duration? cacheTtl,
+    required String cacheKey,
+  }) async {
+    try {
+      await _request(
+        method,
+        path,
+        query: query,
+        retry: false,
+        cacheTtl: cacheTtl,
+        forceRefresh: true,
+      );
+    } catch (_) {
+      // SWR deliberately keeps the stale value when the background refresh
+      // fails. The normal request path already records offline state.
+    }
   }
 
   Future<String> _persistentCacheKey(String uri) async {

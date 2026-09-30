@@ -8,6 +8,30 @@ class OfflineCache {
   OfflineCache._();
   static final OfflineCache instance = OfflineCache._();
 
+  /// Metadata-aware cache read used by stale-while-revalidate.
+  /// It keeps the existing read() API for callers that only need the value.
+  Future<OfflineCacheEntry?> readEntry(String key, {Duration maxStale = const Duration(days: 7)}) async {
+    final prefs = await _prefs;
+    final raw = prefs.getString(_storageKey);
+    if (raw == null) return null;
+    final cache = _decodeMap(raw);
+    final entry = cache[key];
+    if (entry is! Map) return null;
+    final savedAt = int.tryParse('${entry['savedAt']}');
+    final value = entry['value'];
+    if (savedAt == null || value is! Map) return null;
+    final age = DateTime.now().toUtc().difference(DateTime.fromMillisecondsSinceEpoch(savedAt, isUtc: true));
+    if (age > maxStale) {
+      cache.remove(key);
+      await prefs.setString(_storageKey, jsonEncode(cache));
+      return null;
+    }
+    return OfflineCacheEntry(
+      value: Map<String, dynamic>.from(value),
+      savedAt: DateTime.fromMillisecondsSinceEpoch(savedAt, isUtc: true),
+    );
+  }
+
   static const _storageKey = 'trinex_offline_cache_v1';
   static const _maxEntries = 80;
 
@@ -26,22 +50,8 @@ class OfflineCache {
   }
 
   Future<Map<String, dynamic>?> read(String key, {Duration maxStale = const Duration(days: 7)}) async {
-    final prefs = await _prefs;
-    final raw = prefs.getString(_storageKey);
-    if (raw == null) return null;
-    final cache = _decodeMap(raw);
-    final entry = cache[key];
-    if (entry is! Map) return null;
-    final savedAt = int.tryParse('${entry['savedAt']}');
-    final value = entry['value'];
-    if (savedAt == null || value is! Map) return null;
-    final age = DateTime.now().toUtc().difference(DateTime.fromMillisecondsSinceEpoch(savedAt, isUtc: true));
-    if (age > maxStale) {
-      cache.remove(key);
-      await prefs.setString(_storageKey, jsonEncode(cache));
-      return null;
-    }
-    return Map<String, dynamic>.from(value);
+    final entry = await readEntry(key, maxStale: maxStale);
+    return entry?.value;
   }
 
   Future<void> clear() async {
@@ -68,4 +78,14 @@ class OfflineCache {
   }
 
   int _savedAt(dynamic value) => value is Map ? int.tryParse('${value['savedAt']}') ?? 0 : 0;
+}
+
+
+class OfflineCacheEntry {
+  const OfflineCacheEntry({required this.value, required this.savedAt});
+
+  final Map<String, dynamic> value;
+  final DateTime savedAt;
+
+  Duration get age => DateTime.now().toUtc().difference(savedAt);
 }

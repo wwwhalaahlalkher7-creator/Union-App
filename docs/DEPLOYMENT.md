@@ -9,7 +9,7 @@ push main / Pull Request
    └── Website-related changes → Website CI → build/security → deploy to InfinityFree on main
 
 manual Production App Release
-   └── Signed APK + AAB → GitHub Release → stable download asset `TRINEX.apk` plus compressed release backup `TRINEX.zip`
+   └── Signed APK → GitHub Release → stable download asset `TRINEX.apk` plus compressed release backup `TRINEX.zip`
 ```
 
 ## Backend

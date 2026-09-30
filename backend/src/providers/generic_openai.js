@@ -5,11 +5,17 @@ function endpoint(baseUrl, path) {
   return `${base}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
-function providerError(provider, status, body) {
+function providerError(provider, status, body, headers = null) {
   const error = new Error(`${provider} request failed with status ${status}`);
   error.provider = provider;
   error.status = status;
   error.body = body;
+  const retryAfter = headers?.get?.('retry-after');
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    const date = Number.isFinite(seconds) ? seconds * 1000 : Math.max(0, Date.parse(retryAfter) - Date.now());
+    if (Number.isFinite(date) && date > 0) error.retryAfterMs = date;
+  }
   return error;
 }
 
@@ -21,7 +27,7 @@ export async function openAiCompatibleChat({ provider, baseUrl, apiKey, model, m
     body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
     signal,
   });
-  if (!response.ok) throw providerError(provider, response.status, await response.text().catch(() => ''));
+  if (!response.ok) throw providerError(provider, response.status, await response.text().catch(() => ''), response.headers);
   const data = await response.json();
   const answer = data?.choices?.[0]?.message?.content;
   if (typeof answer !== 'string' || !answer.trim()) throw providerError(provider, response.status, 'empty answer');

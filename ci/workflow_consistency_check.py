@@ -37,6 +37,11 @@ if 'SamKirkland/FTP-Deploy-Action@v4.4.0' not in ci:
 if 'SamKirkland/FTP-Deploy-Action@v4.4.0' in release:
     raise SystemExit('Production app release must not deploy the website')
 
+if 'flutter build appbundle' in release or 'app-release.aab' in release:
+    raise SystemExit('Production app release must not build or publish an AAB')
+if 'Build Signed Production APK & AAB' in release:
+    raise SystemExit('Production release job must be APK-only')
+
 if 'npx wrangler deploy' not in ci:
     raise SystemExit('CI workflow must contain the backend deployment path')
 
@@ -51,5 +56,11 @@ if 'downloads/release.json' in (ROOT / 'website/download.html').read_text(encodi
 
 if 'dangerous-clean-slate: true' in ci + release:
     raise SystemExit('Production website deployment must not use dangerous-clean-slate: true')
+
+core = (ROOT / 'backend/src/core.js').read_text(encoding='utf-8')
+media = (ROOT / 'backend/src/media.js').read_text(encoding='utf-8')
+m = re.search(r'R2_MAX_UPLOAD_FILES_PER_REQUEST\s*=\s*(\d+)', core)
+if not m or 'R2_MAX_UPLOAD_FILES_PER_REQUEST' not in media:
+    raise SystemExit('R2 upload file-count guard must be centralized in core.js and consumed by media.js')
 
 print('Workflow consistency check passed')

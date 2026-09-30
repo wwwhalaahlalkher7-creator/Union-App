@@ -31,7 +31,7 @@ export const EINO_GLOBAL_DAILY_LIMIT_DEFAULT = 2000;
 export const R2_MAX_OBJECT_BYTES = 3 * 1024 * 1024;
 export const R2_MAX_STORAGE_BYTES = 6 * 1024 * 1024 * 1024; // 6 GiB
 export const R2_MAX_CLASS_A_MONTHLY = 100000;
-export const R2_MAX_UPLOAD_FILES_PER_REQUEST = 1;
+export const R2_MAX_UPLOAD_FILES_PER_REQUEST = 5;
 export const R2_ALLOWED_TYPES = Object.freeze({
   'image/jpeg': 'jpg',
   'image/png': 'png',

@@ -81,7 +81,7 @@ export async function adminMediaUpload(ctx) {
   try { form = await ctx.request.formData(); } catch (_) { return error('MEDIA_MULTIPART_REQUIRED', 'أرسل الملف بصيغة multipart/form-data.', 400, ctx.requestId, ctx.cors); }
   await cleanupUnattachedMedia(ctx);
   const files = form.getAll('file').filter(v => v instanceof File);
-  if (!files.length || files.length > 5) return error('MEDIA_FILE_COUNT_INVALID', 'يمكن رفع من 1 إلى 5 صور في الطلب الواحد.', 400, ctx.requestId, ctx.cors);
+  if (!files.length || files.length > R2_MAX_UPLOAD_FILES_PER_REQUEST) return error('MEDIA_FILE_COUNT_INVALID', `يمكن رفع من 1 إلى ${R2_MAX_UPLOAD_FILES_PER_REQUEST} صور في الطلب الواحد.`, 400, ctx.requestId, ctx.cors);
 
   const prepared = [];
   for (const file of files) {
