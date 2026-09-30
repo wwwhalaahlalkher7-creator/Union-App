@@ -146,6 +146,8 @@ nav#navMenu ul li a {
   align-items: center;
   padding: 0 14px !important;
   border-radius: 14px;
+  border-bottom: 0 !important;
+  text-decoration: none !important;
   color: var(--text-muted) !important;
   font-size: .88rem !important;
   transition: color .25s, background .25s, transform .25s;

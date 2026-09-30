@@ -21,15 +21,18 @@
     }
 
     /* Keep the shared site navigation identical to the other pages. */
+    .download-page nav#navMenu ul li a,
+    .download-page nav#navMenu ul li a:hover,
+    .download-page nav#navMenu ul li a:focus {
+      border-bottom: 0 !important;
+      text-decoration: none !important;
+    }
+
+
     nav#navMenu ul {
       list-style: none !important;
       margin: 0 !important;
       padding: 0 !important;
-    }
-
-    .download-page nav#navMenu ul li a.active {
-      box-shadow: none !important;
-      border-bottom: 0 !important;
     }
 
     .download-page .download-actions .download-button,
