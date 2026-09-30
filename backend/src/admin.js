@@ -33,7 +33,7 @@ const ADMIN_FIELDS = {
   comments: ['student_id','content_type','content_id','body','status'],
 };
 
-const CONTENT_STATUS_VALUES = Object.freeze(new Set(['draft', 'published', 'archived']));
+const CONTENT_STATUS_VALUES = Object.freeze(new Set(['draft', 'published']));
 const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'announcements', 'achievements']));
 const CONTENT_UPDATED_BY_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'achievements']));
 
@@ -409,21 +409,30 @@ export async function adminCrud(ctx, table, id, actorId) {
     }
 
     if (table === 'announcements') {
+      // Announcements are ordinary content in this project: DELETE means a real
+      // hard delete. Remove queued deliveries and targets first so no orphaned
+      // notification records remain.
       const results = await ctx.env.DB.batch([
         ctx.env.DB.prepare('DELETE FROM notification_dispatch_queue WHERE notification_target_id IN (SELECT id FROM notification_targets WHERE announcement_id=?)').bind(id),
-        ctx.env.DB.prepare("UPDATE announcements SET status='archived', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status <> 'archived'").bind(id),
+        ctx.env.DB.prepare('DELETE FROM notification_targets WHERE announcement_id=?').bind(id),
+        ctx.env.DB.prepare('DELETE FROM announcements WHERE id=?').bind(id),
       ]);
       const result = results[results.length - 1];
-      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','الإعلان غير موجود أو مؤرشف بالفعل.',404,ctx.requestId,ctx.cors);
-      await writeAudit(ctx, actorId, 'archive', table, id, { mode:'archive', cancelled_queued_deliveries:true });
-      return ok(ctx, { deleted:true, archived:true, id, mode:'archive' });
+      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','الإعلان غير موجود.',404,ctx.requestId,ctx.cors);
+      await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete', notification_targets_deleted:true });
+      return ok(ctx, { deleted:true, id, mode:'hard_delete' });
     }
 
     if (CONTENT_TABLES.has(table)) {
-      const result = await ctx.env.DB.prepare(`UPDATE ${table} SET status='archived', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status <> 'archived'`).bind(id).run();
-      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود أو مؤرشف بالفعل.',404,ctx.requestId,ctx.cors);
-      await writeAudit(ctx, actorId, 'archive', table, id, { mode:'archive' });
-      return ok(ctx, { deleted:true, archived:true, id, mode:'archive' });
+      // Content deletion is intentionally permanent. Remove owned R2 media and
+      // generic interactions/comments before deleting the content row.
+      const mediaUrls = extractMediaUrlsFromRow(ctx, existing);
+      if (mediaUrls.length) await deleteOwnedMediaUrls(ctx, mediaUrls);
+      await deleteGenericContentRefs(table, id);
+      const result = await ctx.env.DB.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();
+      if (!result.meta?.changes) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
+      await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete', media_deleted:mediaUrls.length });
+      return ok(ctx, { deleted:true, id, mode:'hard_delete', mediaDeleted:mediaUrls.length });
     }
 
     if (table === 'comments') {

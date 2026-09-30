@@ -150,3 +150,11 @@ if errors:
     sys.exit(1)
 
 print('ADMIN CRUD CHECK PASSED: schema fields, projections, and hard-delete contracts')
+
+# Content DELETE must be a hard delete. Archive is not a supported admin delete mode.
+admin_js = (ROOT / "backend/src/admin.js").read_text(encoding="utf-8")
+content_delete_region = admin_js[admin_js.find("if (table === 'announcements')"):admin_js.find("if (table === 'comments')")]
+assert "mode:'archive'" not in content_delete_region, "content DELETE must not use archive mode"
+assert "DELETE FROM announcements WHERE id=?" in content_delete_region, "announcement DELETE must be hard delete"
+assert "DELETE FROM ${table} WHERE id=?" in content_delete_region, "content DELETE must be hard delete"
+print("PASS hard-delete content policy")

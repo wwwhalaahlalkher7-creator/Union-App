@@ -44,7 +44,7 @@ window.Adapter = (() => {
     return x;
   }
   function contentPayload(type,f){
-    const status=['draft','published','archived'].includes(String(f.Status||''))?String(f.Status):'published';
+    const status=['draft','published'].includes(String(f.Status||''))?String(f.Status):'published';
     const o={title:f.Title||'',body:f.Content||f.Intro||'',description:f.Intro||'',status};
     if(type==='news')Object.assign(o,{publish_at:f.Date||null,category:f.Category||null,publisher:f.Publisher||null,...(f.Image !== undefined ? {image_url:Array.isArray(f.Image)?(f.Image[0]?.url||f.Image[0]||null):(f.Image||null),images_json:Array.isArray(f.Image)?JSON.stringify(f.Image.map(x=>x?.url||x).filter(Boolean)):null} : {})});
     if(type==='events'||type==='activities')Object.assign(o,{category:f.Category||null,event_at:f.Date||null,end_at:f.EndDate||null,location:f.Location||null,publisher:f.Publisher||null,...(f.Image !== undefined ? {image_url:Array.isArray(f.Image)?(f.Image[0]?.url||f.Image[0]||null):(f.Image||null),images_json:Array.isArray(f.Image)?JSON.stringify(f.Image.map(x=>x?.url||x).filter(Boolean)):null} : {})});

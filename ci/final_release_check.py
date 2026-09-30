@@ -61,8 +61,10 @@ if 'const ADMIN_SELECT_COLUMNS = {' not in backend_source:
     errors.append('Admin CRUD must use an explicit safe SELECT projection')
 if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'announcements', 'achievements']))" not in backend_source:
     errors.append('Admin content lifecycle contract is missing')
-if "UPDATE ${table} SET status='archived'" not in backend_source:
-    errors.append('Admin content DELETE must archive by status')
+if "DELETE FROM ${table} WHERE id=?" not in backend_source:
+    errors.append('Admin content DELETE must hard-delete by id')
+if "DELETE FROM announcements WHERE id=?" not in backend_source:
+    errors.append('Admin announcements DELETE must hard-delete by id')
 student_projection_match = re.search(r"students:\s*'([^']+)'", backend_source[backend_source.find('const ADMIN_SELECT_COLUMNS'):])
 if not student_projection_match:
     errors.append('Missing admin student projection')
@@ -74,8 +76,8 @@ else:
         errors.append('Admin student projection lost the safe derived registration flag')
 if "mode:'hard_delete'" not in backend_source:
     errors.append('Admin hard-delete audit contract is missing')
-if "mode:'archive'" not in backend_source:
-    errors.append('Admin content archive audit contract is missing')
+if "mode:'hard_delete'" not in backend_source:
+    errors.append('Admin content hard-delete audit contract is missing')
 
 # Active operational source must not contain retired provider/ad architecture.
 legacy_tokens = ('ad-manager', 'airtable')

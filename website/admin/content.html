@@ -230,9 +230,7 @@ body[data-page="news"] #pageContent > * {
       const dateVal = r.fields[schema.dateField];
       const status = r.fields.Status || 'published';
       const isScheduled = status === 'published' && !!dateVal && new Date(dateVal) > new Date();
-      const statusMeta = status === 'archived'
-        ? {className:'badge-danger', label:'مؤرشف'}
-        : status === 'draft'
+      const statusMeta = status === 'draft'
           ? {className:'badge-warning', label:'مسودة'}
           : isScheduled
             ? {className:'badge-warning', label:'مجدول'}
