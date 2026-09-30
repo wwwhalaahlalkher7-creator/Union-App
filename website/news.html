@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
     <title>آخر الأخبار | أمانة الإعلام ورابطة كلية الهندسة والعمارة</title>
 
@@ -210,7 +211,8 @@
             })) : [];
             const localNews = [];
             allNewsData = cloudNews.concat(localNews);
-            renderNewsList(allNewsData);
+            buildNewsCategoryChips(allNewsData);
+            applyFiltersAndRender();
         } catch (error) {
             console.error(error);
             container.innerHTML = `<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الأخبار، يرجى المحاولة لاحقاً.</div>`;
@@ -305,6 +307,131 @@
                     });
                 }
             });
+    }
+
+    // ----------------------------------------------------
+    // بناء قائمة تصنيفات الأخبار وتحديث حالة زر الفلترة
+    // ----------------------------------------------------
+    function buildNewsCategoryChips(records) {
+        const chipsContainer = document.getElementById("newsCategoryChips");
+        if (!chipsContainer) return;
+
+        const seen = new Map();
+        records.forEach(item => {
+            const raw = (item.category || "").toString().trim();
+            if (!raw) return;
+            const details = parseCategory(raw);
+            if (!seen.has(raw)) seen.set(raw, details.label);
+        });
+
+        chipsContainer.innerHTML = '<button type="button" class="toolbar-dropdown-item active" data-category="all" role="option" aria-selected="true">الكل</button>';
+        seen.forEach((label, key) => {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "toolbar-dropdown-item";
+            chip.dataset.category = key;
+            chip.setAttribute("role", "option");
+            chip.setAttribute("aria-selected", "false");
+            chip.textContent = label;
+            chipsContainer.appendChild(chip);
+        });
+
+        activeCategory = "all";
+        updateNewsFilterIndicator();
+
+        chipsContainer.querySelectorAll(".toolbar-dropdown-item").forEach(chip => {
+            chip.addEventListener("click", () => {
+                chipsContainer.querySelectorAll(".toolbar-dropdown-item").forEach(c => {
+                    c.classList.remove("active");
+                    c.setAttribute("aria-selected", "false");
+                });
+                chip.classList.add("active");
+                chip.setAttribute("aria-selected", "true");
+                activeCategory = chip.dataset.category;
+                updateNewsFilterIndicator();
+                closeNewsFilterDropdown();
+                applyFiltersAndRender();
+            });
+        });
+    }
+
+    function updateNewsFilterIndicator() {
+        const dot = document.getElementById("newsFilterDot");
+        const btn = document.getElementById("newsFilterBtn");
+        const filtered = activeCategory !== "all";
+        if (dot) dot.classList.toggle("show", filtered);
+        if (btn) btn.classList.toggle("active", filtered);
+    }
+
+    function openNewsFilterDropdown() {
+        const dropdown = document.getElementById("newsCategoryChips");
+        const btn = document.getElementById("newsFilterBtn");
+        if (!dropdown || !btn) return;
+        dropdown.classList.add("open");
+        btn.setAttribute("aria-expanded", "true");
+    }
+
+    function closeNewsFilterDropdown() {
+        const dropdown = document.getElementById("newsCategoryChips");
+        const btn = document.getElementById("newsFilterBtn");
+        if (!dropdown || !btn) return;
+        dropdown.classList.remove("open");
+        btn.setAttribute("aria-expanded", "false");
+    }
+
+    if (document.getElementById("newsFilterBtn") && document.getElementById("newsCategoryChips")) {
+        const newsFilterBtn = document.getElementById("newsFilterBtn");
+        const newsFilterDropdown = document.getElementById("newsCategoryChips");
+
+        newsFilterBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (newsFilterDropdown.classList.contains("open")) closeNewsFilterDropdown();
+            else openNewsFilterDropdown();
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!newsFilterDropdown.contains(e.target) && !newsFilterBtn.contains(e.target)) {
+                closeNewsFilterDropdown();
+            }
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") closeNewsFilterDropdown();
+        });
+    }
+
+    // ----------------------------------------------------
+    // تطبيق البحث + الفلترة + الترتيب محلياً على الأخبار المحمّلة
+    // ----------------------------------------------------
+    function applyFiltersAndRender() {
+        const searchInput = document.getElementById("newsSearchInput");
+        const query = (searchInput?.value || "").trim().toLowerCase();
+        let list = allNewsData.slice();
+
+        if (activeCategory !== "all") {
+            list = list.filter(item => (item.category || "").toString().trim() === activeCategory);
+        }
+
+        if (query) {
+            list = list.filter(item => {
+                const haystack = [
+                    item.title || "",
+                    item.content || "",
+                    item.publisher || "",
+                    item.category || ""
+                ].join(" ").toLowerCase();
+                return haystack.includes(query);
+            });
+        }
+
+        list.sort((a, b) => {
+            const da = new Date(a.date).getTime();
+            const db = new Date(b.date).getTime();
+            const diff = (Number.isFinite(db) ? db : 0) - (Number.isFinite(da) ? da : 0);
+            return activeSort === "oldest" ? -diff : diff;
+        });
+
+        renderNewsList(list);
     }
 
     // ----------------------------------------------------

@@ -7,6 +7,7 @@
 <!-- إضافة هذا الوسم لمنع هواتف أندرويد وشاومي من تخريب الألوان بوضع الـ Dark Mode الإجباري -->
 <meta name="color-scheme" content="dark">
 <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <title>الفعاليات والإنجازات | أمانة الإعلام ورابطة كلية الهندسة والعمارة</title>
 
@@ -380,6 +381,7 @@
 
         // ✅ Phase 5 — زر مشاركة رابط الإنجاز مباشرة (Injazat.html?id=...)
         if (record.id) {
+            const footer = card.querySelector(".achievement-footer");
             const shareBtn = document.createElement("button");
             shareBtn.type = "button";
             shareBtn.className = "heart-btn";
@@ -429,7 +431,7 @@
         container.innerHTML=`<div class="loading-status"><i class="fas fa-circle-notch fa-spin"></i> جاري تحميل الإنجازات...</div>`;
         try { const r=await fetch(PUBLIC_API_URL+"?limit=50"); if(!r.ok) throw new Error(); const d=await r.json(); const records=Array.isArray(d.data)?d.data:[];
             if(!records.length){container.innerHTML=`<div class="loading-status"><i class="far fa-folder-open"></i> لا توجد إنجازات منشورة حالياً</div>`;return;}
-            allAchievementsData=records; buildAchCategoryChips(records); applyAchievementsFilter();
+            allAchievementsData=records; buildAchCategoryChips(records); applyAchFiltersAndRender();
         } catch(e){ console.error(e); container.innerHTML=`<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الإنجازات، يرجى المحاولة لاحقاً.</div>`; }
     }
 
