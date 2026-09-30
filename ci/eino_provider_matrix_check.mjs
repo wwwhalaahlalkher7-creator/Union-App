@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { routeText, routeVision, routeOcr, routeStt, routeTts } from '../backend/src/providers/router.js';
+import { routeText, routeVision, routeOcr, routeStt, routeTts, resetProviderCircuitState } from '../backend/src/providers/router.js';
 
 const env = {
   MISTRAL_API_KEY: 'test-mistral',
@@ -72,6 +72,7 @@ console.log('PASS non-retryable 400: fallback stopped');
 
 calls = [];
 failProvider = null;
+resetProviderCircuitState();
 const requestedModel = await routeText(env, { model: 'mistral-small-2603', messages: [{ role: 'user', content: 'model-select' }] });
 assert.equal(requestedModel.provider, 'mistral', 'requested model should select matching provider');
 assert.equal(calls.length, 1, 'requested model should use only its matching route');

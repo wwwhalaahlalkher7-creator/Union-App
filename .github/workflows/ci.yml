@@ -338,8 +338,8 @@ jobs:
       - name: Verify production website
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
-          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://ush-eng.great-site.net' }}
         run: |
           set -euo pipefail
-          test -n "$SITE_URL" || { echo 'SITE_URL production variable is required'; exit 1; }
+          test -n "$SITE_URL" || { echo 'SITE_URL is empty'; exit 1; }
           curl --fail --silent --show-error --retry 5 --retry-delay 3 "$SITE_URL/"

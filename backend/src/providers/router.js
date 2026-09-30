@@ -23,6 +23,10 @@ function circuitOpen(route) {
 }
 
 function recordSuccess(route) { circuitState.delete(keyFor(route)); }
+export function resetProviderCircuitState() {
+  circuitState.clear();
+}
+
 function recordFailure(route) {
   const key = keyFor(route);
   const state = circuitState.get(key) || { failures: 0, openedAt: 0 };
