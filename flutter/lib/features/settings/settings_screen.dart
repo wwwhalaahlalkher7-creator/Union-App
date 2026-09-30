@@ -616,7 +616,7 @@ class _BlackWhiteAccentPainter extends CustomPainter {
     canvas.drawPath(path, black);
 
     final line = Paint()
-      ..color = const Color(0xFF7A7A7A)
+      ..color = Colors.transparent
       ..strokeWidth = 1;
     canvas.drawLine(
       Offset(size.width, 0),
