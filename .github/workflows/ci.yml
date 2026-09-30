@@ -350,4 +350,16 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$SITE_URL" || { echo 'SITE_URL is empty'; exit 1; }
-          curl --fail --silent --show-error --retry 5 --retry-delay 3 "$SITE_URL/"
+          # InfinityFree may reject generic curl requests with an empty reply.
+          # Send a browser-like request and keep the response body for diagnostics.
+          curl --fail --silent --show-error --location \
+            --retry 5 --retry-delay 5 --retry-all-errors \
+            --connect-timeout 20 --max-time 60 \
+            -A "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/140.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" \
+            -H "Accept-Language: en-US,en;q=0.9" \
+            -o /tmp/site-health.html \
+            -w "HTTP status: %{http_code}\n" \
+            "$SITE_URL/"
+          test -s /tmp/site-health.html || { echo 'Website returned an empty body'; exit 1; }
+          echo 'Website health check passed.' 
