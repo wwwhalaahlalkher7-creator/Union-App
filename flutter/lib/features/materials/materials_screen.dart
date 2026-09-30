@@ -220,7 +220,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                       },
                       decoration: InputDecoration(
                         hintText: l10n.t('search'),
-                        prefixIcon: Icon(
+                        prefixIcon: const Icon(
                           Icons.search_rounded,
                         ),
                       ),
