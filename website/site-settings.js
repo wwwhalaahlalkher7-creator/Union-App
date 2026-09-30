@@ -40,9 +40,7 @@
   //    ⚠️ لا يزال يعتمد على أن action=getPublicSettings الجديد مُعاد
   //    نشره فعليًا على هذا الرابط (Deploy → New version) — راجع
   //    CLAUDE_CONTEXT.md.
-  const SITE_SETTINGS_URL = (typeof window !== 'undefined' && window.location && window.location.hostname !== 'ush-eng.great-site.net')
-    ? (window.location.origin + '/api/v1/public/settings')
-    : "https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1/public/settings";
+  const SITE_SETTINGS_URL = ((window.PUBLIC_API_BASE || "https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1/public") + '/settings');
 
   if (!SITE_SETTINGS_URL) return;
 
