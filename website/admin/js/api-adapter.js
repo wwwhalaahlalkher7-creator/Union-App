@@ -38,7 +38,7 @@ window.Adapter = (() => {
   function rowContent(type,r){
     const x={id:r.id,createdTime:r.created_at,fields:{Status:r.status||'draft'}};
     if(type==='news')Object.assign(x.fields,{Title:r.title||'',Content:r.body||'',Category:r.category||'إعلان هام',Publisher:r.publisher||'أمانة الإعلام',Date:r.publish_at||'',Image:r.images_json?parseJsonArray(r.images_json).map(url=>({url:String(url)})):(r.image_url?[{url:r.image_url}]:[]),Views:0,Hearts:0});
-    if(type==='events'||type==='activities')Object.assign(x.fields,{Title:r.title||'',Content:r.body||'',Category:r.category||'',Location:r.location||'',Publisher:r.publisher||'أمانة الإعلام',Date:r.event_at||'',EndDate:r.end_at||'',Image:r.images_json?parseJsonArray(r.images_json).map(url=>({url:String(url)})):(r.image_url?[{url:r.image_url}]:[]),Views:0,Hearts:0});
+    if(type==='events')Object.assign(x.fields,{Title:r.title||'',Content:r.body||'',Category:r.category||'',Location:r.location||'',Publisher:r.publisher||'أمانة الإعلام',Date:r.event_at||'',EndDate:r.end_at||'',Image:r.images_json?parseJsonArray(r.images_json).map(url=>({url:String(url)})):(r.image_url?[{url:r.image_url}]:[]),Views:0,Hearts:0});
     if(type==='announcements')Object.assign(x.fields,{Title:r.title||'',Content:r.body||'',Type:r.type||'general',DepartmentId:r.target_department_id||'',SemesterId:r.target_semester_id||'',Date:r.publish_at||'',ExpiresAt:r.expires_at||''});
     if(type==='achievements')Object.assign(x.fields,{Title:r.title||'',Intro:r.intro||r.description||'',HighlightsTitle:r.highlights_title||'أبرز المحاور',Highlights:parseJsonArray(r.highlights).join('\n'),Badge:r.badge||'',Publisher:r.publisher||'أمانة الإعلام',PublishDate:r.achieved_at||'',Image:parseJsonArray(r.images_json).map(url=>({url:String(url)})),Views:0,Hearts:0});
     return x;
@@ -47,7 +47,7 @@ window.Adapter = (() => {
     const status=['draft','published'].includes(String(f.Status||''))?String(f.Status):'published';
     const o={title:f.Title||'',body:f.Content||f.Intro||'',description:f.Intro||'',status};
     if(type==='news')Object.assign(o,{publish_at:f.Date||null,category:f.Category||null,publisher:f.Publisher||null,...(f.Image !== undefined ? {image_url:Array.isArray(f.Image)?(f.Image[0]?.url||f.Image[0]||null):(f.Image||null),images_json:Array.isArray(f.Image)?JSON.stringify(f.Image.map(x=>x?.url||x).filter(Boolean)):null} : {})});
-    if(type==='events'||type==='activities')Object.assign(o,{category:f.Category||null,event_at:f.Date||null,end_at:f.EndDate||null,location:f.Location||null,publisher:f.Publisher||null,...(f.Image !== undefined ? {image_url:Array.isArray(f.Image)?(f.Image[0]?.url||f.Image[0]||null):(f.Image||null),images_json:Array.isArray(f.Image)?JSON.stringify(f.Image.map(x=>x?.url||x).filter(Boolean)):null} : {})});
+    if(type==='events')Object.assign(o,{category:f.Category||null,event_at:f.Date||null,end_at:f.EndDate||null,location:f.Location||null,publisher:f.Publisher||null,...(f.Image !== undefined ? {image_url:Array.isArray(f.Image)?(f.Image[0]?.url||f.Image[0]||null):(f.Image||null),images_json:Array.isArray(f.Image)?JSON.stringify(f.Image.map(x=>x?.url||x).filter(Boolean)):null} : {})});
     if(type==='announcements')Object.assign(o,{type:f.Type||'general',target_department_id:f.DepartmentId||null,target_semester_id:f.SemesterId||null,publish_at:f.Date||null,expires_at:f.ExpiresAt||null});
     if(type==='achievements')Object.assign(o,{achieved_at:f.PublishDate||null,intro:f.Intro||null,highlights_title:f.HighlightsTitle||null,highlights:f.Highlights?JSON.stringify(String(f.Highlights).split(/\r?\n/).map(x=>x.trim()).filter(Boolean)):null,badge:f.Badge||null,publisher:f.Publisher||null,images_json:Array.isArray(f.Image)?JSON.stringify(f.Image.map(x=>x?.url||x).filter(Boolean)):null});
     return o;
@@ -126,19 +126,6 @@ window.Adapter = (() => {
         {key:'Date', label:'تاريخ الفعالية', type:'date'},
         {key:'EndDate', label:'تاريخ الانتهاء', type:'date'},
         {key:'Image', label:'صورة الفعالية', type:'image'}
-      ]
-    },
-    activities: {
-      label: 'نشاط', labelPlural: 'الأنشطة',
-      fields: [
-        {key:'Title', label:'العنوان', type:'text', required:true},
-        {key:'Content', label:'المحتوى', type:'textarea', required:true},
-        {key:'Category', label:'التصنيف', type:'text'},
-        {key:'Location', label:'المكان', type:'text'},
-        {key:'Publisher', label:'الناشر', type:'text'},
-        {key:'Date', label:'تاريخ النشاط', type:'date'},
-        {key:'EndDate', label:'تاريخ الانتهاء', type:'date'},
-        {key:'Image', label:'صورة النشاط', type:'image'}
       ]
     },
     announcements: {

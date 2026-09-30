@@ -10,7 +10,7 @@
     <title>رابطة كلية الهندسة والعمارة - جامعة شندي</title>
 
     <!-- SEO: وصف الصفحة والرابط الأساسي -->
-    <meta name="description" content="المنصة الإعلامية والأكاديمية الرسمية لرابطة كلية الهندسة والعمارة – جامعة شندي: أخبار، إنجازات، نشاطات، مواد دراسية، ولجان الرابطة في مكان واحد.">
+    <meta name="description" content="المنصة الإعلامية والأكاديمية الرسمية لرابطة كلية الهندسة والعمارة – جامعة شندي: أخبار، إنجازات، فعاليات، مواد دراسية، ولجان الرابطة في مكان واحد.">
     <link rel="canonical" href="https://ush-eng.great-site.net/">
 
     <!-- Open Graph / مشاركة على وسائل التواصل -->
@@ -18,7 +18,7 @@
     <meta property="og:locale" content="ar_AR">
     <meta property="og:site_name" content="رابطة كلية الهندسة والعمارة - جامعة شندي">
     <meta property="og:title" content="رابطة كلية الهندسة والعمارة - جامعة شندي">
-    <meta property="og:description" content="المنصة الإعلامية والأكاديمية الرسمية لرابطة كلية الهندسة والعمارة – جامعة شندي: أخبار، إنجازات، نشاطات، مواد دراسية، ولجان الرابطة في مكان واحد.">
+    <meta property="og:description" content="المنصة الإعلامية والأكاديمية الرسمية لرابطة كلية الهندسة والعمارة – جامعة شندي: أخبار، إنجازات، فعاليات، مواد دراسية، ولجان الرابطة في مكان واحد.">
     <meta property="og:url" content="https://ush-eng.great-site.net/">
     <meta property="og:image" content="https://ush-eng.great-site.net/favicon.png">
     <meta name="twitter:card" content="summary_large_image">
@@ -72,7 +72,7 @@
             <li><a href="Injazat.html">الإنجازات</a></li>
             <!-- زر المواد الدراسية الجديد يقود مباشرة لصفحة المواد -->
             <li><a href="courses.html">المواد الدراسية</a></li>
-            <li><a href="activities.html">النشاطات</a></li>
+            <li><a href="events.html">الفعاليات</a></li>
             <li><a href="committees.html">الأمانات الأخرى</a></li>
             <li><a href="news.html">آخر الأخبار</a></li>
             <li><a href="download.html"> تحميل التطبيق</a></li>
@@ -93,7 +93,7 @@
             </a>
             <a href="Injazat.html" class="btn-secondary">
                 <i class="fas fa-trophy"></i>
-                إنجازات ونشاطات الرابطة
+                إنجازات وفعاليات الرابطة
             </a>
         </div>
     </div>
@@ -209,8 +209,8 @@
             <p>إعلاناً رسمياً منشوراً</p>
         </div>
         <div class="stat-card">
-            <h3 class="counter" id="activities-counter" data-target="0">0</h3>
-            <p>إنجاز وتغطية منجزة</p>
+            <h3 class="counter" id="events-counter" data-target="0">0</h3>
+            <p>فعالية منشورة</p>
         </div>
     </div>
 </section>
@@ -294,10 +294,10 @@
         try { const r=await fetch(PUBLIC_API_BASE+path+"?limit=50"); if(!r.ok) throw new Error(); const d=await r.json(); return Array.isArray(d.data)?d.data.length:null; } catch(e) { return null; }
     }
     document.addEventListener("DOMContentLoaded", async () => {
-        const newsCounter=document.getElementById('news-counter'); const actCounter=document.getElementById('activities-counter');
-        const [newsCount,actCount]=await Promise.all([fetchPublicCount('/news'),fetchPublicCount('/activities')]);
+        const newsCounter=document.getElementById('news-counter'); const eventCounter=document.getElementById('events-counter');
+        const [newsCount,eventCount]=await Promise.all([fetchPublicCount('/news'),fetchPublicCount('/events')]);
         if(newsCount!==null) newsCounter.setAttribute('data-target',newsCount); runCounterAnimation(newsCounter);
-        if(actCount!==null) actCounter.setAttribute('data-target',actCount); runCounterAnimation(actCounter);
+        if(eventCount!==null) eventCounter.setAttribute('data-target',eventCount); runCounterAnimation(eventCounter);
     });
 </script>
 <script src="site-settings.js"></script>

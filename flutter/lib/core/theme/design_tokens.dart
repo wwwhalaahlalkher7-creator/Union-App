@@ -42,6 +42,7 @@ class AppAccentColor {
     required this.nameFr,
     required this.primary,
     required this.primaryDark,
+    this.isThemeAdaptive = false,
   });
 
   final String id, nameAr, nameEn, nameFr;
@@ -52,6 +53,7 @@ class AppAccentColor {
         _ => nameAr,
       };
   final Color primary, primaryDark;
+  final bool isThemeAdaptive;
 
   static const defaultColor = AppAccentColor(
     id: 'amber',
@@ -97,60 +99,37 @@ class AppAccentColor {
       primaryDark: Color(0xFFFF8096),
     ),
     AppAccentColor(
-      id: 'pink',
-      nameAr: 'وردي',
-      nameEn: 'Pink',
-      nameFr: 'Rose vif',
-      primary: Color(0xFFEC4899),
-      primaryDark: Color(0xFFFF6FB5),
+      id: 'neon_green',
+      nameAr: 'أخضر نيون',
+      nameEn: 'Neon Green',
+      nameFr: 'Vert néon',
+      primary: Color(0xFF63F925),
+      primaryDark: Color(0xFF63F925),
     ),
     AppAccentColor(
-      id: 'orchid',
-      nameAr: 'أوركيد',
-      nameEn: 'Orchid',
-      nameFr: 'Orchidée',
-      primary: Color(0xFFA855F7),
-      primaryDark: Color(0xFFC084FC),
+      id: 'lime',
+      nameAr: 'أخضر ليموني',
+      nameEn: 'Lime',
+      nameFr: 'Vert citron',
+      primary: Color(0xFFD8EF1B),
+      primaryDark: Color(0xFFD8EF1B),
     ),
     AppAccentColor(
-      id: 'lavender',
-      nameAr: 'لافندر',
-      nameEn: 'Lavender',
-      nameFr: 'Lavande',
-      primary: Color(0xFF8B7CF6),
-      primaryDark: Color(0xFFB0A5FF),
+      id: 'sage_gray',
+      nameAr: 'رمادي أخضر',
+      nameEn: 'Sage Gray',
+      nameFr: 'Gris sauge',
+      primary: Color(0xFFBCC4BA),
+      primaryDark: Color(0xFFBCC4BA),
     ),
     AppAccentColor(
-      id: 'coral',
-      nameAr: 'مرجاني',
-      nameEn: 'Coral',
-      nameFr: 'Corail',
-      primary: Color(0xFFF26B5E),
-      primaryDark: Color(0xFFFF8B7F),
-    ),
-    AppAccentColor(
-      id: 'peach',
-      nameAr: 'خوخي',
-      nameEn: 'Peach',
-      nameFr: 'Pêche',
-      primary: Color(0xFFF29B7A),
-      primaryDark: Color(0xFFFFB69A),
-    ),
-    AppAccentColor(
-      id: 'teal',
-      nameAr: 'فيروزي',
-      nameEn: 'Teal',
-      nameFr: 'Turquoise',
-      primary: Color(0xFF0F9D9A),
-      primaryDark: Color(0xFF35C9C5),
-    ),
-    AppAccentColor(
-      id: 'violet',
-      nameAr: 'بنفسجي',
-      nameEn: 'Violet',
-      nameFr: 'Violet',
-      primary: Color(0xFF7C3AED),
-      primaryDark: Color(0xFFA78BFA),
+      id: 'monochrome',
+      nameAr: 'أبيض وأسود',
+      nameEn: 'Black & White',
+      nameFr: 'Noir et blanc',
+      primary: Colors.black,
+      primaryDark: Colors.white,
+      isThemeAdaptive: true,
     ),
   ];
 

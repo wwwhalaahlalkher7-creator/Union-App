@@ -85,8 +85,8 @@
         gap: 40px;
     }
 
-    /* بطاقة النشاط */
-    .activity-card {
+    /* بطاقة الفعالية */
+    .event-card {
         background-color: var(--bg-surface);
         border: 1px solid rgba(255, 145, 0, 0.08);
         border-radius: 24px;
@@ -97,12 +97,12 @@
         transition: var(--transition-smooth);
     }
 
-    .activity-card:hover {
+    .event-card:hover {
         border-color: rgba(255, 145, 0, 0.25);
         box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 145, 0, 0.05);
     }
 
-    .activity-card::before {
+    .event-card::before {
         content: "";
         position: absolute;
         top: 0;
@@ -112,7 +112,7 @@
         background: linear-gradient(to bottom, var(--primary), var(--accent));
     }
 
-    .activity-card h2 {
+    .event-card h2 {
         font-size: 1.6rem;
         font-weight: 800;
         color: #fff;
@@ -142,7 +142,7 @@
     }
 
     /* ==========================================================
-       معرض صور النشاط (Gallery)
+       معرض صور الفعالية (Gallery)
        ========================================================== */
     .gallery-grid {
         display: grid;
@@ -299,9 +299,9 @@
     }
 
     /* ==========================================================
-       تذييل بطاقة النشاط (الناشر / المكان / التاريخ / زر الإعجاب)
+       تذييل بطاقة الفعالية (الناشر / المكان / التاريخ / زر الإعجاب)
        ========================================================== */
-    .activity-footer {
+    .event-footer {
         margin-top: 30px;
         padding-top: 18px;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -314,31 +314,31 @@
         color: var(--text-muted);
     }
 
-    .activity-footer .meta-group {
+    .event-footer .meta-group {
         display: flex;
         flex-wrap: wrap;
         gap: 14px;
     }
 
-    .activity-footer .act-publisher,
-    .activity-footer .act-location,
-    .activity-footer .act-date {
+    .event-footer .event-publisher,
+    .event-footer .event-location,
+    .event-footer .event-date {
         display: flex;
         align-items: center;
         gap: 6px;
     }
 
-    /* ✅ معدَّل — شارة حالة زمنية للنشاط (لم يبدأ / جارٍ الآن / انتهى)
+    /* ✅ معدَّل — شارة حالة زمنية للفعالية (لم يبدأ / جارٍ الآن / انتهى)
        بدل شارة التصنيف اليدوية القديمة (Category) — تُحسب تلقائياً من
        تاريخي البداية والنهاية، لا إدخال يدوي لها. */
     /* ✅ معدَّل — الحجم والمكان والخط الآن مطابقون لشارة التصنيف في
        صفحة الأخبار (.news-tag): توضع في صف علوي قبل العنوان بدل صف
        أسفله، بنفس الحشو ومقاس الخط، بدل الشارة الأكبر التي كانت تلي
        العنوان مباشرة. */
-    .activity-meta {
+    .event-meta {
         margin-bottom: 18px;
     }
-    .act-status-badge {
+    .event-status-badge {
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -348,15 +348,15 @@
         font-weight: 700;
         width: fit-content;
     }
-    .act-status-badge.is-upcoming {
+    .event-status-badge.is-upcoming {
         background: rgba(46, 128, 199, 0.15);
         color: #6ab6f5;
     }
-    .act-status-badge.is-ongoing {
+    .event-status-badge.is-ongoing {
         background: rgba(46, 199, 110, 0.15);
         color: #4ad991;
     }
-    .act-status-badge.is-ended {
+    .event-status-badge.is-ended {
         background: rgba(199, 90, 46, 0.15);
         color: #ff8a5c;
     }
@@ -450,5 +450,5 @@
         nav ul li a::after { display: none; }
 
         .page-header h1 { font-size: 2rem; }
-        .activity-card { padding: 25px; }
+        .event-card { padding: 25px; }
     }

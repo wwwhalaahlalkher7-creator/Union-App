@@ -59,7 +59,7 @@ if "allowedOrigins.length === 0 ? '*'" in backend_source:
 # Admin API safety invariants.
 if 'const ADMIN_SELECT_COLUMNS = {' not in backend_source:
     errors.append('Admin CRUD must use an explicit safe SELECT projection')
-if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'announcements', 'achievements']))" not in backend_source:
+if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'announcements', 'achievements']))" not in backend_source:
     errors.append('Admin content lifecycle contract is missing')
 if "DELETE FROM ${table} WHERE id=?" not in backend_source:
     errors.append('Admin content DELETE must hard-delete by id')

@@ -14,7 +14,7 @@ class AppConstants {
   static const healthAction = 'health';
   static const newsAction = 'news';
   static const announcementsAction = 'announcements';
-  static const activitiesAction = 'activities';
+  static const eventsAction = 'events';
   static const achievementsAction = 'achievements';
   static const materialsAction = 'materials';
   static const scheduleAction = 'schedule';

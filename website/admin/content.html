@@ -180,7 +180,8 @@ body[data-page="news"] #pageContent > * {
 
   function renderTabs() {
     const tabsEl = document.getElementById("typeTabs");
-    tabsEl.innerHTML = Object.keys(Adapter.CONTENT_TYPES).map(key => {
+    const contentTypes = ['news', 'achievements', 'events'];
+    tabsEl.innerHTML = contentTypes.map(key => {
       const schema = Adapter.CONTENT_TYPES[key];
       return `<button type="button" class="tab-btn ${key === currentType ? "is-active" : ""}" data-type="${key}">${schema.labelPlural}</button>`;
     }).join("");
@@ -514,17 +515,6 @@ body[data-page="news"] #pageContent > * {
 
     Modal.close();
     loadAndRenderList();
-    if (currentType === 'announcements') {
-      const latest = (await Adapter.listContent('announcements'))[0];
-      if (latest?.id) {
-        const send = await Modal.confirmDialog('هل تريد إرسال هذا الإشعار الآن إلى الطلاب المستهدفين؟', 'إرسال الإشعار');
-        if (send) {
-          try {
-            await Feedback.busy(btn, () => Adapter.sendNotification(latest.id), {successMessage:'تم تجهيز الإشعار للتسليم', errorPrefix:'تعذّر إرسال الإشعار'});
-          } catch (_) {}
-        }
-      }
-    }
   }
 
   async function handleDelete(id, btn) {

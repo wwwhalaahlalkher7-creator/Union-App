@@ -1,52 +1,104 @@
-<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الإشراف | لوحة تحكم TRINEX</title><link rel="stylesheet" href="css/admin.css"><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"><script src="config.js"></script><script src="js/theme.js"></script><script src="js/auth.js"></script></head><body data-page="moderation"><div id="app-shell"></div><template id="pageTemplate"><section class="card"><div class="card-header"><div><h3>الإشراف على التعليقات</h3><span class="card-header-hint">مراجعة وإخفاء أو إعادة إظهار التعليقات الرسمية</span></div><button type="button" class="btn btn-secondary" id="moderationRefreshBtn"><i class="fa-solid fa-rotate"></i> تحديث</button></div><div id="list"><div class="empty-state">جارٍ التحميل...</div></div></section></template><script src="js/api-adapter.js?v=3.0.2"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/modal.js"></script><script src="js/layout.js"></script><script>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>الإشراف | لوحة تحكم TRINEX</title>
+<link rel="stylesheet" href="css/admin.css">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<script src="config.js"></script><script src="js/theme.js"></script><script src="js/auth.js"></script>
+</head>
+<body data-page="moderation">
+<div id="app-shell"></div>
+<template id="pageTemplate">
+  <section class="card" id="notificationsCard">
+    <div class="card-header">
+      <div><h3>التحكم بالإشعارات</h3><span class="card-header-hint">إنشاء الإشعارات وتعديلها وإرسالها للطلاب المستهدفين</span></div>
+      <button type="button" class="btn btn-primary requires-edit" id="addNotificationBtn"><i class="fa-solid fa-plus"></i> إضافة إشعار</button>
+    </div>
+    <div class="table-scroll"><table class="data-table"><thead><tr><th>العنوان</th><th>النوع</th><th>النشر</th><th>المستهدفون</th><th>المقروء</th><th></th></tr></thead><tbody id="notificationsBody"></tbody></table></div>
+  </section>
+
+  <section class="card" id="commentsCard" style="margin-top:18px">
+    <div class="card-header"><div><h3>الإشراف على التعليقات</h3><span class="card-header-hint">مراجعة وإخفاء أو إعادة إظهار التعليقات الرسمية</span></div><button type="button" class="btn btn-secondary" id="moderationRefreshBtn"><i class="fa-solid fa-rotate"></i> تحديث</button></div>
+    <div id="list"><div class="empty-state">جارٍ التحميل...</div></div>
+  </section>
+</template>
+<script src="js/api-adapter.js?v=3.0.3"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/modal.js"></script><script src="js/layout.js"></script>
+<script>
+let notificationRows=[];
+const notificationSchema = Adapter.getContentSchema('announcements');
+
 document.addEventListener('shell:ready',()=>{
   document.getElementById('pageContent').appendChild(document.getElementById('pageTemplate').content.cloneNode(true));
   document.getElementById('moderationRefreshBtn').addEventListener('click', loadModeration);
+  document.getElementById('addNotificationBtn').addEventListener('click', () => openNotificationForm(null));
+  loadNotifications();
   loadModeration();
 });
-document.getElementById("list").addEventListener("click", (ev) => {
-  const btn = ev.target.closest("button[data-action]"); if (!btn) return;
-  if (btn.dataset.action === "moderate") moderate(btn.dataset.id, btn.dataset.status, btn);
-  if (btn.dataset.action === "delete") deleteComment(btn.dataset.id, btn);
+
+function notificationFieldHtml(f, record){
+  const val = record ? (record.fields[f.key] ?? '') : (f.default ?? '');
+  const req = f.required ? 'required' : '';
+  if(f.type==='textarea') return `<div class="field"><label>${f.label}</label><textarea name="${f.key}" ${req}>${Utils.escapeHtml(val)}</textarea></div>`;
+  if(f.type==='date') return `<div class="field"><label>${f.label}</label><input type="date" name="${f.key}" value="${Utils.escapeHtml(val)}" ${req}></div>`;
+  if(f.type==='select') return `<div class="field"><label>${f.label}</label><select name="${f.key}" ${req}>${f.options.map(o=>`<option value="${Utils.escapeHtml(o.value)}" ${String(o.value)===String(val)?'selected':''}>${Utils.escapeHtml(o.label)}</option>`).join('')}</select></div>`;
+  return `<div class="field"><label>${f.label}</label><input type="text" name="${f.key}" value="${Utils.escapeHtml(val)}" ${req}></div>`;
+}
+
+function openNotificationForm(id){
+  const record=id?notificationRows.find(r=>r.id===id):null;
+  const bodyHtml=`<form id="notificationForm" novalidate>${notificationSchema.fields.map(f=>notificationFieldHtml(f,record)).join('')}</form>`;
+  Modal.open({title:record?'تعديل إشعار':'إضافة إشعار',bodyHtml,buttons:[
+    {label:'إلغاء',className:'btn-secondary',onClick:()=>Modal.close()},
+    {label:record?'حفظ التعديلات':'حفظ الإشعار',className:'btn-primary',onClick:btn=>saveNotification(record,btn)}
+  ]});
+}
+
+async function saveNotification(record,btn){
+  const form=document.getElementById('notificationForm');
+  if(!form||!form.reportValidity()) return;
+  const fields={};
+  notificationSchema.fields.forEach(f=>{const el=form.elements[f.key]; if(el) fields[f.key]=el.value;});
+  try{
+    await Feedback.busy(btn,()=>record?Adapter.updateContent('announcements',record.id,fields):Adapter.createContent('announcements',fields),{busyLabel:'جارٍ الحفظ...',successMessage:record?'تم حفظ الإشعار':'تم إنشاء الإشعار',errorPrefix:'تعذّر حفظ الإشعار'});
+    Modal.close(); await loadNotifications();
+  }catch(e){}
+}
+
+async function loadNotifications(){
+  const body=document.getElementById('notificationsBody'); if(!body)return;
+  await Feedback.loadIntoTable(body,6,()=>Adapter.listNotifications(),rows=>{
+    notificationRows=rows.map(r=>({id:r.id,fields:{Title:r.title||'',Type:r.type||'general',Date:r.publish_at||'',Targets:r.targets||0,Reads:r.reads||0}}));
+    body.innerHTML=notificationRows.length?notificationRows.map(r=>`<tr><td>${Utils.escapeHtml(r.fields.Title)}</td><td><span class="badge ${r.fields.Type==='urgent'?'badge-danger':'badge-info'}">${r.fields.Type==='urgent'?'عاجل':'عام'}</span></td><td>${r.fields.Date?Utils.formatDate(r.fields.Date):'—'}</td><td>${Utils.formatNumber(r.fields.Targets)}</td><td>${Utils.formatNumber(r.fields.Reads)}</td><td><div class="row-actions requires-edit"><button class="icon-btn" type="button" data-notify-action="edit" data-id="${Utils.escapeHtml(r.id)}" title="تعديل"><i class="fa-solid fa-pen"></i></button><button class="icon-btn" type="button" data-notify-action="send" data-id="${Utils.escapeHtml(r.id)}" title="إرسال"><i class="fa-solid fa-paper-plane"></i></button><button class="icon-btn is-danger" type="button" data-notify-action="delete" data-id="${Utils.escapeHtml(r.id)}" title="حذف"><i class="fa-solid fa-trash"></i></button></div></td></tr>`).join(''):'<tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-bell-slash"></i>لا توجد إشعارات بعد.</div></td></tr>';
+  },{errorPrefix:'تعذّر تحميل الإشعارات'});
+}
+
+document.addEventListener('click',async ev=>{
+  const btn=ev.target.closest('button[data-notify-action]'); if(!btn)return;
+  const id=btn.dataset.id, action=btn.dataset.notifyAction, record=notificationRows.find(r=>r.id===id);
+  if(action==='edit') return openNotificationForm(id);
+  if(action==='send'){
+    const ok=await Modal.confirmDialog('سيتم تجهيز هذا الإشعار للتسليم إلى الطلاب المستهدفين. هل تريد المتابعة؟','إرسال الإشعار'); if(!ok)return;
+    try{await Feedback.busy(btn,()=>Adapter.sendNotification(id),{busyLabel:'جارٍ الإرسال...',successMessage:'تم تجهيز الإشعار للتسليم',errorPrefix:'تعذّر إرسال الإشعار'}); await loadNotifications();}catch(e){}
+  }
+  if(action==='delete'){
+    const ok=await Modal.confirmDialog('سيتم حذف الإشعار نهائيًا وإزالة أهدافه وطوابير التسليم المرتبطة به. هل أنت متأكد؟','حذف نهائي'); if(!ok)return;
+    try{await Feedback.busy(btn,()=>Adapter.deleteContent('announcements',id),{busyLabel:'جارٍ الحذف...',successMessage:'تم حذف الإشعار نهائيًا',errorPrefix:'تعذّر حذف الإشعار'}); await loadNotifications();}catch(e){}
+  }
 });
 
 async function loadModeration(){
   const el=document.getElementById('list');
-  await Feedback.loadInto(el, () => Adapter.listModerationComments('visible'), rows => {
-    el.innerHTML = rows.length ? rows.map(r=>`
-      <article class="list-row moderation-row">
-        <div class="moderation-copy">
-          <strong>${Utils.escapeHtml(r.full_name||'طالب')}</strong>
-          <div class="field-hint">${Utils.escapeHtml(r.content_type||'')} · ${Utils.formatDate(r.created_at)}</div>
-          <p>${Utils.escapeHtml(r.body||'')}</p>
-        </div>
-        <div class="row-actions moderation-actions">
-          <button type="button" class="btn btn-secondary" data-action="moderate" data-id="${Utils.escapeHtml(String(r.id))}" data-status="hidden">إخفاء</button>
-          <button type="button" class="btn btn-danger" data-action="delete" data-id="${Utils.escapeHtml(String(r.id))}">حذف نهائي</button>
-        </div>
-      </article>`).join('') : '<div class="empty-state"><i class="fa-solid fa-circle-check"></i>لا توجد تعليقات معلّقة للمراجعة.</div>';
-  }, { errorPrefix: 'تعذّر تحميل التعليقات' });
+  await Feedback.loadInto(el,()=>Adapter.listModerationComments('visible'),rows=>{
+    el.innerHTML=rows.length?rows.map(r=>`<article class="list-row moderation-row"><div class="moderation-copy"><strong>${Utils.escapeHtml(r.full_name||'طالب')}</strong><div class="field-hint">${Utils.escapeHtml(r.content_type||'')} · ${Utils.formatDate(r.created_at)}</div><p>${Utils.escapeHtml(r.body||'')}</p></div><div class="row-actions moderation-actions"><button type="button" class="btn btn-secondary" data-comment-action="moderate" data-id="${Utils.escapeHtml(String(r.id))}" data-status="hidden">إخفاء</button><button type="button" class="btn btn-danger" data-comment-action="delete" data-id="${Utils.escapeHtml(String(r.id))}">حذف نهائي</button></div></article>`).join(''):'<div class="empty-state"><i class="fa-solid fa-circle-check"></i>لا توجد تعليقات معلّقة للمراجعة.</div>';
+  },{errorPrefix:'تعذّر تحميل التعليقات'});
 }
-async function moderate(id,status,btn){
-  try {
-    await Feedback.busy(btn, () => Adapter.moderateComment(id,status), {
-      busyLabel:'جارٍ التنفيذ...',
-      successMessage:'تم تحديث حالة التعليق',
-      errorPrefix:'تعذّر تحديث التعليق'
-    });
-    await loadModeration();
-  } catch(e) {}
-}
-async function deleteComment(id,btn){
-  const ok=await Modal.confirmDialog('سيتم حذف التعليق وردوده نهائيًا من قاعدة البيانات. هل أنت متأكد؟','حذف نهائي');
-  if(!ok)return;
-  try {
-    await Feedback.busy(btn, () => Adapter.deleteCommentAdmin(id), {
-      busyLabel:'جارٍ الحذف...',
-      successMessage:'تم حذف التعليق',
-      errorPrefix:'تعذّر حذف التعليق'
-    });
-    await loadModeration();
-  } catch(e) {}
-}
-</script></body></html>
+
+document.addEventListener('click',async ev=>{
+  const btn=ev.target.closest('button[data-comment-action]'); if(!btn)return;
+  const action=btn.dataset.commentAction,id=btn.dataset.id;
+  if(action==='moderate'){try{await Feedback.busy(btn,()=>Adapter.moderateComment(id,btn.dataset.status),{busyLabel:'جارٍ التنفيذ...',successMessage:'تم تحديث حالة التعليق',errorPrefix:'تعذّر تحديث التعليق'});await loadModeration();}catch(e){}}
+  if(action==='delete'){const ok=await Modal.confirmDialog('سيتم حذف التعليق وردوده نهائيًا من قاعدة البيانات. هل أنت متأكد؟','حذف نهائي');if(!ok)return;try{await Feedback.busy(btn,()=>Adapter.deleteCommentAdmin(id),{busyLabel:'جارٍ الحذف...',successMessage:'تم حذف التعليق',errorPrefix:'تعذّر حذف التعليق'});await loadModeration();}catch(e){}}
+});
+</script>
+</body></html>

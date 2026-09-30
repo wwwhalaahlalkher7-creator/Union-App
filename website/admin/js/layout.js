@@ -176,12 +176,12 @@
           <h1 class="topbar-title">${title}</h1>
 
           <div class="topbar-actions">
-            <a href="${cfg.site.publicUrl}" class="icon-btn topbar-public-link" target="_blank" rel="noopener" title="عرض الموقع" aria-label="عرض الموقع">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i>
-            </a>
             <a href="account.html" class="topbar-user" title="حسابي — تغيير كلمة المرور">
               <div class="topbar-user-avatar"><i class="fa-solid fa-user"></i></div>
               <span class="topbar-user-copy"><span class="topbar-user-name">${userName}</span><span class="topbar-role">${userRole}</span></span>
+            </a>
+            <a href="${cfg.site.publicUrl}" class="icon-btn topbar-public-link" target="_blank" rel="noopener" title="عرض الموقع" aria-label="عرض الموقع">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i>
             </a>
             <button class="icon-btn" id="logoutBtn" type="button" title="تسجيل الخروج" aria-label="تسجيل الخروج">
               <i class="fa-solid fa-arrow-right-from-bracket"></i>

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../features/about/about_screen.dart';
-import '../features/activities/activities_screen.dart';
+import '../features/events/events_screen.dart';
 import '../features/announcements/announcements_screen.dart';
 import '../features/achievements/achievements_screen.dart';
 import '../features/auth/login_screen.dart';
@@ -60,7 +60,7 @@ GoRouter buildRouter({
     GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),
     GoRoute(path: '/market', builder: (_, _) => const MarketScreen()),
     GoRoute(path: '/announcements', builder: (_, _) => const AnnouncementsScreen()),
-    GoRoute(path: '/activities', builder: (_, _) => const ActivitiesScreen()),
+    GoRoute(path: '/events', builder: (_, _) => const EventsScreen()),
     GoRoute(path: '/achievements', builder: (_, _) => const AchievementsScreen()),
     GoRoute(path: '/favorites', builder: (_, _) => const FavoritesScreen()),
     GoRoute(path: '/recent', builder: (_, _) => const RecentScreen()),

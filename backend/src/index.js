@@ -56,27 +56,25 @@ export default {
 
       if (request.method === 'GET' && (
         path === '/' || path === '/news' || path === '/announcements' ||
-        path === '/activities' || path === '/events' || path === '/achievements'
+        path === '/events' || path === '/achievements'
       )) {
         const actionMap = {
           '/news': 'news',
           '/announcements': 'announcements',
-          '/activities': 'activities',
           '/events': 'events',
           '/achievements': 'achievements',
         };
         const action = actionMap[path] || String(url.searchParams.get('action') || '').trim().toLowerCase();
-        if (['news', 'announcements', 'events', 'activities', 'achievements'].includes(action)) {
+        if (['news', 'announcements', 'events', 'achievements'].includes(action)) {
           return publicList(ctx, action);
         }
       }
 
       if (request.method === 'GET' && path === '/public/news') return publicList(ctx, 'news');
       if (request.method === 'GET' && path === '/public/announcements') return publicList(ctx, 'announcements');
-      if (request.method === 'GET' && path === '/public/activities') return publicList(ctx, 'activities');
       if (request.method === 'GET' && path === '/public/events') return publicList(ctx, 'events');
       if (request.method === 'GET' && path === '/public/achievements') return publicList(ctx, 'achievements');
-      if (request.method === 'GET' && /^\/public\/(news|events|activities)\/[^/]+$/.test(path)) return publicContentDetail(ctx);
+      if (request.method === 'GET' && /^\/public\/(news|events|achievements)\/[^/]+$/.test(path)) return publicContentDetail(ctx);
       if (request.method === 'GET' && path === '/public/settings') return publicSettings(ctx);
       if (request.method === 'GET' && path === '/public/materials') return publicMaterials(ctx);
       if (request.method === 'GET' && /^\/media\//.test(path)) return mediaGet(ctx);

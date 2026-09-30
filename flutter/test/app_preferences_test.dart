@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -21,4 +22,25 @@ void main() {
 
     expect(preferences.accentColorId, 'emerald');
   });
+
+  test('uses the new four accent presets', () {
+    expect(AppAccentColor.presets.map((color) => color.id), [
+      'cyan',
+      'emerald',
+      'amber',
+      'sapphire',
+      'rose',
+      'neon_green',
+      'lime',
+      'sage_gray',
+      'monochrome',
+    ]);
+    expect(AppAccentColor.fromId('neon_green').primary, const Color(0xFF63F925));
+    expect(AppAccentColor.fromId('lime').primary, const Color(0xFFD8EF1B));
+    expect(AppAccentColor.fromId('sage_gray').primary, const Color(0xFFBCC4BA));
+    expect(AppAccentColor.fromId('monochrome').primary, Colors.black);
+    expect(AppAccentColor.fromId('monochrome').primaryDark, Colors.white);
+    expect(AppAccentColor.fromId('monochrome').isThemeAdaptive, isTrue);
+  });
+
 }

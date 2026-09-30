@@ -15,7 +15,7 @@ class MoreScreen extends StatelessWidget {
       _MoreItem('progress', Icons.insights_rounded, '/progress'),
       _MoreItem('xpLevel', Icons.bolt_rounded, '/xp'),
       _MoreItem('achievements', Icons.emoji_events_outlined, '/badges'),
-      _MoreItem('activities', Icons.event_available_outlined, '/activities'),
+      _MoreItem('events', Icons.event_available_outlined, '/events'),
       _MoreItem('announcements', Icons.campaign_outlined, '/announcements'),
       _MoreItem('favorites', Icons.favorite_border_rounded, '/favorites'),
       _MoreItem('recent', Icons.history_rounded, '/recent'),

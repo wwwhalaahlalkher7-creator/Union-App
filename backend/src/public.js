@@ -46,11 +46,11 @@ export async function publicContentDetail(ctx) {
   const parts = ctx.path.split('/');
   const table = parts[2];
   const id = parts[3];
-  if (!['news', 'events', 'activities'].includes(table) || !id) {
+  if (!['news', 'events', 'achievements'].includes(table) || !id) {
     return error('CONTENT_NOT_FOUND','المحتوى غير موجود.',404,ctx.requestId,ctx.cors);
   }
 
-  const dateColumn = ['events','activities'].includes(table) ? 'event_at' : 'publish_at';
+  const dateColumn = table === 'events' ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
   const expiryClause = table === 'news'
     ? " AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)"
     : '';
@@ -61,7 +61,7 @@ export async function publicContentDetail(ctx) {
     studentId = optionalAuth.session.student_id;
   }
 
-  const type = table === 'news' ? 'news' : table === 'events' ? 'event' : 'activity';
+  const type = table === 'news' ? 'news' : table === 'events' ? 'event' : 'achievement';
   const myReactionSql = studentId
     ? `(SELECT r2.reaction FROM reactions r2 WHERE r2.content_type=? AND r2.content_id=${table}.id AND r2.student_id=?) AS my_reaction`
     : 'NULL AS my_reaction';
@@ -84,6 +84,18 @@ export async function publicContentDetail(ctx) {
   );
 
   if (!row) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح حاليًا.',404,ctx.requestId,ctx.cors);
+  if (table === 'achievements') {
+    return ok(ctx, {
+      id: row.id, title: row.title, description: row.description || null,
+      intro: row.intro || row.description || null, highlightsTitle: row.highlights_title || null,
+      highlights: parseJsonValue(row.highlights, null), badge: row.badge || null,
+      publisher: row.publisher || null, imageUrl: row.image_url || null,
+      images: parseJsonValue(row.images_json, []), achievedAt: row.achieved_at || null,
+      createdAt: row.created_at || null, updatedAt: row.updated_at || null,
+      commentCount: Number(row.comment_count || 0), likeCount: Number(row.like_count || 0),
+      myReaction: row.my_reaction || null,
+    }, {source:'d1'});
+  }
   return ok(ctx, serializePublicContent(table, row), {source:'d1'});
 }
 
@@ -92,14 +104,14 @@ export function serializePublicContent(table, row) {
   const normalizedImages = Array.isArray(images) ? images.map(v => typeof v === 'string' ? v : (v?.url || '')).filter(Boolean) : [];
   if (row.image_url && !normalizedImages.includes(row.image_url)) normalizedImages.unshift(row.image_url);
   const common = { id: row.id, title: row.title, body: row.body || null, imageUrl: normalizedImages[0] || null, images: normalizedImages, category: row.category || null, publisher: row.publisher || null, createdAt: row.created_at || null, updatedAt: row.updated_at || null, commentCount: Number(row.comment_count || 0), likeCount: Number(row.like_count || 0), myReaction: row.my_reaction || null };
-  if (['events','activities'].includes(table)) Object.assign(common, {eventAt: row.event_at || null, endAt: row.end_at || null, location: row.location || null});
+  if (['events'].includes(table)) Object.assign(common, {eventAt: row.event_at || null, endAt: row.end_at || null, location: row.location || null});
   else Object.assign(common, {publishAt: row.publish_at || null, expiresAt: row.expires_at || null});
   return common;
 }
 
 export async function publicList(ctx, table) {
   const limit = clampInt(ctx.url.searchParams.get('limit'), 20);
-  const dateColumn = ['events','activities'].includes(table) ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
+  const dateColumn = ['events'].includes(table) ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
   const order = `${dateColumn} DESC`;
   const expiryClause = ['news', 'announcements'].includes(table)
     ? " AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)"
@@ -120,9 +132,7 @@ export async function publicList(ctx, table) {
       ? 'announcement'
       : table === 'events'
         ? 'event'
-        : table === 'activities'
-          ? 'activity'
-          : 'achievement';
+        : 'achievement';
 
   const myReactionSql = studentId
     ? `(SELECT r2.reaction FROM reactions r2 WHERE r2.content_type = ? AND r2.content_id = ${table}.id AND r2.student_id = ?) AS my_reaction`
@@ -145,7 +155,7 @@ export async function publicList(ctx, table) {
   const rows = await queryAll(ctx.env, sql, ...params);
 
   const data = rows.map(row => {
-    if (table === 'news' || table === 'events' || table === 'activities') {
+    if (table === 'news' || table === 'events') {
       return serializePublicContent(table, row);
     }
     if (table === 'achievements') return {

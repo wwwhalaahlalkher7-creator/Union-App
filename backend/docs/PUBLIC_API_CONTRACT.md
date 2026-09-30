@@ -17,15 +17,14 @@ Base:
 - `GET /public/news`
 - `GET /public/events`
 - `GET /public/announcements`
-- `GET /public/activities`
-- `GET /public/news/:id`
+- - `GET /public/news/:id`
 - `GET /public/events/:id`
-- `GET /public/activities/:id`
-- `GET /public/achievements`
+- `GET /public/achievements/:id`
+- - `GET /public/achievements`
 - `GET /public/settings`
 - `GET /public/materials`
 
-Legacy-compatible public content routes `/news`, `/events`, `/announcements`, `/activities`, `/achievements` remain implemented for compatibility.
+Public content routes `/news`, `/events`, `/announcements`, `/achievements` are the canonical routes.
 
 ## Authentication endpoints
 
@@ -132,9 +131,9 @@ The Flutter client allows longer network timeouts for these operations than ordi
 
 The interaction API accepts only:
 
-`news`, `event`, `activity`, `announcement`, `achievement`.
+`news`, `event`, `announcement`, `achievement`.
 
-The public detail API uses plural route names (`events`, `activities`) while interaction routes use the singular content type (`event`, `activity`).
+The public detail API uses the plural route name `events`, while interaction routes use the singular content type `event`.
 
 ## Response envelopes
 

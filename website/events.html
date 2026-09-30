@@ -8,22 +8,22 @@
 <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
-<title>النشاطات | أمانة الإعلام ورابطة كلية الهندسة والعمارة</title>
+<title>الفعاليات | أمانة الإعلام ورابطة كلية الهندسة والعمارة</title>
 
 <!-- SEO: وصف الصفحة والرابط الأساسي -->
-<meta name="description" content="نشاطات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي، بالصور والتفاصيل.">
-<link rel="canonical" href="https://ush-eng.great-site.net/activities.html">
+<meta name="description" content="فعاليات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي، بالصور والتفاصيل.">
+<link rel="canonical" href="https://ush-eng.great-site.net/events.html">
 
 <!-- Open Graph / مشاركة على وسائل التواصل -->
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ar_AR">
-<meta property="og:title" content="النشاطات | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
-<meta property="og:description" content="نشاطات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي، بالصور والتفاصيل.">
-<meta property="og:url" content="https://ush-eng.great-site.net/activities.html">
+<meta property="og:title" content="الفعاليات | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
+<meta property="og:description" content="فعاليات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي، بالصور والتفاصيل.">
+<meta property="og:url" content="https://ush-eng.great-site.net/events.html">
 <meta property="og:image" content="https://ush-eng.great-site.net/favicon.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="النشاطات | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
-<meta name="twitter:description" content="نشاطات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي.">
+<meta name="twitter:title" content="الفعاليات | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
+<meta name="twitter:description" content="فعاليات وفعاليات رابطة كلية الهندسة والعمارة – جامعة شندي.">
 <meta name="twitter:image" content="https://ush-eng.great-site.net/favicon.png">
 
 <!-- الاتصال بواجهة TRINEX العامة يتم عند الحاجة -->
@@ -35,7 +35,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="activities-page.css?v=1">
+<link rel="stylesheet" href="events-page.css?v=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -60,7 +60,7 @@
             <li><a href="index.html">الرئيسية</a></li>
             <li><a href="Injazat.html">الإنجازات</a></li>
             <li><a href="courses.html">المواد الدراسية</a></li>
-            <li><a href="activities.html" class="active">النشاطات</a></li>
+            <li><a href="events.html" class="active">الفعاليات</a></li>
             <li><a href="committees.html">الأمانات الأخرى</a></li>
             <li><a href="news.html">آخر الأخبار</a></li>
             <li><a href="download.html"> تحميل التطبيق</a></li>
@@ -69,7 +69,7 @@
 </header>
 
 <div class="page-header">
-    <h1>النشاطات</h1>
+    <h1>الفعاليات</h1>
     <p>كل ما تنظمه الرابطة من ورش وفعاليات وبرامج، بالترتيب الزمني</p>
 </div>
 
@@ -77,11 +77,11 @@
     <div id="page-cards-container" style="display: flex; flex-direction: column; gap: 40px; width: 100%;"></div>
 </div>
 
-<!-- الصندوق الضوئي لتكبير صور معرض النشاط -->
+<!-- الصندوق الضوئي لتكبير صور معرض الفعالية -->
 <div class="lightbox-overlay" id="lightbox">
     <span class="lightbox-close" id="lightboxClose" aria-label="إغلاق"><i class="fas fa-times"></i></span>
     <span class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="الصورة السابقة"><i class="fas fa-chevron-right"></i></span>
-    <img id="lightboxImg" src="" alt="عرض موسّع لصورة النشاط">
+    <img id="lightboxImg" src="" alt="عرض موسّع لصورة الفعالية">
     <span class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="الصورة التالية"><i class="fas fa-chevron-left"></i></span>
     <div class="lightbox-counter" id="lightboxCounter"></div>
 </div>
@@ -135,7 +135,7 @@
     // ----------------------------------------------------
     // نفس رابط الـ Web App المستخدم في باقي صفحات الموقع
     // ----------------------------------------------------
-    const PUBLIC_API_URL = window.PUBLIC_API_BASE + "/activities";
+    const PUBLIC_API_URL = window.PUBLIC_API_BASE + "/events";
 
     // ----------------------------------------------------
     // معرض الصور (Gallery) والصندوق الضوئي (Lightbox)
@@ -155,7 +155,7 @@
 
             const img = document.createElement("img");
             img.src = images[i];
-            img.alt = "صورة من النشاط";
+            img.alt = "صورة من الفعالية";
             img.loading = "lazy";
             item.appendChild(img);
 
@@ -215,11 +215,11 @@
     });
 
     // ----------------------------------------------------
-    // تحديد حالة النشاط من تاريخ البداية والنهاية.
+    // تحديد حالة الفعالية من تاريخ البداية والنهاية.
     // يعيد null فقط عندما لا يمكن تفسير التاريخ، حتى لا يمنع
     // سجل سليم من الظهور بسبب بيانات زمنية ناقصة.
     // ----------------------------------------------------
-    function computeActivityStatus({ Date: startValue, EndDate: endValue } = {}) {
+    function computeEventStatus({ Date: startValue, EndDate: endValue } = {}) {
         const start = startValue ? new Date(startValue) : null;
         const end = endValue ? new Date(endValue) : null;
         const now = new Date();
@@ -241,9 +241,9 @@
     }
 
     // ----------------------------------------------------
-    // بناء بطاقة نشاط واحدة من سجل TRINEX
+    // بناء بطاقة فعالية واحدة من سجل TRINEX
     // ----------------------------------------------------
-    function buildActivityCard(record) {
+    function buildEventCard(record) {
         const fields = record;
 
         const title     = fields.title || "";
@@ -251,7 +251,7 @@
         const location  = fields.location || "";
         const publisher = fields.publisher || "أمانة الإعلام";
         
-        const statusEntry = computeActivityStatus({Date: fields.eventAt, EndDate: fields.endAt});
+        const statusEntry = computeEventStatus({Date: fields.eventAt, EndDate: fields.endAt});
 
         const images = [fields.imageUrl].filter(Boolean);
 
@@ -270,14 +270,14 @@
             .filter(Boolean);
 
         const card = document.createElement("div");
-        card.className = "activity-card";
+        card.className = "event-card";
 
         card.innerHTML = `
-            ${statusEntry ? `<div class="activity-meta"><span class="act-status-badge is-${statusEntry.state}"><i class="fas ${statusEntry.icon}"></i> ${statusEntry.label}</span></div>` : ''}
+            ${statusEntry ? `<div class="event-meta"><span class="event-status-badge is-${statusEntry.state}"><i class="fas ${statusEntry.icon}"></i> ${statusEntry.label}</span></div>` : ''}
             <h2 class="act-title"></h2>
             <div class="gallery-slot"></div>
             <div class="intro-text-container"></div>
-            <div class="activity-footer">
+            <div class="event-footer">
                 <div class="meta-group">
                     <span class="act-publisher"><i class="far fa-user"></i></span>
                     ${location ? '<span class="act-location"><i class="fas fa-location-dot"></i></span>' : ''}
@@ -314,19 +314,19 @@
     }
 
     // ----------------------------------------------------
-    // جلب النشاطات من TRINEX وعرضها في الصفحة — قائمة واحدة مرتبة
-    // زمنياً (الأحدث أولاً)، مع إظهار حالة النشاط اعتماداً على
-    // computeActivityStatus أعلاه.
+    // جلب الفعاليات من TRINEX وعرضها في الصفحة — قائمة واحدة مرتبة
+    // زمنياً (الأحدث أولاً)، مع إظهار حالة الفعالية اعتماداً على
+    // computeEventStatus أعلاه.
     // ----------------------------------------------------
-    async function fetchActivities() {
+    async function fetchEvents() {
         const container=document.getElementById("page-cards-container");
-        container.innerHTML=`<div class="loading-status"><i class="fas fa-circle-notch fa-spin"></i> جاري تحميل النشاطات...</div>`;
+        container.innerHTML=`<div class="loading-status"><i class="fas fa-circle-notch fa-spin"></i> جاري تحميل الفعاليات...</div>`;
         try { const r=await fetch(PUBLIC_API_URL+"?limit=50"); if(!r.ok) throw new Error(); const d=await r.json(); const records=Array.isArray(d.data)?d.data:[];
-            if(!records.length){container.innerHTML=`<div class="loading-status"><i class="fas fa-hourglass-start"></i> لا توجد نشاطات حالياً</div>`;return;}
-            container.innerHTML=""; records.forEach(x=>container.appendChild(buildActivityCard(x)));
-        } catch(e){ console.error(e); container.innerHTML=`<div class="loading-status" style="color:#ff4a4a">تعذر تحميل النشاطات، يرجى المحاولة لاحقاً.</div>`; }
+            if(!records.length){container.innerHTML=`<div class="loading-status"><i class="fas fa-hourglass-start"></i> لا توجد فعاليات حالياً</div>`;return;}
+            container.innerHTML=""; records.forEach(x=>container.appendChild(buildEventCard(x)));
+        } catch(e){ console.error(e); container.innerHTML=`<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الفعاليات، يرجى المحاولة لاحقاً.</div>`; }
     }
-    window.addEventListener("DOMContentLoaded", fetchActivities);
+    window.addEventListener("DOMContentLoaded", fetchEvents);
 </script>
 <script src="site-settings.js"></script>
     <script src="ui-pro.js?v=5"></script>

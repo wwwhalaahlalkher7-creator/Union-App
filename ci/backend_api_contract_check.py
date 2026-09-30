@@ -11,7 +11,7 @@ flutter = '\n'.join(p.read_text() for p in (root / 'flutter/lib').rglob('*.dart'
 required_routes = [
     ('GET', '/health'), ('GET', '/version'), ('GET', '/app/update'),
     ('GET', '/public/news'), ('GET', '/public/events'), ('GET', '/public/announcements'),
-    ('GET', '/public/activities'), ('GET', '/public/achievements'),
+    ('GET', '/public/achievements'),
     ('GET', '/public/settings'), ('GET', '/public/materials'),
     ('POST', '/auth/login'), ('POST', '/auth/register'), ('POST', '/auth/refresh'),
     ('POST', '/auth/logout'), ('GET', '/auth/me'),
@@ -66,13 +66,16 @@ for path in sorted(flutter_paths):
         documented=True
     elif '/api/v1/public/$type/$id' in path:
         documented=True
+    elif path == '/api/v1/public/${_publicRoute(type)}/$id':
+        # ContentRepository maps logical interaction types to canonical public plural routes.
+        documented=True
     elif normalized == '/api/v1/public/':
         # This is a cache-prefix check in api_client.dart, not an HTTP endpoint.
         documented=True
     elif normalized.startswith('/api/v1/public/'):
         resource=normalized[len('/api/v1/public/'):].split('/')[0]
-        documented=resource in {'news','events','announcements','activities','achievements','settings','materials'}
-        if normalized.count('/') >= 4 and resource in {'news','events','activities'}:
+        documented=resource in {'news','events','announcements','achievements','settings','materials'}
+        if normalized.count('/') >= 4 and resource in {'news','events','achievements'}:
             documented = True
     else:
         docpath=normalized[len('/api/v1'):]

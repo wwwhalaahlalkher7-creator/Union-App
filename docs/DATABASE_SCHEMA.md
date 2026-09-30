@@ -48,7 +48,7 @@ This document is the canonical human-readable map of the D1 schema. Migration fi
 | `comment_reactions` | Reactions to comments | comment + student |
 | `reactions` | Reactions to news/events/etc. | student + logical content reference |
 
-Logical content types are validated in the API: `news`, `event`, `activity`, `announcement`, `achievement`.
+Logical content types are validated in the API: `news`, `event`, `announcement`, `achievement`.
 
 ## 5. Public content
 
@@ -57,7 +57,7 @@ Logical content types are validated in the API: `news`, `event`, `activity`, `an
 | `news` | News articles |
 | `announcements` | Announcements and notification source records |
 | `events` | Events |
-| `activities` | Activities |
+
 | `achievements` | Achievement posts |
 
 Public serializers expose only public-safe fields rather than returning raw rows.

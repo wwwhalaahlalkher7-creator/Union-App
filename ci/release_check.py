@@ -68,10 +68,10 @@ if "allowedOrigins.length === 0 ? '*'" in backend_source:
 # Admin API safety invariants.
 if 'const ADMIN_SELECT_COLUMNS = {' not in backend_source:
     errors.append('Admin CRUD must use an explicit safe SELECT projection')
-if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'announcements', 'achievements']))" not in backend_source:
+if "const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'announcements', 'achievements']))" not in backend_source:
     errors.append('Admin content lifecycle contract is missing')
-if "UPDATE ${table} SET status='archived'" not in backend_source:
-    errors.append('Admin content DELETE must archive by status')
+if "DELETE FROM ${table} WHERE id=?" not in backend_source:
+    errors.append('Admin content DELETE must hard-delete by id')
 student_projection_match = re.search(r"students:\s*'([^']+)'", backend_source[backend_source.find('const ADMIN_SELECT_COLUMNS'):])
 if not student_projection_match:
     errors.append('Missing admin student projection')
@@ -81,8 +81,8 @@ else:
         errors.append('Admin student projection exposes authentication secret columns')
     if 'AS registered' not in student_projection:
         errors.append('Admin student projection lost the safe derived registration flag')
-if "WHERE id=? AND active=1" not in backend_source:
-    errors.append('Soft-deletable admin records must not fall through to hard delete')
+if "mode:'hard_delete'" not in backend_source:
+    errors.append('Admin hard-delete audit contract is missing')
 
 # Canonical maintenance/release documentation must exist.
 for rel in ('README.md', 'CONTRIBUTING.md', 'docs/ARCHITECTURE.md', 'docs/CONFIGURATION.md', 'docs/RELEASE.md'):

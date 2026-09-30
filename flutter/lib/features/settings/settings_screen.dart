@@ -525,8 +525,12 @@ class _AccentOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = color.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = isDark ? color.primaryDark : color.primary;
     final label = color.localizedName(languageCode);
+    final checkColor = color.isThemeAdaptive
+        ? (isDark ? Colors.black : Colors.white)
+        : Colors.white;
 
     return Semantics(
       selected: selected,
@@ -563,16 +567,27 @@ class _AccentOption extends StatelessWidget {
                   ),
                 ],
               ),
-              child: AnimatedSwitcher(
-                duration: DesignTokens.fast,
-                child: selected
-                    ? const Icon(
-                        Icons.check_rounded,
-                        key: ValueKey('selected'),
-                        size: 24,
-                        color: Colors.white,
-                      )
-                    : const SizedBox(key: ValueKey('empty')),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (color.isThemeAdaptive)
+                    const ClipOval(
+                      child: CustomPaint(
+                        painter: _BlackWhiteAccentPainter(),
+                      ),
+                    ),
+                  AnimatedSwitcher(
+                    duration: DesignTokens.fast,
+                    child: selected
+                        ? Icon(
+                            Icons.check_rounded,
+                            key: const ValueKey('selected'),
+                            size: 24,
+                            color: checkColor,
+                          )
+                        : const SizedBox(key: ValueKey('empty')),
+                  ),
+                ],
               ),
             ),
           ),
@@ -580,6 +595,38 @@ class _AccentOption extends StatelessWidget {
       ),
     );
   }
+}
+
+class _BlackWhiteAccentPainter extends CustomPainter {
+  const _BlackWhiteAccentPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final white = Paint()..color = Colors.white;
+    final black = Paint()..color = Colors.black;
+
+    canvas.drawRect(rect, white);
+
+    final path = Path()
+      ..moveTo(size.width, 0)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(path, black);
+
+    final line = Paint()
+      ..color = const Color(0xFF7A7A7A)
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      Offset(size.width, 0),
+      Offset(0, size.height),
+      line,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BlackWhiteAccentPainter oldDelegate) => false;
 }
 
 class _LanguageOption extends StatelessWidget {

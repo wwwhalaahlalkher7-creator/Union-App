@@ -2,7 +2,7 @@
 
 صدّر البيانات الحالية إلى JSON داخل `data-import/input/` وفق القوالب. لا تضع مفاتيح Airtable/Google في المستودع.
 
-الملفات: students, subjects, materials, schedules, news, activities, achievements, announcements.
+الملفات: students, subjects, materials, schedules, news, events, achievements, announcements.
 
 التحقق ثم البناء:
 ```bash

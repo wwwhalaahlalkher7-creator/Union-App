@@ -6,14 +6,13 @@ class ContentRepository {
   Future<List<ContentItem>> news() => _list('/api/v1/public/news');
   Future<List<ContentItem>> announcements() => _list('/api/v1/public/announcements');
   Future<List<ContentItem>> events() => _list('/api/v1/public/events');
-  Future<List<ContentItem>> activities() => _list('/api/v1/public/activities');
   Future<List<ContentItem>> achievements() => _list('/api/v1/public/achievements');
 
   Future<ContentItem> detail(String type, String id) async {
     final client = await AuthenticatedClient.create();
     try {
       final json = await client.getJson(
-        '/api/v1/public/$type/$id',
+        '/api/v1/public/${_publicRoute(type)}/$id',
         cacheTtl: const Duration(seconds: 20),
         forceRefresh: true,
       );
@@ -24,6 +23,8 @@ class ContentRepository {
       client.dispose();
     }
   }
+
+  String _publicRoute(String type) => type == 'event' ? 'events' : type == 'achievement' ? 'achievements' : type;
 
   Future<List<ContentItem>> _list(String path) async {
     final client = await AuthenticatedClient.create();

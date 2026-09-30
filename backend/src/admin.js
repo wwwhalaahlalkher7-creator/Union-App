@@ -13,9 +13,9 @@ import { deleteDriveFilesViaAppsScript } from './drive.js';
 
 const ADMIN_ROLE_PERMISSIONS = Object.freeze({
   super_admin: ['*'],
-  content_manager: ['content.read', 'content.write', 'notifications.write', 'dashboard.read'],
+  content_manager: ['content.read', 'content.write', 'dashboard.read'],
   academic_manager: ['academic.read', 'academic.write', 'dashboard.read'],
-  moderator: ['moderation.read', 'moderation.write', 'dashboard.read'],
+  moderator: ['moderation.read', 'moderation.write', 'notifications.read', 'notifications.write', 'dashboard.read'],
 });
 const ADMIN_ROLE_IDS = new Set(Object.keys(ADMIN_ROLE_PERMISSIONS));
 
@@ -23,7 +23,6 @@ const ADMIN_FIELDS = {
   news: ['title','body','image_url','images_json','publish_at','expires_at','status','category','publisher'],
   announcements: ['title','body','type','target_department_id','target_semester_id','publish_at','expires_at','status'],
   events: ['title','body','image_url','images_json','category','event_at','end_at','location','publisher','status'],
-  activities: ['title','body','image_url','images_json','category','event_at','end_at','location','publisher','status'],
   achievements: ['title','description','intro','highlights_title','highlights','badge','publisher','image_url','images_json','achieved_at','status'],
   subjects: ['semester_id','department_id','code','name_ar','name_en','active','sort_order'],
   materials: ['subject_id','title','description','drive_file_id','drive_url','mime_type','size_bytes','active','sort_order','drive_parent_id','drive_modified_at','drive_web_view_url','pinned','source'],
@@ -34,15 +33,14 @@ const ADMIN_FIELDS = {
 };
 
 const CONTENT_STATUS_VALUES = Object.freeze(new Set(['draft', 'published']));
-const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'announcements', 'achievements']));
-const CONTENT_UPDATED_BY_TABLES = Object.freeze(new Set(['news', 'events', 'activities', 'achievements']));
+const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'announcements', 'achievements']));
+const CONTENT_UPDATED_BY_TABLES = Object.freeze(new Set(['news', 'events', 'achievements']));
 
 
 const ADMIN_SELECT_COLUMNS = {
   news: 'id,title,body,image_url,images_json,publish_at,expires_at,status,category,publisher,created_by,updated_by,created_at,updated_at',
   announcements: 'id,title,body,type,target_department_id,target_semester_id,publish_at,expires_at,status,created_by,created_at,updated_at',
   events: 'id,title,body,image_url,images_json,category,event_at,end_at,location,publisher,status,created_by,updated_by,created_at,updated_at',
-  activities: 'id,title,body,image_url,images_json,category,event_at,end_at,location,publisher,status,created_by,updated_by,created_at,updated_at',
   achievements: 'id,title,description,intro,highlights_title,highlights,badge,publisher,image_url,images_json,achieved_at,status,created_by,updated_by,created_at,updated_at',
   subjects: 'id,semester_id,department_id,code,name_ar,name_en,active,sort_order',
   materials: 'id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,created_at,updated_at',
@@ -121,13 +119,14 @@ export function adminPermission(path, method) {
   if (path.includes('/staff')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
   if (path.includes('/settings')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
   if (path.includes('/audit-logs')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
+  if (path.includes('/notifications') || path.includes('/announcements')) return method === 'GET' ? 'notifications.read' : 'notifications.write';
   if (path.includes('/students') || path.includes('/subjects') || path.includes('/materials') || path.includes('/schedule')) return method === 'GET' ? 'academic.read' : 'academic.write';
   if (path.includes('/comments') || path.includes('/moderation')) return method === 'GET' ? 'moderation.read' : 'moderation.write';
   return method === 'GET' ? 'content.read' : 'content.write';
 }
 
 export function adminResourceTable(resource) {
-  const map = { news:'news', announcements:'announcements', events:'events', activities:'activities', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', badges:'badges', comments:'comments' };
+  const map = { news:'news', announcements:'announcements', events:'events', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', badges:'badges', comments:'comments' };
   return map[resource] || null;
 }
 
@@ -256,7 +255,7 @@ export async function adminCrud(ctx, table, id, actorId) {
     const academicError = await validateAcademicReferences(ctx, table, fields);
     if (academicError) return academicError;
     const cols = ['id', ...Object.keys(fields)]; const vals = [id, ...Object.values(fields)];
-    if (table === 'news' || table === 'events' || table === 'activities' || table === 'announcements' || table === 'achievements') { cols.push('created_by'); vals.push(actorId); }
+    if (table === 'news' || table === 'events' || table === 'announcements' || table === 'achievements') { cols.push('created_by'); vals.push(actorId); }
     if (table === 'schedules') { cols.push('created_by','updated_by'); vals.push(actorId,actorId); }
     const marks = cols.map(()=>'?').join(',');
     await ctx.env.DB.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${marks})`).bind(...vals.map(sqlValue)).run();
@@ -324,7 +323,6 @@ export async function adminCrud(ctx, table, id, actorId) {
         ctx.env.DB.prepare('DELETE FROM sessions WHERE staff_user_id=?').bind(id),
         ctx.env.DB.prepare('UPDATE news SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
         ctx.env.DB.prepare('UPDATE events SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
-        ctx.env.DB.prepare('UPDATE activities SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
         ctx.env.DB.prepare('UPDATE achievements SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
         ctx.env.DB.prepare('UPDATE announcements SET created_by=NULL WHERE created_by=?').bind(id),
         ctx.env.DB.prepare('UPDATE schedules SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
@@ -565,7 +563,6 @@ export async function adminStaff(ctx, id, actorId) {
       ctx.env.DB.prepare('DELETE FROM sessions WHERE staff_user_id=?').bind(id),
       ctx.env.DB.prepare('UPDATE news SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
       ctx.env.DB.prepare('UPDATE events SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
-        ctx.env.DB.prepare('UPDATE activities SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
       ctx.env.DB.prepare('UPDATE achievements SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
       ctx.env.DB.prepare('UPDATE announcements SET created_by=NULL WHERE created_by=?').bind(id),
       ctx.env.DB.prepare('UPDATE schedules SET created_by=NULL, updated_by=NULL WHERE created_by=? OR updated_by=?').bind(id,id),
@@ -580,7 +577,7 @@ export async function adminStaff(ctx, id, actorId) {
 }
 
 export async function adminNotifications(ctx) {
-  const a = await adminRouteAuthOnly(ctx, 'content.read'); if (a.response) return a.response;
+  const a = await adminRouteAuthOnly(ctx, 'notifications.read'); if (a.response) return a.response;
   const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
   const rows = await queryAll(ctx.env, `SELECT a.id, a.title, a.type, a.status, a.publish_at, a.expires_at, COUNT(nt.id) AS targets, SUM(CASE WHEN nt.read_at IS NOT NULL THEN 1 ELSE 0 END) AS reads FROM announcements a LEFT JOIN notification_targets nt ON nt.announcement_id=a.id GROUP BY a.id ORDER BY COALESCE(a.publish_at,a.created_at) DESC LIMIT ?`, limit);
   return ok(ctx, rows);

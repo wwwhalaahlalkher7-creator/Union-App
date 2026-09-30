@@ -14,7 +14,6 @@ class StartupPreloader {
       '/api/v1/public/news',
       '/api/v1/public/announcements',
       '/api/v1/public/events',
-      '/api/v1/public/activities',
     ];
     try {
       await Future.wait(

@@ -68,7 +68,7 @@ if "DRIVE_DELETE_FAILED" not in INDEX_JS or "لم يتم حذف سجل D1" not i
 
 # Regression checks for the specific backend fixes.
 checks = {
-    "event comment type": "table === 'news' ? 'news' : table === 'events' ? 'event' : 'activity'",
+    "event comment type": "const table = type === 'event' ? 'events' : type === 'announcement' ? 'announcements' : type === 'achievement' ? 'achievements' : 'news';",
     "student reply cleanup": "DELETE FROM comment_replies WHERE student_id=?",
     "student Eino memory cleanup": "DELETE FROM eino_memories WHERE student_id=?",
     "atomic XP condition": "INSERT INTO xp_events (id, student_id, event_type, source_id, xp)\n    SELECT ?, ?, ?, ?, ?",

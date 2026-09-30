@@ -1,6 +1,6 @@
 import fs from 'node:fs'; import path from 'node:path';
 const dir=process.argv[2]; if(!dir){console.error('Usage: node scripts/validate-import.mjs <input-dir>');process.exit(2)}
-const files=['students','subjects','materials','schedules','news','activities','achievements','announcements']; const deps=new Set(['EE','ARCH','CE','كهرباء إلكترونية','معمار','مدنية']); let errors=0;
+const files=['students','subjects','materials','schedules','news','events','achievements','announcements']; const deps=new Set(['EE','ARCH','CE','كهرباء إلكترونية','معمار','مدنية']); let errors=0;
 const load=n=>{const p=path.join(dir,`${n}.json`);if(!fs.existsSync(p))return [];try{const x=JSON.parse(fs.readFileSync(p,'utf8'));if(!Array.isArray(x))throw Error('يجب أن يكون مصفوفة');return x}catch(e){console.error(`✗ ${n}: ${e.message}`);errors++;return[]}};
 const students=load('students'); students.forEach((s,i)=>{if(!s.studentNumber||!s.fullName||!deps.has(s.department)||!Number.isInteger(Number(s.semester))||Number(s.semester)<1||Number(s.semester)>10){console.error(`✗ students[${i}] بيانات غير صالحة`);errors++}});
 const subjects=load('subjects'), ids=new Set(subjects.map(x=>String(x.id))); subjects.forEach((s,i)=>{if(!s.id||!s.nameAr||!deps.has(s.department)||!Number.isInteger(Number(s.semester))){console.error(`✗ subjects[${i}] بيانات غير صالحة`);errors++}});

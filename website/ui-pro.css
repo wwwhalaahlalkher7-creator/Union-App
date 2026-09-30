@@ -233,7 +233,7 @@ section { position: relative; }
   margin-inline: auto;
 }
 .cards-container { display:grid !important; grid-template-columns:1fr !important; gap:14px !important; padding: 44px 0 !important; }
-.card, .form-card, .support-card, .stat-card, .notice, .committee-card, .file-card, .semester-card, .state-card, .news-card, .achievement-card, .activity-card {
+.card, .form-card, .support-card, .stat-card, .notice, .committee-card, .file-card, .semester-card, .state-card, .news-card, .achievement-card, .event-card {
   position:relative;
   border:1px solid var(--line) !important;
   border-radius: var(--radius-md) !important;
@@ -242,8 +242,8 @@ section { position: relative; }
   overflow:hidden;
   transition: transform .45s var(--ease), border-color .45s, box-shadow .45s, background .45s;
 }
-.card::before, .form-card::before, .support-card::before, .stat-card::before, .notice::before, .committee-card::before, .file-card::before, .semester-card::before, .news-card::before, .achievement-card::before, .activity-card::before { display:none; }
-.card:hover, .form-card:hover, .support-card:hover, .stat-card:hover, .notice:hover, .committee-card:hover, .file-card:hover, .semester-card:hover, .news-card:hover, .achievement-card:hover, .activity-card:hover {
+.card::before, .form-card::before, .support-card::before, .stat-card::before, .notice::before, .committee-card::before, .file-card::before, .semester-card::before, .news-card::before, .achievement-card::before, .event-card::before { display:none; }
+.card:hover, .form-card:hover, .support-card:hover, .stat-card:hover, .notice:hover, .committee-card:hover, .file-card:hover, .semester-card:hover, .news-card:hover, .achievement-card:hover, .event-card:hover {
   transform: translateY(-3px);
   border-color: rgba(var(--primary-rgb),.24) !important;
   box-shadow: 0 16px 38px rgba(0,0,0,.16) !important;
@@ -293,8 +293,8 @@ section { position: relative; }
 /* Dynamic grids from JS */
 .news-container, #news-container, #page-cards-container { width:min(var(--content-w),calc(100% - 32px)); margin-inline:auto; }
 .news-container, .content-container { display:grid; grid-template-columns:1fr; gap:14px; }
-.news-card, .achievement-card, .activity-card { min-width:0; }
-.news-meta, .activity-meta, .file-meta { color:var(--text-soft) !important; }
+.news-card, .achievement-card, .event-card { min-width:0; }
+.news-meta, .event-meta, .file-meta { color:var(--text-soft) !important; }
 .news-tag, .badge, .badge-pill, .act-status-badge, .tab-badge {
   border:1px solid rgba(var(--primary-rgb),.18) !important;
   background:rgba(var(--primary-rgb),.10) !important;
@@ -439,12 +439,12 @@ section:not(.hero) > h2::after,
 
 .card-link { display:block; min-width:0; }
 .card-link > .card { height:100%; }
-.card h3, .news-card h3, .achievement-card h3, .activity-card h3, .committee-card h3 {
+.card h3, .news-card h3, .achievement-card h3, .event-card h3, .committee-card h3 {
   color:#fff;
   line-height:1.45;
   letter-spacing:-.025em;
 }
-.card p, .news-card p, .achievement-card p, .activity-card p, .committee-card p { color:var(--text-muted); }
+.card p, .news-card p, .achievement-card p, .event-card p, .committee-card p { color:var(--text-muted); }
 
 .card i, .card > i:first-child {
   filter: drop-shadow(0 0 14px rgba(var(--primary-rgb), .22));
@@ -507,10 +507,10 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--primary); }
 
 /* Media surfaces */
 img { max-width:100%; }
-.news-card img, .achievement-card img, .activity-card img, .card img {
+.news-card img, .achievement-card img, .event-card img, .card img {
   transition:transform .35s ease-out;
 }
-.news-card:hover img, .achievement-card:hover img, .activity-card:hover img, .card:hover img {
+.news-card:hover img, .achievement-card:hover img, .event-card:hover img, .card:hover img {
   transform:scale(1.015);
 }
 
@@ -592,7 +592,7 @@ body::before {
 /* Stronger but still restrained interactive depth. */
 .card, .form-card, .support-card, .stat-card, .notice,
 .committee-card, .file-card, .semester-card, .state-card,
-.news-card, .achievement-card, .activity-card {
+.news-card, .achievement-card, .event-card {
   transform:translateZ(0);
 }
 
@@ -636,10 +636,10 @@ textarea { min-height:120px; resize:vertical; }
 @media (prefers-reduced-motion:reduce) {
   .card, .form-card, .support-card, .stat-card, .notice,
   .committee-card, .file-card, .semester-card, .state-card,
-  .news-card, .achievement-card, .activity-card { will-change:auto; }
+  .news-card, .achievement-card, .event-card { will-change:auto; }
   .card::after, .form-card::after, .support-card::after, .stat-card::after,
   .notice::after, .committee-card::after, .file-card::after, .semester-card::after,
-  .state-card::after, .news-card::after, .achievement-card::after, .activity-card::after { display:none; }
+  .state-card::after, .news-card::after, .achievement-card::after, .event-card::after { display:none; }
 }
 
 
@@ -666,7 +666,7 @@ textarea { min-height:120px; resize:vertical; }
 }
 
 /* Keep interactive content above decorative card layers. */
-.card > *, .news-card > *, .achievement-card > *, .activity-card > *,
+.card > *, .news-card > *, .achievement-card > *, .event-card > *,
 .committee-card > *, .file-card > *, .semester-card > *, .state-card > * {
   position: relative;
   z-index: 1;
@@ -674,7 +674,7 @@ textarea { min-height:120px; resize:vertical; }
 
 /* More reliable Arabic wrapping for dynamic titles and long filenames. */
 .card h3, .card p, .news-card h3, .news-card p,
-.achievement-card h3, .achievement-card p, .activity-card h3, .activity-card p,
+.achievement-card h3, .achievement-card p, .event-card h3, .event-card p,
 .committee-card h3, .committee-card p, .file-card, .semester-card,
 .notice, .state-card {
   overflow-wrap: anywhere;
@@ -702,14 +702,14 @@ header#header {
 @media (hover:none) {
   .card:hover, .form-card:hover, .support-card:hover, .stat-card:hover,
   .notice:hover, .committee-card:hover, .file-card:hover, .semester-card:hover,
-  .state-card:hover, .news-card:hover, .achievement-card:hover, .activity-card:hover,
+  .state-card:hover, .news-card:hover, .achievement-card:hover, .event-card:hover,
   .btn:hover, .btn-secondary:hover, .submit-btn:hover, .social-btn:hover {
     transform:none;
   }
   .card:hover::after, .form-card:hover::after, .support-card:hover::after,
   .stat-card:hover::after, .notice:hover::after, .committee-card:hover::after,
   .file-card:hover::after, .semester-card:hover::after, .state-card:hover::after,
-  .news-card:hover::after, .achievement-card:hover::after, .activity-card:hover::after {
+  .news-card:hover::after, .achievement-card:hover::after, .event-card:hover::after {
     transform:translateX(-120%);
   }
 }
