@@ -12,11 +12,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="api-config.js?v=1"></script>
-    <link rel="stylesheet" href="ui-pro.css?v=3">
+  <link rel="stylesheet" href="ui-pro.css?v=3">
   <link rel="stylesheet" href="download-page.css?v=1">
 </head>
-<body>
+<body class="download-page">
 <header id="header">
   <div class="logo">
     <h2 id="siteLogoName">رابطة كلية الهندسة والعمارة</h2>
@@ -31,38 +30,50 @@
       <li><a href="activities.html">النشاطات</a></li>
       <li><a href="committees.html">الأمانات الأخرى</a></li>
       <li><a href="news.html">آخر الأخبار</a></li>
-      <li><a href="download.html" class="active" aria-current="page"><i class="fas fa-mobile-screen-button" aria-hidden="true"></i> تحميل التطبيق</a></li>
+      <li><a href="download.html" class="active" aria-current="page">تحميل التطبيق</a></li>
     </ul>
   </nav>
 </header>
 
-<main class="download-page">
-  <section class="download-hero">
-    <div class="download-icon"><i class="fas fa-mobile-screen-button" aria-hidden="true"></i></div>
-    <h1>تحميل تطبيق الرابطة</h1>
-    <p class="lead">النسخة الرسمية من تطبيق رابطة كلية الهندسة والعمارة، المبنية والمنشورة ضمن آخر إصدار للمشروع.</p>
+<main class="download-content">
+  <section class="download-card" aria-labelledby="appName">
+    <img class="app-icon" src="app-icon.png" alt="أيقونة تطبيق TRINEX" width="192" height="192">
+
+    <div class="app-identity">
+      <span class="app-name" id="appName">TRINEX</span>
+      <span class="app-version" id="appVersion">الإصدار 2.0.0</span>
+    </div>
+
     <div class="download-actions">
-      <a class="download-button" id="downloadButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.apk" rel="noopener">
-        <i class="fas fa-download" aria-hidden="true"></i>
+      <a class="btn download-button" id="downloadButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.apk" rel="noopener">
         تحميل التطبيق
       </a>
-      <a class="download-button secondary" id="downloadZipButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.zip" rel="noopener">
+      <a class="btn-secondary download-button" id="downloadZipButton" href="https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.zip" rel="noopener">
         <i class="fas fa-file-zipper" aria-hidden="true"></i>
-        تحميل النسخة المضغوطة
+        تحميل ZIP
       </a>
     </div>
-    <p class="download-subnote">النسخة المضغوطة مناسبة لمن يفضل تنزيل ملف ZIP أولًا، ثم استخراج التطبيق وتثبيته.</p>
 
-    <div class="download-meta">
-      <div class="meta-card"><span class="meta-label">مصدر النسخة الرسمية</span><span class="meta-value">GitHub Releases</span></div>
-      <div class="meta-card"><span class="meta-label">متطلبات Android</span><span class="meta-value">Android 8.0 (API 26) أو أحدث</span></div>
+    <div class="release-meta" aria-label="معلومات الإصدار">
+      <span class="release-meta-item" id="releaseDate" hidden>
+        <i class="far fa-calendar" aria-hidden="true"></i>
+        <span></span>
+      </span>
+      <span class="release-meta-item" id="releaseSize" hidden>
+        <i class="fas fa-file-arrow-down" aria-hidden="true"></i>
+        <span></span>
+      </span>
     </div>
 
-    <div class="release-notes">
-      <h2><i class="fas fa-list-check" aria-hidden="true"></i> النسخة الرسمية</h2>
-      <p>زر تنزيل التطبيق مرتبط دائمًا بأحدث إصدار إنتاجي معتمد من التطبيق، بينما يوفر الزر الثاني نفس الإصدار داخل ملف ZIP.</p>
+    <div class="release-card">
+      <div class="release-heading">
+        <i class="fas fa-list-check" aria-hidden="true"></i>
+        <span>ملاحظات الإصدار</span>
+      </div>
+      <p class="release-notes" id="releaseNotes">الإصدار الأولي لتطبيق رابطة كلية الهندسة و العمارة.</p>
     </div>
-    <p class="download-note">يتم نشر ملفي TRINEX.apk وTRINEX.zip عبر GitHub Releases، بينما تبقى روابط التنزيل في هذه الصفحة ثابتة.</p>
+
+    <p class="download-error" id="releaseError" aria-live="polite"></p>
   </section>
 </main>
 
@@ -71,22 +82,65 @@
   <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
 </footer>
 
+
 <script>
-  window.addEventListener('scroll', () => {
-    const header = document.getElementById('header');
-    if (window.scrollY > 40) header.classList.add('scrolled'); else header.classList.remove('scrolled');
-  });
-  const menuToggle = document.getElementById('menuToggle');
-  const navMenu = document.getElementById('navMenu');
-  menuToggle.addEventListener('click', () => {
-    navMenu.classList.toggle('active');
-    menuToggle.setAttribute('aria-expanded', navMenu.classList.contains('active'));
-    const icon = menuToggle.querySelector('i');
-    icon.classList.toggle('fa-bars'); icon.classList.toggle('fa-times');
-  });
-  window.addEventListener('click', (e) => {
-    if (!navMenu.contains(e.target) && !menuToggle.contains(e.target) && navMenu.classList.contains('active')) menuToggle.click();
-  });
+  const RELEASE_API = 'https://api.github.com/repos/wwwhalaahlalkher7-creator/Union-App/releases/latest';
+  // Verified against the current production GitHub Release (v2.0.0).
+  const FALLBACK_VERSION = '2.0.0';
+  const FALLBACK_RELEASE_DATE = '2026-09-27T00:05:36Z';
+  const FALLBACK_APK_SIZE = 86119776;
+  const FALLBACK_NOTES = 'الإصدار الأولي لتطبيق رابطة كلية الهندسة و العمارة.';
+  const versionEl = document.getElementById('appVersion');
+  const notesEl = document.getElementById('releaseNotes');
+  const dateEl = document.getElementById('releaseDate');
+  const sizeEl = document.getElementById('releaseSize');
+
+  function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes, unit = 0;
+    while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
+    return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+  }
+
+  function setMeta(element, value) {
+    if (!value) return;
+    element.querySelector('span').textContent = value;
+    element.hidden = false;
+  }
+
+  function formatReleaseDate(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    return `آخر تحديث: ${date.toLocaleDateString('ar-SD', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+  }
+
+  versionEl.textContent = `الإصدار ${FALLBACK_VERSION}`;
+  setMeta(dateEl, formatReleaseDate(FALLBACK_RELEASE_DATE));
+  setMeta(sizeEl, `حجم التطبيق: ${formatBytes(FALLBACK_APK_SIZE)}`);
+
+  async function loadLatestRelease() {
+    try {
+      const response = await fetch(RELEASE_API, {
+        headers: { Accept: 'application/vnd.github+json' },
+        cache: 'no-store'
+      });
+      if (!response.ok) throw new Error(`GitHub Releases: ${response.status}`);
+      const release = await response.json();
+      const version = String(release.tag_name || '').replace(/^v/i, '') || FALLBACK_VERSION;
+      const notes = String(release.body || '').trim() || FALLBACK_NOTES;
+      const apk = Array.isArray(release.assets) ? release.assets.find(asset => asset.name === 'TRINEX.apk') : null;
+
+      versionEl.textContent = `الإصدار ${version}`;
+      notesEl.textContent = notes;
+      if (release.published_at) setMeta(dateEl, formatReleaseDate(release.published_at));
+      if (apk) setMeta(sizeEl, `حجم التطبيق: ${formatBytes(apk.size)}`);
+    } catch (_) {
+      // Keep verified production values if GitHub is temporarily unavailable.
+    }
+  }
+
+  loadLatestRelease();
 </script>
 <script src="site-settings.js"></script>
 <script src="ui-pro.js?v=5"></script>
