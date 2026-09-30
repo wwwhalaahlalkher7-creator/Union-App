@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -9,6 +11,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/storage/auth_storage.dart';
 import '../../data/models/material_item.dart';
 import '../../data/repositories/materials_repository.dart';
+import '../../data/repositories/student_repository.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/login_required_card.dart';
@@ -38,20 +41,30 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
     _client ??= await AuthenticatedClient.create();
 
     final repo = MaterialsRepository(_client!);
-    final semesters = await repo.semesters();
+    final studentRepo = StudentRepository(_client!);
+    final results = await Future.wait([
+      repo.semesters(),
+      studentRepo.profile(),
+    ]);
+    final semesters = results[0] as List<Map<String, dynamic>>;
+    final profile = results[1];
+    final registeredSemesterId = profile.semesterId?.trim();
+    final registeredExists = registeredSemesterId != null &&
+        semesters.any((semester) => semester['id']?.toString() == registeredSemesterId);
 
-    if (mounted && _semesters.isEmpty) {
+    if (mounted) {
       setState(() {
         _semesters = semesters;
-        _semesterId ??= semesters.isEmpty
-            ? null
-            : semesters.first['id']?.toString();
+        if (_semesterId == null ||
+            !semesters.any((semester) => semester['id']?.toString() == _semesterId)) {
+          _semesterId = registeredExists
+              ? registeredSemesterId
+              : (semesters.isEmpty ? null : semesters.first['id']?.toString());
+        }
       });
     }
 
-    return repo.list(
-      semesterId: _semesterId,
-    );
+    return repo.list(semesterId: _semesterId);
   }
 
   Future<void> _reload() async {
@@ -301,8 +314,10 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                               dense: true,
                               title: Text(
                                 material.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  fontSize: 11.5,
+                                  fontSize: 10.8,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -373,9 +388,51 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
     duration: const Duration(seconds: 3),
   )..repeat();
   bool _einoVisible = false;
+  Timer? _progressTimer;
+  int _nextProgress = 25;
+  ApiClient? _progressClient;
+
+  @override
+  void initState() {
+    super.initState();
+    _startProgressTracking();
+  }
+
+  void _startProgressTracking() {
+    // Reading progress is time-based and only advances while this viewer is
+    // open. This feeds the existing 25/50/75/100 XP milestones without
+    // inventing progress when the student has not actually opened the PDF.
+    _progressTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+      if (!mounted || _nextProgress > 100) return;
+      _sendProgress(_nextProgress);
+      _nextProgress += 25;
+    });
+  }
+
+  Future<void> _sendProgress(int percent) async {
+    try {
+      _progressClient ??= await AuthenticatedClient.create();
+      await ProgressRepository(_progressClient!).record(
+        materialId: _materialIdFromUrl(),
+        eventType: percent >= 100 ? 'complete' : 'progress',
+        progressPercent: percent,
+      );
+    } catch (_) {
+      // Progress is auxiliary; a temporary network failure must not close the PDF.
+    }
+  }
+
+  String _materialIdFromUrl() {
+    final segments = widget.url.pathSegments;
+    final index = segments.indexOf('materials');
+    if (index >= 0 && index + 1 < segments.length) return Uri.decodeComponent(segments[index + 1]);
+    return '';
+  }
 
   @override
   void dispose() {
+    _progressTimer?.cancel();
+    _progressClient?.dispose();
     _pulse.dispose();
     super.dispose();
   }

@@ -27,13 +27,28 @@ class _SystemScreenState extends State<SystemScreen> {
     _future = _load();
   }
 
+  Future<_LoadResult<T>> _safeLoad<T>(Future<T> future) async {
+    try {
+      return _LoadResult.ok(await future);
+    } catch (error) {
+      return _LoadResult.error(error);
+    }
+  }
+
   Future<_SystemData> _load() async {
     _client ??= await AuthenticatedClient.create();
-
-    final xp = await XpRepository(_client!).getXp();
-    final badges = await BadgesRepository(_client!).getBadges();
-
-    return _SystemData(xp, badges);
+    final results = await Future.wait([
+      _safeLoad<XpSnapshot>(XpRepository(_client!).getXp()),
+      _safeLoad<BadgeSnapshot>(BadgesRepository(_client!).getBadges()),
+    ]);
+    final xpResult = results[0] as _LoadResult<XpSnapshot>;
+    final badgesResult = results[1] as _LoadResult<BadgeSnapshot>;
+    return _SystemData(
+      xpResult.value ?? const XpSnapshot(totalXp: 0, level: 1, levelXp: 0, nextLevelXp: 100, events: []),
+      badgesResult.value ?? const BadgeSnapshot(badges: [], earnedCount: 0, totalCount: 0, newlyAwarded: []),
+      xpError: xpResult.error,
+      badgesError: badgesResult.error,
+    );
   }
 
   Future<void> _reload() async {
@@ -72,8 +87,9 @@ class _SystemScreenState extends State<SystemScreen> {
             );
           }
 
-          final xp = snapshot.data!.xp;
-          final badges = snapshot.data!.badges;
+          final data = snapshot.data!;
+          final xp = data.xp;
+          final badges = data.badges;
 
           final denom = xp.nextLevelXp <= 0
               ? 1
@@ -90,6 +106,19 @@ class _SystemScreenState extends State<SystemScreen> {
               92,
             ),
             children: [
+              if (data.xpError != null || data.badgesError != null)
+                AppCard(
+                  child: Text(
+                    data.xpError != null && data.badgesError != null
+                        ? 'تعذر تحديث بعض بيانات النظام. حاول التحديث مرة أخرى.'
+                        : data.xpError != null
+                            ? 'تعذر تحديث بيانات XP حاليًا.'
+                            : 'تعذر تحديث الشارات حاليًا.',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 10.5),
+                  ),
+                ),
+              if (data.xpError != null || data.badgesError != null) const SizedBox(height: 10),
               AppCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -163,14 +192,19 @@ class _SystemScreenState extends State<SystemScreen> {
   }
 }
 
-class _SystemData {
-  const _SystemData(
-    this.xp,
-    this.badges,
-  );
+class _LoadResult<T> {
+  const _LoadResult.ok(this.value) : error = null;
+  const _LoadResult.error(this.error) : value = null;
+  final T? value;
+  final Object? error;
+}
 
+class _SystemData {
+  const _SystemData(this.xp, this.badges, {this.xpError, this.badgesError});
   final XpSnapshot xp;
   final BadgeSnapshot badges;
+  final Object? xpError;
+  final Object? badgesError;
 }
 
 class _Badge extends StatelessWidget {
@@ -203,9 +237,12 @@ class _Badge extends StatelessWidget {
               b.localizedName(
                 Localizations.localeOf(context).languageCode,
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.end,
               style: const TextStyle(
-                fontSize: 10.5,
+                fontSize: 9.8,
+                height: 1.15,
                 fontWeight: FontWeight.w800,
               ),
             ),

@@ -148,8 +148,8 @@ class _TopHeader extends StatelessWidget {
         builder: (context, box) {
           final compact = box.maxWidth < 600;
           final button = compact ? 48.0 : 52.0;
-          final avatar = compact ? 46.0 : 50.0;
-          final logo = compact ? 52.0 : 56.0;
+          final avatar = compact ? 42.0 : 46.0;
+          final logo = compact ? 48.0 : 52.0;
           final primary = context.colors.primary;
 
           // The header is intentionally LTR so its physical layout stays
@@ -160,31 +160,21 @@ class _TopHeader extends StatelessWidget {
             textDirection: TextDirection.ltr,
             child: Row(
               children: [
-                // Left side: brand name + tappable application icon.
-                Text(
-                  'TRINEX',
-                  style: TextStyle(
-                    fontSize: compact ? 18 : 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .3,
-                  ),
-                ),
-                const SizedBox(width: 10),
+                // Left side: tappable application icon + brand name.
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(DesignTokens.radius14),
+                    borderRadius: BorderRadius.circular(DesignTokens.radius12),
                     onTap: () => context.push('/settings'),
                     child: Tooltip(
                       message: l10n.t('settings'),
                       child: Container(
                         width: logo,
                         height: logo,
-                        padding: const EdgeInsets.all(7),
+                        padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           color: primary,
-                          borderRadius:
-                              BorderRadius.circular(DesignTokens.radius14),
+                          borderRadius: BorderRadius.circular(DesignTokens.radius12),
                         ),
                         child: Image.asset(
                           'assets/icons/trinex_icon.png',
@@ -195,18 +185,28 @@ class _TopHeader extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Spacer(),
-                // Right side: profile + System page.
-                _Avatar(
-                  size: avatar,
-                  onTap: () => context.go('/student'),
+                const SizedBox(width: 9),
+                Text(
+                  'TRINEX',
+                  style: TextStyle(
+                    fontSize: compact ? 18 : 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .3,
+                  ),
                 ),
-                const SizedBox(width: 6),
+                const Spacer(),
+                // Right side: System page + profile, so profile is physically
+                // on the far right while System sits immediately to its left.
                 _HeaderIcon(
                   icon: Icons.workspace_premium_outlined,
                   size: button,
                   tooltip: l10n.t('navSystem'),
                   onTap: () => context.go('/system'),
+                ),
+                const SizedBox(width: 4),
+                _Avatar(
+                  size: avatar,
+                  onTap: () => context.go('/student'),
                 ),
               ],
             ),
@@ -311,7 +311,10 @@ class _Avatar extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: context.colors.surfaceContainerHigh,
-            border: Border.all(color: context.colors.outlineVariant),
+            border: Border.all(
+              color: context.colors.outlineVariant,
+              width: 1.2,
+            ),
           ),
           child: Icon(
             Icons.account_circle_rounded,
@@ -344,27 +347,27 @@ class EinoFloatingButton extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               onTap: () => context.push('/eino?from=shell'),
-              borderRadius: BorderRadius.circular(40),
+              borderRadius: BorderRadius.circular(34),
               child: Container(
-                width: 78,
-                height: 78,
-                padding: const EdgeInsets.all(3.5),
+                width: 68,
+                height: 68,
+                padding: const EdgeInsets.all(2.5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: context.colors.surface,
                   border: Border.all(
                     color: context.colors.primary,
-                    width: 2.8,
+                    width: 2.2,
                   ),
                   boxShadow: [
                     BoxShadow(
                       color: primary.withValues(alpha: glow),
-                      blurRadius: 18,
+                      blurRadius: 12,
                     ),
                   ],
                 ),
                 child: const EinoFace(
-                  size: 72,
+                  size: 63,
                   mood: EinoMood.happy,
                 ),
               ),

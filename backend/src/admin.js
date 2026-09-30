@@ -185,13 +185,12 @@ export async function validateAcademicReferences(ctx, table, fields, existing = 
     if (!semester) return error('SEMESTER_NOT_FOUND', 'الفصل الدراسي غير موجود أو غير نشط.', 400, ctx.requestId, ctx.cors);
 
     const subjectId = value('subject_id');
-    if (subjectId) {
-      const subject = await queryOne(ctx.env,
-        'SELECT id, department_id, semester_id, active FROM subjects WHERE id=?', subjectId);
-      if (!subject || Number(subject.active) !== 1) return error('SUBJECT_NOT_FOUND', 'المادة الدراسية غير موجودة أو غير نشطة.', 400, ctx.requestId, ctx.cors);
-      if (subject.department_id !== value('department_id') || subject.semester_id !== value('semester_id')) {
-        return error('SCHEDULE_SUBJECT_MISMATCH', 'المادة لا تنتمي إلى القسم والفصل المحددين في الجدول.', 400, ctx.requestId, ctx.cors);
-      }
+    if (!subjectId) return error('SUBJECT_REQUIRED', 'اختر المادة الدراسية للجدول.', 400, ctx.requestId, ctx.cors);
+    const subject = await queryOne(ctx.env,
+      'SELECT id, department_id, semester_id, active FROM subjects WHERE id=?', subjectId);
+    if (!subject || Number(subject.active) !== 1) return error('SUBJECT_NOT_FOUND', 'المادة الدراسية غير موجودة أو غير نشطة.', 400, ctx.requestId, ctx.cors);
+    if (subject.department_id !== value('department_id') || subject.semester_id !== value('semester_id')) {
+      return error('SCHEDULE_SUBJECT_MISMATCH', 'المادة لا تنتمي إلى القسم والفصل المحددين في الجدول.', 400, ctx.requestId, ctx.cors);
     }
     const day = Number(value('day_of_week'));
     if (!Number.isInteger(day) || day < 0 || day > 6) return error('SCHEDULE_DAY_INVALID', 'يوم الجدول يجب أن يكون رقمًا بين 0 و6.', 400, ctx.requestId, ctx.cors);

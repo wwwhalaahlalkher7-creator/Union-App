@@ -187,7 +187,7 @@ export async function schedule(ctx) {
   const items = rows.map(row => ({
     id: row.id, semesterId: row.semester_id, departmentId: row.department_id,
     subjectId: row.subject_id, subjectCode: row.subject_code,
-    subjectName: row.subject_name, subjectNameEn: row.subject_name_en,
+    subjectName: row.subject_name || 'مادة غير محددة', subjectNameEn: row.subject_name_en || 'Unassigned subject',
     dayOfWeek: row.day_of_week, startTime: row.start_time, endTime: row.end_time,
     room: row.room, lecturer: row.lecturer,
   }));
@@ -216,39 +216,104 @@ export async function progress(ctx) {
 
 export async function xp(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
-  const stats = await queryOne(ctx.env, 'SELECT * FROM student_stats WHERE student_id = ?', a.session.student_id);
-  const events = await queryAll(ctx.env, 'SELECT event_type, source_id, xp, created_at FROM xp_events WHERE student_id = ? ORDER BY created_at DESC LIMIT 100', a.session.student_id);
-  const total = Number(stats?.xp_total || 0);
+  // xp_events is the source of truth. student_stats is a cached aggregate and
+  // may be missing for older students or after a partial migration. Rebuild it
+  // on read so the XP screen cannot silently stay at zero.
+  const [events, aggregate] = await Promise.all([
+    queryAll(ctx.env, 'SELECT event_type, source_id, xp, created_at FROM xp_events WHERE student_id = ? ORDER BY created_at DESC LIMIT 100', a.session.student_id),
+    queryOne(ctx.env, 'SELECT COALESCE(SUM(xp), 0) AS xp_total FROM xp_events WHERE student_id = ?', a.session.student_id),
+  ]);
+  const total = Math.max(0, Number(aggregate?.xp_total || 0));
   const level = calculateLevel(total);
+  await ctx.env.DB.prepare(`
+    INSERT INTO student_stats (student_id, xp_total, level)
+    VALUES (?, ?, ?)
+    ON CONFLICT(student_id) DO UPDATE SET
+      xp_total = excluded.xp_total,
+      level = excluded.level,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(a.session.student_id, total, level).run();
   const levelStartXp = XP_LEVEL_BASE * (level - 1);
   const levelXp = Math.max(0, total - levelStartXp);
-  const nextLevelXp = XP_LEVEL_BASE;
-  return ok(ctx, { stats: { xp_total: total, level, level_xp: levelXp, next_level_xp: nextLevelXp, level_start_xp: levelStartXp }, events });
+  return ok(ctx, {
+    stats: { xp_total: total, level, level_xp: levelXp, next_level_xp: XP_LEVEL_BASE, level_start_xp: levelStartXp },
+    events,
+  });
 }
 
 export async function badges(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
-  let newlyAwarded = [];
+
+  // Badge eligibility is derived from immutable activity metrics. The catalogue
+  // read and the award write are deliberately independent so a single stale
+  // student_badges row/table cannot make the whole profile/system screen fail.
+  const defaultBadges = [
+    { id:'badge-first-step', name_ar:'البداية', description_ar:'ابدأ أول تقدم دراسي موثق.', icon_url:null, rule_type:'progress_events', rule_value:1, active:1, sort_order:10 },
+    { id:'badge-first-complete', name_ar:'أول إنجاز', description_ar:'أكمل أول ملف دراسي.', icon_url:null, rule_type:'completed_materials', rule_value:1, active:1, sort_order:20 },
+    { id:'badge-five-complete', name_ar:'خمسة ملفات', description_ar:'أكمل 5 ملفات دراسية.', icon_url:null, rule_type:'completed_materials', rule_value:5, active:1, sort_order:30 },
+    { id:'badge-ten-complete', name_ar:'عشرة ملفات', description_ar:'أكمل 10 ملفات دراسية.', icon_url:null, rule_type:'completed_materials', rule_value:10, active:1, sort_order:40 },
+    { id:'badge-level-5', name_ar:'المستوى 5', description_ar:'وصل إلى المستوى الخامس.', icon_url:null, rule_type:'level', rule_value:5, active:1, sort_order:50 },
+    { id:'badge-500-xp', name_ar:'500 XP', description_ar:'اجمع 500 XP من أنشطتك الدراسية.', icon_url:null, rule_type:'xp_total', rule_value:500, active:1, sort_order:60 },
+  ];
+
+  let definitions = defaultBadges;
   try {
-    newlyAwarded = await evaluateBadges(ctx, a.session.student_id);
+    const rows = await queryAll(ctx.env, 'SELECT id, name_ar, description_ar, icon_url, rule_type, rule_value, active, sort_order FROM badges WHERE active=1 ORDER BY sort_order ASC, id ASC');
+    if (rows.length) definitions = rows;
   } catch (e) {
-    // Badge awarding is derived state. A transient write/schema problem must
-    // not turn the read-only badge catalogue into a server error. The next
-    // request can retry the award operation.
-    console.error(`[${ctx.requestId}] badge evaluation failed`, e);
+    console.error(`[${ctx.requestId}] badge catalogue fallback`, e);
   }
+
+  const metrics = await queryOne(ctx.env, `
+    SELECT
+      (SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=?) AS xp_total,
+      (SELECT COUNT(*) FROM material_progress_events WHERE student_id=?) AS progress_events,
+      (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials
+  `, a.session.student_id, a.session.student_id, a.session.student_id);
+  const xpTotal = Number(metrics?.xp_total || 0);
+  const values = {
+    xp_total: xpTotal,
+    level: calculateLevel(xpTotal),
+    progress_events: Number(metrics?.progress_events || 0),
+    completed_materials: Number(metrics?.completed_materials || 0),
+  };
+
+  const eligible = definitions.filter((badge) => {
+    const current = Number(values[badge.rule_type] || 0);
+    return Number(badge.rule_value || 0) > 0 && current >= Number(badge.rule_value);
+  });
+
+  let awardedRows = [];
   try {
-    const rows = await queryAll(ctx.env, `SELECT b.*, sb.awarded_at, CASE WHEN sb.student_id IS NULL THEN 0 ELSE 1 END AS earned
-      FROM badges b LEFT JOIN student_badges sb ON sb.badge_id=b.id AND sb.student_id=?
-      WHERE b.active=1 ORDER BY CASE WHEN sb.student_id IS NULL THEN 1 ELSE 0 END, b.sort_order ASC, b.id ASC`, a.session.student_id);
-    return ok(ctx, {badges: rows, earnedCount: rows.filter(r=>Number(r.earned)===1).length, totalCount: rows.length, newlyAwarded});
+    if (eligible.length) {
+      const results = await ctx.env.DB.batch(eligible.map((badge) =>
+        ctx.env.DB.prepare('INSERT INTO student_badges(student_id,badge_id) VALUES(?,?) ON CONFLICT(student_id,badge_id) DO NOTHING').bind(a.session.student_id, badge.id)
+      ));
+      awardedRows = eligible.filter((_, i) => Number(results[i]?.meta?.changes || 0) > 0).map((badge) => badge.id);
+    }
   } catch (e) {
-    // Keep the achievement/system screens usable during a partial migration.
-    // The deployment migration repairs the catalogue; until then an empty
-    // catalogue is preferable to taking down the whole system screen.
-    console.error(`[${ctx.requestId}] badge catalogue read failed`, e);
-    return ok(ctx, {badges: [], earnedCount: 0, totalCount: 0, newlyAwarded}, {degraded: true});
+    console.error(`[${ctx.requestId}] badge award write failed`, e);
   }
+
+  let awardedAt = new Map();
+  try {
+    const rows = await queryAll(ctx.env, 'SELECT badge_id, awarded_at FROM student_badges WHERE student_id=?', a.session.student_id);
+    awardedAt = new Map(rows.map(row => [String(row.badge_id), row.awarded_at]));
+  } catch (e) {
+    console.error(`[${ctx.requestId}] badge award read failed`, e);
+  }
+
+  const rows = definitions.map((badge) => ({
+    ...badge,
+    earned: eligible.some((item) => item.id === badge.id) || awardedAt.has(String(badge.id)),
+    awarded_at: awardedAt.get(String(badge.id)) || null,
+  }));
+  return ok(ctx, {
+    badges: rows,
+    earnedCount: rows.filter(r => r.earned).length,
+    totalCount: rows.length,
+    newlyAwarded: awardedRows,
+  });
 }
 
 export async function materialProgress(ctx, materialId) {
