@@ -75,7 +75,7 @@ window.Adapter = (() => {
     const departmentId=String(s?.Department??s?.department_id??s?.departmentId??s?.department??'').trim();
     const semesterId=String(s?.Semester??s?.current_semester_id??s?.currentSemesterId??s?.semesterId??s?.semester??'').trim();
     if(!studentNumber||!fullName||!departmentId) throw new Error('بيانات الطالب الأساسية مطلوبة: الرقم الجامعي والاسم والقسم.');
-    return {student_number:studentNumber,full_name:fullName,department_id:departmentId,current_semester_id:semesterId||null,active:s?.Active===false?0:1};
+    return {student_number:studentNumber,full_name:fullName,department_id:departmentId,...(Object.prototype.hasOwnProperty.call(s||{},'semester')||Object.prototype.hasOwnProperty.call(s||{},'Semester')||Object.prototype.hasOwnProperty.call(s||{},'semesterId')||Object.prototype.hasOwnProperty.call(s||{},'current_semester_id')?{current_semester_id:semesterId||null}:{}),active:s?.Active===false?0:1};
   }
   async function createStudentAdmin(s){return req('/admin/students',{method:'POST',body:JSON.stringify(studentPayload(s))});}
   async function updateStudentAdmin(id,s){return req('/admin/students/'+id,{method:'PATCH',body:JSON.stringify(studentPayload(s))});}

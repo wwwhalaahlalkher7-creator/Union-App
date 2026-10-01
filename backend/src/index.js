@@ -2,7 +2,7 @@ import { databaseErrorResponse, error } from './core.js';
 import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings } from './public.js';
 import { mediaGet, adminMediaUpload } from './media.js';
 import {
-  login, registerStudent, staffLogin, staffBootstrap, staffMe, staffChangePassword,
+  login, registerStudent, studentChangePassword, forgotStudentPassword, resetStudentPassword, staffLogin, staffBootstrap, staffMe, staffChangePassword,
   refresh, logout, authMe,
 } from './auth.js';
 import {
@@ -81,6 +81,9 @@ export default {
 
       if (path === '/auth/login' && request.method === 'POST') return login(ctx);
       if (path === '/auth/register' && request.method === 'POST') return registerStudent(ctx);
+      if (path === '/auth/change-password' && request.method === 'POST') return studentChangePassword(ctx);
+      if (path === '/auth/forgot-password' && request.method === 'POST') return forgotStudentPassword(ctx);
+      if (path === '/auth/reset-password' && request.method === 'POST') return resetStudentPassword(ctx);
       if (path === '/auth/staff/login' && request.method === 'POST') return staffLogin(ctx);
       if (path === '/auth/staff/bootstrap' && request.method === 'POST') return staffBootstrap(ctx);
       if (path === '/auth/staff/me' && request.method === 'GET') return staffMe(ctx);

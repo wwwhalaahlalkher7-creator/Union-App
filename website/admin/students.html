@@ -243,7 +243,7 @@ function openForm(id){
       <div class="field"><label for="studentId">الرقم الجامعي</label><input id="studentId" class="students-id" type="text" inputmode="numeric" pattern="[0-9-]*" required maxlength="32" autocomplete="off" dir="ltr" spellcheck="false" aria-describedby="studentIdHint"><small id="studentIdHint" class="field-hint">أرقام ورمز - فقط، مثل 20-210045.</small></div>
       <div class="field"><label for="studentName">اسم الطالب</label><input id="studentName" type="text" required maxlength="150"></div>
       <div class="field"><label for="department">القسم</label><select id="department" required></select></div>
-      <div class="field"><label for="semester">الفصل</label><select id="semester" required></select></div>
+      <div class="field" id="semesterField"><label for="semester">الفصل</label><select id="semester"></select><small class="field-hint">يمكن تعديله إداريًا بعد تسجيل الطالب.</small></div>
     </div>
     <div id="formError" class="login-feedback is-error" style="display:none"></div>
   </form>`;
@@ -262,15 +262,16 @@ function openForm(id){
   $("studentName").value=r?.name||"";
   $("department").value=r?.department||"";
   $("semester").value=r?.semester?String(r.semester):"";
+  if(!r){ $("semesterField").style.display="none"; } else { $("semesterField").style.display="block"; }
   bindStudentIdInput();
 }
 async function saveForm(btn){
   const form=$("studentForm"),err=$("formError");err.style.display="none";
   if(!form.checkValidity()){form.reportValidity();return;}
-  const payload={studentId:$("studentId").value.trim(),name:$("studentName").value.trim(),department:$("department").value,semester:$("semester").value};
+  const id=$("studentRecordId").value;
+  const payload={studentId:$("studentId").value.trim(),name:$("studentName").value.trim(),department:$("department").value,...(id?{semester:$("semester").value}: {})};
   if(!payload.studentId||!payload.name||!payload.department){err.textContent="الرقم الجامعي والاسم والقسم مطلوبة.";err.style.display="block";return}
   if(!isValidStudentId(payload.studentId)){err.textContent="الرقم الجامعي يجب أن يحتوي على أرقام فقط أو أرقامًا مفصولة بشرطة (-)، مثل 20-210045.";err.style.display="block";return}
-  const id=$("studentRecordId").value;
   try{
     await Feedback.busy(btn,()=>id?Adapter.updateStudentAdmin(id,payload):Adapter.createStudentAdmin(payload),{
       busyLabel:"جارٍ الحفظ...",

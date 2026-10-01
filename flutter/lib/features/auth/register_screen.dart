@@ -32,9 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _academicLoading = true;
   String? _errorMessage;
   String? _academicLoadError;
-  List<Map<String, dynamic>> _departments = const [];
   List<Map<String, dynamic>> _semesters = const [];
-  String? _selectedDepartment;
   String? _selectedSemester;
 
   ApiClient? _client;
@@ -53,14 +51,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: _storage!);
       _studentRepo = StudentRepository(_client!);
       final repo = _studentRepo!;
-      final results = await Future.wait<List<Map<String, dynamic>>>([
-        repo.departments(),
-        repo.semesters(),
-      ]);
+      final semesters = await repo.semesters();
       if (!mounted) return;
       setState(() {
-        _departments = results[0];
-        _semesters = results[1];
+        _semesters = semesters;
         _academicLoading = false;
         _academicLoadError = null;
       });
@@ -104,8 +98,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _errorMessage = l10n.t('academicIdFormatHelp'));
       return;
     }
-    if (_selectedDepartment == null || _selectedSemester == null) {
-      setState(() => _errorMessage = l10n.t('academicSelectionRequired'));
+    if (_selectedSemester == null) {
+      setState(() => _errorMessage = l10n.t('selectSemester'));
       return;
     }
 
@@ -126,7 +120,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         studentNumber: studentNumber,
         password: _passwordController.text,
         email: _emailController.text.trim(),
-        departmentId: _selectedDepartment!,
         semesterId: _selectedSemester!,
       );
 
@@ -150,10 +143,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final message = e is ApiException
           ? switch (e.code) {
               'STUDENT_NOT_FOUND' => l10n.t('registerStudentNotFound'),
-              'REGISTER_ACADEMIC_MISMATCH' => l10n.t('registerAcademicMismatch'),
               'ACCOUNT_ALREADY_REGISTERED' => l10n.t('registerAlreadyRegistered'),
               'EMAIL_ALREADY_IN_USE' => l10n.t('registerEmailInUse'),
-              'REGISTER_FIELDS_REQUIRED' => l10n.t('academicSelectionRequired'),
+              'REGISTER_FIELDS_REQUIRED' => l10n.t('registerFieldsRequired'),
               _ => l10n.t('registerGenericError'),
             }
           : l10n.t('registerGenericError');
@@ -283,40 +275,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     prefixIcon: const Icon(Icons.badge_outlined),
                                     border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12.6)),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-
-                                // Academic department
-                                DropdownButtonFormField<String>(
-                                  initialValue: _selectedDepartment,
-                                  isExpanded: true,
-                                  items: _departments
-                                      .map(
-                                        (department) => DropdownMenuItem<String>(
-                                          value: department['id']?.toString(),
-                                          child: Text(
-                                            AcademicLabels.department(
-                                              department,
-                                              Localizations.localeOf(context).languageCode,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      )
-                                      .toList(growable: false),
-                                  onChanged: _academicLoading
-                                      ? null
-                                      : (value) => setState(() => _selectedDepartment = value),
-                                  validator: (value) =>
-                                      value == null ? l10n.t('selectDepartment') : null,
-                                  decoration: InputDecoration(
-                                    labelText: l10n.t('selectDepartment'),
-                                    helperText: l10n.t('departmentLockedHelp'),
-                                    prefixIcon: const Icon(Icons.account_tree_outlined),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12.6),
-                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 16),

@@ -32,7 +32,6 @@ class StudentRepository {
     required String studentNumber,
     required String email,
     required String password,
-    required String departmentId,
     required String semesterId,
     String? confirmPassword,
   }) async {
@@ -40,9 +39,8 @@ class StudentRepository {
       'studentNumber': studentNumber,
       'email': email.trim(),
       'password': password,
-      'departmentId': departmentId,
       'semesterId': semesterId,
-      'confirmPassword': ?confirmPassword,
+      'confirmPassword': confirmPassword,
     });
     final d = j['data'];
     if (d is Map) return Map<String, dynamic>.from(d);

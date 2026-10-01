@@ -6,6 +6,8 @@ import '../features/announcements/announcements_screen.dart';
 import '../features/achievements/achievements_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
+import '../features/auth/forgot_password_screen.dart';
+import '../features/settings/student_account_screen.dart';
 import '../features/eino/eino_screen.dart';
 import '../features/favorites/favorites_screen.dart';
 import '../features/home/home_screen.dart';
@@ -45,6 +47,7 @@ GoRouter buildRouter({
     GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
     GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+    GoRoute(path: '/forgot-password', builder: (_, _) => const ForgotPasswordScreen()),
     ShellRoute(builder: (context, state, child) => TrinexShell(location: state.uri.path, child: child), routes: [
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/student', builder: (_, _) => const StudentScreen()),
@@ -70,6 +73,7 @@ GoRouter buildRouter({
     GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
     GoRoute(path: '/eino', builder: (_, state) => EinoScreen(source: state.uri.queryParameters['from'] ?? 'home')),
     GoRoute(path: '/about', builder: (_, _) => const AboutScreen()),
+    GoRoute(path: '/account-settings', builder: (_, _) => const StudentAccountScreen()),
     GoRoute(path: '/settings', builder: (_, _) => SettingsScreen(currentThemeMode: themeMode(), onThemeModeChanged: onThemeModeChanged, locale: locale(), onLocaleChanged: onLocaleChanged, accentColorId: accentColorId?.call(), onAccentColorChanged: onAccentColorChanged)),
   ]);
 }

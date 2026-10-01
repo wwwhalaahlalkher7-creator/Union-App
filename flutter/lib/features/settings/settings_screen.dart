@@ -235,6 +235,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 12),
                     _SettingsSection(
+                      title: l10n.t('accountSettings'),
+                      icon: Icons.manage_accounts_outlined,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(l10n.t('accountSettingsHelp'), style: TextStyle(color: context.colors.onSurfaceVariant)),
+                          const SizedBox(height: 10),
+                          FilledButton.icon(
+                            onPressed: () => context.push('/account-settings'),
+                            icon: const Icon(Icons.manage_accounts_outlined),
+                            label: Text(l10n.t('openAccountSettings')),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _SettingsSection(
                       title: l10n.t('appInfo'),
                       icon: Icons.info_outline_rounded,
                       child: Row(

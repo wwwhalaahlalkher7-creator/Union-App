@@ -141,14 +141,14 @@ export async function registerStudent(ctx) {
   const email = String(body?.email || '').trim().toLowerCase();
   const password = String(body?.password || '');
   const confirmPassword = String(body?.confirmPassword || '');
-  const departmentId = String(body?.departmentId || '').trim();
   const semesterId = String(body?.semesterId || '').trim();
 
-  // Academic identity is owned by the administration. The selected
-  // department/semester are verification fields only; they never modify the
-  // administration-owned student record.
-  if (!studentNumber || !password || !departmentId || !semesterId) {
-    return error('REGISTER_FIELDS_REQUIRED', 'الرقم الجامعي والتخصص والفصل وكلمة المرور مطلوبة.', 400, ctx.requestId, ctx.cors);
+  // The administration owns the student's identity (name, number and department).
+  // During first registration the student chooses only their current semester,
+  // email and password. The chosen semester is saved as the student's academic
+  // preference and can later be changed by the student or administration.
+  if (!studentNumber || !password || !semesterId) {
+    return error('REGISTER_FIELDS_REQUIRED', 'الرقم الجامعي والفصل وكلمة المرور مطلوبة.', 400, ctx.requestId, ctx.cors);
   }
   if (email && (!email.includes('@') || email.length > 180)) {
     return error('EMAIL_INVALID', 'يرجى إدخال بريد إلكتروني صالح.', 400, ctx.requestId, ctx.cors);
@@ -171,15 +171,9 @@ export async function registerStudent(ctx) {
   if (!student) {
     return error('STUDENT_NOT_FOUND', 'الرقم الجامعي غير مسجل في قيود الكلية. يرجى مراجعة إدارة الكلية.', 404, ctx.requestId, ctx.cors);
   }
-  if (String(student.department_id || '') !== departmentId ||
-      String(student.current_semester_id || '') !== semesterId) {
-    return error(
-      'REGISTER_ACADEMIC_MISMATCH',
-      'بيانات التخصص أو الفصل لا تطابق السجل الأكاديمي للرقم الجامعي.',
-      400,
-      ctx.requestId,
-      ctx.cors,
-    );
+  const selectedSemester = await queryOne(ctx.env, 'SELECT id FROM semesters WHERE id = ? AND active = 1 LIMIT 1', semesterId);
+  if (!selectedSemester) {
+    return error('SEMESTER_NOT_FOUND', 'الفصل الدراسي المحدد غير موجود أو غير نشط.', 400, ctx.requestId, ctx.cors);
   }
   if (student.auth_secret_hash) {
     return error('ACCOUNT_ALREADY_REGISTERED', 'هذا الحساب مسجل بالفعل. يمكنك تسجيل الدخول مباشرة.', 409, ctx.requestId, ctx.cors);
@@ -199,10 +193,10 @@ export async function registerStudent(ctx) {
   // the first request may claim the unregistered student record.
   const claimed = await ctx.env.DB.prepare(
     `UPDATE students
-     SET email = ?, auth_secret_hash = ?, auth_secret_salt = ?, auth_secret_algo = 'pbkdf2-sha256',
+     SET email = ?, current_semester_id = ?, auth_secret_hash = ?, auth_secret_salt = ?, auth_secret_algo = 'pbkdf2-sha256',
          failed_login_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP
      WHERE id = ? AND active = 1 AND auth_secret_hash IS NULL`
-  ).bind(email || null, hash, salt, student.id).run();
+  ).bind(email || null, semesterId, hash, salt, student.id).run();
 
   if (!claimed.meta?.changes) {
     return error('ACCOUNT_ALREADY_REGISTERED', 'هذا الحساب مسجل بالفعل. يمكنك تسجيل الدخول مباشرة.', 409, ctx.requestId, ctx.cors);
@@ -210,6 +204,105 @@ export async function registerStudent(ctx) {
 
   await recordAuthEvent(ctx, 'student', student.id, 'register_success');
   return issueSession(ctx, { studentId: student.id });
+}
+
+
+async function sendStudentRecoveryEmail(ctx, email, code) {
+  const apiKey = String(ctx.env.RESEND_API_KEY || '').trim();
+  const from = String(ctx.env.RESEND_FROM_EMAIL || '').trim();
+  if (!apiKey || !from) return false;
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject: 'رمز استعادة كلمة مرور TRINEX',
+      text: `رمز استعادة كلمة مرور حسابك في TRINEX هو: ${code}\n\nالرمز صالح لمدة 10 دقائق. إذا لم تطلب استعادة كلمة المرور فتجاهل هذه الرسالة.`,
+    }),
+  });
+  return response.ok;
+}
+
+export async function studentChangePassword(ctx) {
+  const a = await studentAuth(ctx); if (a.response) return a.response;
+  const body = await parseJson(ctx.request);
+  const currentPassword = String(body?.currentPassword || '');
+  const newPassword = String(body?.newPassword || '');
+  const confirmPassword = String(body?.confirmPassword || '');
+  if (!currentPassword || !newPassword) return error('PASSWORD_CHANGE_FIELDS_REQUIRED', 'أدخل كلمة المرور الحالية والجديدة.', 400, ctx.requestId, ctx.cors);
+  if (newPassword.length < 8 || newPassword.length > 256) return error('PASSWORD_TOO_SHORT', 'كلمة المرور يجب ألا تقل عن 8 أحرف.', 400, ctx.requestId, ctx.cors);
+  if (newPassword !== confirmPassword) return error('PASSWORDS_MISMATCH', 'كلمتا المرور غير متطابقتين.', 400, ctx.requestId, ctx.cors);
+  if (currentPassword === newPassword) return error('PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);
+  const student = await queryOne(ctx.env, 'SELECT * FROM students WHERE id=? AND active=1 LIMIT 1', a.session.student_id);
+  if (!student || !(await verifySecret(currentPassword, student.auth_secret_hash, student.auth_secret_salt, student.auth_secret_algo))) {
+    await recordAuthEvent(ctx, 'student', a.session.student_id, 'password_change_failed');
+    return error('CURRENT_PASSWORD_INVALID', 'كلمة المرور الحالية غير صحيحة.', 401, ctx.requestId, ctx.cors);
+  }
+  const salt = token(16);
+  const hash = await pbkdf2Hash(newPassword, salt);
+  await ctx.env.DB.prepare(`UPDATE students SET auth_secret_hash=?, auth_secret_salt=?, auth_secret_algo='pbkdf2-sha256', failed_login_attempts=0, locked_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .bind(hash, salt, a.session.student_id).run();
+  await ctx.env.DB.prepare(`UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE student_id=? AND revoked_at IS NULL`).bind(a.session.student_id).run();
+  await recordAuthEvent(ctx, 'student', a.session.student_id, 'password_changed');
+  return ok(ctx, { changed: true });
+}
+
+export async function forgotStudentPassword(ctx) {
+  const ipLimit = await authIpRateLimit(ctx, 'student_password_reset', AUTH_IP_LOGIN_LIMIT);
+  if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد المحاولات مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
+  const body = await parseJson(ctx.request);
+  const studentNumber = String(body?.studentNumber || body?.identifier || '').trim();
+  if (!studentNumber) return error('RECOVERY_IDENTIFIER_REQUIRED', 'أدخل الرقم الجامعي.', 400, ctx.requestId, ctx.cors);
+  const student = await queryOne(ctx.env, 'SELECT id,email,active FROM students WHERE student_number=? LIMIT 1', studentNumber);
+  if (!student || student.active !== 1) return error('RECOVERY_STUDENT_NOT_FOUND', 'تعذر العثور على الطالب.', 404, ctx.requestId, ctx.cors);
+  if (!student.email) return error('NO_RECOVERY_EMAIL', 'لا يوجد بريد استعادة مضاف لهذا الحساب. يرجى التواصل مع المسؤولين لحل مشكلتك.', 400, ctx.requestId, ctx.cors);
+
+  const random = new Uint32Array(1); crypto.getRandomValues(random); const code = String(100000 + (random[0] % 900000));
+  const codeHash = await sha256(code);
+  const id = crypto.randomUUID();
+  await ctx.env.DB.prepare(`UPDATE password_reset_codes SET used_at=CURRENT_TIMESTAMP WHERE student_id=? AND used_at IS NULL`).bind(student.id).run();
+  await ctx.env.DB.prepare(`INSERT INTO password_reset_codes (id,student_id,code_hash,expires_at,attempts,created_at) VALUES (?,?,?,datetime('now','+10 minutes'),0,CURRENT_TIMESTAMP)`)
+    .bind(id, student.id, codeHash).run();
+  let sent = false;
+  try { sent = await sendStudentRecoveryEmail(ctx, student.email, code); } catch (e) { console.error('recovery email failed', e); }
+  if (!sent) {
+    await ctx.env.DB.prepare('UPDATE password_reset_codes SET used_at=CURRENT_TIMESTAMP WHERE id=?').bind(id).run();
+    return error('RECOVERY_EMAIL_UNAVAILABLE', 'تعذر إرسال رسالة الاستعادة حاليًا. حاول لاحقًا.', 503, ctx.requestId, ctx.cors);
+  }
+  await recordAuthEvent(ctx, 'student', student.id, 'password_reset_requested');
+  return ok(ctx, { sent: true, expiresInSeconds: 600 });
+}
+
+export async function resetStudentPassword(ctx) {
+  const ipLimit = await authIpRateLimit(ctx, 'student_password_reset_verify', AUTH_IP_LOGIN_LIMIT);
+  if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد المحاولات مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
+  const body = await parseJson(ctx.request);
+  const studentNumber = String(body?.studentNumber || '').trim();
+  const code = String(body?.code || '').trim();
+  const newPassword = String(body?.newPassword || '');
+  const confirmPassword = String(body?.confirmPassword || '');
+  if (!studentNumber || !/^\d{6}$/.test(code) || !newPassword) return error('RECOVERY_VERIFY_FIELDS_REQUIRED', 'أدخل الرقم الجامعي ورمز الاستعادة وكلمة المرور الجديدة.', 400, ctx.requestId, ctx.cors);
+  if (newPassword.length < 8 || newPassword.length > 256) return error('PASSWORD_TOO_SHORT', 'كلمة المرور يجب ألا تقل عن 8 أحرف.', 400, ctx.requestId, ctx.cors);
+  if (newPassword !== confirmPassword) return error('PASSWORDS_MISMATCH', 'كلمتا المرور غير متطابقتين.', 400, ctx.requestId, ctx.cors);
+  const student = await queryOne(ctx.env, 'SELECT id FROM students WHERE student_number=? AND active=1 LIMIT 1', studentNumber);
+  if (!student) return error('RECOVERY_INVALID', 'رمز الاستعادة أو بيانات الطالب غير صحيحة.', 400, ctx.requestId, ctx.cors);
+  const row = await queryOne(ctx.env, `SELECT * FROM password_reset_codes WHERE student_id=? AND used_at IS NULL AND expires_at>CURRENT_TIMESTAMP ORDER BY created_at DESC LIMIT 1`, student.id);
+  if (!row) return error('RECOVERY_CODE_EXPIRED', 'رمز الاستعادة منتهي أو غير صالح. اطلب رمزًا جديدًا.', 400, ctx.requestId, ctx.cors);
+  if (Number(row.attempts || 0) >= 5) return error('RECOVERY_TOO_MANY_ATTEMPTS', 'تم تجاوز عدد محاولات الرمز. اطلب رمزًا جديدًا.', 429, ctx.requestId, ctx.cors);
+  const valid = await timingSafeEqualHex(await sha256(code), row.code_hash);
+  if (!valid) {
+    await ctx.env.DB.prepare('UPDATE password_reset_codes SET attempts=attempts+1 WHERE id=?').bind(row.id).run();
+    return error('RECOVERY_CODE_INVALID', 'رمز الاستعادة غير صحيح.', 400, ctx.requestId, ctx.cors);
+  }
+  const salt = token(16);
+  const hash = await pbkdf2Hash(newPassword, salt);
+  await ctx.env.DB.prepare(`UPDATE students SET auth_secret_hash=?, auth_secret_salt=?, auth_secret_algo='pbkdf2-sha256', failed_login_attempts=0, locked_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .bind(hash, salt, student.id).run();
+  await ctx.env.DB.prepare('UPDATE password_reset_codes SET used_at=CURRENT_TIMESTAMP WHERE id=?').bind(row.id).run();
+  await ctx.env.DB.prepare('UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE student_id=? AND revoked_at IS NULL').bind(student.id).run();
+  await recordAuthEvent(ctx, 'student', student.id, 'password_reset_completed');
+  return ok(ctx, { changed: true });
 }
 
 export async function staffLogin(ctx) {

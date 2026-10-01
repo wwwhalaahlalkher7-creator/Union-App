@@ -226,7 +226,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.6)),
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: TextButton.icon(
+                            onPressed: _isLoading ? null : () => context.push('/forgot-password'),
+                            icon: const Icon(Icons.help_outline_rounded, size: 18),
+                            label: Text(l10n.t('forgotPassword')),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
 
                         // Submit Button
                         SizedBox(

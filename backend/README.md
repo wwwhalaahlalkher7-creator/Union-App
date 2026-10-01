@@ -44,3 +44,16 @@ For local Worker secrets, copy `backend/.dev.vars.example` to `backend/.dev.vars
 `media.js`, `admin.js`, `eino.js`, و`drive.js`.
 
 عند إضافة endpoint جديد، سجّل route في `index.js` وضع handler في module مالك للنطاق.
+
+
+## إعداد استعادة كلمة مرور الطالب
+
+يستخدم مسار استعادة كلمة مرور الطالب مزود Resend لإرسال رمز مكون من 6 أرقام.
+
+اضبط أسرار/متغيرات بيئة Worker التالية في بيئة الإنتاج:
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
+
+الرمز صالح لمدة 10 دقائق، ويُخزن في قاعدة البيانات كـ hash فقط، مع حد أقصى 5 محاولات للرمز. بعد نجاح الاستعادة تُبطل جلسات الطالب السابقة.
+
+إذا لم يكن للطالب بريد مسجل، يعيد الـAPI الخطأ `NO_RECOVERY_EMAIL` برسالة تطلب التواصل مع المسؤولين.

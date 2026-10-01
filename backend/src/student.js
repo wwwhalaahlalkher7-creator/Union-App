@@ -21,9 +21,14 @@ export async function studentMe(ctx) {
 
 export async function updateStudentSemester(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
-  // The official current semester is an academic record owned by administration.
-  // Students may browse other semesters through read-only GET endpoints.
-  return error('ACADEMIC_RECORD_READ_ONLY', 'الفصل الدراسي الرسمي يُدار من لوحة التحكم. يمكنك اختيار فصل آخر للعرض دون تغيير السجل الأكاديمي.', 403, ctx.requestId, ctx.cors);
+  const body = await parseJson(ctx.request);
+  const semesterId = String(body?.semesterId || '').trim();
+  if (!semesterId) return error('SEMESTER_REQUIRED', 'اختر الفصل الدراسي.', 400, ctx.requestId, ctx.cors);
+  const semester = await queryOne(ctx.env, 'SELECT id FROM semesters WHERE id=? AND active=1 LIMIT 1', semesterId);
+  if (!semester) return error('SEMESTER_NOT_FOUND', 'الفصل الدراسي غير موجود أو غير نشط.', 400, ctx.requestId, ctx.cors);
+  await ctx.env.DB.prepare('UPDATE students SET current_semester_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND active=1')
+    .bind(semesterId, a.session.student_id).run();
+  return ok(ctx, { updated: true, semesterId });
 }
 
 export async function studentStats(ctx) {
