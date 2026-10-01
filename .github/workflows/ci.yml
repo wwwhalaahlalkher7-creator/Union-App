@@ -15,21 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changes:
-    name: Detect changed areas
+  flutter_gate:
+    name: Check Flutter Changes
     runs-on: ubuntu-latest
     outputs:
-      flutter: ${{ steps.filter.outputs.flutter }}
-      website: ${{ steps.filter.outputs.website }}
-      backend: ${{ steps.filter.outputs.backend }}
+      run: ${{ steps.flutter_changes.outputs.run }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Detect changed areas
-        id: filter
+      - name: Check whether Flutter needs to run
+        id: flutter_changes
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -39,58 +36,57 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ]]; then
-            # Every push validates/deploys the web and backend. Flutter stays change-aware.
-            flutter=false
-            website=true
-            backend=true
-            if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-              flutter=true
-            fi
-            base=""
-          else
-            if [[ "$EVENT_NAME" == "pull_request" ]]; then
-              base="$BASE_SHA"
-            else
-              base="$BEFORE_SHA"
-              if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
-                base="$(git rev-list --max-count=1 HEAD^)"
-              fi
-            fi
-
-            changed="$(git diff --name-only "$base" "$HEAD_SHA")"
-            echo "Changed files:"
-            printf '%s\n' "$changed"
-
-            flutter=false
-            website=false
-            backend=false
-
-            while IFS= read -r file; do
-              [[ -z "$file" ]] && continue
-              case "$file" in
-                flutter/*|ci/flutter_secure_storage_check.py|ci/offline_cache_check.py|ci/color_theme_check.py|ci/release_check.py|ci/final_release_check.py)
-                  flutter=true
-                  ;;
-                website/*|build.js|package.json|package-lock.json|ci/web_security_check.py|ci/xss_dom_check.py|ci/admin_ui_payload_check.py)
-                  website=true
-                  ;;
-                backend/*|ci/backend_schema_check.py|ci/backend_schema_audit.py|ci/backend_api_integrity_check.py|ci/backend_api_contract_check.py|ci/admin_crud_check.py|ci/auth_hardening_check.py|ci/eino_provider_check.py|ci/eino_dashboard_check.py|ci/eino_observability_check.py|ci/eino_provider_matrix_check.mjs)
-                  backend=true
-                  ;;
-              esac
-            done <<< "$changed"
+          # A manual run always validates Flutter. For push/PR, Flutter runs only
+          # when Flutter code or a file that directly affects its CI/release checks changes.
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Flutter CI: manual run -> RUN"
+            exit 0
           fi
 
-          echo "flutter=$flutter" >> "$GITHUB_OUTPUT"
-          echo "website=$website" >> "$GITHUB_OUTPUT"
-          echo "backend=$backend" >> "$GITHUB_OUTPUT"
-          echo "Flutter: $flutter | Website: $website | Backend: $backend"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base="$BASE_SHA"
+          else
+            base="$BEFORE_SHA"
+            if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+              base="$(git rev-list --max-parents=0 HEAD)"
+            fi
+          fi
+
+          changed="$(git diff --name-only "$base" "$HEAD_SHA")"
+          echo "Changed files:"
+          printf '%s\n' "$changed"
+
+          run=false
+          while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            case "$file" in
+              flutter/*|\
+              ci/flutter_secure_storage_check.py|\
+              ci/offline_cache_check.py|\
+              ci/color_theme_check.py|\
+              ci/release_check.py|\
+              ci/final_release_check.py|\
+              ci/verify_project.py|\
+              ci/workflow_consistency_check.py|\
+              .github/workflows/ci.yml)
+                run=true
+                break
+                ;;
+            esac
+          done <<< "$changed"
+
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          if [[ "$run" == "true" ]]; then
+            echo "Flutter CI: relevant changes detected -> RUN"
+          else
+            echo "Flutter CI: no relevant changes detected -> SKIP"
+          fi
 
   flutter:
     name: Flutter Analyze, Test & Signed Artifacts
-    needs: changes
-    if: needs.changes.outputs.flutter == 'true'
+    needs: flutter_gate
+    if: needs.flutter_gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -215,8 +211,6 @@ jobs:
 
   backend:
     name: Backend Validate & Deploy
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -300,8 +294,6 @@ jobs:
 
   website:
     name: Website Build & Deploy
-    needs: changes
-    if: needs.changes.outputs.website == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
