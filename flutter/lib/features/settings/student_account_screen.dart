@@ -42,13 +42,14 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
 
   Future<void> _saveSemester() async {
     if(_semesterId==null||_savingSemester)return;
+    final languageCode=Localizations.localeOf(context).languageCode;
     setState(()=>_savingSemester=true);
     try {
       await _client!.postJson('/api/v1/student/semester',body:{'semesterId':_semesterId});
       final selected=_semesters.firstWhere((x)=>x['id']?.toString()==_semesterId,orElse:()=>{});
-      await _storage?.updateCachedSemester(semesterId:_semesterId!,semesterName:AcademicLabels.semester(selected,Localizations.localeOf(context).languageCode));
-      _message('تم حفظ الفصل الدراسي.');
-    } catch(e){_message(e is ApiException?e.message:e.toString(),true);}
+      await _storage?.updateCachedSemester(semesterId:_semesterId!,semesterName:AcademicLabels.semester(selected,languageCode));
+      _message('تم حفظ الفصل الدراسي.', false);
+    } catch(e){_message(e is ApiException?e.message:e.toString(), true);}
     finally{if(mounted)setState(()=>_savingSemester=false);}
   }
 
@@ -64,7 +65,7 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
       _currentPassword.clear();_newPassword.clear();_confirmPassword.clear();
       await _storage?.clear();
       if(mounted) context.go('/login');
-    } catch(e){_message(e is ApiException?e.message:e.toString(),true);}
+    } catch(e){_message(e is ApiException?e.message:e.toString(), true);}
     finally{if(mounted)setState(()=>_changingPassword=false);}
   }
 
