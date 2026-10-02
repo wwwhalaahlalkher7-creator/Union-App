@@ -6,6 +6,7 @@ import {
   EINO_MAX_MESSAGE, EINO_MAX_CONTEXT, EINO_WINDOW_SECONDS, EINO_WINDOW_LIMIT,
   EINO_STUDENT_DAILY_LIMIT_DEFAULT, EINO_GUEST_DAILY_LIMIT_DEFAULT, EINO_GLOBAL_DAILY_LIMIT_DEFAULT,
   R2_MAX_OBJECT_BYTES, R2_MAX_STORAGE_BYTES, R2_MAX_CLASS_A_MONTHLY, R2_MAX_UPLOAD_FILES_PER_REQUEST, R2_ALLOWED_TYPES,
+  normalizeEmail, isValidEmail,
 } from './core.js';
 export async function auth(ctx, required = true) {
   // Base session lookup deliberately touches ONLY the sessions table.
@@ -138,7 +139,7 @@ export async function registerStudent(ctx) {
   if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد محاولات التسجيل مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
   const body = await parseJson(ctx.request);
   const studentNumber = String(body?.studentNumber || '').trim();
-  const email = String(body?.email || '').trim().toLowerCase();
+  const email = normalizeEmail(body?.email);
   const password = String(body?.password || '');
   const confirmPassword = String(body?.confirmPassword || '');
   const semesterId = String(body?.semesterId || '').trim();
@@ -150,7 +151,7 @@ export async function registerStudent(ctx) {
   if (!studentNumber || !password || !semesterId) {
     return error('REGISTER_FIELDS_REQUIRED', 'الرقم الجامعي والفصل وكلمة المرور مطلوبة.', 400, ctx.requestId, ctx.cors);
   }
-  if (email && (!email.includes('@') || email.length > 180)) {
+  if (email && !isValidEmail(email)) {
     return error('EMAIL_INVALID', 'يرجى إدخال بريد إلكتروني صالح.', 400, ctx.requestId, ctx.cors);
   }
   if (password.length < 8 || password.length > 256) {
@@ -209,72 +210,47 @@ export async function registerStudent(ctx) {
 
 async function sendStudentRecoveryEmail(ctx, email, code) {
   // Cloudflare Workers cannot open a raw SMTP connection, so email delivery is
-  // delegated to the Google Apps Script web app. The web app executes as the
-  // dedicated TRINEX Support Gmail account and sends the message with MailApp.
+  // delegated to the existing Google Apps Script adapter. Apps Script Content
+  // Service responses are redirected to a one-time googleusercontent URL;
+  // Workers must explicitly follow that redirect.
   const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
   const emailToken = String(ctx.env.GOOGLE_APPS_SCRIPT_EMAIL_TOKEN || '').trim();
-  if (!endpoint || !emailToken) {
-    console.error('Recovery email adapter is not configured.');
-    return false;
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  const recipient = normalizeEmail(email);
+  if (!endpoint || !emailToken) return { ok: false, reason: 'CONFIG' };
+  if (!isValidEmail(recipient)) return { ok: false, reason: 'INVALID_EMAIL' };
 
   try {
-    // Apps Script ContentService responses are redirected to a one-time
-    // script.googleusercontent.com URL. Keep redirect handling explicit.
     const response = await fetch(endpoint, {
       method: 'POST',
       redirect: 'follow',
-      headers: {
-        'content-type': 'application/json; charset=utf-8',
-        accept: 'application/json, text/plain;q=0.9, */*;q=0.8',
-      },
+      headers: { 'content-type': 'application/json; charset=utf-8', accept: 'application/json' },
       body: JSON.stringify({
         action: 'sendRecoveryEmail',
         token: emailToken,
-        to: email,
+        to: recipient,
         code,
       }),
-      signal: controller.signal,
     });
-
-    // Read the body as text first. This gives us useful diagnostics when
-    // Apps Script returns an error page or a non-JSON response.
-    const raw = await response.text();
+    const text = await response.text();
+    const safeText = text
+      .slice(0, 500)
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]');
     let data = null;
-    try {
-      data = raw ? JSON.parse(raw) : null;
-    } catch {
-      data = null;
-    }
-
-    if (!response.ok) {
-      console.error('Recovery email Apps Script HTTP failure', {
-        status: response.status,
-        body: raw.slice(0, 500),
-      });
-      return false;
-    }
-
-    if (!data || data.success !== true) {
-      console.error('Recovery email Apps Script application failure', {
-        status: response.status,
-        error: String(data?.error || raw || 'Empty/invalid Apps Script response').slice(0, 500),
-      });
-      return false;
-    }
-
-    return true;
-  } catch (e) {
-    console.error('Recovery email Apps Script request failed', {
-      name: e?.name,
-      message: String(e?.message || e).slice(0, 500),
+    try { data = JSON.parse(text); } catch (_) {}
+    console.log('recovery email adapter', {
+      status: response.status,
+      ok: response.ok,
+      response: safeText,
     });
-    return false;
-  } finally {
-    clearTimeout(timeout);
+    if (!response.ok) return { ok: false, reason: 'HTTP_ERROR', status: response.status, detail: safeText };
+    if (data?.success === true) return { ok: true };
+    return { ok: false, reason: 'ADAPTER_ERROR', detail: safeText };
+  } catch (e) {
+    console.error('recovery email adapter fetch failed', {
+      name: e?.name || 'Error',
+      message: String(e?.message || e || '').slice(0, 300),
+    });
+    return { ok: false, reason: 'FETCH_ERROR' };
   }
 }
 
@@ -311,6 +287,11 @@ export async function forgotStudentPassword(ctx) {
   const student = await queryOne(ctx.env, 'SELECT id,email,active FROM students WHERE student_number=? LIMIT 1', studentNumber);
   if (!student || student.active !== 1) return error('RECOVERY_STUDENT_NOT_FOUND', 'تعذر العثور على الطالب.', 404, ctx.requestId, ctx.cors);
   if (!student.email) return error('NO_RECOVERY_EMAIL', 'لا يوجد بريد استعادة مضاف لهذا الحساب. يرجى التواصل مع المسؤولين لحل مشكلتك.', 400, ctx.requestId, ctx.cors);
+  const recoveryEmail = normalizeEmail(student.email);
+  if (!isValidEmail(recoveryEmail)) {
+    console.error('Invalid stored recovery email', { studentId: student.id });
+    return error('RECOVERY_EMAIL_INVALID', 'البريد الإلكتروني المسجل لهذا الحساب غير صالح. يرجى التواصل مع الإدارة لتحديثه.', 400, ctx.requestId, ctx.cors);
+  }
 
   const random = new Uint32Array(1); crypto.getRandomValues(random); const code = String(100000 + (random[0] % 900000));
   const codeHash = await sha256(code);
@@ -318,10 +299,12 @@ export async function forgotStudentPassword(ctx) {
   await ctx.env.DB.prepare(`UPDATE password_reset_codes SET used_at=CURRENT_TIMESTAMP WHERE student_id=? AND used_at IS NULL`).bind(student.id).run();
   await ctx.env.DB.prepare(`INSERT INTO password_reset_codes (id,student_id,code_hash,expires_at,attempts,created_at) VALUES (?,?,?,datetime('now','+10 minutes'),0,CURRENT_TIMESTAMP)`)
     .bind(id, student.id, codeHash).run();
-  let sent = false;
-  try { sent = await sendStudentRecoveryEmail(ctx, student.email, code); } catch (e) { console.error('recovery email failed', e); }
-  if (!sent) {
+  const delivery = await sendStudentRecoveryEmail(ctx, recoveryEmail, code);
+  if (!delivery.ok) {
     await ctx.env.DB.prepare('UPDATE password_reset_codes SET used_at=CURRENT_TIMESTAMP WHERE id=?').bind(id).run();
+    if (delivery.reason === 'INVALID_EMAIL') {
+      return error('RECOVERY_EMAIL_INVALID', 'البريد الإلكتروني المسجل لهذا الحساب غير صالح. يرجى التواصل مع الإدارة لتحديثه.', 400, ctx.requestId, ctx.cors);
+    }
     return error('RECOVERY_EMAIL_UNAVAILABLE', 'تعذر إرسال رسالة الاستعادة حاليًا. حاول لاحقًا.', 503, ctx.requestId, ctx.cors);
   }
   await recordAuthEvent(ctx, 'student', student.id, 'password_reset_requested');

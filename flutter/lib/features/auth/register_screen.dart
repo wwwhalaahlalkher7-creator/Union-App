@@ -145,6 +145,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               'STUDENT_NOT_FOUND' => l10n.t('registerStudentNotFound'),
               'ACCOUNT_ALREADY_REGISTERED' => l10n.t('registerAlreadyRegistered'),
               'EMAIL_ALREADY_IN_USE' => l10n.t('registerEmailInUse'),
+              'EMAIL_INVALID' => l10n.t('registerEmailInvalid'),
               'REGISTER_FIELDS_REQUIRED' => l10n.t('registerFieldsRequired'),
               _ => l10n.t('registerGenericError'),
             }
@@ -332,6 +333,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   controller: _emailController,
                                   keyboardType: TextInputType.emailAddress,
                                   textInputAction: TextInputAction.next,
+                                  validator: (value) {
+                                    final email = value?.trim() ?? '';
+                                    if (email.isEmpty) return null;
+                                    final valid = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email);
+                                    return valid ? null : l10n.t('registerEmailInvalid');
+                                  },
                                   decoration: InputDecoration(
                                     labelText: l10n.t('email'),
                                     hintText: l10n.t('emailHint'),

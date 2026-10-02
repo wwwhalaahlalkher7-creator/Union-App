@@ -12,6 +12,3 @@
 
 ## الحذف
 عملية `deleteFiles` تستخدم Google Drive API عبر OAuth الخاص بحساب Apps Script للحذف النهائي للملفات المطلوبة. لا يتم حذف أي ملف من Worker مباشرة.
-
-## اختبار صلاحية البريد
-بعد نقل السكربت إلى `trinex.support@gmail.com` شغّل الدالة `testMailAppSetup` مرة واحدة من محرر Apps Script. هذه الدالة تتحقق من صلاحية `MailApp` وحصة الإرسال دون إرسال رسالة فعلية.

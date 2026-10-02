@@ -6,6 +6,7 @@ import {
   EINO_MAX_MESSAGE, EINO_MAX_CONTEXT, EINO_WINDOW_SECONDS, EINO_WINDOW_LIMIT,
   EINO_STUDENT_DAILY_LIMIT_DEFAULT, EINO_GUEST_DAILY_LIMIT_DEFAULT, EINO_GLOBAL_DAILY_LIMIT_DEFAULT,
   R2_MAX_OBJECT_BYTES, R2_MAX_STORAGE_BYTES, R2_MAX_CLASS_A_MONTHLY, R2_MAX_UPLOAD_FILES_PER_REQUEST, R2_ALLOWED_TYPES,
+  normalizeEmail, isValidEmail,
 } from './core.js';
 import { recordAuthEvent, staffAuth } from './auth.js';
 import { deleteOwnedMediaUrls, extractMediaUrlsFromRow, markOwnedMediaAttached } from './media.js';
@@ -27,7 +28,7 @@ const ADMIN_FIELDS = {
   subjects: ['semester_id','department_id','code','name_ar','name_en','active','sort_order'],
   materials: ['subject_id','title','description','drive_file_id','drive_url','mime_type','size_bytes','active','sort_order','drive_parent_id','drive_modified_at','drive_web_view_url','pinned','source'],
   schedules: ['semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer','active'],
-  students: ['student_number','full_name','department_id','current_semester_id','active'],
+  students: ['student_number','full_name','email','department_id','current_semester_id','active'],
   badges: ['name_ar','description_ar','icon_url','rule_type','rule_value','active','sort_order'],
   comments: ['student_id','content_type','content_id','body','status'],
 };
@@ -133,18 +134,22 @@ export function adminResourceTable(resource) {
 export function cleanAdminPayload(table, body) {
   const out = {};
   const aliases = {
-    students: { studentNumber: 'student_number', studentId: 'student_number', fullName: 'full_name', departmentId: 'department_id', department: 'department_id', currentSemesterId: 'current_semester_id', semesterId: 'current_semester_id', semester: 'current_semester_id' },
+    students: { studentNumber: 'student_number', studentId: 'student_number', fullName: 'full_name', emailAddress: 'email', departmentId: 'department_id', department: 'department_id', currentSemesterId: 'current_semester_id', semesterId: 'current_semester_id', semester: 'current_semester_id' },
     subjects: { semesterId: 'semester_id', departmentId: 'department_id', name: 'name_ar', nameAr: 'name_ar', nameEn: 'name_en', sortOrder: 'sort_order' },
     schedules: { semesterId: 'semester_id', departmentId: 'department_id', dayOfWeek: 'day_of_week', startTime: 'start_time', endTime: 'end_time', subjectId: 'subject_id', lecturer: 'lecturer' },
     materials: { subjectId: 'subject_id', driveFileId: 'drive_file_id', driveUrl: 'drive_url', driveWebViewUrl: 'drive_web_view_url', mimeType: 'mime_type', sizeBytes: 'size_bytes', sortOrder: 'sort_order', driveParentId: 'drive_parent_id', driveModifiedAt: 'drive_modified_at' },
   };
   const source = body || {};
+  if (table === 'students' && Object.prototype.hasOwnProperty.call(source, 'email')) {
+    source.email = source.email === '' || source.email == null ? null : normalizeEmail(source.email);
+  }
   for (const key of ADMIN_FIELDS[table] || []) {
     if (Object.prototype.hasOwnProperty.call(source, key)) out[key] = source[key] === '' ? null : source[key];
   }
   for (const [alias, key] of Object.entries(aliases[table] || {})) {
     if (out[key] === undefined && Object.prototype.hasOwnProperty.call(source, alias)) out[key] = source[alias] === '' ? null : source[alias];
   }
+  if (table === 'students' && out.email !== undefined && out.email !== null) out.email = normalizeEmail(out.email);
   return out;
 }
 
@@ -247,6 +252,13 @@ export async function adminCrud(ctx, table, id, actorId) {
       if (!/^[0-9]+(?:-[0-9]+)?$/.test(String(fields.student_number).trim())) {
         return error('STUDENT_NUMBER_INVALID','صيغة الرقم الجامعي غير صالحة. استخدم أرقامًا فقط أو أرقامًا مفصولة بشرطة (-).',400,ctx.requestId,ctx.cors);
       }
+      if (fields.email != null && fields.email !== '' && !isValidEmail(fields.email)) {
+        return error('EMAIL_INVALID','يرجى إدخال بريد إلكتروني صالح.',400,ctx.requestId,ctx.cors);
+      }
+      if (fields.email) {
+        const emailInUse = await queryOne(ctx.env, 'SELECT id FROM students WHERE lower(email)=?', fields.email);
+        if (emailInUse) return error('EMAIL_ALREADY_IN_USE','البريد الإلكتروني مستخدم بالفعل لحساب طالب آخر.',409,ctx.requestId,ctx.cors);
+      }
     }
     if (table === 'subjects' && (!fields.semester_id || !fields.department_id || !fields.name_ar)) return error('SUBJECT_INPUT_INVALID','بيانات المادة الأساسية مطلوبة.',400,ctx.requestId,ctx.cors);
     if (table === 'materials' && (!fields.subject_id || !fields.title)) return error('MATERIAL_INPUT_INVALID','المادة والعنوان مطلوبان.',400,ctx.requestId,ctx.cors);
@@ -275,6 +287,13 @@ export async function adminCrud(ctx, table, id, actorId) {
     if (table === 'students' && fields.student_number !== undefined &&
         !/^[0-9]+(?:-[0-9]+)?$/.test(String(fields.student_number).trim())) {
       return error('STUDENT_NUMBER_INVALID','صيغة الرقم الجامعي غير صالحة. استخدم أرقامًا فقط أو أرقامًا مفصولة بشرطة (-).',400,ctx.requestId,ctx.cors);
+    }
+    if (table === 'students' && fields.email !== undefined && fields.email !== null && fields.email !== '' && !isValidEmail(fields.email)) {
+      return error('EMAIL_INVALID','يرجى إدخال بريد إلكتروني صالح.',400,ctx.requestId,ctx.cors);
+    }
+    if (table === 'students' && fields.email) {
+      const emailInUse = await queryOne(ctx.env, 'SELECT id FROM students WHERE lower(email)=? AND id<>?', fields.email, id);
+      if (emailInUse) return error('EMAIL_ALREADY_IN_USE','البريد الإلكتروني مستخدم بالفعل لحساب طالب آخر.',409,ctx.requestId,ctx.cors);
     }
     const existing = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
     if (!existing) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);

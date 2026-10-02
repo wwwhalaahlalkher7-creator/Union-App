@@ -1,12 +1,14 @@
 /**
  * TRINEX — Google Drive Adapter (Google Apps Script)
  *
- * وظيفته: خدمة Google Drive وإرسال رسائل استعادة كلمة المرور للـ Cloudflare Worker.
- * التنفيذ يكون من حساب TRINEX Support المخصص، ولا توجد مفاتيح Service Account هنا.
+ * وظيفته: قراءة أرشيف المواد من Google Drive وإرسال رسائل استعادة كلمة
+ * المرور عبر MailApp من حساب TRINEX المخصص. لا توجد مفاتيح Service Account هنا.
  *
  * الإعداد مرة واحدة عبر Project Settings → Script properties:
  *   ROOT_FOLDER_ID = معرّف مجلد "المواد الدراسية"
  *   API_TOKEN      = سر طويل عشوائي، يجب أن يطابق سر Worker
+ *   EMAIL_API_TOKEN = سر طويل عشوائي، يجب أن يطابق سر Worker الخاص بالبريد
+ *   STATS_SHEET_ID  = معرّف ورقة الإحصائيات (اختياري)
  *
  * النشر: Deploy → New deployment → Web app → Execute as Me → Anyone.
  */
@@ -46,7 +48,7 @@ function doPost(e) {
   var result;
   try {
     var body = {};
-    try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (parseErr) { throw new Error('بيانات الطلب غير صالحة.'); }
+    try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (parseErr) { throw new Error('INVALID_REQUEST'); }
     if (body.action === 'sendRecoveryEmail') {
       requireEmailToken(String(body.token || ''));
       result = sendRecoveryEmail(body.to, body.code);
@@ -55,11 +57,12 @@ function doPost(e) {
       if (body.action === 'deleteFiles') {
         result = deleteFiles(body.fileIds || []);
       } else {
-        result = { success: false, error: 'إجراء غير معروف.' };
+        result = { success: false, error: 'UNKNOWN_ACTION' };
       }
     }
   } catch (err) {
-    result = { success: false, error: String(err && err.message ? err.message : err) };
+    var message = String(err && err.message ? err.message : err);
+    result = { success: false, error: message };
   }
   return ContentService.createTextOutput(JSON.stringify(result))
     .setMimeType(ContentService.MimeType.JSON);
@@ -117,11 +120,36 @@ function requireEmailToken(token) {
   if (!token || token !== expected) throw new Error('غير مصرح.');
 }
 
+function normalizeEmailAddress(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001F\u007F\u200B-\u200D\u2060\uFEFF]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function isValidEmailAddress(value) {
+  var email = normalizeEmailAddress(value);
+  if (!email || email.length > 254) return false;
+  var at = email.lastIndexOf('@');
+  if (at <= 0 || at !== email.indexOf('@') || at === email.length - 1) return false;
+  var local = email.slice(0, at);
+  var domain = email.slice(at + 1);
+  if (local.length > 64 || local.indexOf('..') !== -1 || local.charAt(0) === '.' || local.charAt(local.length - 1) === '.') return false;
+  if (!/^[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+$/.test(local)) return false;
+  if (domain.length > 253 || domain.indexOf('.') === -1) return false;
+  var labels = domain.split('.');
+  for (var i = 0; i < labels.length; i++) {
+    if (!labels[i] || labels[i].length > 63 || labels[i].charAt(0) === '-' || labels[i].charAt(labels[i].length - 1) === '-' || !/^[A-Za-z0-9-]+$/.test(labels[i])) return false;
+  }
+  return true;
+}
+
 function sendRecoveryEmail(to, code) {
-  var recipient = String(to || '').trim().toLowerCase();
+  var recipient = normalizeEmailAddress(to);
   var recoveryCode = String(code || '').trim();
-  if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) throw new Error('عنوان البريد غير صالح.');
-  if (!/^\d{6}$/.test(recoveryCode)) throw new Error('رمز الاستعادة غير صالح.');
+  if (!isValidEmailAddress(recipient)) throw new Error('INVALID_EMAIL');
+  if (!/^\d{6}$/.test(recoveryCode)) throw new Error('INVALID_RECOVERY_CODE');
 
   var subject = 'رمز استعادة كلمة مرور TRINEX';
   var body = 'رمز استعادة كلمة مرور حسابك في TRINEX هو: ' + recoveryCode +
@@ -130,12 +158,20 @@ function sendRecoveryEmail(to, code) {
   return { success: true };
 }
 
-// Run this once from the Apps Script editor while signed in as
-// trinex.support@gmail.com. It forces Google to request/verify the MailApp
-// authorization without sending a real recovery message.
 function testMailAppSetup() {
-  var remaining = MailApp.getRemainingDailyQuota();
-  return { success: true, remainingDailyQuota: remaining };
+  var effectiveEmail = String(Session.getEffectiveUser().getEmail() || '').trim();
+  var quota = MailApp.getRemainingDailyQuota();
+  if (!effectiveEmail) throw new Error('EFFECTIVE_USER_EMAIL_UNAVAILABLE');
+  Logger.log(JSON.stringify({ success: true, sender: effectiveEmail, remainingDailyQuota: quota }));
+  return { success: true, sender: effectiveEmail, remainingDailyQuota: quota };
+}
+
+function testRecoveryEmail() {
+  var effectiveEmail = String(Session.getEffectiveUser().getEmail() || '').trim();
+  if (!isValidEmailAddress(effectiveEmail)) throw new Error('EFFECTIVE_USER_EMAIL_INVALID');
+  var result = sendRecoveryEmail(effectiveEmail, '123456');
+  Logger.log(JSON.stringify({ success: true, sentTo: effectiveEmail }));
+  return result;
 }
 
 function getRootFolder() {

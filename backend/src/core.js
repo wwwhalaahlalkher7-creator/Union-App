@@ -94,6 +94,29 @@ export function error(code, message, status = 400, requestId = crypto.randomUUID
   });
 }
 
+export function normalizeEmail(value) {
+  return String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001F\u007F\u200B-\u200D\u2060\uFEFF]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+export function isValidEmail(value) {
+  const email = normalizeEmail(value);
+  if (!email || email.length > 254) return false;
+  const at = email.lastIndexOf('@');
+  if (at <= 0 || at !== email.indexOf('@') || at === email.length - 1) return false;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  if (local.length > 64 || local.startsWith('.') || local.endsWith('.') || local.includes('..')) return false;
+  if (!/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(local)) return false;
+  if (domain.length > 253 || !domain.includes('.')) return false;
+  const labels = domain.split('.');
+  if (labels.some(label => !label || label.length > 63 || label.startsWith('-') || label.endsWith('-') || !/^[A-Za-z0-9-]+$/.test(label))) return false;
+  return true;
+}
+
 export async function parseJson(request) {
   try { return await request.json(); } catch { return null; }
 }
