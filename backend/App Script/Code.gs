@@ -1,8 +1,8 @@
 /**
  * TRINEX — Google Drive Adapter (Google Apps Script)
  *
- * وظيفته الوحيدة: قراءة أرشيف المواد من Google Drive وإرجاع JSON موحد
- * للـ Cloudflare Worker. لا توجد مفاتيح Service Account هنا.
+ * وظيفته: خدمة Google Drive وإرسال رسائل استعادة كلمة المرور للـ Cloudflare Worker.
+ * التنفيذ يكون من حساب TRINEX Support المخصص، ولا توجد مفاتيح Service Account هنا.
  *
  * الإعداد مرة واحدة عبر Project Settings → Script properties:
  *   ROOT_FOLDER_ID = معرّف مجلد "المواد الدراسية"
@@ -128,6 +128,14 @@ function sendRecoveryEmail(to, code) {
     '\n\nالرمز صالح لمدة 10 دقائق. إذا لم تطلب استعادة كلمة المرور فتجاهل هذه الرسالة.';
   MailApp.sendEmail({ to: recipient, subject: subject, body: body, name: 'TRINEX Support' });
   return { success: true };
+}
+
+// Run this once from the Apps Script editor while signed in as
+// trinex.support@gmail.com. It forces Google to request/verify the MailApp
+// authorization without sending a real recovery message.
+function testMailAppSetup() {
+  var remaining = MailApp.getRemainingDailyQuota();
+  return { success: true, remainingDailyQuota: remaining };
 }
 
 function getRootFolder() {

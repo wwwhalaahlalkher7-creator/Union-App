@@ -209,28 +209,72 @@ export async function registerStudent(ctx) {
 
 async function sendStudentRecoveryEmail(ctx, email, code) {
   // Cloudflare Workers cannot open a raw SMTP connection, so email delivery is
-  // delegated to the existing Google Apps Script adapter. The adapter executes
-  // as the project's dedicated Gmail account and sends the message with MailApp.
+  // delegated to the Google Apps Script web app. The web app executes as the
+  // dedicated TRINEX Support Gmail account and sends the message with MailApp.
   const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
   const emailToken = String(ctx.env.GOOGLE_APPS_SCRIPT_EMAIL_TOKEN || '').trim();
-  if (!endpoint || !emailToken) return false;
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({
-      action: 'sendRecoveryEmail',
-      token: emailToken,
-      to: email,
-      code,
-    }),
-  });
-  if (!response.ok) return false;
-  try {
-    const data = await response.json();
-    return data?.success === true;
-  } catch {
+  if (!endpoint || !emailToken) {
+    console.error('Recovery email adapter is not configured.');
     return false;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    // Apps Script ContentService responses are redirected to a one-time
+    // script.googleusercontent.com URL. Keep redirect handling explicit.
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        accept: 'application/json, text/plain;q=0.9, */*;q=0.8',
+      },
+      body: JSON.stringify({
+        action: 'sendRecoveryEmail',
+        token: emailToken,
+        to: email,
+        code,
+      }),
+      signal: controller.signal,
+    });
+
+    // Read the body as text first. This gives us useful diagnostics when
+    // Apps Script returns an error page or a non-JSON response.
+    const raw = await response.text();
+    let data = null;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch {
+      data = null;
+    }
+
+    if (!response.ok) {
+      console.error('Recovery email Apps Script HTTP failure', {
+        status: response.status,
+        body: raw.slice(0, 500),
+      });
+      return false;
+    }
+
+    if (!data || data.success !== true) {
+      console.error('Recovery email Apps Script application failure', {
+        status: response.status,
+        error: String(data?.error || raw || 'Empty/invalid Apps Script response').slice(0, 500),
+      });
+      return false;
+    }
+
+    return true;
+  } catch (e) {
+    console.error('Recovery email Apps Script request failed', {
+      name: e?.name,
+      message: String(e?.message || e).slice(0, 500),
+    });
+    return false;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
