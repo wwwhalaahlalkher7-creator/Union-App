@@ -209,10 +209,6 @@ export async function registerStudent(ctx) {
 
 
 async function sendStudentRecoveryEmail(ctx, email, code) {
-  // Apps Script ContentService returns a 3xx redirect to a one-time
-  // script.googleusercontent.com URL. Google documents following that
-  // redirect for clients consuming ContentService responses. Keep the
-  // request simple and let fetch handle the redirect chain.
   const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
   const emailToken = String(ctx.env.GOOGLE_APPS_SCRIPT_EMAIL_TOKEN || '').trim();
   const recipient = normalizeEmail(email);
@@ -232,16 +228,14 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
       redirect: 'follow',
       headers: {
         'content-type': 'application/json; charset=utf-8',
-        accept: 'application/json, text/plain, */*',
+        accept: 'text/plain, text/html, application/json, */*',
       },
       body: requestBody,
     });
 
-    const responseText = String(await response.text() || '').slice(0, 1000);
-    let data = null;
-    try { data = JSON.parse(responseText); } catch (_) {}
-
-    const safeText = responseText
+    const responseText = String(await response.text() || '').slice(0, 2000);
+    const normalized = responseText.replace(/\s+/g, ' ').trim();
+    const safeText = normalized
       .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
       .replace(emailToken, '[redacted-token]')
       .replace(String(code), '[redacted-code]');
@@ -249,13 +243,21 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
     console.log('recovery email adapter', {
       status: response.status,
       ok: response.ok,
+      contentType: response.headers.get('content-type') || '',
       response: safeText,
     });
 
     if (!response.ok) {
       return { ok: false, reason: 'HTTP_ERROR', status: response.status, detail: safeText };
     }
+
+    // The Apps Script email bridge intentionally returns a simple HtmlService
+    // response. Accept either the JSON object or its serialized form.
+    let data = null;
+    try { data = JSON.parse(normalized); } catch (_) {}
     if (data?.success === true) return { ok: true };
+    if (normalized.includes('"success":true')) return { ok: true };
+
     return { ok: false, reason: 'ADAPTER_ERROR', detail: safeText };
   } catch (e) {
     console.error('recovery email adapter fetch failed', {
@@ -264,29 +266,6 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
     });
     return { ok: false, reason: 'FETCH_ERROR' };
   }
-}
-export async function studentChangePassword(ctx) {
-  const a = await studentAuth(ctx); if (a.response) return a.response;
-  const body = await parseJson(ctx.request);
-  const currentPassword = String(body?.currentPassword || '');
-  const newPassword = String(body?.newPassword || '');
-  const confirmPassword = String(body?.confirmPassword || '');
-  if (!currentPassword || !newPassword) return error('PASSWORD_CHANGE_FIELDS_REQUIRED', 'أدخل كلمة المرور الحالية والجديدة.', 400, ctx.requestId, ctx.cors);
-  if (newPassword.length < 8 || newPassword.length > 256) return error('PASSWORD_TOO_SHORT', 'كلمة المرور يجب ألا تقل عن 8 أحرف.', 400, ctx.requestId, ctx.cors);
-  if (newPassword !== confirmPassword) return error('PASSWORDS_MISMATCH', 'كلمتا المرور غير متطابقتين.', 400, ctx.requestId, ctx.cors);
-  if (currentPassword === newPassword) return error('PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);
-  const student = await queryOne(ctx.env, 'SELECT * FROM students WHERE id=? AND active=1 LIMIT 1', a.session.student_id);
-  if (!student || !(await verifySecret(currentPassword, student.auth_secret_hash, student.auth_secret_salt, student.auth_secret_algo))) {
-    await recordAuthEvent(ctx, 'student', a.session.student_id, 'password_change_failed');
-    return error('CURRENT_PASSWORD_INVALID', 'كلمة المرور الحالية غير صحيحة.', 401, ctx.requestId, ctx.cors);
-  }
-  const salt = token(16);
-  const hash = await pbkdf2Hash(newPassword, salt);
-  await ctx.env.DB.prepare(`UPDATE students SET auth_secret_hash=?, auth_secret_salt=?, auth_secret_algo='pbkdf2-sha256', failed_login_attempts=0, locked_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-    .bind(hash, salt, a.session.student_id).run();
-  await ctx.env.DB.prepare(`UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE student_id=? AND revoked_at IS NULL`).bind(a.session.student_id).run();
-  await recordAuthEvent(ctx, 'student', a.session.student_id, 'password_changed');
-  return ok(ctx, { changed: true });
 }
 
 export async function forgotStudentPassword(ctx) {

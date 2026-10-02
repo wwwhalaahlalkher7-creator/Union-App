@@ -46,12 +46,15 @@ function doGet(e) {
 
 function doPost(e) {
   var result;
+  var isEmailAction = false;
   try {
     var body = {};
     try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (parseErr) { throw new Error('INVALID_REQUEST'); }
-    if (body.action === 'sendRecoveryEmail') {
+    isEmailAction = body.action === 'sendRecoveryEmail';
+    if (isEmailAction) {
       requireEmailToken(String(body.token || ''));
       result = sendRecoveryEmail(body.to, body.code);
+      Logger.log('TRINEX recovery email: sendRecoveryEmail completed successfully.');
     } else {
       requireToken(String(body.token || ''));
       if (body.action === 'deleteFiles') {
@@ -63,7 +66,17 @@ function doPost(e) {
   } catch (err) {
     var message = String(err && err.message ? err.message : err);
     result = { success: false, error: message };
+    if (isEmailAction) Logger.log('TRINEX recovery email failed: ' + message);
   }
+
+  // ContentService responses are redirected by Apps Script to a one-time
+  // script.googleusercontent.com URL. For the email bridge, return a simple
+  // HtmlService response instead so the Worker can receive a normal 200/4xx
+  // response without depending on the ContentService redirect chain.
+  if (isEmailAction) {
+    return HtmlService.createHtmlOutput(JSON.stringify(result));
+  }
+
   return ContentService.createTextOutput(JSON.stringify(result))
     .setMimeType(ContentService.MimeType.JSON);
 }
