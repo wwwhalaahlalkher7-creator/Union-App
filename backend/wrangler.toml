@@ -47,6 +47,7 @@ migrations_dir = "migrations"
 # Secrets are intentionally not stored in this file.
 # Production secrets are synchronized from GitHub Actions via `wrangler secret put`.
 # GOOGLE_APPS_SCRIPT_EMAIL_TOKEN is a Worker secret; it must match the Apps Script EMAIL_API_TOKEN property.
+# Recovery POST redirects are followed manually in auth.js to preserve POST semantics.
 # Required Eino upstream credentials are supplied through Cloudflare/GitHub secrets.
 # CHROMA_TOKEN is added only when Chroma authentication is enabled.
 

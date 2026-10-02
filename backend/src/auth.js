@@ -209,41 +209,68 @@ export async function registerStudent(ctx) {
 
 
 async function sendStudentRecoveryEmail(ctx, email, code) {
-  // Cloudflare Workers cannot open a raw SMTP connection, so email delivery is
-  // delegated to the existing Google Apps Script adapter. Apps Script Content
-  // Service responses are redirected to a one-time googleusercontent URL;
-  // Workers must explicitly follow that redirect.
+  // Google Apps Script ContentService intentionally returns a 3xx redirect to
+  // a one-time script.googleusercontent.com URL. A normal fetch with
+  // redirect:'follow' may convert a POST into a GET when following a 302,
+  // which makes Apps Script run doGet() instead of doPost(). Follow the
+  // redirect manually so the original POST body and method are preserved.
   const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
   const emailToken = String(ctx.env.GOOGLE_APPS_SCRIPT_EMAIL_TOKEN || '').trim();
   const recipient = normalizeEmail(email);
   if (!endpoint || !emailToken) return { ok: false, reason: 'CONFIG' };
   if (!isValidEmail(recipient)) return { ok: false, reason: 'INVALID_EMAIL' };
 
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      redirect: 'follow',
-      headers: { 'content-type': 'application/json; charset=utf-8', accept: 'application/json' },
-      body: JSON.stringify({
-        action: 'sendRecoveryEmail',
-        token: emailToken,
-        to: recipient,
-        code,
-      }),
-    });
-    const text = await response.text();
-    const safeText = text
+  const requestBody = JSON.stringify({
+    action: 'sendRecoveryEmail',
+    token: emailToken,
+    to: recipient,
+    code,
+  });
+  const requestOptions = {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'content-type': 'application/json; charset=utf-8', accept: 'application/json' },
+    body: requestBody,
+  };
+
+  function safeResponseText(value) {
+    return String(value || '')
       .slice(0, 500)
       .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]');
+  }
+
+  async function readResponse(response) {
+    const text = await response.text();
     let data = null;
     try { data = JSON.parse(text); } catch (_) {}
+    return { response, text, data };
+  }
+
+  try {
+    let result = await readResponse(await fetch(endpoint, requestOptions));
+    let redirects = 0;
+
+    while (result.response.status >= 300 && result.response.status < 400 && redirects < 2) {
+      const location = result.response.headers.get('Location');
+      if (!location) {
+        console.error('recovery email adapter redirect missing Location', { status: result.response.status });
+        return { ok: false, reason: 'REDIRECT_MISSING_LOCATION' };
+      }
+      redirects += 1;
+      const redirectedUrl = new URL(location, endpoint).toString();
+      result = await readResponse(await fetch(redirectedUrl, requestOptions));
+    }
+
+    const safeText = safeResponseText(result.text);
     console.log('recovery email adapter', {
-      status: response.status,
-      ok: response.ok,
+      status: result.response.status,
+      ok: result.response.ok,
+      redirects,
       response: safeText,
     });
-    if (!response.ok) return { ok: false, reason: 'HTTP_ERROR', status: response.status, detail: safeText };
-    if (data?.success === true) return { ok: true };
+
+    if (!result.response.ok) return { ok: false, reason: 'HTTP_ERROR', status: result.response.status, detail: safeText };
+    if (result.data?.success === true) return { ok: true };
     return { ok: false, reason: 'ADAPTER_ERROR', detail: safeText };
   } catch (e) {
     console.error('recovery email adapter fetch failed', {
@@ -252,30 +279,6 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
     });
     return { ok: false, reason: 'FETCH_ERROR' };
   }
-}
-
-export async function studentChangePassword(ctx) {
-  const a = await studentAuth(ctx); if (a.response) return a.response;
-  const body = await parseJson(ctx.request);
-  const currentPassword = String(body?.currentPassword || '');
-  const newPassword = String(body?.newPassword || '');
-  const confirmPassword = String(body?.confirmPassword || '');
-  if (!currentPassword || !newPassword) return error('PASSWORD_CHANGE_FIELDS_REQUIRED', 'أدخل كلمة المرور الحالية والجديدة.', 400, ctx.requestId, ctx.cors);
-  if (newPassword.length < 8 || newPassword.length > 256) return error('PASSWORD_TOO_SHORT', 'كلمة المرور يجب ألا تقل عن 8 أحرف.', 400, ctx.requestId, ctx.cors);
-  if (newPassword !== confirmPassword) return error('PASSWORDS_MISMATCH', 'كلمتا المرور غير متطابقتين.', 400, ctx.requestId, ctx.cors);
-  if (currentPassword === newPassword) return error('PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);
-  const student = await queryOne(ctx.env, 'SELECT * FROM students WHERE id=? AND active=1 LIMIT 1', a.session.student_id);
-  if (!student || !(await verifySecret(currentPassword, student.auth_secret_hash, student.auth_secret_salt, student.auth_secret_algo))) {
-    await recordAuthEvent(ctx, 'student', a.session.student_id, 'password_change_failed');
-    return error('CURRENT_PASSWORD_INVALID', 'كلمة المرور الحالية غير صحيحة.', 401, ctx.requestId, ctx.cors);
-  }
-  const salt = token(16);
-  const hash = await pbkdf2Hash(newPassword, salt);
-  await ctx.env.DB.prepare(`UPDATE students SET auth_secret_hash=?, auth_secret_salt=?, auth_secret_algo='pbkdf2-sha256', failed_login_attempts=0, locked_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-    .bind(hash, salt, a.session.student_id).run();
-  await ctx.env.DB.prepare(`UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE student_id=? AND revoked_at IS NULL`).bind(a.session.student_id).run();
-  await recordAuthEvent(ctx, 'student', a.session.student_id, 'password_changed');
-  return ok(ctx, { changed: true });
 }
 
 export async function forgotStudentPassword(ctx) {
