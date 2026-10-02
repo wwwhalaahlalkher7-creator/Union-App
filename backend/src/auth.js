@@ -281,6 +281,30 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
   }
 }
 
+export async function studentChangePassword(ctx) {
+  const a = await studentAuth(ctx); if (a.response) return a.response;
+  const body = await parseJson(ctx.request);
+  const currentPassword = String(body?.currentPassword || '');
+  const newPassword = String(body?.newPassword || '');
+  const confirmPassword = String(body?.confirmPassword || '');
+  if (!currentPassword || !newPassword) return error('PASSWORD_CHANGE_FIELDS_REQUIRED', 'أدخل كلمة المرور الحالية والجديدة.', 400, ctx.requestId, ctx.cors);
+  if (newPassword.length < 8 || newPassword.length > 256) return error('PASSWORD_TOO_SHORT', 'كلمة المرور يجب ألا تقل عن 8 أحرف.', 400, ctx.requestId, ctx.cors);
+  if (newPassword !== confirmPassword) return error('PASSWORDS_MISMATCH', 'كلمتا المرور غير متطابقتين.', 400, ctx.requestId, ctx.cors);
+  if (currentPassword === newPassword) return error('PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);
+  const student = await queryOne(ctx.env, 'SELECT * FROM students WHERE id=? AND active=1 LIMIT 1', a.session.student_id);
+  if (!student || !(await verifySecret(currentPassword, student.auth_secret_hash, student.auth_secret_salt, student.auth_secret_algo))) {
+    await recordAuthEvent(ctx, 'student', a.session.student_id, 'password_change_failed');
+    return error('CURRENT_PASSWORD_INVALID', 'كلمة المرور الحالية غير صحيحة.', 401, ctx.requestId, ctx.cors);
+  }
+  const salt = token(16);
+  const hash = await pbkdf2Hash(newPassword, salt);
+  await ctx.env.DB.prepare(`UPDATE students SET auth_secret_hash=?, auth_secret_salt=?, auth_secret_algo='pbkdf2-sha256', failed_login_attempts=0, locked_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .bind(hash, salt, a.session.student_id).run();
+  await ctx.env.DB.prepare(`UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE student_id=? AND revoked_at IS NULL`).bind(a.session.student_id).run();
+  await recordAuthEvent(ctx, 'student', a.session.student_id, 'password_changed');
+  return ok(ctx, { changed: true });
+}
+
 export async function forgotStudentPassword(ctx) {
   const ipLimit = await authIpRateLimit(ctx, 'student_password_reset', AUTH_IP_LOGIN_LIMIT);
   if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد المحاولات مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
