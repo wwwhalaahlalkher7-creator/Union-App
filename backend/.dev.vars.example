@@ -8,9 +8,8 @@ MISTRAL_API_KEY=""
 GROQ_API_KEY=""
 EINO_EMBEDDING_API_KEY=""
 GOOGLE_APPS_SCRIPT_TOKEN=""
+GOOGLE_APPS_SCRIPT_EMAIL_TOKEN=""
 STAFF_BOOTSTRAP_TOKEN=""
 CHROMA_TOKEN=""
 
-# Student password recovery
-RESEND_API_KEY=
-RESEND_FROM_EMAIL=TRINEX <noreply@example.com>
+# Student password recovery is delivered by the existing Google Apps Script adapter.

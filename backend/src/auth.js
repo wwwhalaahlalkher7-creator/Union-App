@@ -208,20 +208,30 @@ export async function registerStudent(ctx) {
 
 
 async function sendStudentRecoveryEmail(ctx, email, code) {
-  const apiKey = String(ctx.env.RESEND_API_KEY || '').trim();
-  const from = String(ctx.env.RESEND_FROM_EMAIL || '').trim();
-  if (!apiKey || !from) return false;
-  const response = await fetch('https://api.resend.com/emails', {
+  // Cloudflare Workers cannot open a raw SMTP connection, so email delivery is
+  // delegated to the existing Google Apps Script adapter. The adapter executes
+  // as the project's dedicated Gmail account and sends the message with MailApp.
+  const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
+  const emailToken = String(ctx.env.GOOGLE_APPS_SCRIPT_EMAIL_TOKEN || '').trim();
+  if (!endpoint || !emailToken) return false;
+
+  const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({
-      from,
-      to: [email],
-      subject: 'رمز استعادة كلمة مرور TRINEX',
-      text: `رمز استعادة كلمة مرور حسابك في TRINEX هو: ${code}\n\nالرمز صالح لمدة 10 دقائق. إذا لم تطلب استعادة كلمة المرور فتجاهل هذه الرسالة.`,
+      action: 'sendRecoveryEmail',
+      token: emailToken,
+      to: email,
+      code,
     }),
   });
-  return response.ok;
+  if (!response.ok) return false;
+  try {
+    const data = await response.json();
+    return data?.success === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function studentChangePassword(ctx) {

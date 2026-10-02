@@ -48,11 +48,12 @@ For local Worker secrets, copy `backend/.dev.vars.example` to `backend/.dev.vars
 
 ## إعداد استعادة كلمة مرور الطالب
 
-يستخدم مسار استعادة كلمة مرور الطالب مزود Resend لإرسال رمز مكون من 6 أرقام.
+يستخدم مسار استعادة كلمة مرور الطالب Google Apps Script الموجود أصلًا في المشروع لإرسال رمز مكون من 6 أرقام عبر حساب Gmail المخصص للمشروع. لا يحتاج هذا المسار إلى Google Cloud Console أو Resend.
 
-اضبط أسرار/متغيرات بيئة Worker التالية في بيئة الإنتاج:
-- `RESEND_API_KEY`
-- `RESEND_FROM_EMAIL`
+اضبط سر Worker التالي في بيئة الإنتاج:
+- `GOOGLE_APPS_SCRIPT_EMAIL_TOKEN`
+
+وفي Script Properties الخاصة بـ Google Apps Script أضف نفس القيمة باسم `EMAIL_API_TOKEN`. يجب أن يبقى هذا الرمز منفصلًا عن `API_TOKEN` المستخدم لتكامل Google Drive.
 
 الرمز صالح لمدة 10 دقائق، ويُخزن في قاعدة البيانات كـ hash فقط، مع حد أقصى 5 محاولات للرمز. بعد نجاح الاستعادة تُبطل جلسات الطالب السابقة.
 

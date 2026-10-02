@@ -15,6 +15,7 @@ var CACHE_KEY = 'trINEX_drive_index_v2';
 var CACHE_TTL_SECONDS = 900;
 var ROOT_FOLDER_KEY = 'ROOT_FOLDER_ID';
 var API_TOKEN_KEY = 'API_TOKEN';
+var EMAIL_API_TOKEN_KEY = 'EMAIL_API_TOKEN';
 var STATS_SHEET_ID_KEY = 'STATS_SHEET_ID';
 var MAX_DEPTH = 8;
 var MAX_FILES = 10000;
@@ -46,11 +47,16 @@ function doPost(e) {
   try {
     var body = {};
     try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (parseErr) { throw new Error('بيانات الطلب غير صالحة.'); }
-    requireToken(String(body.token || ''));
-    if (body.action === 'deleteFiles') {
-      result = deleteFiles(body.fileIds || []);
+    if (body.action === 'sendRecoveryEmail') {
+      requireEmailToken(String(body.token || ''));
+      result = sendRecoveryEmail(body.to, body.code);
     } else {
-      result = { success: false, error: 'إجراء غير معروف.' };
+      requireToken(String(body.token || ''));
+      if (body.action === 'deleteFiles') {
+        result = deleteFiles(body.fileIds || []);
+      } else {
+        result = { success: false, error: 'إجراء غير معروف.' };
+      }
     }
   } catch (err) {
     result = { success: false, error: String(err && err.message ? err.message : err) };
@@ -103,6 +109,25 @@ function requireToken(token) {
   var expected = String(PropertiesService.getScriptProperties().getProperty(API_TOKEN_KEY) || '').trim();
   if (!expected) throw new Error('API_TOKEN غير مهيأ في Script properties.');
   if (!token || token !== expected) throw new Error('غير مصرح.');
+}
+
+function requireEmailToken(token) {
+  var expected = String(PropertiesService.getScriptProperties().getProperty(EMAIL_API_TOKEN_KEY) || '').trim();
+  if (!expected) throw new Error('EMAIL_API_TOKEN غير مهيأ في Script properties.');
+  if (!token || token !== expected) throw new Error('غير مصرح.');
+}
+
+function sendRecoveryEmail(to, code) {
+  var recipient = String(to || '').trim().toLowerCase();
+  var recoveryCode = String(code || '').trim();
+  if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) throw new Error('عنوان البريد غير صالح.');
+  if (!/^\d{6}$/.test(recoveryCode)) throw new Error('رمز الاستعادة غير صالح.');
+
+  var subject = 'رمز استعادة كلمة مرور TRINEX';
+  var body = 'رمز استعادة كلمة مرور حسابك في TRINEX هو: ' + recoveryCode +
+    '\n\nالرمز صالح لمدة 10 دقائق. إذا لم تطلب استعادة كلمة المرور فتجاهل هذه الرسالة.';
+  MailApp.sendEmail({ to: recipient, subject: subject, body: body, name: 'TRINEX Support' });
+  return { success: true };
 }
 
 function getRootFolder() {
