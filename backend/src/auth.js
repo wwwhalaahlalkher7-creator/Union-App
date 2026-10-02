@@ -209,11 +209,10 @@ export async function registerStudent(ctx) {
 
 
 async function sendStudentRecoveryEmail(ctx, email, code) {
-  // Google Apps Script ContentService intentionally returns a 3xx redirect to
-  // a one-time script.googleusercontent.com URL. A normal fetch with
-  // redirect:'follow' may convert a POST into a GET when following a 302,
-  // which makes Apps Script run doGet() instead of doPost(). Follow the
-  // redirect manually so the original POST body and method are preserved.
+  // Apps Script ContentService returns a 3xx redirect to a one-time
+  // script.googleusercontent.com URL. Google documents following that
+  // redirect for clients consuming ContentService responses. Keep the
+  // request simple and let fetch handle the redirect chain.
   const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
   const emailToken = String(ctx.env.GOOGLE_APPS_SCRIPT_EMAIL_TOKEN || '').trim();
   const recipient = normalizeEmail(email);
@@ -226,51 +225,37 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
     to: recipient,
     code,
   });
-  const requestOptions = {
-    method: 'POST',
-    redirect: 'manual',
-    headers: { 'content-type': 'application/json; charset=utf-8', accept: 'application/json' },
-    body: requestBody,
-  };
-
-  function safeResponseText(value) {
-    return String(value || '')
-      .slice(0, 500)
-      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]');
-  }
-
-  async function readResponse(response) {
-    const text = await response.text();
-    let data = null;
-    try { data = JSON.parse(text); } catch (_) {}
-    return { response, text, data };
-  }
 
   try {
-    let result = await readResponse(await fetch(endpoint, requestOptions));
-    let redirects = 0;
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        accept: 'application/json, text/plain, */*',
+      },
+      body: requestBody,
+    });
 
-    while (result.response.status >= 300 && result.response.status < 400 && redirects < 2) {
-      const location = result.response.headers.get('Location');
-      if (!location) {
-        console.error('recovery email adapter redirect missing Location', { status: result.response.status });
-        return { ok: false, reason: 'REDIRECT_MISSING_LOCATION' };
-      }
-      redirects += 1;
-      const redirectedUrl = new URL(location, endpoint).toString();
-      result = await readResponse(await fetch(redirectedUrl, requestOptions));
-    }
+    const responseText = String(await response.text() || '').slice(0, 1000);
+    let data = null;
+    try { data = JSON.parse(responseText); } catch (_) {}
 
-    const safeText = safeResponseText(result.text);
+    const safeText = responseText
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+      .replace(emailToken, '[redacted-token]')
+      .replace(String(code), '[redacted-code]');
+
     console.log('recovery email adapter', {
-      status: result.response.status,
-      ok: result.response.ok,
-      redirects,
+      status: response.status,
+      ok: response.ok,
       response: safeText,
     });
 
-    if (!result.response.ok) return { ok: false, reason: 'HTTP_ERROR', status: result.response.status, detail: safeText };
-    if (result.data?.success === true) return { ok: true };
+    if (!response.ok) {
+      return { ok: false, reason: 'HTTP_ERROR', status: response.status, detail: safeText };
+    }
+    if (data?.success === true) return { ok: true };
     return { ok: false, reason: 'ADAPTER_ERROR', detail: safeText };
   } catch (e) {
     console.error('recovery email adapter fetch failed', {
@@ -280,7 +265,6 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
     return { ok: false, reason: 'FETCH_ERROR' };
   }
 }
-
 export async function studentChangePassword(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
   const body = await parseJson(ctx.request);
