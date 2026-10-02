@@ -7,6 +7,7 @@
 ## إعداد Script Properties
 - `ROOT_FOLDER_ID`: معرّف مجلد المواد الدراسية.
 - `API_TOKEN`: نفس السر الموجود في Worker باسم `GOOGLE_APPS_SCRIPT_TOKEN`.
+- `EMAIL_API_TOKEN`: نفس السر الموجود في Worker باسم `GOOGLE_APPS_SCRIPT_EMAIL_TOKEN`، ويستخدم فقط لإرسال أكواد استعادة كلمة المرور.
 - `STATS_SHEET_ID`: اختياري، ينشأ تلقائيًا عند الحاجة.
 
 ## الحذف

@@ -37,6 +37,7 @@
 | `EINO_EMBEDDING_BASE_URL` | مزود embeddings الاختياري بصيغة OpenAI-compatible |
 | `EINO_EMBEDDING_MODEL` | نموذج embeddings الاختياري |
 | `GOOGLE_APPS_SCRIPT_TOKEN` | مصادقة Worker مع Drive adapter |
+| `GOOGLE_APPS_SCRIPT_EMAIL_TOKEN` | مصادقة Worker مع مسار إرسال بريد استعادة كلمة السر عبر Apps Script |
 | `STAFF_BOOTSTRAP_TOKEN` | تهيئة أول مدير عند الحاجة |
 
 لا تضع هذه القيم في Dart أو JavaScript الخاص بالواجهة.
