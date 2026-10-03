@@ -357,6 +357,73 @@ export async function resetStudentPassword(ctx) {
   return ok(ctx, { changed: true });
 }
 
+export async function studentChangePassword(ctx) {
+  const a = await studentAuth(ctx);
+  if (a?.response) return a.response;
+
+  const body = await parseJson(ctx.request);
+  const currentPassword = String(body?.currentPassword || '');
+  const newPassword = String(body?.newPassword || '');
+  const confirmPassword = String(body?.confirmPassword || '');
+  if (!currentPassword || !newPassword || newPassword.length < 8 || newPassword.length > 256) {
+    return error('PASSWORD_INVALID', 'كلمة المرور الجديدة يجب أن تكون بين 8 و256 حرفًا.', 400, ctx.requestId, ctx.cors);
+  }
+  if (newPassword !== confirmPassword) {
+    return error('PASSWORDS_MISMATCH', 'كلمتا المرور غير متطابقتين.', 400, ctx.requestId, ctx.cors);
+  }
+  if (currentPassword === newPassword) {
+    return error('PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);
+  }
+
+  const student = await queryOne(ctx.env, `
+    SELECT id, auth_secret_hash, auth_secret_salt, auth_secret_algo,
+           failed_login_attempts, locked_until, active
+    FROM students WHERE id = ? LIMIT 1
+  `, a.session.student_id);
+  if (!student || student.active !== 1 || !student.auth_secret_hash) {
+    return error('STUDENT_AUTH_REQUIRED', 'حساب الطالب غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors);
+  }
+  if (student.locked_until && new Date(student.locked_until).getTime() > Date.now()) return lockedResponse(ctx);
+
+  const valid = await verifySecret(currentPassword, student.auth_secret_hash, student.auth_secret_salt, student.auth_secret_algo);
+  if (!valid) {
+    await ctx.env.DB.prepare(`
+      UPDATE students
+      SET failed_login_attempts = failed_login_attempts + 1,
+          locked_until = CASE
+            WHEN failed_login_attempts + 1 >= ?
+              THEN datetime('now', '+' || ? || ' seconds')
+            ELSE locked_until
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND active = 1
+    `).bind(AUTH_MAX_FAILED, AUTH_LOCK_SECONDS, student.id).run();
+    const state = await queryOne(ctx.env, 'SELECT failed_login_attempts, locked_until FROM students WHERE id=?', student.id);
+    const locked = Number(state?.failed_login_attempts || 0) >= AUTH_MAX_FAILED && state?.locked_until;
+    await recordAuthEvent(ctx, 'student', student.id, locked ? 'password_change_locked' : 'password_change_failed');
+    return locked ? lockedResponse(ctx) : error('PASSWORD_CURRENT_INVALID', 'كلمة المرور الحالية غير صحيحة.', 401, ctx.requestId, ctx.cors);
+  }
+
+  const salt = token(16);
+  const hash = await pbkdf2Hash(newPassword, salt);
+  await ctx.env.DB.prepare(`
+    UPDATE students
+    SET auth_secret_hash=?, auth_secret_salt=?, auth_secret_algo='pbkdf2-sha256',
+        failed_login_attempts=0, locked_until=NULL, updated_at=CURRENT_TIMESTAMP
+    WHERE id=? AND active=1
+  `).bind(hash, salt, student.id).run();
+
+  // Keep the current session alive while revoking every other active session.
+  await ctx.env.DB.prepare(`
+    UPDATE sessions
+    SET revoked_at=CURRENT_TIMESTAMP
+    WHERE student_id=? AND id<>? AND revoked_at IS NULL
+  `).bind(student.id, a.session.id).run();
+
+  await recordAuthEvent(ctx, 'student', student.id, 'password_changed');
+  return ok(ctx, { changed: true, otherSessionsRevoked: true });
+}
+
 export async function staffLogin(ctx) {
   const ipLimit = await authIpRateLimit(ctx, 'staff_login', AUTH_IP_LOGIN_LIMIT);
   if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد محاولات تسجيل الدخول مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
@@ -466,7 +533,6 @@ export async function staffChangePassword(ctx) {
     .bind(staff.id, a.session.id).run();
 
   await recordAuthEvent(ctx, 'staff', staff.id, 'password_changed');
-  await writeAudit(ctx, staff.id, 'change_password', 'staff_users', staff.id);
   return ok(ctx, { changed: true, otherSessionsRevoked: true });
 }
 
