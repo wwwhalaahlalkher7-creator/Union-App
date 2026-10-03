@@ -123,12 +123,15 @@ function sendRecoveryEmail(to, code) {
   var subject = 'رمز استعادة كلمة مرور TRINEX';
   var body =
     'رمز استعادة كلمة مرور حسابك في TRINEX هو: ' + recoveryCode +
-    '\n\nالرمز صالح لمدة 10 دقائق. إذا لم تطلب استعادة كلمة المرور فتجاهل هذه الرسالة.';
+    '\n\nالرمز صالح لمدة 10 دقائق.\n\nإذا لم تطلب استعادة كلمة المرور، فتجاهل هذه الرسالة ولا تشارك الرمز مع أي شخص.';
+
+  var htmlBody = buildRecoveryEmailHtml(recoveryCode);
 
   MailApp.sendEmail({
     to: recipient,
     subject: subject,
     body: body,
+    htmlBody: htmlBody,
     name: 'TRINEX Support'
   });
 
@@ -139,6 +142,40 @@ function sendRecoveryEmail(to, code) {
   }));
 
   return { success: true };
+}
+
+
+function buildRecoveryEmailHtml(code) {
+  // Email clients do not reliably allow JavaScript clipboard actions. The code
+  // is therefore rendered as a large, selectable OTP block so Gmail and other
+  // clients can recognize/select it easily without relying on scripts.
+  return '<!doctype html>' +
+    '<html lang="ar" dir="rtl"><head><meta charset="UTF-8"></head>' +
+    '<body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#182230;">' +
+      '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">رمز استعادة كلمة المرور في TRINEX: ' + code + '</div>' +
+      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:28px 12px;">' +
+        '<tr><td align="center">' +
+          '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e9f0;border-radius:20px;overflow:hidden;">' +
+            '<tr><td style="padding:26px 28px 18px;text-align:center;background:#101722;">' +
+              '<div style="font-size:26px;font-weight:800;letter-spacing:1px;color:#ffffff;">TRINEX</div>' +
+              '<div style="margin-top:6px;font-size:13px;color:#b9c5d4;">منصة كلية الهندسة والعمارة</div>' +
+            '</td></tr>' +
+            '<tr><td style="padding:30px 28px;text-align:right;">' +
+              '<h1 style="margin:0 0 10px;font-size:22px;line-height:1.5;color:#182230;">استعادة كلمة المرور</h1>' +
+              '<p style="margin:0 0 22px;font-size:15px;line-height:1.9;color:#566274;">تلقينا طلبًا لإعادة تعيين كلمة مرور حسابك في TRINEX. استخدم رمز التحقق التالي لإكمال العملية:</p>' +
+              '<div style="margin:0 auto 22px;padding:20px 16px;text-align:center;border:1px solid #dfe6ef;border-radius:16px;background:#f7f9fc;">' +
+                '<div style="font-size:12px;font-weight:700;color:#687589;margin-bottom:10px;">رمز الاستعادة</div>' +
+                '<div style="font-family:monospace,Arial,sans-serif;font-size:34px;font-weight:900;line-height:1.25;letter-spacing:9px;color:#101722;direction:ltr;unicode-bidi:plaintext;user-select:all;">' + code + '</div>' +
+                '<div style="margin-top:10px;font-size:12px;color:#7a8798;">يمكنك تحديد الرمز ونسخه بسهولة.</div>' +
+              '</div>' +
+              '<div style="padding:14px 16px;border-radius:12px;background:#fff8e8;border:1px solid #f0dfb3;color:#6f5a25;font-size:13px;line-height:1.8;">هذا الرمز صالح لمدة <strong>10 دقائق</strong> فقط، ولا تشاركه مع أي شخص.</div>' +
+              '<p style="margin:22px 0 0;font-size:13px;line-height:1.8;color:#6c7888;">إذا لم تطلب استعادة كلمة المرور، يمكنك تجاهل هذه الرسالة بأمان.</p>' +
+            '</td></tr>' +
+            '<tr><td style="padding:18px 28px;border-top:1px solid #edf0f4;text-align:center;color:#8994a3;font-size:11px;line-height:1.7;">رسالة آلية من TRINEX Support<br>لا ترد على هذه الرسالة.</td></tr>' +
+          '</table>' +
+        '</td></tr>' +
+      '</table>' +
+    '</body></html>';
 }
 
 function testMailAppSetup() {

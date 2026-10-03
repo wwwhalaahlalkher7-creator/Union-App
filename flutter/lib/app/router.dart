@@ -47,7 +47,7 @@ GoRouter buildRouter({
     GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
     GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
-    GoRoute(path: '/forgot-password', builder: (_, _) => const ForgotPasswordScreen()),
+    GoRoute(path: '/forgot-password', builder: (_, state) => ForgotPasswordScreen(initialStudentNumber: state.uri.queryParameters['studentNumber'])),
     ShellRoute(builder: (context, state, child) => TrinexShell(location: state.uri.path, child: child), routes: [
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/student', builder: (_, _) => const StudentScreen()),

@@ -97,15 +97,32 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
         ]))),
         const SizedBox(height:12),
         Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-          Text(l10n.t('changePassword'),style:Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight:FontWeight.w800)),
-          const SizedBox(height:12),
+          Row(
+            children:[
+              Expanded(child:Text(l10n.t('changePassword'),style:Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight:FontWeight.w800))),
+              Icon(Icons.shield_outlined,color:Theme.of(context).colorScheme.primary),
+            ],
+          ),
+          const SizedBox(height:6),
+          Text(l10n.t('changePasswordHelp'),style:TextStyle(color:Theme.of(context).colorScheme.onSurfaceVariant,height:1.45)),
+          const SizedBox(height:14),
           TextField(controller:_currentPassword,obscureText:_hideCurrent,decoration:_dec(l10n.t('currentPassword'),Icons.lock_outline).copyWith(suffixIcon:IconButton(icon:Icon(_hideCurrent?Icons.visibility:Icons.visibility_off),onPressed:()=>setState(()=>_hideCurrent=!_hideCurrent)))),
           const SizedBox(height:10),
           TextField(controller:_newPassword,obscureText:_hideNew,decoration:_dec(l10n.t('newPassword'),Icons.lock_reset_outlined).copyWith(suffixIcon:IconButton(icon:Icon(_hideNew?Icons.visibility:Icons.visibility_off),onPressed:()=>setState(()=>_hideNew=!_hideNew)))),
           const SizedBox(height:10),
           TextField(controller:_confirmPassword,obscureText:_hideConfirm,decoration:_dec(l10n.t('confirmPassword'),Icons.lock_reset_outlined).copyWith(suffixIcon:IconButton(icon:Icon(_hideConfirm?Icons.visibility:Icons.visibility_off),onPressed:()=>setState(()=>_hideConfirm=!_hideConfirm)))),
-          const SizedBox(height:12),
+          const SizedBox(height:14),
           FilledButton.icon(onPressed:_changingPassword?null:_changePassword,icon:const Icon(Icons.password_outlined),label:Text(_changingPassword?'جارٍ التغيير...':l10n.t('changePassword'))),
+          const SizedBox(height:4),
+          TextButton.icon(
+            onPressed:_changingPassword?null:(){
+              final number=(_profile?['number'] as String?)?.trim() ?? '';
+              final query=number.isEmpty?'':'?studentNumber=${Uri.encodeComponent(number)}';
+              context.push('/forgot-password$query');
+            },
+            icon:const Icon(Icons.lock_reset_outlined),
+            label:Text(l10n.t('forgotPasswordFromSettings')),
+          ),
         ]))),
       ]),
     );
