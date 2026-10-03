@@ -222,16 +222,46 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
     code,
   });
 
+  const allowedRedirectHosts = new Set([
+    'script.google.com',
+    'script.googleusercontent.com',
+  ]);
+
+  const post = async (url) => fetch(url, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      accept: 'application/json, text/plain, text/html, */*',
+    },
+    body: requestBody,
+  });
+
   try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      redirect: 'follow',
-      headers: {
-        'content-type': 'application/json; charset=utf-8',
-        accept: 'text/plain, text/html, application/json, */*',
-      },
-      body: requestBody,
-    });
+    let currentUrl = endpoint;
+    let response = null;
+
+    // Google Apps Script Web Apps can redirect /exec to a googleusercontent.com
+    // endpoint. Follow that redirect ourselves so the POST method and body are
+    // preserved. Native fetch redirect handling may turn a 301/302/303 POST into
+    // a GET, which would call doGet() instead of doPost().
+    for (let redirectCount = 0; redirectCount <= 3; redirectCount += 1) {
+      response = await post(currentUrl);
+      if (![301, 302, 303, 307, 308].includes(response.status)) break;
+
+      const location = response.headers.get('location');
+      if (!location) {
+        return { ok: false, reason: 'REDIRECT_WITHOUT_LOCATION' };
+      }
+
+      const nextUrl = new URL(location, currentUrl);
+      if (!allowedRedirectHosts.has(nextUrl.hostname)) {
+        return { ok: false, reason: 'UNTRUSTED_REDIRECT' };
+      }
+      currentUrl = nextUrl.toString();
+    }
+
+    if (!response) return { ok: false, reason: 'NO_RESPONSE' };
 
     const responseText = String(await response.text() || '').slice(0, 2000);
     const normalized = responseText.replace(/\s+/g, ' ').trim();
@@ -251,8 +281,6 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
       return { ok: false, reason: 'HTTP_ERROR', status: response.status, detail: safeText };
     }
 
-    // The Apps Script email bridge intentionally returns a simple HtmlService
-    // response. Accept either the JSON object or its serialized form.
     let data = null;
     try { data = JSON.parse(normalized); } catch (_) {}
     if (data?.success === true) return { ok: true };

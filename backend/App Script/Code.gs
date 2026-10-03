@@ -11,6 +11,8 @@
  *   STATS_SHEET_ID  = معرّف ورقة الإحصائيات (اختياري)
  *
  * النشر: Deploy → New deployment → Web app → Execute as Me → Anyone.
+ * ملاحظة: Worker هو المسؤول عن إنشاء/التحقق من رمز الاستعادة وقاعدة البيانات.
+ * هذا الـApps Script يعمل كجسر بريد فقط: يستقبل طلب POST ويرسل عبر MailApp.
  */
 
 var CACHE_KEY = 'trINEX_drive_index_v2';
@@ -69,14 +71,8 @@ function doPost(e) {
     if (isEmailAction) Logger.log('TRINEX recovery email failed: ' + message);
   }
 
-  // HtmlService keeps the email bridge response on a normal 200 response. The
-  // Worker extracts the JSON payload from this HTML wrapper, avoiding a POST
-  // redirect that could otherwise be converted into GET by the fetch redirect
-  // handling.
-  if (isEmailAction) {
-    return HtmlService.createHtmlOutput(JSON.stringify(result));
-  }
-
+  // The Worker follows the Apps Script /exec redirect manually while preserving
+  // POST. Return one plain JSON contract for both actions.
   return ContentService.createTextOutput(JSON.stringify(result))
     .setMimeType(ContentService.MimeType.JSON);
 }

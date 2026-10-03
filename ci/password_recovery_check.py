@@ -65,10 +65,17 @@ for locale, block in blocks.items():
         if f"'{key}':" not in block:
             errors.append(f'Missing {key} localization for {locale}')
 
-# Apps Script must validate the email token/code and expose doPost.
+# Worker must own recovery logic; Apps Script is only the authenticated Gmail bridge.
 for marker in ('function doPost(e)', 'requireEmailToken', 'sendRecoveryEmail', 'MailApp.sendEmail'):
     if marker not in apps:
         errors.append(f'Apps Script recovery component missing: {marker}')
+if "redirect: 'manual'" not in auth:
+    errors.append('Recovery email adapter must preserve POST across Apps Script redirects')
+for marker in ('script.google.com', 'script.googleusercontent.com', 'UNTRUSTED_REDIRECT'):
+    if marker not in auth:
+        errors.append(f'Recovery adapter redirect guard missing: {marker}')
+if 'HtmlService.createHtmlOutput(JSON.stringify(result))' in apps:
+    errors.append('Apps Script recovery bridge should return plain JSON, not an HTML wrapper')
 
 # Migration must contain the recovery table and indexes.
 for marker in ('CREATE TABLE IF NOT EXISTS password_reset_codes', 'code_hash', 'expires_at', 'attempts', 'used_at'):
