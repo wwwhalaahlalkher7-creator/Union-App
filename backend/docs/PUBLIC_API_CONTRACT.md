@@ -29,9 +29,6 @@ Public content routes `/news`, `/events`, `/announcements`, `/achievements` are 
 ## Authentication endpoints
 
 - `POST /auth/login`
-- `POST /auth/forgot-password`
-- `POST /auth/reset-password`
-- `POST /auth/change-password`
 - `POST /auth/staff/login`
 - `POST /auth/staff/bootstrap`
 - `GET /auth/staff/me`

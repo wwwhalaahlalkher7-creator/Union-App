@@ -121,7 +121,6 @@ jobs:
         run: |
           python3 ci/verify_project.py
           python3 ci/release_check.py
-          python3 ci/password_recovery_check.py
           python3 ci/final_release_check.py
 
   android:

@@ -209,8 +209,8 @@ export async function registerStudent(ctx) {
 
 
 async function sendStudentRecoveryEmail(ctx, email, code) {
-  const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
-  const emailToken = String(ctx.env.GOOGLE_APPS_SCRIPT_EMAIL_TOKEN || '').trim();
+  const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_GMAIL_URL || '').trim();
+  const emailToken = String(ctx.env.GOOGLE_APPS_SCRIPT_GMAIL_TOKEN || '').trim();
   const recipient = normalizeEmail(email);
   if (!endpoint || !emailToken) return { ok: false, reason: 'CONFIG' };
   if (!isValidEmail(recipient)) return { ok: false, reason: 'INVALID_EMAIL' };
@@ -222,46 +222,16 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
     code,
   });
 
-  const allowedRedirectHosts = new Set([
-    'script.google.com',
-    'script.googleusercontent.com',
-  ]);
-
-  const post = async (url) => fetch(url, {
-    method: 'POST',
-    redirect: 'manual',
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      accept: 'application/json, text/plain, text/html, */*',
-    },
-    body: requestBody,
-  });
-
   try {
-    let currentUrl = endpoint;
-    let response = null;
-
-    // Google Apps Script Web Apps can redirect /exec to a googleusercontent.com
-    // endpoint. Follow that redirect ourselves so the POST method and body are
-    // preserved. Native fetch redirect handling may turn a 301/302/303 POST into
-    // a GET, which would call doGet() instead of doPost().
-    for (let redirectCount = 0; redirectCount <= 3; redirectCount += 1) {
-      response = await post(currentUrl);
-      if (![301, 302, 303, 307, 308].includes(response.status)) break;
-
-      const location = response.headers.get('location');
-      if (!location) {
-        return { ok: false, reason: 'REDIRECT_WITHOUT_LOCATION' };
-      }
-
-      const nextUrl = new URL(location, currentUrl);
-      if (!allowedRedirectHosts.has(nextUrl.hostname)) {
-        return { ok: false, reason: 'UNTRUSTED_REDIRECT' };
-      }
-      currentUrl = nextUrl.toString();
-    }
-
-    if (!response) return { ok: false, reason: 'NO_RESPONSE' };
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        accept: 'text/plain, text/html, application/json, */*',
+      },
+      body: requestBody,
+    });
 
     const responseText = String(await response.text() || '').slice(0, 2000);
     const normalized = responseText.replace(/\s+/g, ' ').trim();
@@ -270,7 +240,7 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
       .replace(emailToken, '[redacted-token]')
       .replace(String(code), '[redacted-code]');
 
-    console.log('recovery email adapter', {
+    console.log('TRINEX Gmail adapter', {
       status: response.status,
       ok: response.ok,
       contentType: response.headers.get('content-type') || '',
@@ -281,6 +251,8 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
       return { ok: false, reason: 'HTTP_ERROR', status: response.status, detail: safeText };
     }
 
+    // TRINEX Gmail returns JSON through Apps Script ContentService. Keep a
+    // text fallback because Google may wrap service responses during redirects.
     let data = null;
     try { data = JSON.parse(normalized); } catch (_) {}
     if (data?.success === true) return { ok: true };
@@ -288,7 +260,7 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
 
     return { ok: false, reason: 'ADAPTER_ERROR', detail: safeText };
   } catch (e) {
-    console.error('recovery email adapter fetch failed', {
+    console.error('TRINEX Gmail adapter fetch failed', {
       name: e?.name || 'Error',
       message: String(e?.message || e || '').slice(0, 300),
     });
@@ -302,17 +274,13 @@ export async function forgotStudentPassword(ctx) {
   const body = await parseJson(ctx.request);
   const studentNumber = String(body?.studentNumber || body?.identifier || '').trim();
   if (!studentNumber) return error('RECOVERY_IDENTIFIER_REQUIRED', 'أدخل الرقم الجامعي.', 400, ctx.requestId, ctx.cors);
-  // Recovery requests intentionally use one generic success response. This prevents
-  // the endpoint from becoming an account-enumeration oracle. Do not return whether
-  // the student exists, is active, or has a recovery email configured.
   const student = await queryOne(ctx.env, 'SELECT id,email,active FROM students WHERE student_number=? LIMIT 1', studentNumber);
-  if (!student || student.active !== 1 || !student.email) {
-    return ok(ctx, { sent: true, expiresInSeconds: 600 });
-  }
+  if (!student || student.active !== 1) return error('RECOVERY_STUDENT_NOT_FOUND', 'تعذر العثور على الطالب.', 404, ctx.requestId, ctx.cors);
+  if (!student.email) return error('NO_RECOVERY_EMAIL', 'لا يوجد بريد استعادة مضاف لهذا الحساب. يرجى التواصل مع المسؤولين لحل مشكلتك.', 400, ctx.requestId, ctx.cors);
   const recoveryEmail = normalizeEmail(student.email);
   if (!isValidEmail(recoveryEmail)) {
     console.error('Invalid stored recovery email', { studentId: student.id });
-    return ok(ctx, { sent: true, expiresInSeconds: 600 });
+    return error('RECOVERY_EMAIL_INVALID', 'البريد الإلكتروني المسجل لهذا الحساب غير صالح. يرجى التواصل مع الإدارة لتحديثه.', 400, ctx.requestId, ctx.cors);
   }
 
   const random = new Uint32Array(1); crypto.getRandomValues(random); const code = String(100000 + (random[0] % 900000));
@@ -351,105 +319,17 @@ export async function resetStudentPassword(ctx) {
   if (Number(row.attempts || 0) >= 5) return error('RECOVERY_TOO_MANY_ATTEMPTS', 'تم تجاوز عدد محاولات الرمز. اطلب رمزًا جديدًا.', 429, ctx.requestId, ctx.cors);
   const valid = await timingSafeEqualHex(await sha256(code), row.code_hash);
   if (!valid) {
-    // Increment only while the code is still active and below the limit. This is
-    // atomic at the SQL statement level, so concurrent wrong-code requests cannot
-    // overwrite one another's attempt count.
-    const failedAttempt = await ctx.env.DB.prepare(`
-      UPDATE password_reset_codes
-      SET attempts = attempts + 1
-      WHERE id = ? AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP AND attempts < 5
-    `).bind(row.id).run();
-    if (!failedAttempt.meta?.changes) {
-      return error('RECOVERY_TOO_MANY_ATTEMPTS', 'تم تجاوز عدد محاولات الرمز. اطلب رمزًا جديدًا.', 429, ctx.requestId, ctx.cors);
-    }
+    await ctx.env.DB.prepare('UPDATE password_reset_codes SET attempts=attempts+1 WHERE id=?').bind(row.id).run();
     return error('RECOVERY_CODE_INVALID', 'رمز الاستعادة غير صحيح.', 400, ctx.requestId, ctx.cors);
   }
-
-  // Claim the code atomically before changing the password. Only one concurrent
-  // request can transition used_at from NULL, preventing double-use of a valid code.
-  const claimed = await ctx.env.DB.prepare(`
-    UPDATE password_reset_codes
-    SET used_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP AND attempts < 5
-  `).bind(row.id).run();
-  if (!claimed.meta?.changes) {
-    return error('RECOVERY_INVALID', 'رمز الاستعادة منتهي أو مستخدم. اطلب رمزًا جديدًا.', 400, ctx.requestId, ctx.cors);
-  }
-
   const salt = token(16);
   const hash = await pbkdf2Hash(newPassword, salt);
   await ctx.env.DB.prepare(`UPDATE students SET auth_secret_hash=?, auth_secret_salt=?, auth_secret_algo='pbkdf2-sha256', failed_login_attempts=0, locked_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
     .bind(hash, salt, student.id).run();
+  await ctx.env.DB.prepare('UPDATE password_reset_codes SET used_at=CURRENT_TIMESTAMP WHERE id=?').bind(row.id).run();
   await ctx.env.DB.prepare('UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE student_id=? AND revoked_at IS NULL').bind(student.id).run();
   await recordAuthEvent(ctx, 'student', student.id, 'password_reset_completed');
   return ok(ctx, { changed: true });
-}
-
-export async function studentChangePassword(ctx) {
-  const a = await studentAuth(ctx);
-  if (a?.response) return a.response;
-
-  const body = await parseJson(ctx.request);
-  const currentPassword = String(body?.currentPassword || '');
-  const newPassword = String(body?.newPassword || '');
-  const confirmPassword = String(body?.confirmPassword || '');
-  if (!currentPassword || !newPassword || newPassword.length < 8 || newPassword.length > 256) {
-    return error('PASSWORD_INVALID', 'كلمة المرور الجديدة يجب أن تكون بين 8 و256 حرفًا.', 400, ctx.requestId, ctx.cors);
-  }
-  if (newPassword !== confirmPassword) {
-    return error('PASSWORDS_MISMATCH', 'كلمتا المرور غير متطابقتين.', 400, ctx.requestId, ctx.cors);
-  }
-  if (currentPassword === newPassword) {
-    return error('PASSWORD_UNCHANGED', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.', 400, ctx.requestId, ctx.cors);
-  }
-
-  const student = await queryOne(ctx.env, `
-    SELECT id, auth_secret_hash, auth_secret_salt, auth_secret_algo,
-           failed_login_attempts, locked_until, active
-    FROM students WHERE id = ? LIMIT 1
-  `, a.session.student_id);
-  if (!student || student.active !== 1 || !student.auth_secret_hash) {
-    return error('STUDENT_AUTH_REQUIRED', 'حساب الطالب غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors);
-  }
-  if (student.locked_until && new Date(student.locked_until).getTime() > Date.now()) return lockedResponse(ctx);
-
-  const valid = await verifySecret(currentPassword, student.auth_secret_hash, student.auth_secret_salt, student.auth_secret_algo);
-  if (!valid) {
-    await ctx.env.DB.prepare(`
-      UPDATE students
-      SET failed_login_attempts = failed_login_attempts + 1,
-          locked_until = CASE
-            WHEN failed_login_attempts + 1 >= ?
-              THEN datetime('now', '+' || ? || ' seconds')
-            ELSE locked_until
-          END,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND active = 1
-    `).bind(AUTH_MAX_FAILED, AUTH_LOCK_SECONDS, student.id).run();
-    const state = await queryOne(ctx.env, 'SELECT failed_login_attempts, locked_until FROM students WHERE id=?', student.id);
-    const locked = Number(state?.failed_login_attempts || 0) >= AUTH_MAX_FAILED && state?.locked_until;
-    await recordAuthEvent(ctx, 'student', student.id, locked ? 'password_change_locked' : 'password_change_failed');
-    return locked ? lockedResponse(ctx) : error('PASSWORD_CURRENT_INVALID', 'كلمة المرور الحالية غير صحيحة.', 401, ctx.requestId, ctx.cors);
-  }
-
-  const salt = token(16);
-  const hash = await pbkdf2Hash(newPassword, salt);
-  await ctx.env.DB.prepare(`
-    UPDATE students
-    SET auth_secret_hash=?, auth_secret_salt=?, auth_secret_algo='pbkdf2-sha256',
-        failed_login_attempts=0, locked_until=NULL, updated_at=CURRENT_TIMESTAMP
-    WHERE id=? AND active=1
-  `).bind(hash, salt, student.id).run();
-
-  // Keep the current session alive while revoking every other active session.
-  await ctx.env.DB.prepare(`
-    UPDATE sessions
-    SET revoked_at=CURRENT_TIMESTAMP
-    WHERE student_id=? AND id<>? AND revoked_at IS NULL
-  `).bind(student.id, a.session.id).run();
-
-  await recordAuthEvent(ctx, 'student', student.id, 'password_changed');
-  return ok(ctx, { changed: true, otherSessionsRevoked: true });
 }
 
 export async function staffLogin(ctx) {
@@ -561,6 +441,7 @@ export async function staffChangePassword(ctx) {
     .bind(staff.id, a.session.id).run();
 
   await recordAuthEvent(ctx, 'staff', staff.id, 'password_changed');
+  await writeAudit(ctx, staff.id, 'change_password', 'staff_users', staff.id);
   return ok(ctx, { changed: true, otherSessionsRevoked: true });
 }
 

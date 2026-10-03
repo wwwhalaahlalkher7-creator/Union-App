@@ -12,7 +12,8 @@ GET /api/v1/health?deep=true
 
 - D1 غير متصل → راجع binding/database/migrations.
 - Eino غير متاح → راجع مزود المهمة المحددة في `backend/wrangler.toml` وأسرار المزود المناسبة (Mistral/Groq/Free.ai) وسجلات Worker.
-- Drive غير مهيأ → راجع `GOOGLE_APPS_SCRIPT_URL` و`GOOGLE_APPS_SCRIPT_TOKEN`.
+- Drive غير مهيأ → راجع `GOOGLE_APPS_SCRIPT_DRIVE_URL` و`GOOGLE_APPS_SCRIPT_DRIVE_TOKEN`.
+- Gmail غير مهيأ → راجع `GOOGLE_APPS_SCRIPT_GMAIL_URL` و`GOOGLE_APPS_SCRIPT_GMAIL_TOKEN`.
 
 لا تغيّر Flutter قبل تحديد الطبقة الفاشلة.
 

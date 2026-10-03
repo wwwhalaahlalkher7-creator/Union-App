@@ -9,7 +9,7 @@
 ```text
 TRINEX
 ├── flutter/                 تطبيق Android (Flutter)
-├── backend/                 API + D1 + Eino gateway + Drive adapter
+├── backend/                 API + D1 + Eino gateway + Drive/Gmail adapters
 ├── website/                 الموقع العام + لوحة الإدارة
 ├── ci/                      فحوصات العقود والأمان والإصدار
 ├── docs/                    الوثائق التشغيلية الحالية
@@ -35,11 +35,12 @@ TRINEX
 ```text
 Android Flutter ─┐
                  ├──> TRINEX API (Cloudflare Worker) ──> D1
-Public Website ──┤                                  ├──> Google Drive adapter
+Public Website ──┤                                  ├──> TRINEX Drive (Google Apps Script) → Google Drive
+                 ├──> TRINEX Gmail (Google Apps Script) → Gmail
 Dashboard ──────┘                                  └──> Free.ai → Eino models
 ```
 
-المسار العام للتطبيق والموقع هو **TRINEX API**. Google Apps Script موجود حاليًا فقط كـ **adapter للوصول إلى Google Drive**، وليس كـ API تشغيلي مباشر للتطبيق أو الموقع.
+المسار العام للتطبيق والموقع هو **TRINEX API**. Google Apps Script مقسوم إلى خدمتين مستقلتين: **TRINEX Drive** للمواد الدراسية و**TRINEX Gmail** للبريد. Worker هو الوسيط الوحيد بين التطبيق/الموقع والخدمتين.
 
 ## الحالة الحالية
 

@@ -61,11 +61,11 @@ export function drivePin(description) {
 }
 
 export async function fetchAppsScriptIndex(ctx, forceRefresh = false) {
-  const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
-  const token = String(ctx.env.GOOGLE_APPS_SCRIPT_TOKEN || '').trim();
-  if (!endpoint || !token) throw new Error('Google Apps Script adapter is not configured.');
+  const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_DRIVE_URL || '').trim();
+  const token = String(ctx.env.GOOGLE_APPS_SCRIPT_DRIVE_TOKEN || '').trim();
+  if (!endpoint || !token) throw new Error('TRINEX Drive adapter is not configured.');
   let url;
-  try { url = new URL(endpoint); } catch (e) { throw new Error('GOOGLE_APPS_SCRIPT_URL غير صالح.'); }
+  try { url = new URL(endpoint); } catch (e) { throw new Error('GOOGLE_APPS_SCRIPT_DRIVE_URL غير صالح.'); }
   url.searchParams.set('action', 'index');
   url.searchParams.set('token', token);
   if (forceRefresh) url.searchParams.set('nocache', '1');
@@ -92,11 +92,11 @@ export async function fetchAppsScriptIndex(ctx, forceRefresh = false) {
 export async function deleteDriveFilesViaAppsScript(ctx, fileIds) {
   const uniqueIds = [...new Set((Array.isArray(fileIds) ? fileIds : []).map(v => String(v || '').trim()).filter(Boolean))];
   if (!uniqueIds.length) return { deleted: [], count: 0 };
-  const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
-  const token = String(ctx.env.GOOGLE_APPS_SCRIPT_TOKEN || '').trim();
-  if (!endpoint || !token) throw new Error('Google Apps Script adapter is not configured.');
+  const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_DRIVE_URL || '').trim();
+  const token = String(ctx.env.GOOGLE_APPS_SCRIPT_DRIVE_TOKEN || '').trim();
+  if (!endpoint || !token) throw new Error('TRINEX Drive adapter is not configured.');
   let url;
-  try { url = new URL(endpoint); } catch (e) { throw new Error('GOOGLE_APPS_SCRIPT_URL غير صالح.'); }
+  try { url = new URL(endpoint); } catch (e) { throw new Error('GOOGLE_APPS_SCRIPT_DRIVE_URL غير صالح.'); }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
   try {
@@ -118,7 +118,7 @@ export async function deleteDriveFilesViaAppsScript(ctx, fileIds) {
 export async function adminDriveSync(ctx) {
   const a = await adminDriveAuth(ctx); if (a.response) return a.response;
   const syncId = crypto.randomUUID();
-  const configuredUrl = String(ctx.env.GOOGLE_APPS_SCRIPT_URL || '').trim();
+  const configuredUrl = String(ctx.env.GOOGLE_APPS_SCRIPT_DRIVE_URL || '').trim();
   if (!configuredUrl) return error('DRIVE_NOT_CONFIGURED', 'رابط Google Apps Script غير مهيأ.', 503, ctx.requestId, ctx.cors);
   await ctx.env.DB.prepare('INSERT INTO drive_sync_runs (id, root_folder_id, status, triggered_by) VALUES (?, ?, ?, ?)')
     .bind(syncId, 'apps-script', 'running', a.session.staff_user_id).run();

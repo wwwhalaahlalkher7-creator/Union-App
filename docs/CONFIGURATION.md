@@ -16,7 +16,8 @@
 | `APP_RELEASE_NOTES` | Variable | ملاحظات الإصدار؛ تؤخذ من تعليقات `flutter/VERSION` |
 | `API_VERSION` | Variable | عقد API، حاليًا `v1` |
 | `EINO_*_DAILY_LIMIT` | Variable | حدود Eino اليومية |
-| `GOOGLE_APPS_SCRIPT_URL` | Variable | رابط Drive adapter |
+| `GOOGLE_APPS_SCRIPT_DRIVE_URL` | GitHub Secret → Worker Variable | رابط Web App لمشروع TRINEX Drive، يُحقن وقت النشر |
+| `GOOGLE_APPS_SCRIPT_GMAIL_URL` | GitHub Secret → Worker Variable | رابط Web App لمشروع TRINEX Gmail، يُحقن وقت النشر |
 | `ALLOWED_ORIGINS` | Variable | Origins المسموح بها للمتصفح |
 
 الأسرار:
@@ -36,24 +37,43 @@
 | `EINO_GROQ_TTS_MODEL` | TTS العربي الأساسي: `canopylabs/orpheus-arabic-saudi` |
 | `EINO_EMBEDDING_BASE_URL` | مزود embeddings الاختياري بصيغة OpenAI-compatible |
 | `EINO_EMBEDDING_MODEL` | نموذج embeddings الاختياري |
-| `GOOGLE_APPS_SCRIPT_TOKEN` | مصادقة Worker مع Drive adapter |
-| `GOOGLE_APPS_SCRIPT_EMAIL_TOKEN` | مصادقة Worker مع مسار إرسال بريد استعادة كلمة السر عبر Apps Script |
+| `GOOGLE_APPS_SCRIPT_DRIVE_TOKEN` | مصادقة Worker مع مشروع TRINEX Drive |
+| `GOOGLE_APPS_SCRIPT_GMAIL_TOKEN` | مصادقة Worker مع مشروع TRINEX Gmail |
 | `STAFF_BOOTSTRAP_TOKEN` | تهيئة أول مدير عند الحاجة |
 
 لا تضع هذه القيم في Dart أو JavaScript الخاص بالواجهة.
 
 ## Google Apps Script
 
-`backend/App Script/Code.gs` يحتاج Script Properties:
+المجلد `backend/App Script/` يحتوي كودين مستقلين لاثنين من Web Apps:
 
+### TRINEX Drive
+Script Properties:
 - `ROOT_FOLDER_ID`
 - `API_TOKEN`
+- `STATS_SHEET_ID` (اختياري)
 
-تفاصيل النشر موجودة في `backend/App Script/README_AR.md`.
+Worker:
+- `GOOGLE_APPS_SCRIPT_DRIVE_URL`
+- `GOOGLE_APPS_SCRIPT_DRIVE_TOKEN`
+
+### TRINEX Gmail
+Script Properties:
+- `EMAIL_API_TOKEN`
+
+Worker:
+- `GOOGLE_APPS_SCRIPT_GMAIL_URL`
+- `GOOGLE_APPS_SCRIPT_GMAIL_TOKEN`
+
+يجب نشر كل مشروع كـ Web app مستقل. كلاهما يعمل `Execute as: Me` و`Who has access: Anyone`.
+
 
 ## GitHub Actions
 
 الأسرار المستخدمة حاليًا تشمل، بحسب workflow:
+
+- Apps Script adapters: `GOOGLE_APPS_SCRIPT_DRIVE_URL`, `GOOGLE_APPS_SCRIPT_DRIVE_TOKEN`, `GOOGLE_APPS_SCRIPT_GMAIL_URL`, `GOOGLE_APPS_SCRIPT_GMAIL_TOKEN`.
+- الـURLs الأربعة الخاصة بـApps Script تُقرأ من GitHub Secrets فقط؛ لا تُحفظ في `backend/wrangler.toml`. أثناء النشر يستخدم الـworkflow `wrangler --var` للـURLs و`wrangler secret put` للـtokens.
 
 - Cloudflare: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 - Eino providers: `MISTRAL_API_KEY`, `GROQ_API_KEY`, و`FREE_AI_API_KEY` عند تفعيل fallback الأخير.

@@ -46,15 +46,26 @@ For local Worker secrets, copy `backend/.dev.vars.example` to `backend/.dev.vars
 عند إضافة endpoint جديد، سجّل route في `index.js` وضع handler في module مالك للنطاق.
 
 
-## إعداد استعادة كلمة مرور الطالب
+## تكاملات Google Apps Script
 
-يستخدم مسار استعادة كلمة مرور الطالب Google Apps Script الموجود أصلًا في المشروع لإرسال رمز مكون من 6 أرقام عبر حساب Gmail المخصص للمشروع. لا يحتاج هذا المسار إلى Google Cloud Console أو Resend.
+يستخدم Worker مشروعين مستقلين تمامًا من Google Apps Script:
+- **TRINEX Drive**: فهرسة المواد الدراسية وحذف ملفات Drive وتسجيل الفتحات.
+- **TRINEX Gmail**: إرسال رسائل استعادة كلمة المرور، مع قابلية إضافة خدمات بريد مستقبلًا.
 
-اضبط سر Worker التالي في بيئة الإنتاج:
-- `GOOGLE_APPS_SCRIPT_EMAIL_TOKEN`
+هذا الفصل مقصود حتى لا يؤثر تعطل البريد على Drive أو العكس.
 
-وفي Script Properties الخاصة بـ Google Apps Script أضف نفس القيمة باسم `EMAIL_API_TOKEN`. يجب أن يبقى هذا الرمز منفصلًا عن `API_TOKEN` المستخدم لتكامل Google Drive.
+### استعادة كلمة المرور
 
-الرمز صالح لمدة 10 دقائق، ويُخزن في قاعدة البيانات كـ hash فقط، مع حد أقصى 5 محاولات للرمز. بعد نجاح الاستعادة تُبطل جلسات الطالب السابقة.
+يضبط Worker:
+- `GOOGLE_APPS_SCRIPT_GMAIL_URL` كرابط Web App لمشروع TRINEX Gmail، ويُحقن وقت النشر من GitHub Secret.
+- `GOOGLE_APPS_SCRIPT_GMAIL_TOKEN` كـ secret، وتكون قيمته نفسها في Script Property باسم `EMAIL_API_TOKEN`.
 
-إذا لم يكن للطالب بريد مسجل، يعيد الـAPI الخطأ `NO_RECOVERY_EMAIL` برسالة تطلب التواصل مع المسؤولين.
+رمز الاستعادة صالح لمدة 10 دقائق، ويُخزن في D1 كـ hash فقط، مع حد أقصى 5 محاولات. بعد نجاح الاستعادة تُبطل جلسات الطالب السابقة.
+
+### المواد الدراسية
+
+يضبط Worker:
+- `GOOGLE_APPS_SCRIPT_DRIVE_URL` كرابط Web App لمشروع TRINEX Drive، ويُحقن وقت النشر من GitHub Secret.
+- `GOOGLE_APPS_SCRIPT_DRIVE_TOKEN` كـ secret، وتكون قيمته نفسها في Script Property باسم `API_TOKEN`.
+
+مشروع Drive يستخدم `ROOT_FOLDER_ID` للوصول إلى مجلد المواد، و`STATS_SHEET_ID` اختياري لإحصائيات فتح الملفات.

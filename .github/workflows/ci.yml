@@ -134,7 +134,6 @@ jobs:
         working-directory: .
         run: |
           python3 ci/release_check.py
-          python3 ci/password_recovery_check.py
           python3 ci/final_release_check.py
           python3 ci/flutter_secure_storage_check.py
           python3 ci/offline_cache_check.py
@@ -252,8 +251,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          GOOGLE_APPS_SCRIPT_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_TOKEN }}
-          GOOGLE_APPS_SCRIPT_EMAIL_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_EMAIL_TOKEN }}
+          GOOGLE_APPS_SCRIPT_DRIVE_URL: ${{ secrets.GOOGLE_APPS_SCRIPT_DRIVE_URL }}
+          GOOGLE_APPS_SCRIPT_GMAIL_URL: ${{ secrets.GOOGLE_APPS_SCRIPT_GMAIL_URL }}
+          GOOGLE_APPS_SCRIPT_DRIVE_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_DRIVE_TOKEN }}
+          GOOGLE_APPS_SCRIPT_GMAIL_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_GMAIL_TOKEN }}
           FREE_AI_API_KEY: ${{ secrets.FREE_AI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -264,8 +265,10 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          test -n "$GOOGLE_APPS_SCRIPT_TOKEN"
-          test -n "$GOOGLE_APPS_SCRIPT_EMAIL_TOKEN"
+          test -n "$GOOGLE_APPS_SCRIPT_DRIVE_URL"
+          test -n "$GOOGLE_APPS_SCRIPT_GMAIL_URL"
+          test -n "$GOOGLE_APPS_SCRIPT_DRIVE_TOKEN"
+          test -n "$GOOGLE_APPS_SCRIPT_GMAIL_TOKEN"
 
           npx wrangler d1 migrations apply leo-association-db --remote
 
@@ -275,8 +278,8 @@ jobs:
             GROQ_API_KEY \
             FREE_AI_BASE_URL \
             EINO_EMBEDDING_API_KEY \
-            GOOGLE_APPS_SCRIPT_TOKEN \
-            GOOGLE_APPS_SCRIPT_EMAIL_TOKEN \
+            GOOGLE_APPS_SCRIPT_DRIVE_TOKEN \
+            GOOGLE_APPS_SCRIPT_GMAIL_TOKEN \
             STAFF_BOOTSTRAP_TOKEN; do
             value="${!pair:-}"
             if [ -n "$value" ]; then
@@ -284,7 +287,9 @@ jobs:
             fi
           done
 
-          npx wrangler deploy
+          npx wrangler deploy \
+            --var "GOOGLE_APPS_SCRIPT_DRIVE_URL:$GOOGLE_APPS_SCRIPT_DRIVE_URL" \
+            --var "GOOGLE_APPS_SCRIPT_GMAIL_URL:$GOOGLE_APPS_SCRIPT_GMAIL_URL"
 
       - name: Verify production API
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

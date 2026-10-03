@@ -7,7 +7,8 @@ Flutter Android ───────┐
                        │
 Website ───────────────┼──> Cloudflare Worker API v1 ──> D1
 Dashboard ─────────────┘              │
-                                      ├──> Google Apps Script → Google Drive
+                                      ├──> TRINEX Drive (Google Apps Script) → Google Drive
+                                      ├──> TRINEX Gmail (Google Apps Script) → Gmail
                                       └──> Mistral → Groq → Free.ai (capability fallbacks)
 ```
 
