@@ -208,6 +208,13 @@ export async function registerStudent(ctx) {
 }
 
 
+function normalizeRecoveryCode(value) {
+  return String(value ?? '')
+    .trim()
+    .replace(/[٠-٩]/g, ch => String(ch.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, ch => String(ch.charCodeAt(0) - 0x06F0));
+}
+
 async function sendStudentRecoveryEmail(ctx, email, code) {
   const endpoint = String(ctx.env.GOOGLE_APPS_SCRIPT_GMAIL_URL || '').trim();
   const emailToken = String(ctx.env.GOOGLE_APPS_SCRIPT_GMAIL_TOKEN || '').trim();
@@ -256,6 +263,12 @@ async function sendStudentRecoveryEmail(ctx, email, code) {
     let data = null;
     try { data = JSON.parse(normalized); } catch (_) {}
     if (data?.success === true) return { ok: true };
+    if (data?.error === 'RECOVERY_RECIPIENT_IS_SENDER') {
+      return { ok: false, reason: 'INVALID_EMAIL', detail: safeText };
+    }
+    if (data?.error === 'GMAIL_SENDER_ACCOUNT_MISMATCH') {
+      return { ok: false, reason: 'CONFIG', detail: safeText };
+    }
     if (normalized.includes('"success":true')) return { ok: true };
 
     return { ok: false, reason: 'ADAPTER_ERROR', detail: safeText };
@@ -307,6 +320,10 @@ export async function forgotStudentPassword(ctx) {
     console.error('Invalid stored recovery email', { studentId: student.id });
     return error('RECOVERY_EMAIL_INVALID', 'البريد الإلكتروني المسجل لهذا الحساب غير صالح. يرجى التواصل مع الإدارة لتحديثه.', 400, ctx.requestId, ctx.cors);
   }
+  console.log('password recovery recipient selected', {
+    studentId: student.id,
+    recipientDomain: recoveryEmail.split('@')[1] || '',
+  });
 
   const random = new Uint32Array(1); crypto.getRandomValues(random); const code = String(100000 + (random[0] % 900000));
   const codeHash = await sha256(code);
@@ -331,7 +348,7 @@ export async function resetStudentPassword(ctx) {
   if (!ipLimit.allowed) return error('AUTH_RATE_LIMITED', 'تم تجاوز عدد المحاولات مؤقتًا. حاول لاحقًا.', 429, ctx.requestId, ctx.cors);
   const body = await parseJson(ctx.request);
   const studentNumber = String(body?.studentNumber || '').trim();
-  const code = String(body?.code || '').trim();
+  const code = normalizeRecoveryCode(body?.code);
   const newPassword = String(body?.newPassword || '');
   const confirmPassword = String(body?.confirmPassword || '');
   if (!studentNumber || !/^\d{6}$/.test(code) || !newPassword) return error('RECOVERY_VERIFY_FIELDS_REQUIRED', 'أدخل الرقم الجامعي ورمز الاستعادة وكلمة المرور الجديدة.', 400, ctx.requestId, ctx.cors);

@@ -108,9 +108,17 @@ function isValidEmailAddress(value) {
 function sendRecoveryEmail(to, code) {
   var recipient = normalizeEmailAddress(to);
   var recoveryCode = String(code || '').trim();
+  var effectiveEmail = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
+
+  // This service must always execute under the dedicated TRINEX support account.
+  // It is the sender, never the recovery recipient.
+  if (effectiveEmail !== 'trinex.support@gmail.com') {
+    throw new Error('GMAIL_SENDER_ACCOUNT_MISMATCH');
+  }
 
   if (!isValidEmailAddress(recipient)) throw new Error('INVALID_EMAIL');
   if (!/^\d{6}$/.test(recoveryCode)) throw new Error('INVALID_RECOVERY_CODE');
+  if (recipient === effectiveEmail) throw new Error('RECOVERY_RECIPIENT_IS_SENDER');
 
   var subject = 'رمز استعادة كلمة مرور TRINEX';
   var body =
@@ -123,6 +131,12 @@ function sendRecoveryEmail(to, code) {
     body: body,
     name: 'TRINEX Support'
   });
+
+  Logger.log(JSON.stringify({
+    success: true,
+    service: 'TRINEX Gmail',
+    recipientDomain: recipient.split('@')[1]
+  }));
 
   return { success: true };
 }
@@ -145,12 +159,18 @@ function testMailAppSetup() {
 }
 
 function testRecoveryEmail() {
-  var effectiveEmail = String(Session.getEffectiveUser().getEmail() || '').trim();
-  if (!isValidEmailAddress(effectiveEmail)) {
-    throw new Error('EFFECTIVE_USER_EMAIL_INVALID');
+  // Intentionally does not send an email. Production delivery must be tested
+  // through the Worker so the real student's stored email is used.
+  var effectiveEmail = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
+  if (effectiveEmail !== 'trinex.support@gmail.com') {
+    throw new Error('GMAIL_SENDER_ACCOUNT_MISMATCH');
   }
-
-  var result = sendRecoveryEmail(effectiveEmail, '123456');
-  Logger.log(JSON.stringify({ success: true, service: 'TRINEX Gmail', sentTo: effectiveEmail }));
+  var result = {
+    success: true,
+    service: 'TRINEX Gmail',
+    sender: effectiveEmail,
+    note: 'No email was sent. Use the application recovery flow for a real recipient test.'
+  };
+  Logger.log(JSON.stringify(result));
   return result;
 }
