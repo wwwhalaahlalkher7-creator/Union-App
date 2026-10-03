@@ -274,13 +274,17 @@ export async function forgotStudentPassword(ctx) {
   const body = await parseJson(ctx.request);
   const studentNumber = String(body?.studentNumber || body?.identifier || '').trim();
   if (!studentNumber) return error('RECOVERY_IDENTIFIER_REQUIRED', 'أدخل الرقم الجامعي.', 400, ctx.requestId, ctx.cors);
+  // Recovery requests intentionally use one generic success response. This prevents
+  // the endpoint from becoming an account-enumeration oracle. Do not return whether
+  // the student exists, is active, or has a recovery email configured.
   const student = await queryOne(ctx.env, 'SELECT id,email,active FROM students WHERE student_number=? LIMIT 1', studentNumber);
-  if (!student || student.active !== 1) return error('RECOVERY_STUDENT_NOT_FOUND', 'تعذر العثور على الطالب.', 404, ctx.requestId, ctx.cors);
-  if (!student.email) return error('NO_RECOVERY_EMAIL', 'لا يوجد بريد استعادة مضاف لهذا الحساب. يرجى التواصل مع المسؤولين لحل مشكلتك.', 400, ctx.requestId, ctx.cors);
+  if (!student || student.active !== 1 || !student.email) {
+    return ok(ctx, { sent: true, expiresInSeconds: 600 });
+  }
   const recoveryEmail = normalizeEmail(student.email);
   if (!isValidEmail(recoveryEmail)) {
     console.error('Invalid stored recovery email', { studentId: student.id });
-    return error('RECOVERY_EMAIL_INVALID', 'البريد الإلكتروني المسجل لهذا الحساب غير صالح. يرجى التواصل مع الإدارة لتحديثه.', 400, ctx.requestId, ctx.cors);
+    return ok(ctx, { sent: true, expiresInSeconds: 600 });
   }
 
   const random = new Uint32Array(1); crypto.getRandomValues(random); const code = String(100000 + (random[0] % 900000));
@@ -319,14 +323,35 @@ export async function resetStudentPassword(ctx) {
   if (Number(row.attempts || 0) >= 5) return error('RECOVERY_TOO_MANY_ATTEMPTS', 'تم تجاوز عدد محاولات الرمز. اطلب رمزًا جديدًا.', 429, ctx.requestId, ctx.cors);
   const valid = await timingSafeEqualHex(await sha256(code), row.code_hash);
   if (!valid) {
-    await ctx.env.DB.prepare('UPDATE password_reset_codes SET attempts=attempts+1 WHERE id=?').bind(row.id).run();
+    // Increment only while the code is still active and below the limit. This is
+    // atomic at the SQL statement level, so concurrent wrong-code requests cannot
+    // overwrite one another's attempt count.
+    const failedAttempt = await ctx.env.DB.prepare(`
+      UPDATE password_reset_codes
+      SET attempts = attempts + 1
+      WHERE id = ? AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP AND attempts < 5
+    `).bind(row.id).run();
+    if (!failedAttempt.meta?.changes) {
+      return error('RECOVERY_TOO_MANY_ATTEMPTS', 'تم تجاوز عدد محاولات الرمز. اطلب رمزًا جديدًا.', 429, ctx.requestId, ctx.cors);
+    }
     return error('RECOVERY_CODE_INVALID', 'رمز الاستعادة غير صحيح.', 400, ctx.requestId, ctx.cors);
   }
+
+  // Claim the code atomically before changing the password. Only one concurrent
+  // request can transition used_at from NULL, preventing double-use of a valid code.
+  const claimed = await ctx.env.DB.prepare(`
+    UPDATE password_reset_codes
+    SET used_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP AND attempts < 5
+  `).bind(row.id).run();
+  if (!claimed.meta?.changes) {
+    return error('RECOVERY_INVALID', 'رمز الاستعادة منتهي أو مستخدم. اطلب رمزًا جديدًا.', 400, ctx.requestId, ctx.cors);
+  }
+
   const salt = token(16);
   const hash = await pbkdf2Hash(newPassword, salt);
   await ctx.env.DB.prepare(`UPDATE students SET auth_secret_hash=?, auth_secret_salt=?, auth_secret_algo='pbkdf2-sha256', failed_login_attempts=0, locked_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
     .bind(hash, salt, student.id).run();
-  await ctx.env.DB.prepare('UPDATE password_reset_codes SET used_at=CURRENT_TIMESTAMP WHERE id=?').bind(row.id).run();
   await ctx.env.DB.prepare('UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE student_id=? AND revoked_at IS NULL').bind(student.id).run();
   await recordAuthEvent(ctx, 'student', student.id, 'password_reset_completed');
   return ok(ctx, { changed: true });

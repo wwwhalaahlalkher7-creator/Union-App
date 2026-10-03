@@ -12,3 +12,15 @@
 
 ## الحذف
 عملية `deleteFiles` تستخدم Google Drive API عبر OAuth الخاص بحساب Apps Script للحذف النهائي للملفات المطلوبة. لا يتم حذف أي ملف من Worker مباشرة.
+
+
+## نشر Web App الخاص باستعادة كلمة المرور
+
+بعد أي تعديل على `Code.gs` يجب إنشاء **New deployment** أو تحديث deployment موجود ثم التأكد من أن `GOOGLE_APPS_SCRIPT_URL` في Worker يشير إلى رابط `/exec` الخاص بالـdeployment الحالي. يجب ضبط:
+
+- Execute as: **Me**
+- Who has access: **Anyone**
+- لا تستخدم رابط `/dev` في الإنتاج.
+- بعد النشر شغّل `testRecoveryEmail()` من حساب Apps Script للتأكد من أن MailApp يعمل والحصة اليومية متاحة.
+
+إذا أعاد رابط `/exec` صفحة تسجيل دخول Google أو HTML لواجهة الصلاحيات بدل نتيجة `doPost`، فالمشكلة في إعدادات/صلاحيات الـdeployment وليست في Worker. الاستجابة الصحيحة للطلب تحتوي كائن JSON فيه `success: true` أو `success: false`؛ بالنسبة لمسار البريد يمكن أن يكون JSON داخل استجابة HTML الخاصة بـ`HtmlService`.

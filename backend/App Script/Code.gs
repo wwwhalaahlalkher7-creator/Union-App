@@ -69,10 +69,10 @@ function doPost(e) {
     if (isEmailAction) Logger.log('TRINEX recovery email failed: ' + message);
   }
 
-  // ContentService responses are redirected by Apps Script to a one-time
-  // script.googleusercontent.com URL. For the email bridge, return a simple
-  // HtmlService response instead so the Worker can receive a normal 200/4xx
-  // response without depending on the ContentService redirect chain.
+  // HtmlService keeps the email bridge response on a normal 200 response. The
+  // Worker extracts the JSON payload from this HTML wrapper, avoiding a POST
+  // redirect that could otherwise be converted into GET by the fetch redirect
+  // handling.
   if (isEmailAction) {
     return HtmlService.createHtmlOutput(JSON.stringify(result));
   }

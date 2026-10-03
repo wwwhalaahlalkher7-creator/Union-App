@@ -13,7 +13,7 @@ required_routes = [
     ('GET', '/public/news'), ('GET', '/public/events'), ('GET', '/public/announcements'),
     ('GET', '/public/achievements'),
     ('GET', '/public/settings'), ('GET', '/public/materials'),
-    ('POST', '/auth/login'), ('POST', '/auth/register'), ('POST', '/auth/refresh'),
+    ('POST', '/auth/login'), ('POST', '/auth/register'), ('POST', '/auth/forgot-password'), ('POST', '/auth/reset-password'), ('POST', '/auth/refresh'),
     ('POST', '/auth/logout'), ('GET', '/auth/me'),
     ('GET', '/student/profile'), ('POST', '/student/semester'), ('GET', '/student/stats'),
     ('GET', '/student/notifications'), ('POST', '/student/notifications/read'),
@@ -30,6 +30,9 @@ checks = {
     'GET /health': "path === '/health' && request.method === 'GET'",
     'GET /version': "path === '/version' && request.method === 'GET'",
     'GET /app/update': "path === '/app/update' && request.method === 'GET'",
+    'POST /auth/forgot-password': "path === '/auth/forgot-password' && request.method === 'POST'",
+    'POST /auth/reset-password': "path === '/auth/reset-password' && request.method === 'POST'",
+    'POST /auth/change-password': "path === '/auth/change-password' && request.method === 'POST'",
     'GET /auth/register': "path === '/auth/register' && request.method === 'POST'",
 }
 failures=[]
@@ -72,6 +75,12 @@ for path in sorted(flutter_paths):
     elif normalized == '/api/v1/public/':
         # This is a cache-prefix check in api_client.dart, not an HTTP endpoint.
         documented=True
+    elif normalized.startswith('/api/v1/content/'):
+        documented = normalized.endswith('/comments') or normalized.endswith('/reactions')
+    elif normalized.startswith('/api/v1/comments/') and normalized.endswith('/replies'):
+        documented = True
+    elif normalized.startswith('/api/v1/comments/') and normalized.endswith('/reactions'):
+        documented = True
     elif normalized.startswith('/api/v1/public/'):
         resource=normalized[len('/api/v1/public/'):].split('/')[0]
         documented=resource in {'news','events','announcements','achievements','settings','materials'}
@@ -79,7 +88,7 @@ for path in sorted(flutter_paths):
             documented = True
     else:
         docpath=normalized[len('/api/v1'):]
-        documented=docpath in contract or docpath.split('/')[0] in contract
+        documented=bool(re.search(r'(?m)^- `(?:GET|POST|PUT|PATCH|DELETE)(?:/[^`]*)?%s`$' % re.escape(docpath), contract)) or docpath in contract
     if not documented:
         failures.append(f'Flutter path not documented: {path}')
 

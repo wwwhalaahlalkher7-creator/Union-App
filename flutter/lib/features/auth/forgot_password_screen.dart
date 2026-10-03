@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_constants.dart';
@@ -20,13 +22,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   ApiClient? _client;
   AuthStorage? _storage;
+  Timer? _resendTimer;
   bool _sending = false;
   bool _resetting = false;
   bool _sent = false;
+  int _resendSeconds = 0;
   final bool _hide = true;
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _number.dispose();
     _code.dispose();
     _password.dispose();
@@ -43,11 +48,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-  Future<void> _request() async {
+  void _startResendCooldown() {
+    _resendTimer?.cancel();
+    setState(() => _resendSeconds = 60);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_resendSeconds <= 1) {
+        timer.cancel();
+        setState(() => _resendSeconds = 0);
+      } else {
+        setState(() => _resendSeconds--);
+      }
+    });
+  }
+
+  Future<void> _request({bool resend = false}) async {
+    final l10n = AppLocalizations.of(context);
     if (_number.text.trim().isEmpty) {
-      _msg('أدخل الرقم الجامعي.', true);
+      _msg(l10n.t('recoveryRequestFields'), true);
       return;
     }
+    if (resend && _resendSeconds > 0) return;
+
     setState(() => _sending = true);
     try {
       await _init();
@@ -56,26 +81,33 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         body: {'studentNumber': _number.text.trim()},
       );
       if (!mounted) return;
-      setState(() => _sent = true);
-      _msg('تم إرسال رمز من 6 أرقام إلى بريدك الإلكتروني.', false);
+      setState(() {
+        _sent = true;
+        _code.clear();
+        _password.clear();
+        _confirm.clear();
+      });
+      _startResendCooldown();
+      _msg(l10n.t('recoverySent'), false);
     } catch (e) {
-      _msg(e is ApiException ? e.message : e.toString(), true);
+      _msg(e is ApiException ? e.message : l10n.t('recoveryGenericError'), true);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
   }
 
   Future<void> _reset() async {
+    final l10n = AppLocalizations.of(context);
     if (!RegExp(r'^\d{6}$').hasMatch(_code.text.trim())) {
-      _msg('أدخل رمز الاستعادة المكون من 6 أرقام.', true);
+      _msg(l10n.t('recoveryCodeRequired'), true);
       return;
     }
     if (_password.text.length < 8) {
-      _msg('كلمة المرور الجديدة يجب ألا تقل عن 8 أحرف.', true);
+      _msg(l10n.t('recoveryPasswordRequired'), true);
       return;
     }
     if (_password.text != _confirm.text) {
-      _msg('كلمتا المرور غير متطابقتين.', true);
+      _msg(l10n.t('recoveryPasswordMismatch'), true);
       return;
     }
 
@@ -91,13 +123,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           'confirmPassword': _confirm.text,
         },
       );
-      _msg('تم تغيير كلمة المرور. يمكنك تسجيل الدخول الآن.', false);
+      _msg(l10n.t('recoverySuccess'), false);
       if (!mounted) return;
       Future.delayed(const Duration(milliseconds: 900), () {
         if (mounted) context.go('/login');
       });
     } catch (e) {
-      _msg(e is ApiException ? e.message : e.toString(), true);
+      _msg(e is ApiException ? e.message : l10n.t('recoveryGenericError'), true);
     } finally {
       if (mounted) setState(() => _resetting = false);
     }
@@ -137,6 +169,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     TextField(
                       controller: _number,
                       keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
                       decoration: InputDecoration(
                         labelText: l10n.t('academicId'),
                         prefixIcon: const Icon(Icons.badge_outlined),
@@ -179,8 +212,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         onPressed: _resetting ? null : _reset,
                         child: Text(
                           _resetting
-                              ? 'جارٍ التغيير...'
+                              ? l10n.t('recoveryResetting')
                               : l10n.t('resetPassword'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: _sending || _resendSeconds > 0
+                            ? null
+                            : () => _request(resend: true),
+                        child: Text(
+                          _resendSeconds > 0
+                              ? l10n.t(
+                                  'recoveryResendWait',
+                                  {'seconds': '$_resendSeconds'},
+                                )
+                              : l10n.t('resendRecoveryCode'),
                         ),
                       ),
                     ] else ...[
@@ -189,7 +236,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         onPressed: _sending ? null : _request,
                         child: Text(
                           _sending
-                              ? 'جارٍ الإرسال...'
+                              ? l10n.t('recoverySending')
                               : l10n.t('sendRecoveryCode'),
                         ),
                       ),

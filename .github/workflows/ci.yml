@@ -134,6 +134,7 @@ jobs:
         working-directory: .
         run: |
           python3 ci/release_check.py
+          python3 ci/password_recovery_check.py
           python3 ci/final_release_check.py
           python3 ci/flutter_secure_storage_check.py
           python3 ci/offline_cache_check.py
