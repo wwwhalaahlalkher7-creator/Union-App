@@ -36,10 +36,12 @@ class _AppCardState extends State<AppCard> {
     final card = Card(
       margin: widget.margin ?? EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      color: context.colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(DesignTokens.radius16),
         side: BorderSide(
-          color: widget.borderColor ?? context.colors.outlineVariant,
+          color: widget.borderColor ?? context.colors.outlineVariant.withValues(alpha: .82),
         ),
       ),
       child: Padding(

@@ -8,6 +8,7 @@ import '../../data/repositories/interactions_repository.dart';
 import '../../data/models/content_item.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/list_skeleton.dart';
 import 'content_detail_screen.dart';
 
 class MediaScreen extends StatefulWidget {
@@ -39,16 +40,16 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
       child: FutureBuilder<List<ContentItem>>(
         future: _future,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) return const ListSkeleton(count: 3);
           if (snapshot.hasError) return _MediaState(icon: Icons.cloud_off_outlined, message: snapshot.error is ApiException ? (snapshot.error as ApiException).message : l10n.t('connectionFailed'), retry: _load);
           final items = snapshot.data ?? const <ContentItem>[];
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 12, 92),
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 96),
             children: [
-              Text(l10n.t('media'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+              Text(l10n.t('media'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 3),
-              Text(l10n.t('mediaSubtitle'), style: TextStyle(fontSize: 10.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              Text(l10n.t('mediaSubtitle'), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4)),
               const SizedBox(height: 12),
               Container(
                 height: 46,

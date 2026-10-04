@@ -6,6 +6,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/app_preferences.dart';
+import '../../core/theme/design_tokens.dart';
 import '../../core/storage/auth_storage.dart';
 import '../../features/eino/eino_face.dart';
 import '../../shared/widgets/app_card.dart';
@@ -115,7 +116,8 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 22.08, vertical: 18.4),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.symmetric(horizontal: DesignTokens.space16, vertical: DesignTokens.space20),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
@@ -200,7 +202,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             hintText: l10n.t('academicIdHint'),
                             helperText: l10n.t('academicIdFormatHelp'),
                             prefixIcon: const Icon(Icons.badge_outlined),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.6)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(DesignTokens.radius12)),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -223,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onPressed: () =>
                                   setState(() => _obscurePassword = !_obscurePassword),
                             ),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.6)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(DesignTokens.radius12)),
                           ),
                         ),
                         Align(
@@ -238,12 +240,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         // Submit Button
                         SizedBox(
-                          height: 50,
+                          height: DesignTokens.controlHeight,
                           child: FilledButton(
                             onPressed: _isLoading ? null : _performLogin,
                             style: FilledButton.styleFrom(
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12.6)),
+                                  borderRadius: BorderRadius.circular(DesignTokens.radius12)),
                             ),
                             child: _isLoading
                                 ? const SizedBox(
@@ -257,7 +259,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : Text(
                                     l10n.t('signIn'),
                                     style: const TextStyle(
-                                        fontSize: 14.7, fontWeight: FontWeight.bold),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                           ),
                         ),

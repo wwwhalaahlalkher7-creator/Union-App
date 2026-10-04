@@ -10,6 +10,7 @@ import '../../data/models/student_profile.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../data/repositories/student_repository.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/list_skeleton.dart';
 import '../../features/eino/eino_face.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -71,9 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const ListSkeleton(count: 4);
           }
 
           if (snapshot.hasError) {
@@ -104,14 +103,17 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               AppCard(
                 padding: const EdgeInsets.all(DesignTokens.space20),
+                borderColor: context.colors.primary.withValues(alpha: .28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
                       l10n.t('hello', {'name': data.profile.name.split(' ').first}),
-                      style: const TextStyle(
-                        fontSize: 23,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
+                        letterSpacing: -.5,
                       ),
                     ),
                     const SizedBox(height: 7),
@@ -157,8 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 l10n.t('quickAccess'),
                 textAlign: TextAlign.end,
-                style: const TextStyle(
-                  fontSize: 19,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                 ),
               ),

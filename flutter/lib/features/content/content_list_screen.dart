@@ -6,6 +6,7 @@ import '../../data/models/content_item.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_section.dart';
+import '../../shared/widgets/list_skeleton.dart';
 
 class ContentListScreen extends StatefulWidget {
   const ContentListScreen({required this.titleKey, required this.loader, required this.icon, super.key});
@@ -33,7 +34,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
       body: FutureBuilder<List<ContentItem>>(
         future: _future,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const _Loading();
+          if (snapshot.connectionState == ConnectionState.waiting) return const ListSkeleton(count: 4);
           if (snapshot.hasError) { final e = snapshot.error; final retryable = e is ApiException ? e.retryable : true; return _StateMessage(icon: e is ApiException && e.kind == ApiErrorKind.server ? Icons.cloud_off_outlined : Icons.wifi_off_outlined, message: e is ApiException ? e.message : l10n.t('connectionFailed'), onRetry: retryable ? _retry : null); }
           final items = snapshot.data ?? const <ContentItem>[];
           if (items.isEmpty) return _StateMessage(icon: widget.icon, message: l10n.t('noData'));
@@ -41,7 +42,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
             onRefresh: () async { final future = widget.loader(_repository); setState(() => _future = future); await future; },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsetsDirectional.fromSTEB(14.72, 11.04, 14.72, 29.44),
+              padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 32),
               children: [
                 AppSection(
                   title: l10n.t(widget.titleKey),
@@ -78,12 +79,8 @@ class _ContentListScreenState extends State<ContentListScreen> {
   }
 }
 
-class _Loading extends StatelessWidget {
-  const _Loading();
-  @override Widget build(BuildContext context) => const Center(child: Padding(padding: EdgeInsets.all(36.8), child: CircularProgressIndicator()));
-}
 class _StateMessage extends StatelessWidget {
   const _StateMessage({required this.icon, required this.message, this.onRetry});
   final IconData icon; final String message; final VoidCallback? onRetry;
-  @override Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(25.76), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 60), const SizedBox(height: 14), Text(message, textAlign: TextAlign.center), if (onRetry != null) ...[const SizedBox(height: 14), FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))]])));
+  @override Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 60), const SizedBox(height: 14), Text(message, textAlign: TextAlign.center), if (onRetry != null) ...[const SizedBox(height: 14), FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry')))]])));
 }

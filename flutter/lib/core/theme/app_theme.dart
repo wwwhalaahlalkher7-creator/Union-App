@@ -79,7 +79,16 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: text.titleLarge?.copyWith(color: scheme.onSurface),
+        toolbarHeight: 60,
+        titleSpacing: 4,
+        iconTheme: IconThemeData(color: scheme.onSurface, size: 23),
+        actionsIconTheme: IconThemeData(color: scheme.onSurface, size: 23),
+        titleTextStyle: text.titleLarge?.copyWith(
+          color: scheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -.25,
+        ),
       ),
       cardTheme: CardThemeData(
         color: dark ? AppColors.surface : AppColors.lightSurface,
@@ -153,7 +162,17 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(DesignTokens.radius12),
-          borderSide: BorderSide(color: scheme.primary, width: 2),
+          borderSide: BorderSide(color: scheme.primary, width: 1.7),
+        ),
+        errorStyle: TextStyle(
+          color: scheme.error,
+          fontWeight: FontWeight.w600,
+          height: 1.3,
+        ),
+        labelStyle: TextStyle(color: scheme.onSurfaceVariant),
+        floatingLabelStyle: TextStyle(
+          color: scheme.primary,
+          fontWeight: FontWeight.w700,
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(DesignTokens.radius12),
@@ -168,9 +187,68 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        elevation: 4,
+        insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        contentTextStyle: text.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(DesignTokens.radius12),
+          borderRadius: BorderRadius.circular(DesignTokens.radius16),
         ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: dark ? AppColors.surface : AppColors.lightSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 10,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(DesignTokens.radius24),
+        ),
+        titleTextStyle: text.titleLarge?.copyWith(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w800,
+        ),
+        contentTextStyle: text.bodyMedium?.copyWith(
+          color: scheme.onSurfaceVariant,
+          height: 1.5,
+        ),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: dark ? AppColors.surface : AppColors.lightSurface,
+        surfaceTintColor: Colors.transparent,
+        modalBackgroundColor: dark ? AppColors.surface : AppColors.lightSurface,
+        showDragHandle: true,
+        dragHandleColor: scheme.outlineVariant,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        height: 76,
+        elevation: 0,
+        backgroundColor: dark ? AppColors.background : AppColors.lightBackground,
+        surfaceTintColor: Colors.transparent,
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        labelTextStyle: WidgetStatePropertyAll(
+          text.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(size: selected ? 23 : 22);
+        }),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        strokeCap: StrokeCap.round,
+        circularTrackColor: scheme.surfaceContainerHighest,
+        linearTrackColor: scheme.surfaceContainerHighest,
+      ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 450),
+        decoration: BoxDecoration(
+          color: dark ? AppColors.elevated : AppColors.lightText,
+          borderRadius: BorderRadius.circular(DesignTokens.radius8),
+        ),
+        textStyle: const TextStyle(color: Colors.white, fontSize: 12),
       ),
     );
   }

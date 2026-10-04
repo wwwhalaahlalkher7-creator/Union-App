@@ -91,7 +91,18 @@ class _TrinexShellState extends State<TrinexShell>
             Expanded(
               child: Stack(
                 children: [
-                  widget.child,
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final maxWidth = constraints.maxWidth >= 1100 ? 1040.0 : constraints.maxWidth;
+                      return Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: maxWidth),
+                          child: widget.child,
+                        ),
+                      );
+                    },
+                  ),
                   if (_einoVisible)
                     PositionedDirectional(
                       end: 16,
@@ -136,12 +147,12 @@ class _TopHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 68,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: .96),
         border: Border(
-          bottom: BorderSide(color: context.colors.outlineVariant),
+          bottom: BorderSide(color: context.colors.outlineVariant.withValues(alpha: .62)),
         ),
       ),
       child: LayoutBuilder(
@@ -174,7 +185,14 @@ class _TopHeader extends StatelessWidget {
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           color: primary,
-                          borderRadius: BorderRadius.circular(DesignTokens.radius12),
+                          borderRadius: BorderRadius.circular(DesignTokens.radius14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primary.withValues(alpha: .18),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: Image.asset(
                           'assets/icons/trinex_icon.png',
@@ -233,24 +251,41 @@ class _MainNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return NavigationBar(
-      selectedIndex: selected.clamp(0, items.length - 1),
-      height: 68,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      indicatorColor: context.colors.primaryContainer,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      onDestinationSelected: (i) => context.go(items[i].$3),
-      destinations: [
-        for (final item in items)
-          NavigationDestination(
-            icon: Icon(item.$2),
-            selectedIcon: Icon(item.$2),
-            label: l10n.t(item.$1),
-          ),
-      ],
-    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: context.colors.surface,
+          borderRadius: BorderRadius.circular(DesignTokens.radius20),
+          border: Border.all(color: context.colors.outlineVariant.withValues(alpha: .72)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? .16 : .06),
+              blurRadius: 18,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: NavigationBar(
+          selectedIndex: selected.clamp(0, items.length - 1),
+          height: 68,
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          indicatorColor: context.colors.primaryContainer,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (i) => context.go(items[i].$3),
+          destinations: [
+            for (final item in items)
+              NavigationDestination(
+                icon: Icon(item.$2),
+                selectedIcon: Icon(item.$2),
+                label: l10n.t(item.$1),
+              ),
+          ],
+        ),
+      ),
+    )
   }
 }
 

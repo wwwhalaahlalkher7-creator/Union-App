@@ -17,19 +17,19 @@ class OfflineBanner extends StatelessWidget {
         final banner = SafeArea(
           bottom: false,
           child: Material(
-            color: cs.surfaceContainerHighest,
+            color: cs.errorContainer.withValues(alpha: .72),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.cloud_off_rounded, size: 17, color: cs.onSurfaceVariant),
+                  Icon(Icons.cloud_off_rounded, size: 17, color: cs.onErrorContainer),
                   const SizedBox(width: 7),
                   Flexible(
                     child: Text(
                       AppLocalizations.of(context).t('offline'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w700),
+                      style: TextStyle(color: cs.onErrorContainer, fontWeight: FontWeight.w700, fontSize: 12.5),
                     ),
                   ),
                 ],
