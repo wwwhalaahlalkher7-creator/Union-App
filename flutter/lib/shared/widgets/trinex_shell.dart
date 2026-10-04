@@ -68,14 +68,10 @@ class _TrinexShellState extends State<TrinexShell>
   }
 
   int get index {
-    if (widget.location.startsWith('/student')) return 0;
+    if (widget.location.startsWith('/home')) return 0;
     if (widget.location.startsWith('/system')) return 1;
     if (widget.location.startsWith('/schedule')) return 2;
     if (widget.location.startsWith('/materials')) return 3;
-    if (widget.location.startsWith('/news') ||
-        widget.location.startsWith('/media')) {
-      return 4;
-    }
     return 4;
   }
 
@@ -182,7 +178,7 @@ class _TopHeader extends StatelessWidget {
                       child: Container(
                         width: logo,
                         height: logo,
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           color: primary,
                           borderRadius: BorderRadius.circular(DesignTokens.radius14),
@@ -216,6 +212,13 @@ class _TopHeader extends StatelessWidget {
                 // Right side: System page + profile, so profile is physically
                 // on the far right while System sits immediately to its left.
                 _HeaderIcon(
+                  icon: Icons.notifications_none_rounded,
+                  size: button,
+                  tooltip: l10n.t('notifications'),
+                  onTap: () => context.push('/notifications'),
+                ),
+                const SizedBox(width: 2),
+                _HeaderIcon(
                   icon: Icons.workspace_premium_outlined,
                   size: button,
                   tooltip: l10n.t('navSystem'),
@@ -241,11 +244,11 @@ class _MainNav extends StatelessWidget {
   final int selected;
 
   static const items = [
-    ('navStudent', Icons.person_outline_rounded, '/student'),
+    ('navHome', Icons.home_outlined, '/home'),
     ('navSystem', Icons.workspace_premium_outlined, '/system'),
     ('navSchedule', Icons.calendar_month_outlined, '/schedule'),
     ('navMaterials', Icons.menu_book_outlined, '/materials'),
-    ('navMedia', Icons.campaign_outlined, '/media'),
+    ('navMore', Icons.grid_view_rounded, '/more'),
   ];
 
   @override
@@ -354,7 +357,7 @@ class _Avatar extends StatelessWidget {
           child: Icon(
             Icons.account_circle_rounded,
             color: context.colors.primary,
-            size: size * .62,
+            size: size * .84,
           ),
         ),
       ),
@@ -402,7 +405,7 @@ class EinoFloatingButton extends StatelessWidget {
                   ],
                 ),
                 child: const EinoFace(
-                  size: 63,
+                  size: 76,
                   mood: EinoMood.happy,
                 ),
               ),

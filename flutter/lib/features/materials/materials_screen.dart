@@ -267,12 +267,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
 
                           _reload();
                         },
-                        decoration:
-                            const InputDecoration(
-                          prefixIcon: Icon(
-                            Icons.calendar_month_rounded,
-                          ),
-                        ),
+                        decoration: const InputDecoration(),
                       ),
                     ),
                   ],
