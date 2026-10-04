@@ -137,7 +137,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
-      context.go('/media');
+      context.go('/home');
     } catch (e) {
       if (!mounted) return;
       final message = e is ApiException
@@ -171,7 +171,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/media');
+              context.go('/home');
             }
           },
         ),

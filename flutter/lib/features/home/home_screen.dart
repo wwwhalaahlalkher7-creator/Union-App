@@ -186,10 +186,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _Tile(
-                      l10n.t('xpLevel'),
-                      Icons.workspace_premium_rounded,
+                      l10n.t('favorites'),
+                      Icons.favorite_border_rounded,
                       context.colors.tertiary,
-                      () => context.go('/xp'),
+                      () => context.go('/favorites'),
                     ),
                   ),
                 ],
@@ -239,8 +239,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _NewsTile(
                       item: item,
                       onTap: () => context.push(
-                        '/news/detail',
-                        extra: item,
+                        '/media/detail',
+                        extra: {'item': item, 'type': 'news'},
                       ),
                     ),
                   ),

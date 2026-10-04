@@ -12,7 +12,6 @@ class StartupPreloader {
     final client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
     const paths = <String>[
       '/api/v1/public/news',
-      '/api/v1/public/announcements',
       '/api/v1/public/events',
     ];
     try {

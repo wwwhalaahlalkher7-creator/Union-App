@@ -37,16 +37,20 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     }
     if (!mounted || _navigated) return;
 
-    // Reduced-motion mode should also skip the decorative minimum delay.
-    // This keeps accessibility behavior consistent and makes widget tests
-    // deterministic without waiting on a visual-only timer.
+    // The splash must finish its visual sequence before leaving the screen.
+    // Reduced-motion mode skips the wait but still completes the controller
+    // state so the transition is deterministic.
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (!reduceMotion) {
+    if (reduceMotion) {
+      _controller.value = 1;
+    } else {
       final elapsed = DateTime.now().difference(started);
       final remaining = const Duration(milliseconds: 1200) - elapsed;
       if (remaining > Duration.zero) {
         await Future<void>.delayed(remaining);
       }
+      if (!mounted || _navigated) return;
+      await _controller.forward();
     }
     if (!mounted || _navigated) return;
     _navigated = true;
@@ -56,7 +60,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     if (!prefs.onboardingCompleted) {
       context.go('/onboarding');
     } else {
-      context.go('/media');
+      context.go('/home');
     }
   }
 

@@ -29,7 +29,7 @@ class _TrinexShellState extends State<TrinexShell>
   bool _einoVisible = false;
 
   bool get _readingMode =>
-      widget.location == '/media/detail' || widget.location == '/news/detail';
+      widget.location == '/media/detail';
 
   @override
   void initState() {
@@ -68,11 +68,11 @@ class _TrinexShellState extends State<TrinexShell>
   }
 
   int get index {
-    if (widget.location.startsWith('/home')) return 0;
-    if (widget.location.startsWith('/system')) return 1;
-    if (widget.location.startsWith('/schedule')) return 2;
-    if (widget.location.startsWith('/materials')) return 3;
-    return 4;
+    if (widget.location.startsWith('/more')) return 0;
+    if (widget.location.startsWith('/media')) return 1;
+    if (widget.location.startsWith('/materials')) return 2;
+    if (widget.location.startsWith('/home')) return 3;
+    return -1;
   }
 
   @override
@@ -209,20 +209,12 @@ class _TopHeader extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                // Right side: System page + profile, so profile is physically
-                // on the far right while System sits immediately to its left.
+                // Right side: notifications + profile.
                 _HeaderIcon(
                   icon: Icons.notifications_none_rounded,
                   size: button,
                   tooltip: l10n.t('notifications'),
                   onTap: () => context.push('/notifications'),
-                ),
-                const SizedBox(width: 2),
-                _HeaderIcon(
-                  icon: Icons.workspace_premium_outlined,
-                  size: button,
-                  tooltip: l10n.t('navSystem'),
-                  onTap: () => context.go('/system'),
                 ),
                 const SizedBox(width: 4),
                 _Avatar(
@@ -244,11 +236,10 @@ class _MainNav extends StatelessWidget {
   final int selected;
 
   static const items = [
-    ('navHome', Icons.home_outlined, '/home'),
-    ('navSystem', Icons.workspace_premium_outlined, '/system'),
-    ('navSchedule', Icons.calendar_month_outlined, '/schedule'),
-    ('navMaterials', Icons.menu_book_outlined, '/materials'),
     ('navMore', Icons.grid_view_rounded, '/more'),
+    ('navMedia', Icons.campaign_outlined, '/media'),
+    ('navMaterials', Icons.menu_book_outlined, '/materials'),
+    ('navHome', Icons.home_outlined, '/home'),
   ];
 
   @override
@@ -270,7 +261,7 @@ class _MainNav extends StatelessWidget {
           ],
         ),
         child: NavigationBar(
-          selectedIndex: selected.clamp(0, items.length - 1),
+          selectedIndex: selected < 0 ? 0 : selected.clamp(0, items.length - 1),
           height: 68,
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,

@@ -10,6 +10,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/storage/auth_storage.dart';
 import '../../data/models/material_item.dart';
+import '../../data/models/material_progress.dart';
 import '../../data/models/student_profile.dart';
 import '../../data/repositories/materials_repository.dart';
 import '../../data/repositories/student_repository.dart';
@@ -31,6 +32,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
   List<Map<String, dynamic>> _semesters = [];
   String? _semesterId;
   String _query = '';
+  Future<ProgressSnapshot>? _progressFuture;
 
   @override
   void initState() {
@@ -40,6 +42,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
 
   Future<List<MaterialItem>> _load() async {
     _client ??= await AuthenticatedClient.create();
+
+    _progressFuture ??= ProgressRepository(_client!).getProgress();
 
     final repo = MaterialsRepository(_client!);
     final studentRepo = StudentRepository(_client!);
@@ -69,6 +73,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
   }
 
   Future<void> _reload() async {
+    _progressFuture = null;
     final future = _load();
 
     setState(() {
@@ -224,7 +229,9 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                   fontSize: 11.5,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
+              _MaterialsProgressSection(future: _progressFuture),
+              const SizedBox(height: 14),
               Row(
                 children: [
                   Expanded(
@@ -342,6 +349,131 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+
+class _MaterialsProgressSection extends StatelessWidget {
+  const _MaterialsProgressSection({required this.future});
+
+  final Future<ProgressSnapshot>? future;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (future == null) return const SizedBox.shrink();
+
+    return FutureBuilder<ProgressSnapshot>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const AppCard(
+            child: SizedBox(
+              height: 92,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+        if (snapshot.hasError || snapshot.data == null) {
+          return const SizedBox.shrink();
+        }
+
+        final data = snapshot.data!;
+        final summary = data.summary;
+        final started = int.tryParse('${summary['started'] ?? 0}') ?? 0;
+        final completed = int.tryParse('${summary['completed'] ?? 0}') ?? 0;
+        final seconds = int.tryParse('${summary['active_seconds'] ?? 0}') ?? 0;
+        final recent = data.items.take(3).toList();
+
+        return AppCard(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.insights_rounded, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      l10n.t('progressSummary'),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                    ),
+                  ),
+                  Text(
+                    l10n.t('progressRealActivity'),
+                    style: TextStyle(fontSize: 9, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _ProgressMiniStat(label: l10n.t('filesStarted'), value: '$started')),
+                  const SizedBox(width: 7),
+                  Expanded(child: _ProgressMiniStat(label: l10n.t('filesCompleted'), value: '$completed')),
+                  const SizedBox(width: 7),
+                  Expanded(child: _ProgressMiniStat(label: l10n.t('activeMinutes'), value: '${seconds ~/ 60}')),
+                ],
+              ),
+              if (recent.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(l10n.t('recentFiles'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                const SizedBox(height: 6),
+                for (final item in recent)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Row(
+                      children: [
+                        Icon(
+                          item.completed ? Icons.check_circle_rounded : Icons.schedule_rounded,
+                          size: 15,
+                          color: item.completed ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            item.materialTitle?.isNotEmpty == true ? item.materialTitle! : l10n.t('studyFile'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        Text('${item.percent.clamp(0, 100)}%', style: TextStyle(fontSize: 9.5, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800)),
+                      ],
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ProgressMiniStat extends StatelessWidget {
+  const _ProgressMiniStat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 5),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Column(
+        children: [
+          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary)),
+          const SizedBox(height: 2),
+          Text(label, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ],
       ),
     );
   }

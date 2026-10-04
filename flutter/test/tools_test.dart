@@ -48,7 +48,6 @@ void main() {
     test('new UI strings are not falling back to Arabic in English or French', () {
       const keys = [
         'navStudent',
-        'navSystem',
         'navSchedule',
         'navMaterials',
         'navMedia',

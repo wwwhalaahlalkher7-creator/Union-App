@@ -4,7 +4,6 @@ import '../models/content_item.dart';
 
 class ContentRepository {
   Future<List<ContentItem>> news() => _list('/api/v1/public/news');
-  Future<List<ContentItem>> announcements() => _list('/api/v1/public/announcements');
   Future<List<ContentItem>> events() => _list('/api/v1/public/events');
   Future<List<ContentItem>> achievements() => _list('/api/v1/public/achievements');
 
