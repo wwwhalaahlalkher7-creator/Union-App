@@ -285,7 +285,7 @@ class _MainNav extends StatelessWidget {
           ],
         ),
       ),
-    )
+    );
   }
 }
 
