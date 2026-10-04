@@ -10,7 +10,7 @@ class MoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final services = <_MoreItem>[
+    const services = <_MoreItem>[
       _MoreItem('notifications', Icons.notifications_none_rounded, '/notifications'),
       _MoreItem('xpLevel', Icons.bolt_rounded, '/xp'),
       _MoreItem('badgesTitle', Icons.emoji_events_outlined, '/badges'),
