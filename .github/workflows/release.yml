@@ -181,7 +181,7 @@ jobs:
         run: flutter test
 
       - name: Build signed APK
-        run: flutter build apk --release
+        run: flutter build apk --release --no-pub
 
       - name: Verify Android signatures
         run: |
@@ -199,7 +199,7 @@ jobs:
           mkdir -p build/release-assets
           cp build/app/outputs/flutter-apk/app-release.apk build/release-assets/TRINEX.apk
           cd build/release-assets
-          zip -9 -q TRINEX.zip TRINEX.apk
+          zip -1 -q TRINEX.zip TRINEX.apk
           unzip -t TRINEX.zip
           sha256sum TRINEX.apk TRINEX.zip > SHA256SUMS.txt
 

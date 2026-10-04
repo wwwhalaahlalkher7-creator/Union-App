@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../features/events/events_screen.dart';
-import '../features/achievements/achievements_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
 import '../features/auth/forgot_password_screen.dart';
@@ -50,13 +48,15 @@ GoRouter buildRouter({
       GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
       GoRoute(path: '/materials', builder: (_, _) => const MaterialsScreen()),
       GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),
-      GoRoute(path: '/media', builder: (_, _) => const MediaScreen()),
+      GoRoute(path: '/media', builder: (_, state) {
+        final rawTab = int.tryParse(state.uri.queryParameters['tab'] ?? '0') ?? 0;
+        final initialTab = rawTab.clamp(0, 2).toInt();
+        return MediaScreen(initialTab: initialTab);
+      }),
       GoRoute(path: '/media/detail', builder: (_, state) { final data = state.extra! as Map<String, dynamic>; return ContentDetailScreen(item: data['item'] as ContentItem, type: data['type'] as String); }),
     ]),
     GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
     GoRoute(path: '/market', builder: (_, _) => const MarketScreen()),
-    GoRoute(path: '/events', builder: (_, _) => const EventsScreen()),
-    GoRoute(path: '/achievements', builder: (_, _) => const AchievementsScreen()),
     GoRoute(path: '/favorites', builder: (_, _) => const FavoritesScreen()),
     GoRoute(path: '/recent', builder: (_, _) => const RecentScreen()),
     GoRoute(path: '/xp', builder: (_, _) => const StudentAccessGate(child: XpScreen())),

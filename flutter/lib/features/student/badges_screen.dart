@@ -72,7 +72,7 @@ class _BadgesScreenState extends State<BadgesScreen> {
             ),
             const SizedBox(height: DesignTokens.space16),
             OutlinedButton.icon(
-              onPressed: () => context.go('/xp'),
+              onPressed: () => context.push('/xp'),
               icon: const Icon(Icons.bolt_rounded),
               label: Text(l10n.t('viewXp')),
               style: OutlinedButton.styleFrom(

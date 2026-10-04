@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
@@ -75,8 +76,16 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
             ? l10n.t('events')
             : l10n.t('events');
 
+    final mediaTab = widget.type == 'achievement' ? 1 : widget.type == 'event' ? 2 : 0;
+
     return Scaffold(
-      appBar: AppBar(title: Text(label)),
+      appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => context.go('/media?tab=$mediaTab'),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        title: Text(label),
+      ),
       body: ListView(
         padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 12, 28),
         children: [

@@ -201,7 +201,7 @@ class _StudentScreenState extends State<StudentScreen> {
                     child: _Action(
                       'الجدول',
                       Icons.calendar_month_rounded,
-                      () => context.go('/schedule'),
+                      () => context.push('/schedule'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -209,7 +209,7 @@ class _StudentScreenState extends State<StudentScreen> {
                     child: _Action(
                       'الشارات',
                       Icons.workspace_premium_rounded,
-                      () => context.go('/badges'),
+                      () => context.push('/badges'),
                     ),
                   ),
                 ],

@@ -12,18 +12,19 @@ import '../../shared/widgets/list_skeleton.dart';
 import 'content_detail_screen.dart';
 
 class MediaScreen extends StatefulWidget {
-  const MediaScreen({super.key});
+  const MediaScreen({this.initialTab = 0, super.key});
+  final int initialTab;
   @override State<MediaScreen> createState() => _MediaScreenState();
 }
 
 class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStateMixin {
   late final ApiClient _client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
   late final ContentRepository _repo = ContentRepository();
-  late final TabController _tabs = TabController(length: 3, vsync: this);
+  late final TabController _tabs = TabController(length: 3, initialIndex: widget.initialTab, vsync: this);
   int _index = 0;
   Future<List<ContentItem>>? _future;
   
-  @override void initState() { super.initState(); _future = _repo.news(); _tabs.addListener(() { if (!_tabs.indexIsChanging) { setState(() => _index = _tabs.index); _load(); }}); }
+  @override void initState() { super.initState(); _index = widget.initialTab; _future = _fetch(); _tabs.addListener(() { if (!_tabs.indexIsChanging) { setState(() => _index = _tabs.index); _load(); }}); }
   @override void dispose() { _tabs.dispose(); _client.dispose(); super.dispose(); }
 
   Future<List<ContentItem>> _fetch() => _index == 0 ? _repo.news() : (_index == 1 ? _repo.achievements() : _repo.events());

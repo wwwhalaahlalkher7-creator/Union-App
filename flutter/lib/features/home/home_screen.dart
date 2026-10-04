@@ -180,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       l10n.t('schedule'),
                       Icons.calendar_month_rounded,
                       context.colors.primary,
-                      () => context.go('/schedule'),
+                      () => context.push('/schedule'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -189,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       l10n.t('favorites'),
                       Icons.favorite_border_rounded,
                       context.colors.tertiary,
-                      () => context.go('/favorites'),
+                      () => context.push('/favorites'),
                     ),
                   ),
                 ],
@@ -202,8 +202,8 @@ class _HomeScreenState extends State<HomeScreen> {
               _ProgressJourneyCard(
                 level: level,
                 xp: xp,
-                onXpTap: () => context.go('/xp'),
-                onBadgesTap: () => context.go('/badges'),
+                onXpTap: () => context.push('/xp'),
+                onBadgesTap: () => context.push('/badges'),
               ),
               const SizedBox(height: 20),
               Row(
