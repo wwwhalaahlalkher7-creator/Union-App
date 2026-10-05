@@ -438,7 +438,8 @@ class _LanguageSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const languages = [
+    final l10n = AppLocalizations.of(context);
+    final languages = [
       ('ar', l10n.t('arabic'), 'RTL', Icons.translate_rounded),
       ('en', 'English', 'LTR', Icons.language_rounded),
       ('fr', 'Français', 'LTR', Icons.language_rounded),
@@ -542,6 +543,7 @@ class _AccentOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = isDark ? color.primaryDark : color.primary;
     final label = color.localizedName(languageCode);

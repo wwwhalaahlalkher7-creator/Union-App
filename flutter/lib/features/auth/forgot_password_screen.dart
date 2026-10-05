@@ -124,6 +124,29 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
   }
 
+  InputDecoration _inputDecoration(String label, IconData icon, {Widget? suffixIcon}) {
+    final scheme = Theme.of(context).colorScheme;
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon),
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: scheme.surfaceContainerHighest.withValues(alpha: .35),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(DesignTokens.radius14),
+        borderSide: BorderSide(color: scheme.outlineVariant),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(DesignTokens.radius14),
+        borderSide: BorderSide(color: scheme.outlineVariant),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(DesignTokens.radius14),
+        borderSide: BorderSide(color: scheme.primary, width: 1.5),
+      ),
+    );
+  }
+
   void _startOver() {
     if (_sending || _resetting) return;
     setState(() {

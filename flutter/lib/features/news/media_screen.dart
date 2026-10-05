@@ -199,7 +199,7 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
 }
 
 class _MediaCard extends StatefulWidget {
-  const _MediaCard({required this.item, required this.type, required this.label, required this.onDetails});
+  const _MediaCard({required this.item, required this.type, required this.label, required this.onDetails, super.key});
   final ContentItem item; final String type; final String label; final VoidCallback onDetails;
   @override State<_MediaCard> createState() => _MediaCardState();
 }
@@ -353,5 +353,5 @@ class _Meta extends StatelessWidget {
       );
 }
 
-class _MediaState extends StatelessWidget { const _MediaState({required this.icon,required this.message,this.retry,this.compact=false}); final IconData icon;final String message;final VoidCallback? retry;final bool compact;@override Widget build(BuildContext context)=>Center(child:Padding(padding:EdgeInsets.all(compact?26:40),child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(icon,size:48,color:Theme.of(context).colorScheme.onSurfaceVariant),const SizedBox(height:10),Text(message,textAlign:TextAlign.center,style:const TextStyle(fontSize:12)),if(retry!=null)...[const SizedBox(height:12),FilledButton.icon(onPressed:retry,icon:const Icon(Icons.refresh_rounded,size:17),label:Text(AppLocalizations.of(context).t('retry')))]])));
+class _MediaState extends StatelessWidget { const _MediaState({required this.icon,required this.message,this.retry,this.compact=false, super.key}); final IconData icon;final String message;final VoidCallback? retry;final bool compact;@override Widget build(BuildContext context)=>Center(child:Padding(padding:EdgeInsets.all(compact?26:40),child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(icon,size:48,color:Theme.of(context).colorScheme.onSurfaceVariant),const SizedBox(height:10),Text(message,textAlign:TextAlign.center,style:const TextStyle(fontSize:12)),if(retry!=null)...[const SizedBox(height:12),FilledButton.icon(onPressed:retry,icon:const Icon(Icons.refresh_rounded,size:17),label:Text(AppLocalizations.of(context).t('retry')))]])));
 }
