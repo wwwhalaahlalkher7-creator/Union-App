@@ -10,6 +10,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/storage/auth_storage.dart';
 import '../../data/models/material_item.dart';
+import '../../data/models/material_progress.dart';
 import '../../data/models/student_profile.dart';
 import '../../data/repositories/materials_repository.dart';
 import '../../data/repositories/student_repository.dart';
