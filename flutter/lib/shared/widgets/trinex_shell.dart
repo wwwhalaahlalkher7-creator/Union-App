@@ -376,18 +376,14 @@ class EinoFloatingButton extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               onTap: () => context.push('/eino?from=shell'),
-              borderRadius: BorderRadius.circular(34),
+              customBorder: const CircleBorder(),
+              splashColor: primary.withValues(alpha: .12),
+              highlightColor: primary.withValues(alpha: .06),
               child: Container(
-                width: 68,
-                height: 68,
-                padding: const EdgeInsets.all(2.5),
+                width: 76,
+                height: 76,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: context.colors.surface,
-                  border: Border.all(
-                    color: context.colors.primary,
-                    width: 2.2,
-                  ),
                   boxShadow: [
                     BoxShadow(
                       color: primary.withValues(alpha: glow),
