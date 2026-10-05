@@ -6,6 +6,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/auth_storage.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../shared/widgets/action_feedback.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({this.initialStudentNumber, super.key});
@@ -64,7 +65,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _request() async {
     final studentNumber = _number.text.trim();
     if (studentNumber.isEmpty) {
-      _msg('أدخل الرقم الجامعي.', true);
+      _msg(AppLocalizations.of(context).t('loginFieldsRequired'), true);
       return;
     }
     setState(() => _sending = true);
@@ -76,7 +77,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
       if (!mounted) return;
       setState(() => _sent = true);
-      _msg('تم إرسال رمز من 6 أرقام إلى البريد الإلكتروني المسجل في حسابك.', false);
+      _msg(AppLocalizations.of(context).t('recoveryCodeSent'), false);
     } catch (e) {
       _msg(e is ApiException ? e.message : e.toString(), true);
     } finally {
@@ -87,15 +88,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _reset() async {
     final code = _normalizeDigits(_code.text);
     if (!RegExp(r'^\d{6}$').hasMatch(code)) {
-      _msg('أدخل رمز الاستعادة المكون من 6 أرقام.', true);
+      _msg(AppLocalizations.of(context).t('recoveryCodeRequired'), true);
       return;
     }
     if (_password.text.length < 8) {
-      _msg('كلمة المرور الجديدة يجب ألا تقل عن 8 أحرف.', true);
+      _msg(AppLocalizations.of(context).t('passwordTooShortLocal'), true);
       return;
     }
     if (_password.text != _confirm.text) {
-      _msg('كلمتا المرور غير متطابقتين.', true);
+      _msg(AppLocalizations.of(context).t('passwordMismatchLocal'), true);
       return;
     }
 
@@ -112,7 +113,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         },
       );
       if (!mounted) return;
-      _msg('تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.', false);
+      _msg(AppLocalizations.of(context).t('passwordChanged'), false);
       Future.delayed(const Duration(milliseconds: 900), () {
         if (mounted) context.go('/login');
       });
@@ -135,6 +136,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   void _msg(String message, bool error) {
     if (!mounted) return;
+    if (!error) {
+      ActionFeedback.show(context, type: ActionFeedbackType.success);
+      return;
+    }
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -143,36 +148,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
           content: Row(
             children: [
-              Icon(error ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded),
+              const Icon(Icons.error_outline_rounded),
               const SizedBox(width: 10),
               Expanded(child: Text(message)),
             ],
           ),
-          backgroundColor: error ? Theme.of(context).colorScheme.error : null,
         ),
       );
-  }
-
-  InputDecoration _inputDecoration(String label, IconData icon, {Widget? suffixIcon}) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      suffixIcon: suffixIcon,
-      filled: true,
-      fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .28),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(DesignTokens.radius14),
-        borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(DesignTokens.radius14),
-        borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(DesignTokens.radius14),
-        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
-      ),
-    );
   }
 
   @override

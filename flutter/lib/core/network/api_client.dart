@@ -28,7 +28,6 @@ class ApiClient {
   final String baseUrl; final http.Client _client; final AuthStorage? authStorage;
 
   static const _offlineCacheMaxStale = Duration(days: 7);
-  static const _offlineCacheRefreshAfter = Duration(minutes: 10);
 
   bool _offlineCacheAllowed(String path) {
     final p = path.toLowerCase();
@@ -81,11 +80,11 @@ class ApiClient {
       }
       rethrow;
     } on TimeoutException catch (e) {
-      throw ApiException('انتهت مهلة معالجة الملف. أعد المحاولة.', cause: e, kind: ApiErrorKind.timeout, retryable: true);
+      throw ApiException('File processing timed out. Please try again.', cause: e, kind: ApiErrorKind.timeout, retryable: true);
     } on SocketException catch (e) {
-      throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true);
+      throw ApiException('No internet connection. Check your connection and try again.', cause: e, kind: ApiErrorKind.offline, retryable: true);
     } on http.ClientException catch (e) {
-      throw ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true);
+      throw ApiException('No internet connection. Check your connection and try again.', cause: e, kind: ApiErrorKind.offline, retryable: true);
     }
   }
 
@@ -110,29 +109,9 @@ class ApiClient {
         ? await _persistentCacheKey(cacheKey)
         : cacheKey;
     final canCache = method == 'GET' && cacheTtl != null && authStorage == null;
-    if (canCache && !forceRefresh) {
-      final cached = _publicCache[cacheKey];
-      if (cached != null && cached.expiresAt.isAfter(DateTime.now())) return cached.value;
-      if (cached != null) _publicCache.remove(cacheKey);
-    }
-
-    // Stale-while-revalidate: if we already have a persistent, non-secret
-    // response, return it immediately and refresh in the background once it
-    // becomes older than the short freshness window. Network failures do not
-    // replace the usable cached value.
-    if (method == 'GET' && _offlineCacheAllowed(path) && !forceRefresh) {
-      final cachedEntry = await OfflineCache.instance.readEntry(
-        persistentCacheKey,
-        maxStale: _offlineCacheMaxStale,
-      );
-      if (cachedEntry != null) {
-        if (cachedEntry.age < _offlineCacheRefreshAfter) return cachedEntry.value;
-        unawaited(_refreshStaleCache(
-          method, path, query: query, cacheTtl: cacheTtl, cacheKey: persistentCacheKey,
-        ));
-        return cachedEntry.value;
-      }
-    }
+    // Network-first policy: the server is authoritative. Persistent cache is
+    // used only after a confirmed network failure, never as a silent substitute
+    // while the device is online.
     try {
       final headers = <String, String>{'Accept': 'application/json'};
       final token = await authStorage?.accessToken;
@@ -150,8 +129,11 @@ class ApiClient {
           return await _request(method, path, query: query, body: body, retry: false, cacheTtl: cacheTtl, forceRefresh: forceRefresh);
         }
       }
-      final decoded = _decode(response);
+      // Receiving any HTTP response proves that the device can reach the
+      // server, even when the server returns 4xx/5xx. Clear the offline banner
+      // before decoding the payload so server errors never look like offline mode.
       OfflineState.instance.markOnline();
+      final decoded = _decode(response);
       if (canCache) {
         _publicCache[cacheKey] = _CachedResponse(decoded, DateTime.now().add(cacheTtl));
       }
@@ -161,36 +143,14 @@ class ApiClient {
       return decoded;
     } on ApiException { rethrow; }
       on TimeoutException catch (e) {
-        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('انتهت مهلة الاتصال بالخدمة. أعد المحاولة.', cause: e, kind: ApiErrorKind.timeout, retryable: true));
+        throw ApiException('The service request timed out. Please try again.', cause: e, kind: ApiErrorKind.timeout, retryable: true);
       }
       on SocketException catch (e) {
-        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true));
+        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('No internet connection. Check your connection and try again.', cause: e, kind: ApiErrorKind.offline, retryable: true));
       }
       on http.ClientException catch (e) {
-        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('لا يوجد اتصال بالإنترنت. تحقق من اتصالك ثم أعد المحاولة.', cause: e, kind: ApiErrorKind.offline, retryable: true));
+        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('No internet connection. Check your connection and try again.', cause: e, kind: ApiErrorKind.offline, retryable: true));
       }
-  }
-
-  Future<void> _refreshStaleCache(
-    String method,
-    String path, {
-    Map<String, String>? query,
-    Duration? cacheTtl,
-    required String cacheKey,
-  }) async {
-    try {
-      await _request(
-        method,
-        path,
-        query: query,
-        retry: false,
-        cacheTtl: cacheTtl,
-        forceRefresh: true,
-      );
-    } catch (_) {
-      // SWR deliberately keeps the stale value when the background refresh
-      // fails. The normal request path already records offline state.
-    }
   }
 
   Future<String> _persistentCacheKey(String uri) async {
@@ -291,7 +251,7 @@ class ApiClient {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final status = response.statusCode;
       final server = status >= 500;
-      final message = server ? 'هناك خطأ في السيرفر. حاول مرة أخرى.' : (_extractErrorMessage(body) ?? 'تعذر تنفيذ الطلب.');
+      final message = server ? 'The server returned an error. Please try again.' : (_extractErrorMessage(body) ?? 'The request could not be completed.');
       throw ApiException(
         message,
         statusCode: status,
@@ -300,8 +260,8 @@ class ApiClient {
         retryable: server || status == 408 || status == 429,
       );
     }
-    if (body is! Map<String, dynamic>) throw const ApiException('استجابة غير صالحة من السيرفر.', kind: ApiErrorKind.response);
-    if (body['success'] == false) throw ApiException(_extractErrorMessage(body) ?? 'تعذر تنفيذ الطلب.', code: _extractErrorCode(body));
+    if (body is! Map<String, dynamic>) throw const ApiException('Invalid server response.', kind: ApiErrorKind.response);
+    if (body['success'] == false) throw ApiException(_extractErrorMessage(body) ?? 'The request could not be completed.', code: _extractErrorCode(body));
     return body;
   }
   String? _extractErrorMessage(dynamic body) {

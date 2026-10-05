@@ -8,7 +8,7 @@ class BadgeItem {
 
   factory BadgeItem.fromJson(Map<String, dynamic> j) => BadgeItem(
     id: '${j['id'] ?? ''}',
-    name: '${j['name_ar'] ?? j['name'] ?? 'شارة'}',
+    name: '${j['name_ar'] ?? j['name'] ?? 'Badge'}',
     description: '${j['description_ar'] ?? j['description'] ?? ''}',
     ruleType: '${j['rule_type'] ?? ''}',
     ruleValue: int.tryParse('${j['rule_value'] ?? 0}') ?? 0,

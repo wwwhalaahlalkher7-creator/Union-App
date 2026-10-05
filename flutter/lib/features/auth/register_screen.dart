@@ -113,7 +113,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         await _initAuth();
       }
       if (_studentRepo == null || _storage == null) {
-        throw const ApiException('تعذر تهيئة خدمة التسجيل. أعد المحاولة.');
+        throw const ApiException('Registration service could not be initialized. Please try again.');
       }
       final repo = _studentRepo!;
       final result = await repo.register(

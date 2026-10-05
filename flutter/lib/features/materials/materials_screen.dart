@@ -272,8 +272,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                             DropdownMenuItem(
                               value: semester['id']?.toString(),
                               child: Text(
-                                semester['name_ar']?.toString() ?? 'فصل',
-                                textAlign: TextAlign.right,
+                                semester['name_ar']?.toString() ?? l10n.t('semester'),
+                                textAlign: TextAlign.start,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -371,7 +371,7 @@ class _MaterialRow extends StatelessWidget {
             break;
           }
         }
-        final percent = ((progress?.percent ?? 0).clamp(0, 100)).toDouble();
+        final percent = (progress?.percent ?? 0).clamp(0, 100).toInt();
         final completed = progress?.completed == true || percent >= 100;
 
         return InkWell(
@@ -394,14 +394,14 @@ class _MaterialRow extends StatelessWidget {
                             material.name,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.right,
+                            textAlign: TextAlign.start,
                             style: const TextStyle(fontSize: 10.8, fontWeight: FontWeight.w700),
                           ),
                           if (material.size != null && material.size! > 0) ...[
                             const SizedBox(height: 2),
                             Text(
                               _formatFileSize(material.size!),
-                              textAlign: TextAlign.right,
+                              textAlign: TextAlign.start,
                               style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant),
                             ),
                           ],
@@ -416,20 +416,30 @@ class _MaterialRow extends StatelessWidget {
                     Expanded(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(99),
-                        child: LinearProgressIndicator(
-                          value: percent / 100,
-                          minHeight: 5,
-                          backgroundColor: cs.surfaceContainerHighest,
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: percent / 100),
+                          duration: const Duration(milliseconds: 420),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, _) => LinearProgressIndicator(
+                            value: value,
+                            minHeight: 5,
+                            backgroundColor: cs.surfaceContainerHighest,
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      completed ? l10n.t('completed') : '${l10n.t('progress')}: $percent%',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        color: completed ? cs.primary : cs.onSurfaceVariant,
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: percent.toDouble()),
+                      duration: const Duration(milliseconds: 520),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, _) => Text(
+                        completed ? l10n.t('completed') : '${l10n.t('progress')}: ${value.round()}%',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: completed ? cs.primary : cs.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ],
@@ -549,7 +559,10 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
     if (_pageCount <= 0 || _currentPage <= 0) return;
     try {
       _progressClient ??= await AuthenticatedClient.create();
-      final percent = (((_currentPage / _pageCount) * 100).floor()).clamp(0, 100).toInt();
+      final percent = (((_currentPage / _pageCount) * 100).round()).clamp(0, 100).toInt();
+      if (mounted && percent > _displayedProgress) {
+        setState(() => _displayedProgress = percent);
+      }
       final update = await ProgressRepository(_progressClient!).record(
         materialId: widget.materialId,
         eventType: percent >= 100 ? 'complete' : 'progress',
@@ -559,7 +572,10 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
       );
       if (mounted && update.accepted) {
         setState(() {
-          _displayedProgress = update.percent.clamp(0, 100);
+          _displayedProgress = [
+            _displayedProgress,
+            update.percent.clamp(0, 100),
+          ].reduce((a, b) => a > b ? a : b);
         });
       }
     } catch (_) {
@@ -587,9 +603,14 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4),
-          child: LinearProgressIndicator(
-            value: _displayedProgress / 100,
-            minHeight: 4,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: _displayedProgress / 100),
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, _) => LinearProgressIndicator(
+              value: value,
+              minHeight: 4,
+            ),
           ),
         ),
       ),

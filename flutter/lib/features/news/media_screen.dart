@@ -8,99 +8,205 @@ import '../../data/models/content_item.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/list_skeleton.dart';
+import '../../shared/widgets/action_feedback.dart';
 import 'content_detail_screen.dart';
 
 class MediaScreen extends StatefulWidget {
   const MediaScreen({this.initialTab = 0, super.key});
   final int initialTab;
-  @override State<MediaScreen> createState() => _MediaScreenState();
+
+  @override
+  State<MediaScreen> createState() => _MediaScreenState();
 }
 
 class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStateMixin {
   late final ContentRepository _repo = ContentRepository();
-  late final TabController _tabs = TabController(length: 3, initialIndex: widget.initialTab, vsync: this);
-  int _index = 0;
-  Future<List<ContentItem>>? _future;
-  
-  @override void initState() { super.initState(); _index = widget.initialTab; _future = _fetch(forceRefresh: true); _tabs.addListener(() { if (!_tabs.indexIsChanging) { setState(() => _index = _tabs.index); _load(); }}); }
-  @override void dispose() { _tabs.dispose(); super.dispose(); }
+  late final TabController _tabs = TabController(
+    length: 3,
+    initialIndex: widget.initialTab.clamp(0, 2),
+    vsync: this,
+  );
 
-  Future<List<ContentItem>> _fetch({bool forceRefresh = false}) => _index == 0 ? _repo.news(forceRefresh: forceRefresh) : (_index == 1 ? _repo.achievements(forceRefresh: forceRefresh) : _repo.events(forceRefresh: forceRefresh));
-  void _load() { if (mounted) setState(() => _future = _fetch(forceRefresh: true)); }
+  late int _index = widget.initialTab.clamp(0, 2);
+  final Map<int, List<ContentItem>> _items = <int, List<ContentItem>>{};
+  final Set<int> _loadingTabs = <int>{};
+  final Set<int> _loadedTabs = <int>{};
+  final Set<int> _failedTabs = <int>{};
 
-  Future<void> _openDetail(ContentItem item) async {
-    await context.push('/media/detail?type=${Uri.encodeQueryComponent(_type())}&id=${Uri.encodeQueryComponent(item.id)}');
-    if (mounted) _load();
+  @override
+  void initState() {
+    super.initState();
+    _tabs.addListener(_onTabChanged);
+    _loadTab(_index, forceRefresh: true);
   }
-  Future<void> _refresh() async {
-    final f = _fetch(forceRefresh: true);
-    setState(() => _future = f);
+
+  @override
+  void dispose() {
+    _tabs.removeListener(_onTabChanged);
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (_tabs.indexIsChanging || _index == _tabs.index) return;
+    setState(() => _index = _tabs.index);
+    _loadTab(_index);
+  }
+
+  Future<List<ContentItem>> _fetch(int index, {bool forceRefresh = false}) {
+    return switch (index) {
+      0 => _repo.news(forceRefresh: forceRefresh),
+      1 => _repo.achievements(forceRefresh: forceRefresh),
+      _ => _repo.events(forceRefresh: forceRefresh),
+    };
+  }
+
+  Future<void> _loadTab(int index, {bool forceRefresh = false}) async {
+    if (_loadingTabs.contains(index)) return;
+    if (!forceRefresh && _loadedTabs.contains(index)) return;
+
+    if (mounted) {
+      setState(() {
+        _loadingTabs.add(index);
+        _failedTabs.remove(index);
+      });
+    }
     try {
-      await f;
+      final items = await _fetch(index, forceRefresh: forceRefresh);
+      if (!mounted) return;
+      setState(() {
+        _items[index] = items;
+        _loadedTabs.add(index);
+        _failedTabs.remove(index);
+      });
     } catch (_) {
-      // FutureBuilder owns the visible error state; RefreshIndicator should not
-      // surface a second unhandled exception for the same failed request.
+      if (!mounted) return;
+      setState(() => _failedTabs.add(index));
+    } finally {
+      if (mounted) setState(() => _loadingTabs.remove(index));
     }
   }
-  String _type() => _index == 0 ? 'news' : (_index == 1 ? 'achievement' : 'event');
 
-  @override Widget build(BuildContext context) {
+  Future<void> _refresh() async {
+    await _loadTab(_index, forceRefresh: true);
+  }
+
+  Future<void> _openDetail(ContentItem item) async {
+    await context.push(
+      '/media/detail?type=${Uri.encodeQueryComponent(_type())}&id=${Uri.encodeQueryComponent(item.id)}',
+    );
+  }
+
+  String _type() => switch (_index) {
+    0 => 'news',
+    1 => 'achievement',
+    _ => 'event',
+  };
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final labels = [l10n.t('news'), l10n.t('achievements'), l10n.t('events')];
     final icons = [Icons.article_outlined, Icons.emoji_events_outlined, Icons.event_outlined];
+    final loading = _loadingTabs.contains(_index);
+    final failed = _failedTabs.contains(_index);
+    final items = _items[_index] ?? const <ContentItem>[];
+
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: FutureBuilder<List<ContentItem>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const ListSkeleton(count: 3);
-          if (snapshot.hasError) return _MediaState(icon: Icons.cloud_off_outlined, message: snapshot.error is ApiException ? (snapshot.error as ApiException).message : l10n.t('connectionFailed'), retry: _load);
-          final items = snapshot.data ?? const <ContentItem>[];
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 96),
-            children: [
-              Text(l10n.t('media'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-              const SizedBox(height: 3),
-              Text(l10n.t('mediaSubtitle'), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4)),
-              const SizedBox(height: 12),
-              Container(
-                height: 46,
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(15)),
-                child: TabBar(
-                  controller: _tabs,
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  dividerColor: Colors.transparent,
-                  indicator: BoxDecoration(color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(12)),
-                  labelColor: Theme.of(context).colorScheme.onPrimary,
-                  unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
-                  labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-                  tabs: [for (var i = 0; i < 3; i++) Tab(icon: Icon(icons[i], size: 17), text: labels[i])],
-                ),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 96),
+        children: [
+          Text(
+            l10n.t('media'),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            l10n.t('mediaSubtitle'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 46,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: TabBar(
+              controller: _tabs,
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              indicator: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(height: 12),
-              if (items.isEmpty) _MediaState(icon: icons[_index], message: l10n.t('noData'), compact: true)
-              else for (final item in items) Padding(
-                padding: const EdgeInsets.only(bottom: 11),
-                child: _MediaCard(item: item, type: _type(), label: labels[_index], onDetails: () => _openDetail(item), onInteractionChanged: _load),
-              ),
-            ],
-          );
-        },
+              labelColor: Theme.of(context).colorScheme.onPrimary,
+              unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
+              labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+              tabs: [
+                for (var i = 0; i < 3; i++)
+                  Tab(icon: Icon(icons[i], size: 17), text: labels[i]),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: loading && items.isEmpty
+                ? ListSkeleton(key: ValueKey('skeleton-$_index'), count: 3)
+                : failed && items.isEmpty
+                    ? _MediaState(
+                        key: ValueKey('error-$_index'),
+                        icon: Icons.cloud_off_outlined,
+                        message: l10n.t('connectionFailed'),
+                        retry: () => _loadTab(_index, forceRefresh: true),
+                      )
+                    : items.isEmpty
+                        ? _MediaState(
+                            key: ValueKey('empty-$_index'),
+                            icon: icons[_index],
+                            message: l10n.t('noData'),
+                            compact: true,
+                          )
+                        : Column(
+                            key: ValueKey('content-$_index'),
+                            children: [
+                              if (loading)
+                                const LinearProgressIndicator(minHeight: 2),
+                              for (final item in items)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 11),
+                                  child: _MediaCard(
+                                    item: item,
+                                    type: _type(),
+                                    label: labels[_index],
+                                    onDetails: () => _openDetail(item),
+                                  ),
+                                ),
+                            ],
+                          ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _MediaCard extends StatefulWidget {
-  const _MediaCard({required this.item, required this.type, required this.label, required this.onDetails, required this.onInteractionChanged});
-  final ContentItem item; final String type; final String label; final VoidCallback onDetails; final VoidCallback onInteractionChanged;
+  const _MediaCard({required this.item, required this.type, required this.label, required this.onDetails});
+  final ContentItem item; final String type; final String label; final VoidCallback onDetails;
   @override State<_MediaCard> createState() => _MediaCardState();
 }
 class _MediaCardState extends State<_MediaCard> {
   late bool _liked = widget.item.myReaction == 'like';
   late int _likeCount = widget.item.likeCount;
+  late int _commentCount = widget.item.commentCount;
   bool _busy = false;
 
   @override
@@ -109,6 +215,7 @@ class _MediaCardState extends State<_MediaCard> {
     if (oldWidget.item.id != widget.item.id || oldWidget.item.likeCount != widget.item.likeCount || oldWidget.item.myReaction != widget.item.myReaction) {
       _liked = widget.item.myReaction == 'like';
       _likeCount = widget.item.likeCount;
+      _commentCount = widget.item.commentCount;
     }
   }
 
@@ -123,15 +230,13 @@ class _MediaCardState extends State<_MediaCard> {
         await repo.unreact(widget.type, widget.item.id);
         if (mounted) {
           setState(() { _liked = false; _likeCount = _likeCount > 0 ? _likeCount - 1 : 0; });
-          _feedback(AppLocalizations.of(context).t('unlikeSuccess'));
-          widget.onInteractionChanged();
+          ActionFeedback.show(context, type: ActionFeedbackType.unlike);
         }
       } else {
         await repo.react(widget.type, widget.item.id, 'like');
         if (mounted) {
           setState(() { _liked = true; _likeCount += 1; });
-          _feedback(AppLocalizations.of(context).t('likeSuccess'));
-          widget.onInteractionChanged();
+          ActionFeedback.show(context, type: ActionFeedbackType.like);
         }
       }
     } catch (e) {
@@ -180,21 +285,14 @@ class _MediaCardState extends State<_MediaCard> {
           ),
         ),
         const SizedBox(height: 9),
-        Row(children: [if (widget.type != 'event') Text(_date(widget.item.eventAt ?? widget.item.createdAt), style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)), if (widget.type == 'event') const SizedBox.shrink(), const Spacer(), IconButton(visualDensity: VisualDensity.compact, onPressed: _busy ? null : _like, icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 18, color: _liked ? cs.primary : cs.onSurfaceVariant)), Text('$_likeCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)), const SizedBox(width: 4), IconButton(visualDensity: VisualDensity.compact, onPressed: () => _openComments(context), icon: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: cs.onSurfaceVariant)), Text('${widget.item.commentCount}', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant))])
+        Row(children: [if (widget.type != 'event') Text(_date(widget.item.eventAt ?? widget.item.createdAt), style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)), if (widget.type == 'event') const SizedBox.shrink(), const Spacer(), IconButton(visualDensity: VisualDensity.compact, onPressed: _busy ? null : _like, icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 18, color: _liked ? cs.primary : cs.onSurfaceVariant)), Text('$_likeCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)), const SizedBox(width: 4), IconButton(visualDensity: VisualDensity.compact, onPressed: () => _openComments(context), icon: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: cs.onSurfaceVariant)), Text('$_commentCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant))])
       ]))
     ]));
   }
   void _openComments(BuildContext context) async {
-    await showModalBottomSheet<void>(context: context, useSafeArea: true, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => ContentCommentsSheet(item: widget.item, type: widget.type, onCommentCountChanged: (_) => widget.onInteractionChanged()));
-    widget.onInteractionChanged();
+    await showModalBottomSheet<void>(context: context, useSafeArea: true, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => ContentCommentsSheet(item: widget.item, type: widget.type, onCommentCountChanged: (count) { if (mounted) setState(() => _commentCount = count); }));
   }
 
-  void _feedback(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(milliseconds: 1400)));
-  }
 }
 String _date(DateTime? d) => d == null ? '' : '${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
 class _MediaImage extends StatelessWidget {

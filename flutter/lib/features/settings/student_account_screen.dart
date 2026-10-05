@@ -6,6 +6,7 @@ import '../../core/network/api_client.dart';
 import '../../core/storage/auth_storage.dart';
 import '../../data/repositories/student_repository.dart';
 import '../../shared/utils/academic_labels.dart';
+import '../../shared/widgets/action_feedback.dart';
 
 class StudentAccountScreen extends StatefulWidget {
   const StudentAccountScreen({super.key});
@@ -48,15 +49,15 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
       await _client!.postJson('/api/v1/student/semester',body:{'semesterId':_semesterId});
       final selected=_semesters.firstWhere((x)=>x['id']?.toString()==_semesterId,orElse:()=>{});
       await _storage?.updateCachedSemester(semesterId:_semesterId!,semesterName:AcademicLabels.semester(selected,languageCode));
-      _message('تم حفظ الفصل الدراسي.', false);
+      _message(AppLocalizations.of(context).t('semesterSaved'), false);
     } catch(e){_message(e is ApiException?e.message:e.toString(), true);}
     finally{if(mounted)setState(()=>_savingSemester=false);}
   }
 
   Future<void> _changePassword() async {
     if(_changingPassword)return;
-    if(_newPassword.text.length<8){_message('كلمة المرور الجديدة يجب ألا تقل عن 8 أحرف.',true);return;}
-    if(_newPassword.text!=_confirmPassword.text){_message('كلمتا المرور غير متطابقتين.',true);return;}
+    if(_newPassword.text.length<8){_message(AppLocalizations.of(context).t('passwordTooShortLocal'),true);return;}
+    if(_newPassword.text!=_confirmPassword.text){_message(AppLocalizations.of(context).t('passwordMismatchLocal'),true);return;}
     setState(()=>_changingPassword=true);
     try {
       await _client!.postJson('/api/v1/auth/change-password',body:{
@@ -69,9 +70,15 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
     finally{if(mounted)setState(()=>_changingPassword=false);}
   }
 
-  void _message(String text,bool error){
+  void _message(String text, bool error){
     if(!mounted)return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(text),backgroundColor:error?Theme.of(context).colorScheme.error:null));
+    if (!error) {
+      ActionFeedback.show(context, type: ActionFeedbackType.success);
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content:Text(text),backgroundColor:Theme.of(context).colorScheme.error),
+    );
   }
   InputDecoration _dec(String label,IconData icon)=>InputDecoration(labelText:label,prefixIcon:Icon(icon),border:OutlineInputBorder(borderRadius:BorderRadius.circular(12)));
 

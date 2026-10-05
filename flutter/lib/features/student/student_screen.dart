@@ -150,7 +150,7 @@ class _StudentScreenState extends State<StudentScreen> {
                     _Pill(profile.number),
                     const SizedBox(height: 12),
                     Text(
-                      profile.semesterName ?? 'الفصل غير محدد',
+                      profile.semesterName ?? l10n.t('semesterNotSet'),
                       style: TextStyle(
                         color: context.colors.onSurfaceVariant,
                         fontSize: 10.5,
@@ -165,7 +165,7 @@ class _StudentScreenState extends State<StudentScreen> {
                   children: [
                     Expanded(
                       child: _Stat(
-                        'المستوى',
+                        l10n.t('levelShort'),
                         '${stats['level'] ?? 1}',
                       ),
                     ),
@@ -179,7 +179,7 @@ class _StudentScreenState extends State<StudentScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: _Stat(
-                        'الفصل',
+                        l10n.t('semesterShort'),
                         profile.semesterName ?? '—',
                       ),
                     ),
@@ -191,7 +191,7 @@ class _StudentScreenState extends State<StudentScreen> {
                 children: [
                   Expanded(
                     child: _Action(
-                      'المواد',
+                      l10n.t('materials'),
                       Icons.menu_book_rounded,
                       () => context.go('/materials'),
                     ),
@@ -199,7 +199,7 @@ class _StudentScreenState extends State<StudentScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _Action(
-                      'الجدول',
+                      l10n.t('schedule'),
                       Icons.calendar_month_rounded,
                       () => context.push('/schedule'),
                     ),
@@ -207,7 +207,7 @@ class _StudentScreenState extends State<StudentScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _Action(
-                      'الشارات',
+                      l10n.t('viewBadges'),
                       Icons.workspace_premium_rounded,
                       () => context.push('/badges'),
                     ),

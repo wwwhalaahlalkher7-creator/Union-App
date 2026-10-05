@@ -19,7 +19,7 @@ class CommentItem {
 
   factory CommentItem.fromJson(Map<String, dynamic> j) => CommentItem(
         id: '${j['id'] ?? ''}',
-        studentName: '${j['full_name'] ?? 'طالب'}',
+        studentName: '${j['full_name'] ?? 'Student'}',
         body: '${j['body'] ?? ''}',
         createdAt: '${j['created_at'] ?? ''}',
         reactionCount: int.tryParse('${j['reaction_count'] ?? 0}') ?? 0,

@@ -44,7 +44,7 @@ class StudentRepository {
     });
     final d = j['data'];
     if (d is Map) return Map<String, dynamic>.from(d);
-    throw const ApiException('فشل إنشاء الحساب. يرجى التحقق من البيانات والمحاولة مجددًا.');
+    throw const ApiException('Account creation failed. Please verify the data and try again.');
   }
 
 }

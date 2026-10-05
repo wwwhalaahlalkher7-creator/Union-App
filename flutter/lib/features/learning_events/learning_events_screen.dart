@@ -178,7 +178,7 @@ class _LearningEventDetailScreenState extends State<LearningEventDetailScreen> {
         if (mounted) setState(() { _event = LearningEvent(id: _event.id, title: _event.title, description: _event.description, design: _event.design, xpReward: _event.xpReward, completed: true, config: _event.config, publishAt: _event.publishAt, expiresAt: _event.expiresAt); _message = xp > 0 ? '+$xp XP' : 'تم تسجيل الحدث.'; });
       } finally { client.dispose(); }
     } catch (e) {
-      if (mounted) setState(() => _message = e is ApiException ? e.message : 'تعذر إكمال الحدث.');
+      if (mounted) setState(() => _message = e is ApiException ? e.message : AppLocalizations.of(context).t('eventCompleteFailed'));
     } finally { if (mounted) setState(() => _busy = false); }
   }
 

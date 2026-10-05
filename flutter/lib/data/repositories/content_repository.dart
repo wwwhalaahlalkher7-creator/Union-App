@@ -16,7 +16,7 @@ class ContentRepository {
         forceRefresh: true,
       );
       final data = json['data'];
-      if (data is! Map) throw const ApiException('استجابة المحتوى غير صالحة.');
+      if (data is! Map) throw const ApiException('Invalid content response.');
       return ContentItem.fromJson(Map<String, dynamic>.from(data));
     } finally {
       client.dispose();

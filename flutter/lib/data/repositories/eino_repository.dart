@@ -12,7 +12,7 @@ class EinoRepository {
     });
     final data = json['data'];
     if (data is Map && data['message'] != null) return data['message'].toString().trim();
-    throw const ApiException('لم تصل إجابة صالحة من Eino.');
+    throw const ApiException('No valid Eino response was received.');
   }
 
   Future<String> vision({required String imageDataUrl, String mode = 'describe'}) async {
@@ -20,7 +20,7 @@ class EinoRepository {
       'image': imageDataUrl,
       'mode': mode,
     });
-    return _textFrom(json, 'لم تصل نتيجة صالحة لتحليل الصورة من Eino.');
+    return _textFrom(json, 'No valid image analysis result was received from Eino.');
   }
 
   Future<String> ocr({required List<int> bytes, required String filename, required String contentType}) async {
@@ -31,7 +31,7 @@ class EinoRepository {
       fieldName: 'file',
       contentType: contentType,
     );
-    return _textFrom(json, 'لم تصل نتيجة صالحة لقراءة المستند من Eino.');
+    return _textFrom(json, 'No valid document analysis result was received from Eino.');
   }
 
   Future<String> stt({required List<int> bytes, required String filename, required String contentType, String language = 'auto'}) async {
@@ -43,7 +43,7 @@ class EinoRepository {
       contentType: contentType,
       fields: {'language': language},
     );
-    return _textFrom(json, 'لم يصل نص صالح من التسجيل الصوتي.');
+    return _textFrom(json, 'No valid speech transcription was received.');
   }
 
   Future<String?> tts({required String text, String voice = 'af_heart'}) async {
@@ -83,7 +83,7 @@ class EinoRepository {
     final json = await _client.postJson('/api/v1/eino/memory', body: {'content': content, 'category': category});
     final data = json['data'];
     if (data is Map) return EinoMemory.fromJson(Map<String, dynamic>.from(data));
-    throw const ApiException('لم تصل استجابة صالحة من ذاكرة Eino.');
+    throw const ApiException('No valid Eino memory response was received.');
   }
 
   Future<void> forgetMemory(String id) async {

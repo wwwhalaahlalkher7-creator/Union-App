@@ -672,6 +672,16 @@ class _EngineeringReferencesTab extends StatelessWidget {
       {'title': l10n.t('refBernoulliTitle'), 'formula': 'P + 0.5 × ρ × v² + ρ × g × h = constant', 'desc': l10n.t('refBernoulliDesc')},
       {'title': l10n.t('refPaperSizesTitle'), 'formula': 'A0: 841×1189 mm | A1: 594×841 mm | A2: 420×594 mm | A3: 297×420 mm', 'desc': l10n.t('refPaperSizesDesc')},
       {'title': l10n.t('refScalesTitle'), 'formula': '1:100 | 1:50 | 1:20 | 1:10', 'desc': l10n.t('refScalesDesc')},
+      {'title': l10n.t('refStressStrainTitle'), 'formula': 'σ = E × ε', 'desc': l10n.t('refStressStrainDesc')},
+      {'title': l10n.t('refShearStressTitle'), 'formula': 'τ = F / A', 'desc': l10n.t('refShearStressDesc')},
+      {'title': l10n.t('refPowerMechanicalTitle'), 'formula': 'P = F × v  |  P = T × ω', 'desc': l10n.t('refPowerMechanicalDesc')},
+      {'title': l10n.t('refKineticEnergyTitle'), 'formula': 'Eₖ = ½ × m × v²', 'desc': l10n.t('refKineticEnergyDesc')},
+      {'title': l10n.t('refPotentialEnergyTitle'), 'formula': 'Eₚ = m × g × h', 'desc': l10n.t('refPotentialEnergyDesc')},
+      {'title': l10n.t('refContinuityTitle'), 'formula': 'A₁v₁ = A₂v₂', 'desc': l10n.t('refContinuityDesc')},
+      {'title': l10n.t('refHeatTitle'), 'formula': 'Q = m × c × ΔT', 'desc': l10n.t('refHeatDesc')},
+      {'title': l10n.t('refThermalExpansionTitle'), 'formula': 'ΔL = α × L₀ × ΔT', 'desc': l10n.t('refThermalExpansionDesc')},
+      {'title': l10n.t('refDensityTitle'), 'formula': 'ρ = m / V', 'desc': l10n.t('refDensityDesc')},
+      {'title': l10n.t('refCircleAreaTitle'), 'formula': 'A = π × r²', 'desc': l10n.t('refCircleAreaDesc')},
     ];
 
     return ListView.builder(

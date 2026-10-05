@@ -344,9 +344,6 @@ export async function materialProgress(ctx, materialId) {
   if (eventType !== 'open' && !existing) {
     return error('PROGRESS_OPEN_REQUIRED', 'افتح الملف أولًا قبل تسجيل التقدم.', 409, ctx.requestId, ctx.cors);
   }
-  if (eventType !== 'open' && lastProgress && now - lastProgress < 15000) {
-    return error('PROGRESS_RATE_LIMITED', 'انتظر قليلًا قبل تسجيل تقدم جديد.', 429, ctx.requestId, ctx.cors);
-  }
 
   const previousPercent = Math.min(100, Math.max(0, Number(existing?.progress_percent || 0)));
   const previousPage = Math.max(0, Number(existing?.last_page_number || 0));
@@ -361,20 +358,6 @@ export async function materialProgress(ctx, materialId) {
       : percent;
     nextPercent = Math.max(previousPercent, calculatedPercent);
 
-    // Progress and XP are both locked until the student has spent about one minute
-    // in this material. Opening/heartbeat events may accumulate active time, but
-    // they cannot move progress or award XP before the threshold is reached.
-    // We intentionally do not bank page rewards while the one-minute gate is active;
-    // once unlocked, only the currently reported page can award its one-time XP.
-    const projectedActiveSeconds = (existing?.active_seconds || 0) + boundedElapsed;
-    if (nextPercent > previousPercent && projectedActiveSeconds < MATERIAL_MIN_ACTIVE_SECONDS) {
-      nextPercent = previousPercent;
-      nextPage = previousPage;
-    }
-    if (nextPercent >= 100 && projectedActiveSeconds < MATERIAL_MIN_ACTIVE_SECONDS) {
-      nextPercent = previousPercent;
-      nextPage = previousPage;
-    }
   }
 
   const activeSeconds = Math.min((existing?.active_seconds || 0) + boundedElapsed, 8 * 60 * 60);

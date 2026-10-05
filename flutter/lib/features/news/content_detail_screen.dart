@@ -7,6 +7,7 @@ import '../../data/models/comment_item.dart';
 import '../../data/models/content_item.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../data/repositories/interactions_repository.dart';
+import '../../shared/widgets/action_feedback.dart';
 
 class ContentDetailScreen extends StatefulWidget {
   const ContentDetailScreen({required this.id, required this.type, super.key});
@@ -66,13 +67,13 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         await repo.unreact(widget.type, current.id);
         if (mounted) {
           setState(() { _liked = false; _likeCount = _likeCount > 0 ? _likeCount - 1 : 0; });
-          _feedback(AppLocalizations.of(context).t('unlikeSuccess'));
+          ActionFeedback.show(context, type: ActionFeedbackType.unlike);
         }
       } else {
         await repo.react(widget.type, current.id, 'like');
         if (mounted) {
           setState(() { _liked = true; _likeCount += 1; });
-          _feedback(AppLocalizations.of(context).t('likeSuccess'));
+          ActionFeedback.show(context, type: ActionFeedbackType.like);
         }
       }
     } catch (e) {
@@ -87,12 +88,6 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     }
   }
 
-  void _feedback(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(milliseconds: 1400)));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -229,7 +224,6 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         if (mounted) setState(() => _commentCount = count);
       }),
     );
-    if (mounted) _loadDetail();
   }
 }
 
@@ -363,7 +357,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
       if (mounted) {
         setState(() => _commentCount += 1);
         widget.onCommentCountChanged?.call(_commentCount);
-        _feedback(AppLocalizations.of(context).t('commentSuccess'));
+        ActionFeedback.show(context, type: ActionFeedbackType.comment);
       }
       _load();
     } catch (e) {
@@ -382,13 +376,13 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
         await repo.unreactComment(comment.id);
         if (mounted) {
           _replaceComment(comment.copyWith(liked: false, reactionCount: comment.reactionCount > 0 ? comment.reactionCount - 1 : 0));
-          _feedback(AppLocalizations.of(context).t('unlikeSuccess'));
+          ActionFeedback.show(context, type: ActionFeedbackType.unlike);
         }
       } else {
         await repo.reactComment(comment.id, 'like');
         if (mounted) {
           _replaceComment(comment.copyWith(liked: true, reactionCount: comment.reactionCount + 1));
-          _feedback(AppLocalizations.of(context).t('likeSuccess'));
+          ActionFeedback.show(context, type: ActionFeedbackType.like);
         }
       }
     } catch (e) {
@@ -453,7 +447,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
         _replies.remove(comment.id);
         _expandedReplies.add(comment.id);
         _loadingReplies.add(comment.id);
-        _feedback(AppLocalizations.of(context).t('replySuccess'));
+        ActionFeedback.show(context, type: ActionFeedbackType.reply);
       }
       _load();
       try {
@@ -469,12 +463,6 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
     }
   }
 
-  void _feedback(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(milliseconds: 1400)));
-  }
 
   @override
   void dispose() {

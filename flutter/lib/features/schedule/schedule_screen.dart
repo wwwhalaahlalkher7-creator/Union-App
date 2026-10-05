@@ -279,7 +279,7 @@ class _Lecture extends StatelessWidget {
                 Text(
                   [
                     if (item.room?.isNotEmpty == true)
-                      'قاعة ${item.room}',
+                       '${AppLocalizations.of(context).t('room')} ${item.room}',
                     if (item.lecturer?.isNotEmpty == true)
                       item.lecturer!,
                   ].join(' • '),

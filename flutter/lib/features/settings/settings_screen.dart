@@ -439,7 +439,7 @@ class _LanguageSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const languages = [
-      ('ar', 'العربية', 'RTL', Icons.translate_rounded),
+      ('ar', l10n.t('arabic'), 'RTL', Icons.translate_rounded),
       ('en', 'English', 'LTR', Icons.language_rounded),
       ('fr', 'Français', 'LTR', Icons.language_rounded),
     ];
@@ -553,7 +553,7 @@ class _AccentOption extends StatelessWidget {
       selected: selected,
       button: true,
       label: label,
-      hint: selected ? 'محدد' : 'اضغط لاختيار اللون',
+      hint: selected ? l10n.t('selected') : l10n.t('selectColor'),
       child: Tooltip(
         message: label,
         waitDuration: const Duration(milliseconds: 450),
