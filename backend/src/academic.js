@@ -435,22 +435,22 @@ export async function awardProgressXp(ctx, studentId, materialId, previousPage, 
 
   const statements = pages.map((page) => ctx.env.DB.prepare(`
     INSERT INTO xp_events (id, student_id, event_type, source_id, xp)
-    SELECT ?, ?, 'material_page', ?, ?
+    SELECT ?, ?, ?, ?, ?
     WHERE (SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=? AND created_at >= date('now')) + ? <= ?
     ON CONFLICT(student_id, event_type, source_id) DO NOTHING
   `).bind(
-    crypto.randomUUID(), studentId, `${materialId}:page:${page}`, XP_MATERIAL_PAGE,
+    crypto.randomUUID(), studentId, 'material_page', `${materialId}:page:${page}`, XP_MATERIAL_PAGE,
     studentId, XP_MATERIAL_PAGE, XP_DAILY_CAP,
   ));
 
   if (completed) {
     statements.push(ctx.env.DB.prepare(`
       INSERT INTO xp_events (id, student_id, event_type, source_id, xp)
-      SELECT ?, ?, 'material_complete', ?, ?
+      SELECT ?, ?, ?, ?, ?
       WHERE (SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=? AND created_at >= date('now')) + ? <= ?
       ON CONFLICT(student_id, event_type, source_id) DO NOTHING
     `).bind(
-      crypto.randomUUID(), studentId, materialId, XP_MATERIAL_COMPLETION,
+      crypto.randomUUID(), studentId, 'material_complete', materialId, XP_MATERIAL_COMPLETION,
       studentId, XP_MATERIAL_COMPLETION, XP_DAILY_CAP,
     ));
   }
