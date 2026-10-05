@@ -56,6 +56,7 @@ class _StudentScreenState extends State<StudentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return RefreshIndicator(
       onRefresh: _reload,
       child: FutureBuilder<_StudentData?>(

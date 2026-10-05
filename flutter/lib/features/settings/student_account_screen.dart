@@ -43,13 +43,14 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
 
   Future<void> _saveSemester() async {
     if(_semesterId==null||_savingSemester)return;
+    final l10n = AppLocalizations.of(context);
     final languageCode=Localizations.localeOf(context).languageCode;
     setState(()=>_savingSemester=true);
     try {
       await _client!.postJson('/api/v1/student/semester',body:{'semesterId':_semesterId});
       final selected=_semesters.firstWhere((x)=>x['id']?.toString()==_semesterId,orElse:()=>{});
       await _storage?.updateCachedSemester(semesterId:_semesterId!,semesterName:AcademicLabels.semester(selected,languageCode));
-      _message(AppLocalizations.of(context).t('semesterSaved'), false);
+      if (mounted) _message(l10n.t('semesterSaved'), false);
     } catch(e){_message(e is ApiException?e.message:e.toString(), true);}
     finally{if(mounted)setState(()=>_savingSemester=false);}
   }
@@ -100,7 +101,7 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
             decoration:_dec(l10n.t('semester'),Icons.calendar_month_outlined),
           ),
           const SizedBox(height:10),
-          FilledButton.icon(onPressed:_savingSemester?null:_saveSemester,icon:const Icon(Icons.save_outlined),label:Text(_savingSemester?'جارٍ الحفظ...':l10n.t('saveSemester'))),
+          FilledButton.icon(onPressed:_savingSemester?null:_saveSemester,icon:const Icon(Icons.save_outlined),label:Text(_savingSemester?l10n.t('savingSemester'):l10n.t('saveSemester'))),
         ]))),
         const SizedBox(height:12),
         Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
@@ -119,7 +120,7 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
           const SizedBox(height:10),
           TextField(controller:_confirmPassword,obscureText:_hideConfirm,decoration:_dec(l10n.t('confirmPassword'),Icons.lock_reset_outlined).copyWith(suffixIcon:IconButton(icon:Icon(_hideConfirm?Icons.visibility:Icons.visibility_off),onPressed:()=>setState(()=>_hideConfirm=!_hideConfirm)))),
           const SizedBox(height:14),
-          FilledButton.icon(onPressed:_changingPassword?null:_changePassword,icon:const Icon(Icons.password_outlined),label:Text(_changingPassword?'جارٍ التغيير...':l10n.t('changePassword'))),
+          FilledButton.icon(onPressed:_changingPassword?null:_changePassword,icon:const Icon(Icons.password_outlined),label:Text(_changingPassword?l10n.t('changingPassword'):l10n.t('changePassword'))),
           const SizedBox(height:4),
           TextButton.icon(
             onPressed:_changingPassword?null:(){
