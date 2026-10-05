@@ -20,7 +20,6 @@ import '../../data/repositories/student_repository.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/login_required_card.dart';
-import '../../shared/widgets/trinex_shell.dart';
 
 class MaterialsScreen extends StatefulWidget {
   const MaterialsScreen({super.key});
