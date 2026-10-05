@@ -15,18 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  flutter_gate:
-    name: Check Flutter Changes
+  flutter:
+    name: Flutter Analyze, Test & Signed Artifacts
     runs-on: ubuntu-latest
-    outputs:
-      run: ${{ steps.flutter_changes.outputs.run }}
+    defaults:
+      run:
+        working-directory: flutter
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Check whether Flutter needs to run
-        id: flutter_changes
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -36,10 +36,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # A manual run always validates Flutter. For push/PR, Flutter runs only
-          # when Flutter code or a file that directly affects its CI/release checks changes.
+          # Manual runs always validate Flutter. On push/PR, stop this job early
+          # when no Flutter-related files changed. This avoids a dedicated runner
+          # just for change detection.
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
             echo "Flutter CI: manual run -> RUN"
             exit 0
           fi
@@ -57,7 +57,6 @@ jobs:
           echo "Changed files:"
           printf '%s\n' "$changed"
 
-          run=false
           while IFS= read -r file; do
             [[ -z "$file" ]] && continue
             case "$file" in
@@ -70,29 +69,14 @@ jobs:
               ci/verify_project.py|\
               ci/workflow_consistency_check.py|\
               .github/workflows/ci.yml)
-                run=true
-                break
+                echo "Flutter CI: relevant changes detected -> RUN"
+                exit 0
                 ;;
             esac
           done <<< "$changed"
 
-          echo "run=$run" >> "$GITHUB_OUTPUT"
-          if [[ "$run" == "true" ]]; then
-            echo "Flutter CI: relevant changes detected -> RUN"
-          else
-            echo "Flutter CI: no relevant changes detected -> SKIP"
-          fi
-
-  flutter:
-    name: Flutter Analyze, Test & Signed Artifacts
-    needs: flutter_gate
-    if: needs.flutter_gate.outputs.run == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: flutter
-    steps:
-      - uses: actions/checkout@v7
+          echo "Flutter CI: no relevant changes detected -> SKIP"
+          exit 0
 
       - name: Setup Java 17
         uses: actions/setup-java@v6
@@ -385,4 +369,4 @@ jobs:
             -w "HTTP status: %{http_code}\n" \
             "$SITE_URL/"
           test -s /tmp/site-health.html || { echo 'Website returned an empty body'; exit 1; }
-          echo 'Website health check passed.' 
+          echo 'Website health check passed.'
