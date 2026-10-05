@@ -78,7 +78,7 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
               if (items.isEmpty) _MediaState(icon: icons[_index], message: l10n.t('noData'), compact: true)
               else for (final item in items) Padding(
                 padding: const EdgeInsets.only(bottom: 11),
-                child: _MediaCard(item: item, type: _type(), label: labels[_index], onDetails: () => context.push('/media/detail', extra: {'item': item, 'type': _type()})),
+                child: _MediaCard(item: item, type: _type(), label: labels[_index], onDetails: () => context.push('/media/detail?type=${Uri.encodeQueryComponent(_type())}&id=${Uri.encodeQueryComponent(item.id)}')),
               ),
             ],
           );

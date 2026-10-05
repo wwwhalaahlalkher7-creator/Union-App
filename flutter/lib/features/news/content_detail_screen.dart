@@ -9,8 +9,8 @@ import '../../data/repositories/content_repository.dart';
 import '../../data/repositories/interactions_repository.dart';
 
 class ContentDetailScreen extends StatefulWidget {
-  const ContentDetailScreen({required this.item, required this.type, super.key});
-  final ContentItem item;
+  const ContentDetailScreen({required this.id, required this.type, super.key});
+  final String id;
   final String type;
 
   @override
@@ -19,40 +19,48 @@ class ContentDetailScreen extends StatefulWidget {
 
 class _ContentDetailScreenState extends State<ContentDetailScreen> {
   ContentItem? _fresh;
+  bool _loading = true;
+  String? _error;
   bool _liked = false;
-  late int _likeCount = widget.item.likeCount;
+  int _likeCount = 0;
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
-    _liked = widget.item.myReaction == 'like';
     _loadDetail();
   }
 
   Future<void> _loadDetail() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
     try {
-      final item = await ContentRepository().detail(widget.type, widget.item.id);
-      if (mounted) {
-        setState(() {
-          _fresh = item;
-          _liked = item.myReaction == 'like';
-          _likeCount = item.likeCount;
-        });
-      }
-    } catch (_) {
-      // The list item is already usable; detail refresh is best-effort.
+      final item = await ContentRepository().detail(widget.type, widget.id);
+      if (!mounted) return;
+      setState(() {
+        _fresh = item;
+        _liked = item.myReaction == 'like';
+        _likeCount = item.likeCount;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e is ApiException ? e.message : AppLocalizations.of(context).t('connectionFailed');
+      });
     }
   }
 
   Future<void> _like() async {
     if (_busy || _liked) return;
+    final current = _fresh;
+    if (current == null) return;
     setState(() => _busy = true);
     ApiClient? client;
     try {
       client = await AuthenticatedClient.create();
-      await InteractionsRepository(client).react(widget.type, widget.item.id, 'like');
-      if (mounted) setState(() { _liked = true; _likeCount = (_fresh ?? widget.item).likeCount + 1; });
+      await InteractionsRepository(client).react(widget.type, current.id, 'like');
+      if (mounted) setState(() { _liked = true; _likeCount = current.likeCount + 1; });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -67,8 +75,28 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final item = _fresh ?? widget.item;
+    final item = _fresh;
     final l10n = AppLocalizations.of(context);
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (item == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.type == 'news' ? l10n.t('news') : widget.type == 'achievement' ? l10n.t('achievements') : l10n.t('events'))),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.cloud_off_outlined, size: 42),
+              const SizedBox(height: 12),
+              Text(_error ?? l10n.t('connectionFailed'), textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton.icon(onPressed: _loadDetail, icon: const Icon(Icons.refresh_rounded), label: Text(l10n.t('retry'))),
+            ]),
+          ),
+        ),
+      );
+    }
     final cs = Theme.of(context).colorScheme;
     final images = item.images.isNotEmpty
         ? item.images

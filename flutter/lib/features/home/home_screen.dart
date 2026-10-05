@@ -239,8 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _NewsTile(
                       item: item,
                       onTap: () => context.push(
-                        '/media/detail',
-                        extra: {'item': item, 'type': 'news'},
+                        '/media/detail?type=news&id=${Uri.encodeQueryComponent(item.id)}',
                       ),
                     ),
                   ),
