@@ -56,10 +56,21 @@ GoRouter buildRouter({
         return MediaScreen(initialTab: initialTab);
       }),
       GoRoute(path: '/media/detail', builder: (_, state) {
+        // `extra` is intentionally accepted as a generic Map here. A map
+        // literal passed to `context.push` can be inferred as
+        // `Map<String, Object?>`, which is not guaranteed to satisfy the
+        // stricter `Map<String, dynamic>` check. Treating it generically
+        // prevents the detail route from silently falling back to Media.
         final extra = state.extra;
-        if (extra is Map<String, dynamic> && extra['item'] is ContentItem && extra['type'] is String) {
-          return ContentDetailScreen(item: extra['item'] as ContentItem, type: extra['type'] as String);
+        if (extra is Map) {
+          final item = extra['item'];
+          final type = extra['type'];
+          if (item is ContentItem && type is String && type.isNotEmpty) {
+            return ContentDetailScreen(item: item, type: type);
+          }
         }
+        // A detail route without valid navigation data is not renderable.
+        // Keep the fallback deterministic instead of throwing during build.
         return const MediaScreen();
       }),
     ]),
