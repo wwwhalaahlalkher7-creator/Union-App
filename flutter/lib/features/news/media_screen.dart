@@ -44,15 +44,6 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
   }
   String _type() => _index == 0 ? 'news' : (_index == 1 ? 'achievement' : 'event');
 
-  @override
-  void didUpdateWidget(covariant _MediaCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.item.id != widget.item.id || oldWidget.item.likeCount != widget.item.likeCount || oldWidget.item.myReaction != widget.item.myReaction) {
-      _liked = widget.item.myReaction == 'like';
-      _likeCount = widget.item.likeCount;
-    }
-  }
-
   @override Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final labels = [l10n.t('news'), l10n.t('achievements'), l10n.t('events')];
@@ -111,6 +102,15 @@ class _MediaCardState extends State<_MediaCard> {
   late bool _liked = widget.item.myReaction == 'like';
   late int _likeCount = widget.item.likeCount;
   bool _busy = false;
+
+  @override
+  void didUpdateWidget(covariant _MediaCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.id != widget.item.id || oldWidget.item.likeCount != widget.item.likeCount || oldWidget.item.myReaction != widget.item.myReaction) {
+      _liked = widget.item.myReaction == 'like';
+      _likeCount = widget.item.likeCount;
+    }
+  }
 
   Future<void> _like() async {
     if (_busy) return;
