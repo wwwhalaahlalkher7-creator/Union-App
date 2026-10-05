@@ -129,7 +129,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   for (final item in items) ...[
                     _NotificationCard(item: item, onTap: () async {
                       await _markRead(item);
-                      if (!mounted) return;
+                      if (!context.mounted) return;
                       if (item.learningEventId != null && item.learningEventId!.isNotEmpty) {
                         context.push('/learning-events/${item.learningEventId}');
                       }

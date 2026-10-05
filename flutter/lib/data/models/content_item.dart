@@ -113,11 +113,3 @@ List<String> _toHighlights(dynamic value) {
   }
   return const <String>[];
 }
-
-List<String> _toHighlights(dynamic value) {
-  if (value is List) return value.map((v) => v is Map ? '${v['text'] ?? v['title'] ?? v['value'] ?? ''}' : '$v').where((v) => v.trim().isNotEmpty).toList();
-  if (value is String && value.trim().isNotEmpty) {
-    try { final decoded = jsonDecode(value); return _toHighlights(decoded); } catch (_) {}
-  }
-  return const <String>[];
-}
