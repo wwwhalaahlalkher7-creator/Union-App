@@ -150,6 +150,12 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
           ),
         ),
       );
+      if (mounted) {
+        final client = _client!;
+        setState(() {
+          _progressFuture = ProgressRepository(client).getProgress();
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -468,16 +474,13 @@ class PdfMaterialViewerScreen extends StatefulWidget {
   State<PdfMaterialViewerScreen> createState() => _PdfMaterialViewerScreenState();
 }
 
-class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 3),
-  )..repeat();
+class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
   Timer? _progressTimer;
   ApiClient? _progressClient;
   File? _localPdf;
-  int _lastReportedProgress = 0;
+  int _currentPage = 1;
+  int _pageCount = 0;
+  int _displayedProgress = 0;
   bool _loadingFile = true;
   Object? _loadError;
   final PdfViewerController _pdfController = PdfViewerController();
@@ -521,7 +524,6 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
         _loadingFile = false;
       });
       _startProgressTracking();
-      await _sendProgress(10);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -532,28 +534,36 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
   }
 
   void _startProgressTracking() {
-    // Time is only a conservative reading signal. We deliberately stop at
-    // 75%; 100% is reserved for an actual end-of-document page event.
     _progressTimer?.cancel();
-    _progressTimer = Timer.periodic(const Duration(seconds: 45), (_) {
-      if (!mounted) return;
-      final next = (_lastReportedProgress + 25).clamp(25, 75);
-      if (next > _lastReportedProgress) _sendProgress(next);
+    // The first progress/XP update is intentionally delayed until about one
+    // minute of verified time in the material. After that, the current page is
+    // periodically reported so the backend can accumulate active time and
+    // award XP only for newly reached pages.
+    _progressTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted || _pageCount <= 0) return;
+      _sendPageProgress();
     });
   }
 
-  Future<void> _sendProgress(int percent) async {
-    if (percent <= _lastReportedProgress) return;
+  Future<void> _sendPageProgress() async {
+    if (_pageCount <= 0 || _currentPage <= 0) return;
     try {
       _progressClient ??= await AuthenticatedClient.create();
-      await ProgressRepository(_progressClient!).record(
+      final percent = (((_currentPage / _pageCount) * 100).floor()).clamp(0, 100).toInt();
+      final update = await ProgressRepository(_progressClient!).record(
         materialId: widget.materialId,
         eventType: percent >= 100 ? 'complete' : 'progress',
         progressPercent: percent,
+        pageNumber: _currentPage,
+        pageCount: _pageCount,
       );
-      _lastReportedProgress = percent;
+      if (mounted && update.accepted) {
+        setState(() {
+          _displayedProgress = update.percent.clamp(0, 100);
+        });
+      }
     } catch (_) {
-      // Progress is auxiliary; a temporary network failure must not close the PDF.
+      // Progress is auxiliary; a temporary network failure must never close the PDF.
     }
   }
 
@@ -561,7 +571,6 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
   void dispose() {
     _progressTimer?.cancel();
     _progressClient?.dispose();
-    _pulse.dispose();
     super.dispose();
   }
 
@@ -575,6 +584,13 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
           widget.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(4),
+          child: LinearProgressIndicator(
+            value: _displayedProgress / 100,
+            minHeight: 4,
+          ),
         ),
       ),
       body: _loadingFile
@@ -620,12 +636,16 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
                         verticalCacheExtent: 1.0,
                         onePassRenderingSizeThreshold: 1600,
                         onPageChanged: (pageNumber) {
-                          if (pageNumber != null &&
-                              _pdfController.isReady &&
-                              _pdfController.pageCount > 0 &&
-                              pageNumber >= _pdfController.pageCount) {
-                            _sendProgress(100);
+                          if (pageNumber == null || !_pdfController.isReady) return;
+                          final count = _pdfController.pageCount;
+                          if (count <= 0) return;
+                          if (mounted) {
+                            setState(() {
+                              _currentPage = pageNumber.clamp(1, count).toInt();
+                              _pageCount = count;
+                            });
                           }
+                          _sendPageProgress();
                         },
                         linkHandlerParams: PdfLinkHandlerParams(
                           onLinkTap: (_) {},

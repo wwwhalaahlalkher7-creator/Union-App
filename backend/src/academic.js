@@ -2,7 +2,7 @@ import {
   headers, json, ok, databaseErrorResponse, error, parseJson, clampInt, queryAll, queryOne, rowMap,
   parseJsonValue, currentQuotaMonth, bearer, sha256, token, pbkdf2Hash, timingSafeEqualHex, makeId, sqlValue, positiveInt,
   PUBLIC_MAX, AUTH_ACCESS_TTL, AUTH_REFRESH_TTL, AUTH_MAX_FAILED, AUTH_LOCK_SECONDS, AUTH_IP_WINDOW_SECONDS,
-  AUTH_IP_LOGIN_LIMIT, AUTH_IP_REFRESH_LIMIT, PBKDF2_ITERATIONS, XP_DAILY_CAP, XP_LEVEL_BASE,
+  AUTH_IP_LOGIN_LIMIT, AUTH_IP_REFRESH_LIMIT, PBKDF2_ITERATIONS, XP_DAILY_CAP, XP_LEVEL_BASE, XP_MATERIAL_PAGE, XP_MATERIAL_COMPLETION, MATERIAL_MIN_ACTIVE_SECONDS,
   EINO_MAX_MESSAGE, EINO_MAX_CONTEXT, EINO_WINDOW_SECONDS, EINO_WINDOW_LIMIT,
   EINO_STUDENT_DAILY_LIMIT_DEFAULT, EINO_GUEST_DAILY_LIMIT_DEFAULT, EINO_GLOBAL_DAILY_LIMIT_DEFAULT,
   R2_MAX_OBJECT_BYTES, R2_MAX_STORAGE_BYTES, R2_MAX_CLASS_A_MONTHLY, R2_MAX_UPLOAD_FILES_PER_REQUEST, R2_ALLOWED_TYPES,
@@ -320,8 +320,12 @@ export async function materialProgress(ctx, materialId) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
   const body = await parseJson(ctx.request) || {};
   const eventType = String(body.eventType || 'progress').trim().toLowerCase();
-  const requested = Number.parseInt(body.progressPercent, 10);
-  const percent = Number.isFinite(requested) ? Math.min(100, Math.max(0, requested)) : 0;
+  const requestedPercent = Number.parseInt(body.progressPercent, 10);
+  const requestedPage = Number.parseInt(body.pageNumber, 10);
+  const requestedPageCount = Number.parseInt(body.pageCount, 10);
+  const pageNumber = Number.isFinite(requestedPage) ? Math.max(0, requestedPage) : 0;
+  const pageCount = Number.isFinite(requestedPageCount) ? Math.min(100000, Math.max(0, requestedPageCount)) : 0;
+  const percent = Number.isFinite(requestedPercent) ? Math.min(100, Math.max(0, requestedPercent)) : 0;
   const material = await queryOne(ctx.env, `SELECT m.id FROM materials m
     JOIN subjects s ON s.id = m.subject_id
     WHERE m.id = ? AND m.active = 1 AND s.active = 1 AND s.department_id = ?`, materialId, a.session.department_id);
@@ -337,44 +341,60 @@ export async function materialProgress(ctx, materialId) {
   if (!['open', 'progress', 'complete'].includes(eventType)) {
     return error('PROGRESS_EVENT_INVALID', 'نوع تقدم غير صالح.', 400, ctx.requestId, ctx.cors);
   }
-
   if (eventType !== 'open' && !existing) {
     return error('PROGRESS_OPEN_REQUIRED', 'افتح الملف أولًا قبل تسجيل التقدم.', 409, ctx.requestId, ctx.cors);
   }
-
   if (eventType !== 'open' && lastProgress && now - lastProgress < 15000) {
     return error('PROGRESS_RATE_LIMITED', 'انتظر قليلًا قبل تسجيل تقدم جديد.', 429, ctx.requestId, ctx.cors);
   }
 
-  let nextPercent = existing?.progress_percent || 0;
-  if (eventType === 'open') {
-    nextPercent = nextPercent;
-  } else {
-    if (percent < nextPercent) {
-      return ok(ctx, { materialId, progressPercent: nextPercent, completed: nextPercent >= 100, activeSeconds: existing?.active_seconds || 0, accepted: false, reason: 'progress_cannot_decrease', xpAwarded: 0 });
+  const previousPercent = Math.min(100, Math.max(0, Number(existing?.progress_percent || 0)));
+  const previousPage = Math.max(0, Number(existing?.last_page_number || 0));
+  const effectivePageCount = pageCount || Math.max(0, Number(existing?.page_count || 0));
+  let nextPercent = previousPercent;
+  let nextPage = previousPage;
+
+  if (eventType !== 'open') {
+    nextPage = Math.max(previousPage, Math.min(pageNumber, effectivePageCount || pageNumber));
+    const calculatedPercent = effectivePageCount > 0
+      ? Math.min(100, Math.floor((nextPage / effectivePageCount) * 100))
+      : percent;
+    nextPercent = Math.max(previousPercent, calculatedPercent);
+
+    // Progress and XP are both locked until the student has spent about one minute
+    // in this material. Opening/heartbeat events may accumulate active time, but
+    // they cannot move progress or award XP before the threshold is reached.
+    // We intentionally do not bank page rewards while the one-minute gate is active;
+    // once unlocked, only the currently reported page can award its one-time XP.
+    const projectedActiveSeconds = (existing?.active_seconds || 0) + boundedElapsed;
+    if (nextPercent > previousPercent && projectedActiveSeconds < MATERIAL_MIN_ACTIVE_SECONDS) {
+      nextPercent = previousPercent;
+      nextPage = previousPage;
     }
-    if (percent > nextPercent + 25) {
-      return error('PROGRESS_STEP_TOO_LARGE', 'لا يمكن القفز في التقدم بهذه السرعة. سجّل المراحل تدريجيًا.', 422, ctx.requestId, ctx.cors);
+    if (nextPercent >= 100 && projectedActiveSeconds < MATERIAL_MIN_ACTIVE_SECONDS) {
+      nextPercent = previousPercent;
+      nextPage = previousPage;
     }
-    if (percent >= 100 && (existing?.active_seconds || 0) + boundedElapsed < 45) {
-      return error('PROGRESS_COMPLETION_TOO_EARLY', 'أكمل وقتًا كافيًا في الملف قبل تسجيل الإكمال.', 422, ctx.requestId, ctx.cors);
-    }
-    nextPercent = Math.max(nextPercent, percent);
   }
 
   const activeSeconds = Math.min((existing?.active_seconds || 0) + boundedElapsed, 8 * 60 * 60);
   const completed = nextPercent >= 100;
+  const shouldRecordProgress = eventType === 'open' || nextPercent > previousPercent || nextPage > previousPage || activeSeconds !== (existing?.active_seconds || 0);
+
   if (existing) {
-    await ctx.env.DB.prepare(`UPDATE material_progress SET progress_percent = ?, active_seconds = ?, last_opened_at = CURRENT_TIMESTAMP,
-      last_progress_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE last_progress_at END,
-      completed_at = CASE WHEN ? = 1 THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE completed_at END
-      WHERE student_id = ? AND material_id = ?`)
-      .bind(nextPercent, activeSeconds, eventType === 'open' ? 0 : 1, completed ? 1 : 0, a.session.student_id, materialId).run();
+    if (shouldRecordProgress) {
+      await ctx.env.DB.prepare(`UPDATE material_progress SET progress_percent = ?, active_seconds = ?, last_page_number = ?, page_count = ?, last_opened_at = CURRENT_TIMESTAMP,
+        last_progress_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE last_progress_at END,
+        completed_at = CASE WHEN ? = 1 THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE completed_at END
+        WHERE student_id = ? AND material_id = ?`)
+        .bind(nextPercent, activeSeconds, nextPage, effectivePageCount, eventType === 'open' ? 0 : (nextPercent > previousPercent || nextPage > previousPage) ? 1 : 0, completed ? 1 : 0, a.session.student_id, materialId).run();
+    }
   } else {
     await ctx.env.DB.prepare(`INSERT INTO material_progress
-      (id, student_id, material_id, progress_percent, first_opened_at, last_opened_at, completed_at, active_seconds, last_progress_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)`)
-      .bind(crypto.randomUUID(), a.session.student_id, materialId, nextPercent, completed ? new Date().toISOString() : null, activeSeconds, eventType === 'open' ? null : new Date().toISOString()).run();
+      (id, student_id, material_id, progress_percent, first_opened_at, last_opened_at, completed_at, active_seconds, last_progress_at, last_page_number, page_count)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)`)
+      .bind(crypto.randomUUID(), a.session.student_id, materialId, nextPercent, completed ? new Date().toISOString() : null, activeSeconds,
+        eventType === 'open' ? null : new Date().toISOString(), nextPage, effectivePageCount).run();
   }
 
   await ctx.env.DB.prepare(`INSERT INTO material_progress_events
@@ -382,9 +402,22 @@ export async function materialProgress(ctx, materialId) {
     VALUES (?, ?, ?, ?, ?, ?)`)
     .bind(crypto.randomUUID(), a.session.student_id, materialId, eventType, nextPercent, boundedElapsed).run();
 
-  const xpAwarded = await awardProgressXp(ctx, a.session.student_id, materialId, existing?.progress_percent || 0, nextPercent);
+  const xpAwarded = nextPercent > previousPercent || nextPage > previousPage
+    ? await awardProgressXp(ctx, a.session.student_id, materialId, previousPage, nextPage, completed, activeSeconds)
+    : 0;
   const newlyAwardedBadges = await evaluateBadges(ctx, a.session.student_id);
-  return ok(ctx, { materialId, progressPercent: nextPercent, completed, activeSeconds, accepted: true, xpAwarded, newlyAwardedBadges });
+  return ok(ctx, {
+    materialId,
+    progressPercent: nextPercent,
+    completed,
+    activeSeconds,
+    pageNumber: nextPage,
+    pageCount: effectivePageCount,
+    accepted: true,
+    xpAwarded,
+    newlyAwardedBadges,
+    minActiveSeconds: MATERIAL_MIN_ACTIVE_SECONDS,
+  });
 }
 
 export function calculateLevel(totalXp) {
@@ -392,47 +425,43 @@ export function calculateLevel(totalXp) {
   return Math.floor(safe / XP_LEVEL_BASE) + 1;
 }
 
-export async function awardProgressXp(ctx, studentId, materialId, previousPercent, nextPercent) {
-  if (nextPercent <= previousPercent) return 0;
+export async function awardProgressXp(ctx, studentId, materialId, previousPage, nextPage, completed, activeSeconds) {
+  if (activeSeconds < MATERIAL_MIN_ACTIVE_SECONDS || nextPage <= previousPage) return 0;
 
-  const milestones = [
-    { percent: 25, xp: 10, eventType: 'material_progress_25' },
-    { percent: 50, xp: 10, eventType: 'material_progress_50' },
-    { percent: 75, xp: 15, eventType: 'material_progress_75' },
-    { percent: 100, xp: 25, eventType: 'material_complete' },
-  ];
-  const crossed = milestones.filter((m) => previousPercent < m.percent && nextPercent >= m.percent);
-  if (!crossed.length) return 0;
+  const currentPage = Math.min(100000, Math.max(0, Number(nextPage) || 0));
+  const previous = Math.min(currentPage, Math.max(0, Number(previousPage) || 0));
+  const newPage = currentPage > 0 && currentPage !== previous ? currentPage : (currentPage > 0 ? currentPage : 0);
+  const pages = newPage > 0 ? [newPage] : [];
 
-  // The INSERT ... SELECT condition is evaluated inside the same D1 batch
-  // transaction as the milestone inserts. This makes the daily cap an
-  // atomic database rule instead of a read-then-write race in JavaScript.
-  const statements = crossed.map((milestone) => ctx.env.DB.prepare(`
+  const statements = pages.map((page) => ctx.env.DB.prepare(`
     INSERT INTO xp_events (id, student_id, event_type, source_id, xp)
-    SELECT ?, ?, ?, ?, ?
-    WHERE (
-      SELECT COALESCE(SUM(xp), 0)
-      FROM xp_events
-      WHERE student_id = ? AND created_at >= date('now')
-    ) + ? <= ?
+    SELECT ?, ?, 'material_page', ?, ?
+    WHERE (SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=? AND created_at >= date('now')) + ? <= ?
     ON CONFLICT(student_id, event_type, source_id) DO NOTHING
   `).bind(
-    crypto.randomUUID(),
-    studentId,
-    milestone.eventType,
-    materialId,
-    milestone.xp,
-    studentId,
-    milestone.xp,
-    XP_DAILY_CAP,
+    crypto.randomUUID(), studentId, `${materialId}:page:${page}`, XP_MATERIAL_PAGE,
+    studentId, XP_MATERIAL_PAGE, XP_DAILY_CAP,
   ));
 
+  if (completed) {
+    statements.push(ctx.env.DB.prepare(`
+      INSERT INTO xp_events (id, student_id, event_type, source_id, xp)
+      SELECT ?, ?, 'material_complete', ?, ?
+      WHERE (SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=? AND created_at >= date('now')) + ? <= ?
+      ON CONFLICT(student_id, event_type, source_id) DO NOTHING
+    `).bind(
+      crypto.randomUUID(), studentId, materialId, XP_MATERIAL_COMPLETION,
+      studentId, XP_MATERIAL_COMPLETION, XP_DAILY_CAP,
+    ));
+  }
+  if (!statements.length) return 0;
+
   const results = await ctx.env.DB.batch(statements);
-  const awarded = crossed.reduce((sum, milestone, index) => {
-    const changed = Number(results[index]?.meta?.changes || 0);
-    return sum + (changed > 0 ? milestone.xp : 0);
-  }, 0);
-  if (awarded <= 0) return 0;
+  const pageAwarded = pages.length > 0 && Number(results[0]?.meta?.changes || 0) > 0;
+  const completionIndex = pages.length;
+  const completionAwarded = completed && Number(results[completionIndex]?.meta?.changes || 0) > 0 ? XP_MATERIAL_COMPLETION : 0;
+  if (!pageAwarded && completionAwarded <= 0) return 0;
+  const xpAwarded = (pageAwarded ? XP_MATERIAL_PAGE : 0) + completionAwarded;
 
   const total = await queryOne(ctx.env, 'SELECT COALESCE(SUM(xp),0) AS xp_total FROM xp_events WHERE student_id=?', studentId);
   const totalXp = Number(total?.xp_total || 0);
@@ -444,8 +473,7 @@ export async function awardProgressXp(ctx, studentId, materialId, previousPercen
       level = excluded.level,
       updated_at = CURRENT_TIMESTAMP
   `).bind(studentId, totalXp, calculateLevel(totalXp)).run();
-
-  return awarded;
+  return xpAwarded;
 }
 
 export async function evaluateBadges(ctx, studentId) {

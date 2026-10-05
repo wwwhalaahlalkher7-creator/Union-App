@@ -22,6 +22,7 @@ import {
   adminEinoUsage, adminRoute,
 } from './admin.js';
 import { adminDriveSync, adminDriveSyncStatus } from './drive.js';
+import { learningEvents, learningEvent, completeLearningEvent, adminLearningEvents } from './learning_events.js';
 import {
   eino, einoCapabilities, einoModels, einoMemoryList, einoMemoryCreate, einoMemoryDelete,
   einoVision, einoOcr, einoStt, einoTts,
@@ -100,6 +101,9 @@ export default {
       if (path === '/student/notifications/read' && request.method === 'POST') return studentNotificationRead(ctx);
       if (path === '/student/notifications/device' && request.method === 'POST') return registerNotificationDevice(ctx);
       if (path === '/student/notifications/device' && request.method === 'DELETE') return unregisterNotificationDevice(ctx);
+      if (path === '/learning-events' && request.method === 'GET') return learningEvents(ctx);
+      if (/^\/learning-events\/[^/]+$/.test(path) && request.method === 'GET') return learningEvent(ctx, path.split('/')[2]);
+      if (/^\/learning-events\/[^/]+\/complete$/.test(path) && request.method === 'POST') return completeLearningEvent(ctx, path.split('/')[2]);
 
       if (path === '/semesters' && request.method === 'GET') return semesters(ctx);
       if (path === '/departments' && request.method === 'GET') return departments(ctx);
@@ -129,6 +133,9 @@ export default {
       if (path === '/admin/media' && request.method === 'POST') return adminMediaUpload(ctx);
       if (path === '/admin/notifications' && request.method === 'GET') return adminNotifications(ctx);
       if (path === '/admin/notifications/send' && request.method === 'POST') return adminNotificationSend(ctx, null);
+      if (path === '/admin/learning-events' && request.method === 'GET') return adminLearningEvents(ctx);
+      if (path === '/admin/learning-events' && request.method === 'POST') return adminLearningEvents(ctx);
+      if (/^\/admin\/learning-events\/[^/]+$/.test(path)) return adminLearningEvents(ctx, path.split('/')[3]);
       if (path === '/admin/security/auth-events' && request.method === 'GET') return adminAuthEvents(ctx);
       if (path === '/admin/moderation/comments' && request.method === 'GET') return adminModerationComments(ctx);
       if (/^\/admin\/moderation\/comments\/[^/]+$/.test(path) && request.method === 'PATCH') return adminModerationComment(ctx, path.split('/')[4]);

@@ -14,6 +14,7 @@ import '../features/news/media_screen.dart';
 import '../features/news/content_detail_screen.dart';
 import '../data/models/content_item.dart';
 import '../features/notifications/notifications_screen.dart';
+import '../features/learning_events/learning_events_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/recent/recent_screen.dart';
 import '../features/schedule/schedule_screen.dart';
@@ -25,6 +26,7 @@ import '../features/tools/tools_screen.dart';
 import '../features/xp/xp_screen.dart';
 import '../shared/widgets/trinex_shell.dart';
 import '../shared/widgets/student_access_gate.dart';
+
 
 GoRouter buildRouter({
   required ValueChanged<ThemeMode> onThemeModeChanged,
@@ -68,6 +70,8 @@ GoRouter buildRouter({
     GoRoute(path: '/xp', builder: (_, _) => const StudentAccessGate(child: XpScreen())),
     GoRoute(path: '/badges', builder: (_, _) => const StudentAccessGate(child: BadgesScreen())),
     GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
+    GoRoute(path: '/learning-events', builder: (_, _) => const StudentAccessGate(child: LearningEventsScreen())),
+    GoRoute(path: '/learning-events/:id', builder: (_, state) => StudentAccessGate(child: LearningEventRouteScreen(eventId: state.pathParameters['id'] ?? ''))),
     GoRoute(path: '/eino', builder: (_, state) => EinoScreen(source: state.uri.queryParameters['from'] ?? 'home')),
     GoRoute(path: '/account-settings', builder: (_, _) => const StudentAccountScreen()),
     GoRoute(path: '/settings', builder: (_, _) => SettingsScreen(currentThemeMode: themeMode(), onThemeModeChanged: onThemeModeChanged, locale: locale(), onLocaleChanged: onLocaleChanged, accentColorId: accentColorId?.call(), onAccentColorChanged: onAccentColorChanged)),

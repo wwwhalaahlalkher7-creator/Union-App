@@ -18,6 +18,16 @@
     <div class="table-scroll"><table class="data-table"><thead><tr><th>العنوان</th><th>النوع</th><th>النشر</th><th>المستهدفون</th><th>المقروء</th><th></th></tr></thead><tbody id="notificationsBody"></tbody></table></div>
   </section>
 
+
+  <section class="card" id="learningEventsCard" style="margin-top:18px">
+    <div class="card-header">
+      <div><h3>الأحداث</h3><span class="card-header-hint">أنشئ حدثًا بمكافأة XP وتصميم مختلف؛ عند النشر يُنشأ إشعار تلقائيًا للطلاب المستهدفين.</span></div>
+      <button type="button" class="btn btn-primary requires-edit" id="addLearningEventBtn"><i class="fa-solid fa-plus"></i> إضافة حدث</button>
+    </div>
+    <div class="table-scroll"><table class="data-table"><thead><tr><th>اسم الحدث</th><th>التصميم</th><th>XP</th><th>الحالة</th><th>الإكمالات</th><th></th></tr></thead><tbody id="learningEventsBody"></tbody></table></div>
+  </section>
+
+
   <section class="card" id="commentsCard" style="margin-top:18px">
     <div class="card-header"><div><h3>الإشراف على التعليقات</h3><span class="card-header-hint">مراجعة وإخفاء أو إعادة إظهار التعليقات الرسمية</span></div><button type="button" class="btn btn-secondary" id="moderationRefreshBtn"><i class="fa-solid fa-rotate"></i> تحديث</button></div>
     <div id="list"><div class="empty-state">جارٍ التحميل...</div></div>
@@ -26,14 +36,17 @@
 <script src="js/api-adapter.js?v=3.0.3"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/modal.js"></script><script src="js/layout.js"></script>
 <script>
 let notificationRows=[];
+let learningEventRows=[];
 const notificationSchema = Adapter.getContentSchema('announcements');
 
 document.addEventListener('shell:ready',()=>{
   document.getElementById('pageContent').appendChild(document.getElementById('pageTemplate').content.cloneNode(true));
   document.getElementById('moderationRefreshBtn').addEventListener('click', loadModeration);
   document.getElementById('addNotificationBtn').addEventListener('click', () => openNotificationForm(null));
+  document.getElementById('addLearningEventBtn').addEventListener('click', () => openLearningEventForm(null));
   loadNotifications();
   loadModeration();
+  loadLearningEvents();
 });
 
 function notificationFieldHtml(f, record){
@@ -85,6 +98,44 @@ document.addEventListener('click',async ev=>{
     const ok=await Modal.confirmDialog('سيتم حذف الإشعار نهائيًا وإزالة أهدافه وطوابير التسليم المرتبطة به. هل أنت متأكد؟','حذف نهائي'); if(!ok)return;
     try{await Feedback.busy(btn,()=>Adapter.deleteContent('announcements',id),{busyLabel:'جارٍ الحذف...',successMessage:'تم حذف الإشعار نهائيًا',errorPrefix:'تعذّر حذف الإشعار'}); await loadNotifications();}catch(e){}
   }
+});
+
+function openLearningEventForm(id){
+  const record=id?learningEventRows.find(r=>r.id===id):null;
+  const f=record?.fields||{};
+  const bodyHtml=`<form id="learningEventForm" novalidate>
+    <div class="field"><label>اسم الحدث</label><input name="title" required value="${Utils.escapeHtml(f.title||'')}"></div>
+    <div class="field"><label>الوصف</label><textarea name="description">${Utils.escapeHtml(f.description||'')}</textarea></div>
+    <div class="field"><label>تصميم الحدث</label><select name="design"><option value="standard" ${f.design==='standard'?'selected':''}>قياسي</option><option value="challenge" ${f.design==='challenge'?'selected':''}>تحدي</option><option value="checklist" ${f.design==='checklist'?'selected':''}>قائمة مهام</option></select></div>
+    <div class="field"><label>XP</label><input name="xp_reward" type="number" min="0" max="100" step="1" required value="${f.xp_reward??25}"></div>
+    <div class="field"><label>مهام القائمة (اختياري، كل سطر مهمة)</label><textarea name="tasks">${Utils.escapeHtml(Array.isArray(f.tasks)?f.tasks.join('\n'):'')}</textarea></div>
+    <div class="field"><label>القسم المستهدف (اختياري)</label><input name="target_department_id" value="${Utils.escapeHtml(f.target_department_id||'')}"></div>
+    <div class="field"><label>الفصل المستهدف (اختياري)</label><input name="target_semester_id" value="${Utils.escapeHtml(f.target_semester_id||'')}"></div>
+    <div class="field"><label>النشر</label><select name="status"><option value="draft" ${f.status!=='published'?'selected':''}>مسودة</option><option value="published" ${f.status==='published'?'selected':''}>منشور</option></select></div>
+  </form>`;
+  Modal.open({title:record?'تعديل حدث':'إضافة حدث',bodyHtml,buttons:[
+    {label:'إلغاء',className:'btn-secondary',onClick:()=>Modal.close()},
+    {label:record?'حفظ التعديلات':'حفظ الحدث',className:'btn-primary',onClick:btn=>saveLearningEvent(record,btn)}
+  ]});
+}
+async function saveLearningEvent(record,btn){
+  const form=document.getElementById('learningEventForm'); if(!form||!form.reportValidity())return;
+  const tasks=String(form.elements.tasks?.value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const fields={title:form.elements.title.value.trim(),description:form.elements.description.value.trim(),design:form.elements.design.value,xp_reward:Number(form.elements.xp_reward.value||0),target_department_id:form.elements.target_department_id.value.trim()||null,target_semester_id:form.elements.target_semester_id.value.trim()||null,status:form.elements.status.value,config_json:{tasks}};
+  try{await Feedback.busy(btn,()=>record?Adapter.updateLearningEvent(record.id,fields):Adapter.createLearningEvent(fields),{busyLabel:'جارٍ الحفظ...',successMessage:record?'تم حفظ الحدث':'تم إنشاء الحدث',errorPrefix:'تعذّر حفظ الحدث'});Modal.close();await loadLearningEvents();}catch(e){}
+}
+async function loadLearningEvents(){
+  const body=document.getElementById('learningEventsBody'); if(!body)return;
+  await Feedback.loadIntoTable(body,6,()=>Adapter.listLearningEvents(),rows=>{
+    learningEventRows=rows.map(r=>({id:r.id,fields:{title:r.title||'',description:r.description||'',design:r.design||'standard',xp_reward:Number(r.xp_reward||0),status:r.status||'draft',completions:Number(r.completions||0),target_department_id:r.target_department_id||'',target_semester_id:r.target_semester_id||'',tasks:Array.isArray(r.config)?r.config:((r.config&&Array.isArray(r.config.tasks))?r.config.tasks:[])}}));
+    body.innerHTML=learningEventRows.length?learningEventRows.map(r=>`<tr><td>${Utils.escapeHtml(r.fields.title)}</td><td>${r.fields.design==='challenge'?'تحدي':r.fields.design==='checklist'?'قائمة مهام':'قياسي'}</td><td>${Utils.formatNumber(r.fields.xp_reward)}</td><td><span class="badge ${r.fields.status==='published'?'badge-success':'badge-warning'}">${r.fields.status==='published'?'منشور':'مسودة'}</span></td><td>${Utils.formatNumber(r.fields.completions)}</td><td><div class="row-actions requires-edit"><button class="icon-btn" type="button" data-event-action="edit" data-id="${Utils.escapeHtml(r.id)}" title="تعديل"><i class="fa-solid fa-pen"></i></button><button class="icon-btn is-danger" type="button" data-event-action="delete" data-id="${Utils.escapeHtml(r.id)}" title="حذف"><i class="fa-solid fa-trash"></i></button></div></td></tr>`).join(''):'<tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-wand-magic-sparkles"></i>لا توجد أحداث بعد.</div></td></tr>';
+  },{errorPrefix:'تعذّر تحميل الأحداث'});
+}
+document.addEventListener('click',async ev=>{
+  const btn=ev.target.closest('button[data-event-action]');if(!btn)return;
+  const id=btn.dataset.id,action=btn.dataset.eventAction;
+  if(action==='edit')return openLearningEventForm(id);
+  if(action==='delete'){const ok=await Modal.confirmDialog('سيتم حذف الحدث وإشعاره المرتبط نهائيًا. هل أنت متأكد؟','حذف نهائي');if(!ok)return;try{await Feedback.busy(btn,()=>Adapter.deleteLearningEvent(id),{busyLabel:'جارٍ الحذف...',successMessage:'تم حذف الحدث',errorPrefix:'تعذّر حذف الحدث'});await loadLearningEvents();}catch(e){}}
 });
 
 async function loadModeration(){

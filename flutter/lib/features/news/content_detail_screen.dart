@@ -84,7 +84,16 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          onPressed: () => context.go('/media?tab=$mediaTab'),
+          onPressed: () {
+            // Return to the already-open MediaScreen instead of replacing it.
+            // This preserves the exact tab (news/achievements/events) the
+            // student came from. The fallback keeps direct/deep links safe.
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/media?tab=$mediaTab');
+            }
+          },
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: Text(label),

@@ -12,6 +12,7 @@ class MoreScreen extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     const services = <_MoreItem>[
       _MoreItem('notifications', Icons.notifications_none_rounded, '/notifications'),
+      _MoreItem('learningEvents', Icons.auto_awesome_rounded, '/learning-events'),
       _MoreItem('xpLevel', Icons.bolt_rounded, '/xp'),
       _MoreItem('badgesTitle', Icons.emoji_events_outlined, '/badges'),
       _MoreItem('favorites', Icons.favorite_border_rounded, '/favorites'),

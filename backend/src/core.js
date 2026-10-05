@@ -16,6 +16,12 @@ export const AUTH_IP_REFRESH_LIMIT = 30;
 export const PBKDF2_ITERATIONS = 15000;
 export const XP_DAILY_CAP = 500;
 export const XP_LEVEL_BASE = 100;
+// Material XP is based on pages, not file size. Each newly viewed page is worth
+// one XP, with a small one-time completion bonus. The backend de-duplicates pages
+// so revisiting a page cannot farm XP.
+export const XP_MATERIAL_PAGE = 1;
+export const XP_MATERIAL_COMPLETION = 10;
+export const MATERIAL_MIN_ACTIVE_SECONDS = 60;
 export const EINO_MAX_MESSAGE = 4000;
 export const EINO_MAX_CONTEXT = 6000;
 export const EINO_WINDOW_SECONDS = 10 * 60;

@@ -16,10 +16,12 @@ class ProgressRepository {
     return ProgressSnapshot(items: items, summary: summary);
   }
 
-  Future<ProgressUpdate> record({required String materialId, required String eventType, int progressPercent = 0}) async {
+  Future<ProgressUpdate> record({required String materialId, required String eventType, int progressPercent = 0, int pageNumber = 0, int pageCount = 0}) async {
     final json = await _client.postJson('/api/v1/materials/$materialId/progress', body: {
       'eventType': eventType,
       'progressPercent': progressPercent,
+      'pageNumber': pageNumber,
+      'pageCount': pageCount,
     });
     final data = json['data'];
     return ProgressUpdate.fromJson(data is Map ? Map<String, dynamic>.from(data) : const {});
@@ -33,16 +35,22 @@ class ProgressSnapshot {
 }
 
 class ProgressUpdate {
-  const ProgressUpdate({required this.percent, required this.completed, required this.activeSeconds, required this.accepted});
+  const ProgressUpdate({required this.percent, required this.completed, required this.activeSeconds, required this.accepted, this.pageNumber = 0, this.pageCount = 0, this.xpAwarded = 0});
   final int percent;
   final bool completed;
   final int activeSeconds;
   final bool accepted;
+  final int pageNumber;
+  final int pageCount;
+  final int xpAwarded;
 
   factory ProgressUpdate.fromJson(Map<String, dynamic> json) => ProgressUpdate(
     percent: int.tryParse((json['progressPercent'] ?? 0).toString()) ?? 0,
     completed: json['completed'] == true || json['completed'] == 1,
     activeSeconds: int.tryParse((json['activeSeconds'] ?? 0).toString()) ?? 0,
     accepted: json['accepted'] != false,
+    pageNumber: int.tryParse((json['pageNumber'] ?? 0).toString()) ?? 0,
+    pageCount: int.tryParse((json['pageCount'] ?? 0).toString()) ?? 0,
+    xpAwarded: int.tryParse((json['xpAwarded'] ?? 0).toString()) ?? 0,
   );
 }

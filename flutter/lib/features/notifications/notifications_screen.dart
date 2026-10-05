@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
@@ -126,7 +127,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   )
                 else
                   for (final item in items) ...[
-                    _NotificationCard(item: item, onTap: () => _markRead(item)),
+                    _NotificationCard(item: item, onTap: () async {
+                      await _markRead(item);
+                      if (!mounted) return;
+                      if (item.learningEventId != null && item.learningEventId!.isNotEmpty) {
+                        context.push('/learning-events/${item.learningEventId}');
+                      }
+                    }),
                     const SizedBox(height: 10),
                   ],
               ],
@@ -214,6 +221,10 @@ class _NotificationCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(item.body, maxLines: 4, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
+                if (item.learningEventId?.isNotEmpty == true) ...[
+                  const SizedBox(height: 7),
+                  Row(children: [Icon(Icons.bolt_rounded, size: 16, color: cs.primary), const SizedBox(width: 4), Text('${item.learningEventXp} XP', style: TextStyle(fontWeight: FontWeight.w900, color: cs.primary))]),
+                ],
                 if (item.publishAt?.isNotEmpty == true) ...[
                   const SizedBox(height: 7),
                   Text(item.publishAt!, style: Theme.of(context).textTheme.bodySmall),

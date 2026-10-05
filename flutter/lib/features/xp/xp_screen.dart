@@ -311,14 +311,12 @@ class _EventTile extends StatelessWidget {
 
   String _label(AppLocalizations l10n, String type) {
     switch (type) {
-      case 'material_progress_25':
-        return l10n.t('xpEvent25');
-      case 'material_progress_50':
-        return l10n.t('xpEvent50');
-      case 'material_progress_75':
-        return l10n.t('xpEvent75');
+      case 'material_page':
+        return l10n.t('xpEventPage');
       case 'material_complete':
         return l10n.t('xpEventComplete');
+      case 'learning_event_complete':
+        return l10n.t('xpEventLearning');
       default:
         return l10n.t('xpEventOther');
     }
