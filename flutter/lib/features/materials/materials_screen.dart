@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../core/localization/app_localizations.dart';
@@ -80,7 +83,11 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
       _future = future;
     });
 
-    await future;
+    try {
+      await future;
+    } catch (_) {
+      // FutureBuilder owns the visible error state.
+    }
   }
 
   @override
@@ -138,6 +145,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
         MaterialPageRoute(
           builder: (_) => PdfMaterialViewerScreen(
             title: material.name,
+            materialId: material.id,
             url: Uri.parse('${AppConstants.apiBaseUrl}/api/v1/materials/${Uri.encodeComponent(material.id)}/file'),
             accessToken: token,
           ),
@@ -351,11 +359,14 @@ class _MaterialRow extends StatelessWidget {
     return FutureBuilder<ProgressSnapshot>(
       future: progressFuture,
       builder: (context, snapshot) {
-        final progress = snapshot.data?.items.cast<MaterialProgress?>().firstWhere(
-              (item) => item?.materialId == material.id,
-              orElse: () => null,
-            );
-        final percent = (progress?.percent ?? 0).clamp(0, 100);
+        MaterialProgress? progress;
+        for (final item in snapshot.data?.items ?? const <MaterialProgress>[]) {
+          if (item.materialId == material.id) {
+            progress = item;
+            break;
+          }
+        }
+        final percent = ((progress?.percent ?? 0).clamp(0, 100)).toDouble();
         final completed = progress?.completed == true || percent >= 100;
 
         return InkWell(
@@ -443,12 +454,14 @@ String _formatFileSize(int bytes) {
 class PdfMaterialViewerScreen extends StatefulWidget {
   const PdfMaterialViewerScreen({
     required this.title,
+    required this.materialId,
     required this.url,
     required this.accessToken,
     super.key,
   });
 
   final String title;
+  final String materialId;
   final Uri url;
   final String accessToken;
 
@@ -462,46 +475,87 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
     vsync: this,
     duration: const Duration(seconds: 3),
   )..repeat();
-  bool _einoVisible = false;
   Timer? _progressTimer;
-  int _nextProgress = 25;
   ApiClient? _progressClient;
+  File? _localPdf;
+  int _lastReportedProgress = 0;
+  bool _loadingFile = true;
+  Object? _loadError;
+  final PdfViewerController _pdfController = PdfViewerController();
 
   @override
   void initState() {
     super.initState();
-    _startProgressTracking();
+    _loadPdfToDisk();
+  }
+
+  Future<void> _loadPdfToDisk() async {
+    try {
+      final directory = await getTemporaryDirectory();
+      final safeId = widget.materialId.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final file = File('${directory.path}/trinex_material_$safeId.pdf');
+
+      // Reuse a previously downloaded copy when it exists. The server remains
+      // authoritative; the cache only avoids repeating a large download.
+      if (!await file.exists() || await file.length() == 0) {
+        final request = http.Request('GET', widget.url)
+          ..headers['Authorization'] = 'Bearer ${widget.accessToken}'
+          ..headers['Accept'] = 'application/pdf';
+        final response = await request.send().timeout(const Duration(minutes: 3));
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          throw Exception('PDF download failed (${response.statusCode}).');
+        }
+
+        final sink = file.openWrite();
+        try {
+          await response.stream.pipe(sink);
+        } catch (_) {
+          await sink.close();
+          if (await file.exists()) await file.delete();
+          rethrow;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _localPdf = file;
+        _loadingFile = false;
+      });
+      _startProgressTracking();
+      await _sendProgress(10);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e;
+        _loadingFile = false;
+      });
+    }
   }
 
   void _startProgressTracking() {
-    // Reading progress is time-based and only advances while this viewer is
-    // open. This feeds the existing 25/50/75/100 XP milestones without
-    // inventing progress when the student has not actually opened the PDF.
+    // Time is only a conservative reading signal. We deliberately stop at
+    // 75%; 100% is reserved for an actual end-of-document page event.
+    _progressTimer?.cancel();
     _progressTimer = Timer.periodic(const Duration(seconds: 45), (_) {
-      if (!mounted || _nextProgress > 100) return;
-      _sendProgress(_nextProgress);
-      _nextProgress += 25;
+      if (!mounted) return;
+      final next = (_lastReportedProgress + 25).clamp(25, 75);
+      if (next > _lastReportedProgress) _sendProgress(next);
     });
   }
 
   Future<void> _sendProgress(int percent) async {
+    if (percent <= _lastReportedProgress) return;
     try {
       _progressClient ??= await AuthenticatedClient.create();
       await ProgressRepository(_progressClient!).record(
-        materialId: _materialIdFromUrl(),
+        materialId: widget.materialId,
         eventType: percent >= 100 ? 'complete' : 'progress',
         progressPercent: percent,
       );
+      _lastReportedProgress = percent;
     } catch (_) {
       // Progress is auxiliary; a temporary network failure must not close the PDF.
     }
-  }
-
-  String _materialIdFromUrl() {
-    final segments = widget.url.pathSegments;
-    final index = segments.indexOf('materials');
-    if (index >= 0 && index + 1 < segments.length) return Uri.decodeComponent(segments[index + 1]);
-    return '';
   }
 
   @override
@@ -510,13 +564,6 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
     _progressClient?.dispose();
     _pulse.dispose();
     super.dispose();
-  }
-
-  void _summonEino(DragEndDetails details) {
-    final rtl = Directionality.of(context) == TextDirection.rtl;
-    final velocity = details.primaryVelocity ?? 0;
-    final summoned = rtl ? velocity < -350 : velocity > 350;
-    if (summoned && mounted) setState(() => _einoVisible = true);
   }
 
   @override
@@ -531,49 +578,66 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
           overflow: TextOverflow.ellipsis,
         ),
       ),
-      body: Stack(
-        children: [
-          PdfViewer.uri(
-            widget.url,
-            headers: <String, String>{
-              'Authorization': 'Bearer ${widget.accessToken}',
-            },
-            // Google Drive does not reliably honor byte-range requests through
-            // the Worker proxy. Use a normal authenticated download so pdfrx
-            // receives one complete PDF response.
-            preferRangeAccess: false,
-            useProgressiveLoading: false,
-            params: PdfViewerParams(
-              backgroundColor: cs.surfaceContainerHighest,
-              maxImageBytesCachedOnMemory: 64 * 1024 * 1024,
-              verticalCacheExtent: 1.5,
-          // Do not provide an external URL handler here. PDF files are
-          // rendered inside the app and are fetched only from our API proxy.
-              linkHandlerParams: PdfLinkHandlerParams(
-                onLinkTap: (_) {},
-              ),
-            ),
-          ),
-          if (_einoVisible)
-            PositionedDirectional(
-              end: 16,
-              bottom: 18,
-              child: EinoFloatingButton(animation: _pulse),
-            ),
-          PositionedDirectional(
-            start: 0,
-            top: 0,
-            bottom: 0,
-            width: 24,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragEnd: _summonEino,
-            ),
-          ),
-        ],
-      ),
+      body: _loadingFile
+          ? const Center(child: CircularProgressIndicator())
+          : _loadError != null || _localPdf == null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.picture_as_pdf_outlined, size: 48),
+                        const SizedBox(height: 12),
+                        Text(
+                          AppLocalizations.of(context).t('openMaterialFailed'),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _loadingFile = true;
+                              _loadError = null;
+                            });
+                            _loadPdfToDisk();
+                          },
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: Text(AppLocalizations.of(context).t('retry')),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Stack(
+                  children: [
+                    PdfViewer.file(
+                      _localPdf!.path,
+                      controller: _pdfController,
+                      useProgressiveLoading: true,
+                      params: PdfViewerParams(
+                        backgroundColor: cs.surfaceContainerHighest,
+                        maxImageBytesCachedOnMemory: 32 * 1024 * 1024,
+                        verticalCacheExtent: 1.0,
+                        onePassRenderingSizeThreshold: 1600,
+                        onPageChanged: (pageNumber) {
+                          if (pageNumber != null &&
+                              _pdfController.isReady &&
+                              _pdfController.pageCount > 0 &&
+                              pageNumber >= _pdfController.pageCount) {
+                            _sendProgress(100);
+                          }
+                        },
+                        linkHandlerParams: PdfLinkHandlerParams(
+                          onLinkTap: (_) {},
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
     );
   }
+
 }
 
 class _State extends StatelessWidget {

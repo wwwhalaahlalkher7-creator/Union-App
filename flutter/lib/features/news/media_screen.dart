@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/authenticated_client.dart';
@@ -18,18 +17,26 @@ class MediaScreen extends StatefulWidget {
 }
 
 class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStateMixin {
-  late final ApiClient _client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
   late final ContentRepository _repo = ContentRepository();
   late final TabController _tabs = TabController(length: 3, initialIndex: widget.initialTab, vsync: this);
   int _index = 0;
   Future<List<ContentItem>>? _future;
   
   @override void initState() { super.initState(); _index = widget.initialTab; _future = _fetch(); _tabs.addListener(() { if (!_tabs.indexIsChanging) { setState(() => _index = _tabs.index); _load(); }}); }
-  @override void dispose() { _tabs.dispose(); _client.dispose(); super.dispose(); }
+  @override void dispose() { _tabs.dispose(); super.dispose(); }
 
   Future<List<ContentItem>> _fetch() => _index == 0 ? _repo.news() : (_index == 1 ? _repo.achievements() : _repo.events());
   void _load() => setState(() => _future = _fetch());
-  Future<void> _refresh() async { final f = _fetch(); setState(() => _future = f); await f; }
+  Future<void> _refresh() async {
+    final f = _fetch();
+    setState(() => _future = f);
+    try {
+      await f;
+    } catch (_) {
+      // FutureBuilder owns the visible error state; RefreshIndicator should not
+      // surface a second unhandled exception for the same failed request.
+    }
+  }
   String _type() => _index == 0 ? 'news' : (_index == 1 ? 'achievement' : 'event');
 
   @override Widget build(BuildContext context) {
@@ -114,8 +121,35 @@ class _MediaCardState extends State<_MediaCard> {
         PositionedDirectional(top: 10, start: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(8)), child: Text(widget.item.category?.trim().isNotEmpty == true ? widget.item.category! : widget.label, style: TextStyle(color: cs.onPrimaryContainer, fontSize: 9, fontWeight: FontWeight.w800)))),
       ]),
       Padding(padding: const EdgeInsets.fromLTRB(13, 11, 13, 9), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const SizedBox(height: 0),
-        GestureDetector(onTap: widget.onDetails, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Text(widget.item.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, height: 1.35)), if (widget.item.body?.trim().isNotEmpty == true) ...[const SizedBox(height: 5), Text(widget.item.body!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.6, color: cs.onSurfaceVariant))]])),
+        GestureDetector(
+          onTap: widget.onDetails,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(widget.item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, height: 1.35)),
+              if (widget.item.summary?.trim().isNotEmpty == true || widget.item.body?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 5),
+                Text(widget.item.summary?.trim().isNotEmpty == true ? widget.item.summary! : widget.item.body!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.6, color: cs.onSurfaceVariant)),
+              ],
+              if (widget.type == 'event' && (widget.item.location?.trim().isNotEmpty == true || widget.item.eventAt != null)) ...[
+                const SizedBox(height: 7),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 10,
+                  runSpacing: 4,
+                  children: [
+                    if (widget.item.eventAt != null) _Meta(icon: Icons.schedule_rounded, text: _date(widget.item.eventAt)),
+                    if (widget.item.location?.trim().isNotEmpty == true) _Meta(icon: Icons.location_on_outlined, text: widget.item.location!),
+                  ],
+                ),
+              ],
+              if (widget.type == 'achievement' && widget.item.publisher?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 6),
+                _Meta(icon: Icons.workspace_premium_outlined, text: widget.item.publisher!),
+              ],
+            ],
+          ),
+        ),
         const SizedBox(height: 9),
         Row(children: [Text(_date(widget.item.eventAt ?? widget.item.createdAt), style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)), const Spacer(), IconButton(visualDensity: VisualDensity.compact, onPressed: _busy ? null : _like, icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 18, color: _liked ? cs.primary : cs.onSurfaceVariant)), Text('$_likeCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)), const SizedBox(width: 4), IconButton(visualDensity: VisualDensity.compact, onPressed: () => _openComments(context), icon: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: cs.onSurfaceVariant)), Text('${widget.item.commentCount}', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant))])
       ]))
@@ -124,6 +158,63 @@ class _MediaCardState extends State<_MediaCard> {
   void _openComments(BuildContext context) => showModalBottomSheet<void>(context: context, useSafeArea: true, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => ContentCommentsSheet(item: widget.item, type: widget.type));
 }
 String _date(DateTime? d) => d == null ? '' : '${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
-class _MediaImage extends StatelessWidget { const _MediaImage({this.url, required this.label, required this.icon}); final String? url; final String label; final IconData icon; @override Widget build(BuildContext context) { if(url?.trim().isNotEmpty==true) return AspectRatio(aspectRatio:16/7,child:Image.network(url!,fit:BoxFit.cover,errorBuilder:(_,_,_)=>_fallback(context))); return AspectRatio(aspectRatio:16/7,child:_fallback(context)); } Widget _fallback(BuildContext context)=>Container(color:Theme.of(context).colorScheme.surfaceContainerHigh,child:Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(icon,size:34,color:Theme.of(context).colorScheme.primary),const SizedBox(height:6),Text(label,style:TextStyle(fontSize:13,fontWeight:FontWeight.w900,color:Theme.of(context).colorScheme.primary))]))); }
+class _MediaImage extends StatelessWidget {
+  const _MediaImage({this.url, required this.label, required this.icon});
+  final String? url;
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width.clamp(320.0, 900.0);
+    if (url?.trim().isNotEmpty == true) {
+      return AspectRatio(
+        aspectRatio: 16 / 7,
+        child: Image.network(
+          url!,
+          fit: BoxFit.cover,
+          cacheWidth: (width * MediaQuery.devicePixelRatioOf(context)).round(),
+          filterQuality: FilterQuality.low,
+          errorBuilder: (_, _, _) => _fallback(context),
+        ),
+      );
+    }
+    return AspectRatio(aspectRatio: 16 / 7, child: _fallback(context));
+  }
+
+  Widget _fallback(BuildContext context) => Container(
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 34, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 6),
+              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary)),
+            ],
+          ),
+        ),
+      );
+}
+
+class _Meta extends StatelessWidget {
+  const _Meta({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 3),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ),
+        ],
+      );
+}
+
 class _MediaState extends StatelessWidget { const _MediaState({required this.icon,required this.message,this.retry,this.compact=false}); final IconData icon;final String message;final VoidCallback? retry;final bool compact;@override Widget build(BuildContext context)=>Center(child:Padding(padding:EdgeInsets.all(compact?26:40),child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(icon,size:48,color:Theme.of(context).colorScheme.onSurfaceVariant),const SizedBox(height:10),Text(message,textAlign:TextAlign.center,style:const TextStyle(fontSize:12)),if(retry!=null)...[const SizedBox(height:12),FilledButton.icon(onPressed:retry,icon:const Icon(Icons.refresh_rounded,size:17),label:Text(AppLocalizations.of(context).t('retry')))]])));
 }

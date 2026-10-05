@@ -53,7 +53,13 @@ GoRouter buildRouter({
         final initialTab = rawTab.clamp(0, 2).toInt();
         return MediaScreen(initialTab: initialTab);
       }),
-      GoRoute(path: '/media/detail', builder: (_, state) { final data = state.extra! as Map<String, dynamic>; return ContentDetailScreen(item: data['item'] as ContentItem, type: data['type'] as String); }),
+      GoRoute(path: '/media/detail', builder: (_, state) {
+        final extra = state.extra;
+        if (extra is Map<String, dynamic> && extra['item'] is ContentItem && extra['type'] is String) {
+          return ContentDetailScreen(item: extra['item'] as ContentItem, type: extra['type'] as String);
+        }
+        return const MediaScreen();
+      }),
     ]),
     GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
     GoRoute(path: '/market', builder: (_, _) => const MarketScreen()),

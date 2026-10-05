@@ -31,14 +31,17 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   }
 
   Future<void> _loadDetail() async {
-    final client = await AuthenticatedClient.create();
     try {
       final item = await ContentRepository().detail(widget.type, widget.item.id);
-      if (mounted) setState(() { _fresh = item; _liked = item.myReaction == 'like'; _likeCount = item.likeCount; });
+      if (mounted) {
+        setState(() {
+          _fresh = item;
+          _liked = item.myReaction == 'like';
+          _likeCount = item.likeCount;
+        });
+      }
     } catch (_) {
       // The list item is already usable; detail refresh is best-effort.
-    } finally {
-      client.dispose();
     }
   }
 
@@ -72,8 +75,8 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         : (item.imageUrl?.trim().isNotEmpty == true ? [item.imageUrl!] : const <String>[]);
     final label = widget.type == 'news'
         ? l10n.t('news')
-        : widget.type == 'event'
-            ? l10n.t('events')
+        : widget.type == 'achievement'
+            ? l10n.t('achievements')
             : l10n.t('events');
 
     final mediaTab = widget.type == 'achievement' ? 1 : widget.type == 'event' ? 2 : 0;
@@ -171,6 +174,8 @@ class _Gallery extends StatelessWidget {
             images.first,
             width: double.infinity,
             fit: BoxFit.contain,
+            cacheWidth: (MediaQuery.sizeOf(context).width * MediaQuery.devicePixelRatioOf(context)).round(),
+            filterQuality: FilterQuality.low,
             errorBuilder: (_, _, _) => const _Fallback(label: '', icon: Icons.broken_image_outlined),
           ),
         ),
@@ -191,6 +196,8 @@ class _Gallery extends StatelessWidget {
                 child: Image.network(
                   images[index + 1],
                   fit: BoxFit.cover,
+                  cacheWidth: (MediaQuery.sizeOf(context).width / 3 * MediaQuery.devicePixelRatioOf(context)).round(),
+                  filterQuality: FilterQuality.low,
                   errorBuilder: (_, _, _) => Container(
                     color: Theme.of(context).colorScheme.surfaceContainerHigh,
                     child: const Icon(Icons.broken_image_outlined),

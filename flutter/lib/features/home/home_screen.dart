@@ -177,10 +177,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _Tile(
-                      l10n.t('schedule'),
-                      Icons.calendar_month_rounded,
+                      l10n.t('media'),
+                      Icons.newspaper_rounded,
                       context.colors.primary,
-                      () => context.push('/schedule'),
+                      () => context.go('/media'),
                     ),
                   ),
                   const SizedBox(width: 8),
