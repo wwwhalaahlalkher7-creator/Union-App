@@ -1,12 +1,18 @@
 import '../../core/network/api_client.dart';
 import '../models/comment_item.dart';
 
+class CommentPage {
+  const CommentPage({required this.items, required this.total});
+  final List<CommentItem> items;
+  final int total;
+}
+
 class InteractionsRepository {
   InteractionsRepository(this._client);
 
   final ApiClient _client;
 
-  Future<List<CommentItem>> comments(
+  Future<CommentPage> commentsPage(
     String type,
     String id, {
     int offset = 0,
@@ -16,17 +22,25 @@ class InteractionsRepository {
       query: {'limit': '20', 'offset': '$offset'},
     );
     final rows = json['data'];
-    if (rows is! List) return const [];
-    return rows
-        .whereType<Map>()
-        .map((row) => CommentItem.fromJson(Map<String, dynamic>.from(row)))
-        .toList();
+    final items = rows is List
+        ? rows
+            .whereType<Map>()
+            .map((row) => CommentItem.fromJson(Map<String, dynamic>.from(row)))
+            .toList()
+        : const <CommentItem>[];
+    return CommentPage(items: items, total: _toInt(json['meta']?['total'] ?? json['total'] ?? items.length));
   }
+
+  Future<List<CommentItem>> comments(
+    String type,
+    String id, {
+    int offset = 0,
+  }) async => (await commentsPage(type, id, offset: offset)).items;
 
   Future<List<CommentItem>> replies(String id, {int offset = 0}) async {
     final json = await _client.getJson(
       '/api/v1/comments/$id/replies',
-      query: {'limit': '20', 'offset': '$offset'},
+      query: {'limit': '50', 'offset': '$offset'},
     );
     final rows = json['data'];
     if (rows is! List) return const [];
@@ -76,3 +90,5 @@ class InteractionsRepository {
     await _client.deleteJson('/api/v1/comments/$id');
   }
 }
+
+int _toInt(dynamic value) => value is int ? value : int.tryParse(value?.toString() ?? '') ?? 0;

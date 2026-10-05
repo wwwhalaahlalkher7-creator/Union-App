@@ -3,9 +3,9 @@ import '../../core/network/authenticated_client.dart';
 import '../models/content_item.dart';
 
 class ContentRepository {
-  Future<List<ContentItem>> news() => _list('/api/v1/public/news');
-  Future<List<ContentItem>> events() => _list('/api/v1/public/events');
-  Future<List<ContentItem>> achievements() => _list('/api/v1/public/achievements');
+  Future<List<ContentItem>> news({bool forceRefresh = false}) => _list('/api/v1/public/news', forceRefresh: forceRefresh);
+  Future<List<ContentItem>> events({bool forceRefresh = false}) => _list('/api/v1/public/events', forceRefresh: forceRefresh);
+  Future<List<ContentItem>> achievements({bool forceRefresh = false}) => _list('/api/v1/public/achievements', forceRefresh: forceRefresh);
 
   Future<ContentItem> detail(String type, String id) async {
     final client = await AuthenticatedClient.create();
@@ -25,12 +25,13 @@ class ContentRepository {
 
   String _publicRoute(String type) => type == 'event' ? 'events' : type == 'achievement' ? 'achievements' : type;
 
-  Future<List<ContentItem>> _list(String path) async {
+  Future<List<ContentItem>> _list(String path, {bool forceRefresh = false}) async {
     final client = await AuthenticatedClient.create();
     try {
       final json = await client.getJson(
         path,
         cacheTtl: const Duration(seconds: 45),
+        forceRefresh: forceRefresh,
       );
       final records = json['data'];
       if (records is! List) return const [];

@@ -22,13 +22,18 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
   int _index = 0;
   Future<List<ContentItem>>? _future;
   
-  @override void initState() { super.initState(); _index = widget.initialTab; _future = _fetch(); _tabs.addListener(() { if (!_tabs.indexIsChanging) { setState(() => _index = _tabs.index); _load(); }}); }
+  @override void initState() { super.initState(); _index = widget.initialTab; _future = _fetch(forceRefresh: true); _tabs.addListener(() { if (!_tabs.indexIsChanging) { setState(() => _index = _tabs.index); _load(); }}); }
   @override void dispose() { _tabs.dispose(); super.dispose(); }
 
-  Future<List<ContentItem>> _fetch() => _index == 0 ? _repo.news() : (_index == 1 ? _repo.achievements() : _repo.events());
-  void _load() => setState(() => _future = _fetch());
+  Future<List<ContentItem>> _fetch({bool forceRefresh = false}) => _index == 0 ? _repo.news(forceRefresh: forceRefresh) : (_index == 1 ? _repo.achievements(forceRefresh: forceRefresh) : _repo.events(forceRefresh: forceRefresh));
+  void _load() { if (mounted) setState(() => _future = _fetch(forceRefresh: true)); }
+
+  Future<void> _openDetail(ContentItem item) async {
+    await context.push('/media/detail?type=${Uri.encodeQueryComponent(_type())}&id=${Uri.encodeQueryComponent(item.id)}');
+    if (mounted) _load();
+  }
   Future<void> _refresh() async {
-    final f = _fetch();
+    final f = _fetch(forceRefresh: true);
     setState(() => _future = f);
     try {
       await f;
@@ -38,6 +43,15 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
     }
   }
   String _type() => _index == 0 ? 'news' : (_index == 1 ? 'achievement' : 'event');
+
+  @override
+  void didUpdateWidget(covariant _MediaCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.id != widget.item.id || oldWidget.item.likeCount != widget.item.likeCount || oldWidget.item.myReaction != widget.item.myReaction) {
+      _liked = widget.item.myReaction == 'like';
+      _likeCount = widget.item.likeCount;
+    }
+  }
 
   @override Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -78,7 +92,7 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
               if (items.isEmpty) _MediaState(icon: icons[_index], message: l10n.t('noData'), compact: true)
               else for (final item in items) Padding(
                 padding: const EdgeInsets.only(bottom: 11),
-                child: _MediaCard(item: item, type: _type(), label: labels[_index], onDetails: () => context.push('/media/detail?type=${Uri.encodeQueryComponent(_type())}&id=${Uri.encodeQueryComponent(item.id)}')),
+                child: _MediaCard(item: item, type: _type(), label: labels[_index], onDetails: () => _openDetail(item), onInteractionChanged: _load),
               ),
             ],
           );
@@ -89,8 +103,8 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
 }
 
 class _MediaCard extends StatefulWidget {
-  const _MediaCard({required this.item, required this.type, required this.label, required this.onDetails});
-  final ContentItem item; final String type; final String label; final VoidCallback onDetails;
+  const _MediaCard({required this.item, required this.type, required this.label, required this.onDetails, required this.onInteractionChanged});
+  final ContentItem item; final String type; final String label; final VoidCallback onDetails; final VoidCallback onInteractionChanged;
   @override State<_MediaCard> createState() => _MediaCardState();
 }
 class _MediaCardState extends State<_MediaCard> {
@@ -107,10 +121,18 @@ class _MediaCardState extends State<_MediaCard> {
       final repo = InteractionsRepository(client);
       if (_liked) {
         await repo.unreact(widget.type, widget.item.id);
-        if (mounted) setState(() { _liked = false; _likeCount = _likeCount > 0 ? _likeCount - 1 : 0; });
+        if (mounted) {
+          setState(() { _liked = false; _likeCount = _likeCount > 0 ? _likeCount - 1 : 0; });
+          _feedback(AppLocalizations.of(context).t('unlikeSuccess'));
+          widget.onInteractionChanged();
+        }
       } else {
         await repo.react(widget.type, widget.item.id, 'like');
-        if (mounted) setState(() { _liked = true; _likeCount += 1; });
+        if (mounted) {
+          setState(() { _liked = true; _likeCount += 1; });
+          _feedback(AppLocalizations.of(context).t('likeSuccess'));
+          widget.onInteractionChanged();
+        }
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(context).t('likeFailed'))));
@@ -124,7 +146,7 @@ class _MediaCardState extends State<_MediaCard> {
     return AppCard(padding: EdgeInsets.zero, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Stack(children: [
         _MediaImage(url: image, label: widget.label, icon: widget.type == 'news' ? Icons.article_rounded : (widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.event_available_rounded)),
-        PositionedDirectional(top: 10, start: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(8)), child: Text(widget.item.category?.trim().isNotEmpty == true ? widget.item.category! : widget.label, style: TextStyle(color: cs.onPrimaryContainer, fontSize: 9, fontWeight: FontWeight.w800)))),
+        PositionedDirectional(top: 10, start: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(8)), child: Text((widget.type == 'achievement' && widget.item.badge?.trim().isNotEmpty == true) ? widget.item.badge! : (widget.item.category?.trim().isNotEmpty == true ? widget.item.category! : widget.label), style: TextStyle(color: cs.onPrimaryContainer, fontSize: 9, fontWeight: FontWeight.w800)))),
       ]),
       Padding(padding: const EdgeInsets.fromLTRB(13, 11, 13, 9), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         GestureDetector(
@@ -137,14 +159,15 @@ class _MediaCardState extends State<_MediaCard> {
                 const SizedBox(height: 5),
                 Text(widget.item.summary?.trim().isNotEmpty == true ? widget.item.summary! : widget.item.body!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.6, color: cs.onSurfaceVariant)),
               ],
-              if (widget.type == 'event' && (widget.item.location?.trim().isNotEmpty == true || widget.item.eventAt != null)) ...[
+              if (widget.type == 'event' && (widget.item.location?.trim().isNotEmpty == true || widget.item.eventAt != null || widget.item.endAt != null)) ...[
                 const SizedBox(height: 7),
                 Wrap(
                   alignment: WrapAlignment.end,
                   spacing: 10,
                   runSpacing: 4,
                   children: [
-                    if (widget.item.eventAt != null) _Meta(icon: Icons.schedule_rounded, text: _date(widget.item.eventAt)),
+                    if (widget.item.eventAt != null) _Meta(icon: Icons.schedule_rounded, text: '${AppLocalizations.of(context).t('eventStart')}: ${_date(widget.item.eventAt)}'),
+                    _Meta(icon: Icons.event_available_rounded, text: '${AppLocalizations.of(context).t('eventEnd')}: ${widget.item.endAt != null ? _date(widget.item.endAt) : AppLocalizations.of(context).t('eventEndNotSet')}'),
                     if (widget.item.location?.trim().isNotEmpty == true) _Meta(icon: Icons.location_on_outlined, text: widget.item.location!),
                   ],
                 ),
@@ -157,11 +180,21 @@ class _MediaCardState extends State<_MediaCard> {
           ),
         ),
         const SizedBox(height: 9),
-        Row(children: [Text(_date(widget.item.eventAt ?? widget.item.createdAt), style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)), const Spacer(), IconButton(visualDensity: VisualDensity.compact, onPressed: _busy ? null : _like, icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 18, color: _liked ? cs.primary : cs.onSurfaceVariant)), Text('$_likeCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)), const SizedBox(width: 4), IconButton(visualDensity: VisualDensity.compact, onPressed: () => _openComments(context), icon: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: cs.onSurfaceVariant)), Text('${widget.item.commentCount}', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant))])
+        Row(children: [if (widget.type != 'event') Text(_date(widget.item.eventAt ?? widget.item.createdAt), style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)), if (widget.type == 'event') const SizedBox.shrink(), const Spacer(), IconButton(visualDensity: VisualDensity.compact, onPressed: _busy ? null : _like, icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 18, color: _liked ? cs.primary : cs.onSurfaceVariant)), Text('$_likeCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)), const SizedBox(width: 4), IconButton(visualDensity: VisualDensity.compact, onPressed: () => _openComments(context), icon: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: cs.onSurfaceVariant)), Text('${widget.item.commentCount}', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant))])
       ]))
     ]));
   }
-  void _openComments(BuildContext context) => showModalBottomSheet<void>(context: context, useSafeArea: true, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => ContentCommentsSheet(item: widget.item, type: widget.type));
+  void _openComments(BuildContext context) async {
+    await showModalBottomSheet<void>(context: context, useSafeArea: true, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => ContentCommentsSheet(item: widget.item, type: widget.type, onCommentCountChanged: (_) => widget.onInteractionChanged()));
+    widget.onInteractionChanged();
+  }
+
+  void _feedback(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(milliseconds: 1400)));
+  }
 }
 String _date(DateTime? d) => d == null ? '' : '${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
 class _MediaImage extends StatelessWidget {

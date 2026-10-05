@@ -23,6 +23,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   String? _error;
   bool _liked = false;
   int _likeCount = 0;
+  int _commentCount = 0;
   bool _busy = false;
 
   @override
@@ -40,6 +41,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         _fresh = item;
         _liked = item.myReaction == 'like';
         _likeCount = item.likeCount;
+        _commentCount = item.commentCount;
         _loading = false;
       });
     } catch (e) {
@@ -62,10 +64,16 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
       final repo = InteractionsRepository(client);
       if (_liked) {
         await repo.unreact(widget.type, current.id);
-        if (mounted) setState(() { _liked = false; _likeCount = _likeCount > 0 ? _likeCount - 1 : 0; });
+        if (mounted) {
+          setState(() { _liked = false; _likeCount = _likeCount > 0 ? _likeCount - 1 : 0; });
+          _feedback(AppLocalizations.of(context).t('unlikeSuccess'));
+        }
       } else {
         await repo.react(widget.type, current.id, 'like');
-        if (mounted) setState(() { _liked = true; _likeCount += 1; });
+        if (mounted) {
+          setState(() { _liked = true; _likeCount += 1; });
+          _feedback(AppLocalizations.of(context).t('likeSuccess'));
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -77,6 +85,13 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
       client?.dispose();
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _feedback(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(milliseconds: 1400)));
   }
 
   @override
@@ -117,6 +132,13 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        title: Text(
+          widget.type == 'achievement' && item.badge?.trim().isNotEmpty == true
+              ? item.badge!
+              : label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         leading: IconButton(
           onPressed: () {
             // Return to the already-open MediaScreen instead of replacing it.
@@ -130,7 +152,6 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
           },
           icon: const Icon(Icons.arrow_back_rounded),
         ),
-        title: Text(label),
       ),
       body: ListView(
         padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 12, 28),
@@ -144,21 +165,14 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(8)),
-                    child: Text(
-                      item.category?.trim().isNotEmpty == true ? item.category! : label,
-                      style: TextStyle(color: cs.onPrimaryContainer, fontSize: 9, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
                 Text(item.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, height: 1.35)),
                 const SizedBox(height: 7),
-                Text(_date(item.eventAt ?? item.createdAt), style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)),
+                if (widget.type == 'event') ...[
+                  if (item.eventAt != null) Text('${l10n.t('eventStart')}: ${_date(item.eventAt)}', style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+                  const SizedBox(height: 4),
+                  Text('${l10n.t('eventEnd')}: ${item.endAt != null ? _date(item.endAt) : l10n.t('eventEndNotSet')}', style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+                ] else
+                  Text(_date(item.eventAt ?? item.createdAt), style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)),
                 if (item.location?.trim().isNotEmpty == true) ...[
                   const SizedBox(height: 5),
                   Text(item.location!, style: TextStyle(fontSize: 10.5, color: cs.onSurfaceVariant)),
@@ -180,10 +194,6 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                     ]),
                   )),
                 ],
-                if (widget.type == 'achievement' && item.badge?.trim().isNotEmpty == true) ...[
-                  const SizedBox(height: 6),
-                  Row(children: [Icon(Icons.workspace_premium_rounded, size: 18, color: cs.primary), const SizedBox(width: 7), Expanded(child: Text(item.badge!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)))]),
-                ],
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
@@ -197,7 +207,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                     OutlinedButton.icon(
                       onPressed: () => _openComments(context, item),
                       icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-                      label: Text('${l10n.t('comments')} ${item.commentCount}'),
+                      label: Text('${l10n.t('comments')} $_commentCount'),
                     ),
                   ],
                 ),
@@ -209,14 +219,17 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     );
   }
 
-  void _openComments(BuildContext context, ContentItem item) {
-    showModalBottomSheet<void>(
+  Future<void> _openComments(BuildContext context, ContentItem item) async {
+    await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => ContentCommentsSheet(item: item, type: widget.type),
+      builder: (_) => ContentCommentsSheet(item: item, type: widget.type, onCommentCountChanged: (count) {
+        if (mounted) setState(() => _commentCount = count);
+      }),
     );
+    if (mounted) _loadDetail();
   }
 }
 
@@ -299,9 +312,10 @@ class _Fallback extends StatelessWidget {
 }
 
 class ContentCommentsSheet extends StatefulWidget {
-  const ContentCommentsSheet({required this.item, required this.type, super.key});
+  const ContentCommentsSheet({required this.item, required this.type, this.onCommentCountChanged, super.key});
   final ContentItem item;
   final String type;
+  final ValueChanged<int>? onCommentCountChanged;
 
   @override
   State<ContentCommentsSheet> createState() => _ContentCommentsSheetState();
@@ -312,6 +326,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   Future<List<CommentItem>>? _future;
   final _controller = TextEditingController();
   bool _sending = false;
+  int _commentCount = 0;
   final Map<String, List<CommentItem>> _replies = <String, List<CommentItem>>{};
   final Set<String> _expandedReplies = <String>{};
   final Set<String> _loadingReplies = <String>{};
@@ -319,6 +334,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   @override
   void initState() {
     super.initState();
+    _commentCount = widget.item.commentCount;
     _load();
   }
 
@@ -328,7 +344,12 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
 
   Future<List<CommentItem>> _fetch() async {
     _client ??= await AuthenticatedClient.create();
-    return InteractionsRepository(_client!).comments(widget.type, widget.item.id);
+    final page = await InteractionsRepository(_client!).commentsPage(widget.type, widget.item.id);
+    if (mounted) {
+      setState(() => _commentCount = page.total);
+      widget.onCommentCountChanged?.call(page.total);
+    }
+    return page.items;
   }
 
   Future<void> _send() async {
@@ -339,6 +360,11 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
       _client ??= await AuthenticatedClient.create();
       await InteractionsRepository(_client!).addComment(widget.type, widget.item.id, text);
       _controller.clear();
+      if (mounted) {
+        setState(() => _commentCount += 1);
+        widget.onCommentCountChanged?.call(_commentCount);
+        _feedback(AppLocalizations.of(context).t('commentSuccess'));
+      }
       _load();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(context).t('commentFailed'))));
@@ -354,17 +380,32 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
       final repo = InteractionsRepository(client);
       if (comment.liked) {
         await repo.unreactComment(comment.id);
+        if (mounted) {
+          _replaceComment(comment.copyWith(liked: false, reactionCount: comment.reactionCount > 0 ? comment.reactionCount - 1 : 0));
+          _feedback(AppLocalizations.of(context).t('unlikeSuccess'));
+        }
       } else {
         await repo.reactComment(comment.id, 'like');
-      }
-      if (mounted) {
-        setState(() => _future = _fetch());
+        if (mounted) {
+          _replaceComment(comment.copyWith(liked: true, reactionCount: comment.reactionCount + 1));
+          _feedback(AppLocalizations.of(context).t('likeSuccess'));
+        }
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(context).t('commentReactionFailed'))));
     } finally {
       client?.dispose();
     }
+  }
+
+  void _replaceComment(CommentItem updated) {
+    final future = _future;
+    if (future == null) return;
+    future.then((items) {
+      if (!mounted) return;
+      final next = items.map((item) => item.id == updated.id ? updated : item).toList();
+      setState(() => _future = Future.value(next));
+    });
   }
 
   Future<void> _toggleReplies(CommentItem comment) async {
@@ -411,13 +452,28 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
       if (mounted) {
         _replies.remove(comment.id);
         _expandedReplies.add(comment.id);
+        _loadingReplies.add(comment.id);
+        _feedback(AppLocalizations.of(context).t('replySuccess'));
       }
       _load();
+      try {
+        final rows = await InteractionsRepository(client).replies(comment.id);
+        if (mounted) setState(() => _replies[comment.id] = rows);
+      } finally {
+        if (mounted) setState(() => _loadingReplies.remove(comment.id));
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(context).t('commentFailed'))));
     } finally {
       client?.dispose();
     }
+  }
+
+  void _feedback(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(milliseconds: 1400)));
   }
 
   @override

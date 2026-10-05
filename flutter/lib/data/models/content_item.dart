@@ -12,6 +12,7 @@ class ContentItem {
     this.category,
     this.publisher,
     this.eventAt,
+    this.endAt,
     this.location,
     this.commentCount = 0,
     this.likeCount = 0,
@@ -32,6 +33,7 @@ class ContentItem {
   final String? category;
   final String? publisher;
   final DateTime? eventAt;
+  final DateTime? endAt;
   final String? location;
   final int commentCount;
   final int likeCount;
@@ -78,6 +80,7 @@ class ContentItem {
       category: fields['category']?.toString(),
       publisher: fields['publisher']?.toString(),
       eventAt: parseDate(fields['eventAt'] ?? fields['event_at']),
+      endAt: parseDate(fields['endAt'] ?? fields['end_at']),
       location: fields['location']?.toString(),
       commentCount: _toInt(fields['commentCount'] ?? fields['comment_count']),
       likeCount: _toInt(fields['likeCount'] ?? fields['like_count']),
