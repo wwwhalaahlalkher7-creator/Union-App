@@ -50,11 +50,19 @@ class InteractionsRepository {
     );
   }
 
+  Future<void> unreactComment(String commentId) async {
+    await _client.deleteJson('/api/v1/comments/$commentId/reactions');
+  }
+
   Future<void> reactComment(String commentId, String reaction) async {
     await _client.postJson(
       '/api/v1/comments/$commentId/reactions',
       body: {'reaction': reaction},
     );
+  }
+
+  Future<void> unreact(String type, String id) async {
+    await _client.deleteJson('/api/v1/content/$type/$id/reactions');
   }
 
   Future<void> react(String type, String id, String reaction) async {

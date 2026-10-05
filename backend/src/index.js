@@ -14,11 +14,11 @@ import {
   progress, xp, badges, materialProgress,
 } from './academic.js';
 import {
-  comments, createComment, replies, createReply, reaction, commentReaction, deleteComment,
+  comments, createComment, replies, createReply, reaction, removeReaction, commentReaction, removeCommentReaction, deleteComment,
 } from './interactions.js';
 import {
   adminNotifications, adminNotificationSend,
-  adminAuthEvents, adminModerationComments, adminModerationComment, adminDashboardOverview,
+  adminAuthEvents, adminModerationComments, adminModerationComment, adminModerationReplies, adminModerationReply, adminDeleteReply, adminDashboardOverview,
   adminEinoUsage, adminRoute,
 } from './admin.js';
 import { adminDriveSync, adminDriveSyncStatus } from './drive.js';
@@ -125,7 +125,9 @@ export default {
       if (/^\/comments\/[^/]+\/replies$/.test(path) && request.method === 'GET') return replies(ctx);
       if (/^\/comments\/[^/]+\/replies$/.test(path) && request.method === 'POST') return createReply(ctx);
       if (/^\/content\/[^/]+\/[^/]+\/reactions$/.test(path) && request.method === 'POST') return reaction(ctx);
+      if (/^\/content\/[^/]+\/[^/]+\/reactions$/.test(path) && request.method === 'DELETE') return removeReaction(ctx);
       if (/^\/comments\/[^/]+\/reactions$/.test(path) && request.method === 'POST') return commentReaction(ctx);
+      if (/^\/comments\/[^/]+\/reactions$/.test(path) && request.method === 'DELETE') return removeCommentReaction(ctx);
       if (/^\/comments\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteComment(ctx, path.split('/')[2]);
 
       if (path === '/admin/drive/sync' && request.method === 'POST') return adminDriveSync(ctx);
@@ -139,6 +141,9 @@ export default {
       if (path === '/admin/security/auth-events' && request.method === 'GET') return adminAuthEvents(ctx);
       if (path === '/admin/moderation/comments' && request.method === 'GET') return adminModerationComments(ctx);
       if (/^\/admin\/moderation\/comments\/[^/]+$/.test(path) && request.method === 'PATCH') return adminModerationComment(ctx, path.split('/')[4]);
+      if (path === '/admin/moderation/replies' && request.method === 'GET') return adminModerationReplies(ctx);
+      if (/^\/admin\/moderation\/replies\/[^/]+$/.test(path) && request.method === 'PATCH') return adminModerationReply(ctx, path.split('/')[4]);
+      if (/^\/admin\/moderation\/replies\/[^/]+$/.test(path) && request.method === 'DELETE') return adminDeleteReply(ctx, path.split('/')[4]);
       if (path === '/admin/dashboard/overview' && request.method === 'GET') return adminDashboardOverview(ctx);
       if (path === '/admin/security/eino-usage' && request.method === 'GET') return adminEinoUsage(ctx);
       if (path.startsWith('/admin/')) return adminRoute(ctx);

@@ -50,9 +50,37 @@ const ADMIN_SELECT_COLUMNS = {
   badges: 'id,name_ar,description_ar,icon_url,rule_type,rule_value,active,sort_order,created_at,updated_at',
   comments: 'id,student_id,content_type,content_id,body,status,created_at,updated_at',
 };
-export async function adminModerationComments(ctx) { const a=await requireAdminPermission(ctx, 'moderation.read'); if(a.response) return a.response; const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,'SELECT c.*,s.full_name,s.student_number FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?',status,limit); return ok(ctx,rows,{count:rows.length}); }
+export async function adminModerationComments(ctx) { const a=await requireAdminPermission(ctx, 'moderation.read'); if(a.response) return a.response; const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,"SELECT c.*,s.full_name,s.student_number, (SELECT COUNT(*) FROM comment_replies cr WHERE cr.comment_id=c.id AND cr.status='visible') AS reply_count FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?",status,limit); return ok(ctx,rows,{count:rows.length}); }
 
 export async function adminModerationComment(ctx,id) { const a=await requireAdminPermission(ctx, 'moderation.write'); if(a.response) return a.response; const body=await parseJson(ctx.request); const status=String(body?.status||'').trim(); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const r=await ctx.env.DB.prepare('UPDATE comments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run(); if(!r.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,a.session.staff_user_id,'status_update','comment',id,{status}); return ok(ctx,{id,status}); }
+
+export async function adminModerationReplies(ctx) {
+  const a = await requireAdminPermission(ctx, 'moderation.read'); if (a.response) return a.response;
+  const status = String(ctx.url.searchParams.get('status') || 'visible');
+  if (!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors);
+  const limit = clampInt(ctx.url.searchParams.get('limit'),50,1,100);
+  const rows = await queryAll(ctx.env, "SELECT r.*, s.full_name, c.body AS comment_body, c.content_type, c.content_id FROM comment_replies r JOIN students s ON s.id=r.student_id JOIN comments c ON c.id=r.comment_id WHERE r.status=? ORDER BY r.created_at DESC LIMIT ?", status, limit);
+  return ok(ctx, rows, {count:rows.length});
+}
+
+export async function adminModerationReply(ctx,id) {
+  const a = await requireAdminPermission(ctx, 'moderation.write'); if (a.response) return a.response;
+  const body = await parseJson(ctx.request);
+  const status = String(body?.status || '').trim();
+  if (!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors);
+  const r = await ctx.env.DB.prepare('UPDATE comment_replies SET status=? WHERE id=?').bind(status,id).run();
+  if (!r.meta?.changes) return error('REPLY_NOT_FOUND','الرد غير موجود.',404,ctx.requestId,ctx.cors);
+  await writeAudit(ctx,a.session.staff_user_id,'status_update','comment_reply',id,{status});
+  return ok(ctx,{id,status});
+}
+
+export async function adminDeleteReply(ctx,id) {
+  const a = await requireAdminPermission(ctx, 'moderation.write'); if (a.response) return a.response;
+  const r = await ctx.env.DB.prepare('DELETE FROM comment_replies WHERE id=?').bind(id).run();
+  if (!r.meta?.changes) return error('REPLY_NOT_FOUND','الرد غير موجود.',404,ctx.requestId,ctx.cors);
+  await writeAudit(ctx,a.session.staff_user_id,'delete','comment_reply',id,{mode:'hard_delete'});
+  return ok(ctx,{deleted:true,id,mode:'hard_delete'});
+}
 
 export async function adminDashboardOverview(ctx) {
   const a = await adminRouteAuthOnly(ctx, 'dashboard.read');
@@ -453,6 +481,7 @@ export async function adminCrud(ctx, table, id, actorId) {
 
     if (table === 'comments') {
       await ctx.env.DB.batch([
+        ctx.env.DB.prepare('DELETE FROM comment_reactions WHERE comment_id=?').bind(id),
         ctx.env.DB.prepare('DELETE FROM comment_replies WHERE comment_id=?').bind(id),
         ctx.env.DB.prepare('DELETE FROM reactions WHERE content_type=? AND content_id=?').bind('comment', id),
         ctx.env.DB.prepare('DELETE FROM comments WHERE id=?').bind(id),

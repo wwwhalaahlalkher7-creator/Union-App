@@ -61,8 +61,8 @@ Public content routes `/news`, `/events`, `/announcements`, `/achievements` are 
 
 - `GET/POST /content/:type/:id/comments`
 - `GET/POST /comments/:id/replies`
-- `POST /content/:type/:id/reactions`
-- `POST /comments/:id/reactions`
+- `POST/DELETE /content/:type/:id/reactions`
+- `POST/DELETE /comments/:id/reactions`
 - `DELETE /comments/:id`
 
 ## Eino

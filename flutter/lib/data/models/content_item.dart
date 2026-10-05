@@ -17,6 +17,9 @@ class ContentItem {
     this.likeCount = 0,
     this.myReaction,
     this.images = const <String>[],
+    this.highlightsTitle,
+    this.highlights = const <String>[],
+    this.badge,
   });
 
   final String id;
@@ -34,6 +37,9 @@ class ContentItem {
   final int likeCount;
   final String? myReaction;
   final List<String> images;
+  final String? highlightsTitle;
+  final List<String> highlights;
+  final String? badge;
 
   factory ContentItem.fromJson(Map<String, dynamic> json) {
     final fields = json['fields'] is Map
@@ -57,7 +63,7 @@ class ContentItem {
               fields['description'] ??
               fields['Description'])
           ?.toString(),
-      body: (fields['body'] ?? fields['Body'] ?? fields['content'] ?? fields['Content'])
+      body: (fields['body'] ?? fields['Body'] ?? fields['content'] ?? fields['Content'] ?? fields['description'] ?? fields['Description'] ?? fields['intro'] ?? fields['Intro'])
           ?.toString(),
       createdAt: parseDate(
         fields['createdAt'] ??
@@ -77,6 +83,9 @@ class ContentItem {
       likeCount: _toInt(fields['likeCount'] ?? fields['like_count']),
       myReaction: (fields['myReaction'] ?? fields['my_reaction'])?.toString(),
       images: _toImages(fields['images'] ?? fields['images_json']),
+      highlightsTitle: (fields['highlightsTitle'] ?? fields['highlights_title'])?.toString(),
+      highlights: _toHighlights(fields['highlights']),
+      badge: (fields['badge'] ?? fields['Badge'])?.toString(),
     );
   }
 }
@@ -95,4 +104,20 @@ List<String> _toImages(dynamic value) {
 int _toInt(dynamic value) {
   if (value is int) return value;
   return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+List<String> _toHighlights(dynamic value) {
+  if (value is List) return value.map((v) => v is Map ? '${v['text'] ?? v['title'] ?? v['value'] ?? ''}' : '$v').where((v) => v.trim().isNotEmpty).toList();
+  if (value is String && value.trim().isNotEmpty) {
+    try { final decoded = jsonDecode(value); return _toHighlights(decoded); } catch (_) {}
+  }
+  return const <String>[];
+}
+
+List<String> _toHighlights(dynamic value) {
+  if (value is List) return value.map((v) => v is Map ? '${v['text'] ?? v['title'] ?? v['value'] ?? ''}' : '$v').where((v) => v.trim().isNotEmpty).toList();
+  if (value is String && value.trim().isNotEmpty) {
+    try { final decoded = jsonDecode(value); return _toHighlights(decoded); } catch (_) {}
+  }
+  return const <String>[];
 }

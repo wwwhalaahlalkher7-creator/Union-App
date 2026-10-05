@@ -6,6 +6,7 @@ class CommentItem {
     required this.createdAt,
     this.reactionCount = 0,
     this.liked = false,
+    this.replyCount = 0,
   });
 
   final String id;
@@ -14,6 +15,7 @@ class CommentItem {
   final String createdAt;
   final int reactionCount;
   final bool liked;
+  final int replyCount;
 
   factory CommentItem.fromJson(Map<String, dynamic> j) => CommentItem(
         id: '${j['id'] ?? ''}',
@@ -22,14 +24,16 @@ class CommentItem {
         createdAt: '${j['created_at'] ?? ''}',
         reactionCount: int.tryParse('${j['reaction_count'] ?? 0}') ?? 0,
         liked: '${j['my_reaction'] ?? ''}'.toLowerCase() == 'like',
+        replyCount: int.tryParse('${j['reply_count'] ?? 0}') ?? 0,
       );
 
-  CommentItem copyWith({int? reactionCount, bool? liked}) => CommentItem(
+  CommentItem copyWith({int? reactionCount, bool? liked, int? replyCount}) => CommentItem(
         id: id,
         studentName: studentName,
         body: body,
         createdAt: createdAt,
         reactionCount: reactionCount ?? this.reactionCount,
         liked: liked ?? this.liked,
+        replyCount: replyCount ?? this.replyCount,
       );
 }

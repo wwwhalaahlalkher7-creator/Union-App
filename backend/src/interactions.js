@@ -54,7 +54,8 @@ export async function comments(ctx) {
   const limit = clampInt(ctx.url.searchParams.get('limit'),20,1,50); const offset = clampInt(ctx.url.searchParams.get('offset'),0,0,10000);
   const rows = await queryAll(ctx.env, `SELECT c.*, s.full_name,
       (SELECT COUNT(*) FROM comment_reactions cr WHERE cr.comment_id=c.id) AS reaction_count,
-      (SELECT cr2.reaction FROM comment_reactions cr2 WHERE cr2.comment_id=c.id AND cr2.student_id=?) AS my_reaction
+      (SELECT cr2.reaction FROM comment_reactions cr2 WHERE cr2.comment_id=c.id AND cr2.student_id=?) AS my_reaction,
+      (SELECT COUNT(*) FROM comment_replies rp WHERE rp.comment_id=c.id AND rp.status='visible') AS reply_count
     FROM comments c JOIN students s ON s.id=c.student_id
     WHERE c.content_type=? AND c.content_id=? AND c.status='visible'
     ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`,
@@ -89,24 +90,51 @@ export async function createReply(ctx) {
 }
 
 export async function reaction(ctx) {
+  return setContentReaction(ctx, false);
+}
+
+export async function removeReaction(ctx) {
+  return setContentReaction(ctx, true);
+}
+
+async function setContentReaction(ctx, remove) {
   const a=await studentAuth(ctx); if(a.response) return a.response; const parts=ctx.path.split('/'); const type=canonicalContentType(parts[2]); if(!type) return error('CONTENT_TYPE_INVALID','نوع المحتوى غير مدعوم.',400,ctx.requestId,ctx.cors);
-  const body=await parseJson(ctx.request); const value=String(body?.reaction||'').trim().toLowerCase(); if(!ALLOWED_REACTIONS.has(value)) return error('REACTION_INVALID','نوع التفاعل غير مدعوم.',400,ctx.requestId,ctx.cors);
+  const body=remove ? {} : await parseJson(ctx.request);
+  const value=String(body?.reaction||'like').trim().toLowerCase();
+  if(!remove && !ALLOWED_REACTIONS.has(value)) return error('REACTION_INVALID','نوع التفاعل غير مدعوم.',400,ctx.requestId,ctx.cors);
   if(!(await contentIsCommentable(ctx, parts[2], parts[3]))) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح للتفاعل حاليًا.',404,ctx.requestId,ctx.cors);
   if(!(await interactionAllowed(ctx,a.session.student_id,'reaction'))) return error('RATE_LIMITED','تم تجاوز حد التفاعلات مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
-  await ctx.env.DB.prepare('INSERT INTO reactions (id,student_id,content_type,content_id,reaction) VALUES (?,?,?,?,?) ON CONFLICT(student_id,content_type,content_id) DO UPDATE SET reaction=excluded.reaction').bind(crypto.randomUUID(),a.session.student_id,type,parts[3],value).run(); return ok(ctx,{reaction:value});
+  if (remove) {
+    await ctx.env.DB.prepare('DELETE FROM reactions WHERE student_id=? AND content_type=? AND content_id=?').bind(a.session.student_id,type,parts[3]).run();
+    return ok(ctx,{reaction:null,liked:false});
+  }
+  await ctx.env.DB.prepare('INSERT INTO reactions (id,student_id,content_type,content_id,reaction) VALUES (?,?,?,?,?) ON CONFLICT(student_id,content_type,content_id) DO UPDATE SET reaction=excluded.reaction').bind(crypto.randomUUID(),a.session.student_id,type,parts[3],value).run();
+  return ok(ctx,{reaction:value,liked:value==='like'});
 }
 
 export async function commentReaction(ctx) {
+  return setCommentReaction(ctx, false);
+}
+
+export async function removeCommentReaction(ctx) {
+  return setCommentReaction(ctx, true);
+}
+
+async function setCommentReaction(ctx, remove) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
   const id = ctx.path.split('/')[2];
-  const body = await parseJson(ctx.request);
+  const body = remove ? {} : await parseJson(ctx.request);
   const value = String(body?.reaction || 'like').trim().toLowerCase();
-  if (!ALLOWED_REACTIONS.has(value)) return error('REACTION_INVALID','نوع التفاعل غير مدعوم.',400,ctx.requestId,ctx.cors);
+  if (!remove && !ALLOWED_REACTIONS.has(value)) return error('REACTION_INVALID','نوع التفاعل غير مدعوم.',400,ctx.requestId,ctx.cors);
   const comment = await queryOne(ctx.env, "SELECT id FROM comments WHERE id=? AND status='visible'", id);
   if (!comment) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors);
   if (!(await interactionAllowed(ctx, a.session.student_id, 'reaction'))) return error('RATE_LIMITED','تم تجاوز حد التفاعلات مؤقتًا. حاول لاحقًا.',429,ctx.requestId,ctx.cors);
+  if (remove) {
+    await ctx.env.DB.prepare('DELETE FROM comment_reactions WHERE student_id=? AND comment_id=?').bind(a.session.student_id, id).run();
+    return ok(ctx, {reaction:null,liked:false});
+  }
   await ctx.env.DB.prepare('INSERT INTO comment_reactions (id,student_id,comment_id,reaction) VALUES (?,?,?,?) ON CONFLICT(student_id,comment_id) DO UPDATE SET reaction=excluded.reaction,updated_at=CURRENT_TIMESTAMP').bind(crypto.randomUUID(), a.session.student_id, id, value).run();
-  return ok(ctx, {reaction:value});
+  return ok(ctx, {reaction:value,liked:value==='like'});
 }
 
 export async function deleteComment(ctx,id) { const a=await studentAuth(ctx); if(a.response) return a.response; const result=await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=? AND status='visible'").bind(id,a.session.student_id).run(); if(!result.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود أو لا يمكنك حذفه.',404,ctx.requestId,ctx.cors); return ok(ctx,{deleted:true}); }

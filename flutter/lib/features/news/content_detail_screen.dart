@@ -52,15 +52,21 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   }
 
   Future<void> _like() async {
-    if (_busy || _liked) return;
+    if (_busy) return;
     final current = _fresh;
     if (current == null) return;
     setState(() => _busy = true);
     ApiClient? client;
     try {
       client = await AuthenticatedClient.create();
-      await InteractionsRepository(client).react(widget.type, current.id, 'like');
-      if (mounted) setState(() { _liked = true; _likeCount = current.likeCount + 1; });
+      final repo = InteractionsRepository(client);
+      if (_liked) {
+        await repo.unreact(widget.type, current.id);
+        if (mounted) setState(() { _liked = false; _likeCount = _likeCount > 0 ? _likeCount - 1 : 0; });
+      } else {
+        await repo.react(widget.type, current.id, 'like');
+        if (mounted) setState(() { _liked = true; _likeCount += 1; });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -161,6 +167,23 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                   const SizedBox(height: 14),
                   Text(item.body!, style: const TextStyle(fontSize: 13, height: 1.75)),
                 ],
+                if (widget.type == 'achievement' && item.highlights.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Text(item.highlightsTitle?.trim().isNotEmpty == true ? item.highlightsTitle! : l10n.t('highlights'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 8),
+                  ...item.highlights.map((highlight) => Padding(
+                    padding: const EdgeInsetsDirectional.only(bottom: 7),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.check_circle_rounded, size: 17, color: cs.primary),
+                      const SizedBox(width: 7),
+                      Expanded(child: Text(highlight, style: const TextStyle(fontSize: 12, height: 1.55))),
+                    ]),
+                  )),
+                ],
+                if (widget.type == 'achievement' && item.badge?.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: 6),
+                  Row(children: [Icon(Icons.workspace_premium_rounded, size: 18, color: cs.primary), const SizedBox(width: 7), Expanded(child: Text(item.badge!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)))]),
+                ],
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
@@ -169,7 +192,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                     FilledButton.icon(
                       onPressed: _busy ? null : _like,
                       icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 16),
-                      label: Text('${l10n.t('like')} $_likeCount'),
+                      label: Text('${_liked ? l10n.t('liked') : l10n.t('like')} $_likeCount'),
                     ),
                     OutlinedButton.icon(
                       onPressed: () => _openComments(context, item),
@@ -289,6 +312,9 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   Future<List<CommentItem>>? _future;
   final _controller = TextEditingController();
   bool _sending = false;
+  final Map<String, List<CommentItem>> _replies = <String, List<CommentItem>>{};
+  final Set<String> _expandedReplies = <String>{};
+  final Set<String> _loadingReplies = <String>{};
 
   @override
   void initState() {
@@ -325,12 +351,40 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
     ApiClient? client;
     try {
       client = await AuthenticatedClient.create();
-      await InteractionsRepository(client).reactComment(comment.id, 'like');
-      _load();
+      final repo = InteractionsRepository(client);
+      if (comment.liked) {
+        await repo.unreactComment(comment.id);
+      } else {
+        await repo.reactComment(comment.id, 'like');
+      }
+      if (mounted) {
+        setState(() => _future = _fetch());
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(context).t('commentReactionFailed'))));
     } finally {
       client?.dispose();
+    }
+  }
+
+  Future<void> _toggleReplies(CommentItem comment) async {
+    if (_expandedReplies.contains(comment.id)) {
+      setState(() => _expandedReplies.remove(comment.id));
+      return;
+    }
+    setState(() => _expandedReplies.add(comment.id));
+    if (_replies.containsKey(comment.id)) return;
+    setState(() => _loadingReplies.add(comment.id));
+    ApiClient? client;
+    try {
+      client = await AuthenticatedClient.create();
+      final rows = await InteractionsRepository(client).replies(comment.id);
+      if (mounted) setState(() => _replies[comment.id] = rows);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(context).t('connectionFailed'))));
+    } finally {
+      client?.dispose();
+      if (mounted) setState(() => _loadingReplies.remove(comment.id));
     }
   }
 
@@ -354,6 +408,10 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
     try {
       client = await AuthenticatedClient.create();
       await InteractionsRepository(client).addReply(comment.id, value);
+      if (mounted) {
+        _replies.remove(comment.id);
+        _expandedReplies.add(comment.id);
+      }
       _load();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(context).t('commentFailed'))));
@@ -422,6 +480,8 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
                     separatorBuilder: (_, _) => Divider(height: 16, color: cs.outline),
                     itemBuilder: (context, index) {
                       final comment = list[index];
+                      final replies = _replies[comment.id] ?? const <CommentItem>[];
+                      final expanded = _expandedReplies.contains(comment.id);
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -430,11 +490,33 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
                           Text(comment.body, style: const TextStyle(fontSize: 11.5, height: 1.5)),
                           Row(
                             children: [
-                              IconButton(visualDensity: VisualDensity.compact, onPressed: () => _react(comment), icon: const Icon(Icons.thumb_up_alt_outlined, size: 16)),
+                              IconButton(visualDensity: VisualDensity.compact, onPressed: () => _react(comment), icon: Icon(comment.liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 16, color: comment.liked ? cs.primary : cs.onSurfaceVariant)),
                               Text('${comment.reactionCount}', style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 6),
                               TextButton(onPressed: () => _reply(comment), child: Text(l10n.t('reply'), style: const TextStyle(fontSize: 10))),
+                              if (comment.replyCount > 0) ...[
+                                const SizedBox(width: 2),
+                                TextButton(onPressed: () => _toggleReplies(comment), child: Text('${comment.replyCount} ${l10n.t('replies')}', style: const TextStyle(fontSize: 10))),
+                              ],
                             ],
+                          ),
+                          if (expanded) Padding(
+                            padding: const EdgeInsetsDirectional.only(start: 24, bottom: 4),
+                            child: _loadingReplies.contains(comment.id)
+                                ? const Padding(padding: EdgeInsets.all(8), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+                                : replies.isEmpty
+                                    ? Text(l10n.t('noReplies'), style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant))
+                                    : Column(children: replies.map((reply) => Container(
+                                        width: double.infinity,
+                                        margin: const EdgeInsets.only(top: 6),
+                                        padding: const EdgeInsets.all(9),
+                                        decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
+                                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                                          Text(reply.studentName, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
+                                          const SizedBox(height: 3),
+                                          Text(reply.body, style: const TextStyle(fontSize: 10.5, height: 1.45)),
+                                        ]),
+                                      )).toList()),
                           ),
                         ],
                       );

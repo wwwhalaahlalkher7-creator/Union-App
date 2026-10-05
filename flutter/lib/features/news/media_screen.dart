@@ -99,13 +99,19 @@ class _MediaCardState extends State<_MediaCard> {
   bool _busy = false;
 
   Future<void> _like() async {
-    if (_busy || _liked) return;
+    if (_busy) return;
     setState(() => _busy = true);
     ApiClient? client;
     try {
       client = await AuthenticatedClient.create();
-      await InteractionsRepository(client).react(widget.type, widget.item.id, 'like');
-      if (mounted) setState(() { _liked = true; _likeCount = widget.item.likeCount + 1; });
+      final repo = InteractionsRepository(client);
+      if (_liked) {
+        await repo.unreact(widget.type, widget.item.id);
+        if (mounted) setState(() { _liked = false; _likeCount = _likeCount > 0 ? _likeCount - 1 : 0; });
+      } else {
+        await repo.react(widget.type, widget.item.id, 'like');
+        if (mounted) setState(() { _liked = true; _likeCount += 1; });
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : AppLocalizations.of(context).t('likeFailed'))));
     } finally {
