@@ -199,7 +199,7 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
 }
 
 class _MediaCard extends StatefulWidget {
-  const _MediaCard({required this.item, required this.type, required this.label, required this.onDetails, super.key});
+  const _MediaCard({required this.item, required this.type, required this.label, required this.onDetails});
   final ContentItem item; final String type; final String label; final VoidCallback onDetails;
   @override State<_MediaCard> createState() => _MediaCardState();
 }
