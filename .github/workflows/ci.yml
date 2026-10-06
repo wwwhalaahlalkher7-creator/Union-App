@@ -27,6 +27,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check whether Flutter needs to run
+        id: flutter_changes
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -40,6 +41,7 @@ jobs:
           # when no Flutter-related files changed. This avoids a dedicated runner
           # just for change detection.
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
             echo "Flutter CI: manual run -> RUN"
             exit 0
           fi
@@ -69,42 +71,51 @@ jobs:
               ci/verify_project.py|\
               ci/workflow_consistency_check.py|\
               .github/workflows/ci.yml)
+                echo "run=true" >> "$GITHUB_OUTPUT"
                 echo "Flutter CI: relevant changes detected -> RUN"
                 exit 0
                 ;;
             esac
           done <<< "$changed"
 
+          echo "run=false" >> "$GITHUB_OUTPUT"
           echo "Flutter CI: no relevant changes detected -> SKIP"
           exit 0
 
       - name: Setup Java 17
+        if: steps.flutter_changes.outputs.run == 'true'
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Setup Gradle cache
+        if: steps.flutter_changes.outputs.run == 'true'
         uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Setup Flutter
+        if: steps.flutter_changes.outputs.run == 'true'
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
       - name: Flutter version
+        if: steps.flutter_changes.outputs.run == 'true'
         run: flutter --version
 
       - name: Synchronize version from canonical VERSION
+        if: steps.flutter_changes.outputs.run == 'true'
         run: python3 tool/sync_version.py
 
       - name: Resolve dependencies
+        if: steps.flutter_changes.outputs.run == 'true'
         run: flutter pub get
 
       - name: Analyze + Test (parallel)
+        if: steps.flutter_changes.outputs.run == 'true'
         shell: bash
         run: |
           set -uo pipefail
@@ -129,15 +140,18 @@ jobs:
           fi
 
       - name: Project verification
-        working-directory: .
+        if: steps.flutter_changes.outputs.run == 'true'
+        working-directory: ${{ github.workspace }}
         run: python3 ci/verify_project.py
 
       - name: Workflow consistency
-        working-directory: .
+        if: steps.flutter_changes.outputs.run == 'true'
+        working-directory: ${{ github.workspace }}
         run: python3 ci/workflow_consistency_check.py
 
       - name: Flutter release-safety checks
-        working-directory: .
+        if: steps.flutter_changes.outputs.run == 'true'
+        working-directory: ${{ github.workspace }}
         run: |
           python3 ci/release_check.py
           python3 ci/final_release_check.py
@@ -146,6 +160,7 @@ jobs:
           python3 ci/color_theme_check.py
 
       - name: Configure Android signing for CI artifacts
+        if: steps.flutter_changes.outputs.run == 'true'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
@@ -165,12 +180,15 @@ jobs:
           EOF2
 
       - name: Build signed APK
+        if: steps.flutter_changes.outputs.run == 'true'
         run: flutter build apk --release --no-pub
 
       - name: Build signed AAB
+        if: steps.flutter_changes.outputs.run == 'true'
         run: flutter build appbundle --release --no-pub
 
       - name: Verify Android signatures
+        if: steps.flutter_changes.outputs.run == 'true'
         run: |
           set -euo pipefail
           APK="build/app/outputs/flutter-apk/app-release.apk"
@@ -182,6 +200,7 @@ jobs:
           grep -q 'jar verified' /tmp/trinex-aab-signature.txt
 
       - name: Prepare compressed CI artifacts
+        if: steps.flutter_changes.outputs.run == 'true'
         run: |
           set -euo pipefail
           mkdir -p build/ci-artifacts
@@ -194,7 +213,7 @@ jobs:
           unzip -t "TRINEX AAB.zip"
 
       - name: Upload Flutter coverage
-        if: always()
+        if: steps.flutter_changes.outputs.run == 'true' && always()
         uses: actions/upload-artifact@v7
         with:
           name: flutter-coverage-${{ github.sha }}
@@ -202,6 +221,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload signed APK zip
+        if: steps.flutter_changes.outputs.run == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: TRINEX APK.zip
@@ -209,6 +229,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload signed AAB zip
+        if: steps.flutter_changes.outputs.run == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: TRINEX AAB.zip
@@ -236,7 +257,7 @@ jobs:
         run: npm run check
 
       - name: Contract & security checks
-        working-directory: .
+        working-directory: ${{ github.workspace }}
         run: |
           python3 ci/backend_schema_check.py
           python3 ci/backend_schema_audit.py
