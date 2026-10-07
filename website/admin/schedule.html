@@ -153,20 +153,18 @@ function fillScheduleSubjects(selectedId = null) {
   else el.value = "";
 }
 
-function parseScheduleTime12(value) {
-  const raw = String(value || '').trim().toLowerCase().replace(/صباحًا|صباحا|am/g, 'ص').replace(/مساءً|مساءا|pm/g, 'م');
-  const match = raw.match(/^(\d{1,2}):(\d{2})\s*(ص|م)$/);
+function normalizeScheduleTime(value) {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return null;
-  let hour = Number(match[1]);
+  const hour = Number(match[1]);
   const minute = Number(match[2]);
-  if (hour < 1 || hour > 12 || minute > 59) return null;
-  if (match[3] === 'ص') hour = hour === 12 ? 0 : hour;
-  else hour = hour === 12 ? 12 : hour + 12;
+  if (hour < 0 || hour > 23 || minute > 59) return null;
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 function scheduleMinutes(value) {
-  const normalized = parseScheduleTime12(value);
+  const normalized = normalizeScheduleTime(value);
   if (!normalized) return null;
   const [h, m] = normalized.split(':').map(Number);
   return h * 60 + m;
@@ -180,8 +178,8 @@ function openForm(id) {
       <div class="field"><label for="departmentId">القسم</label><select id="departmentId" required></select></div>
       <div class="field"><label for="semester">الفصل</label><select id="semester" required></select></div>
       <div class="field"><label for="dayOfWeek">اليوم</label><select id="dayOfWeek" required></select></div>
-      <div class="field"><label for="startTime">وقت البداية</label><input id="startTime" type="text" inputmode="numeric" autocomplete="off" placeholder="8:00 ص" required></div>
-      <div class="field"><label for="endTime">وقت النهاية</label><input id="endTime" type="text" inputmode="numeric" autocomplete="off" placeholder="10:00 ص" required></div>
+      <div class="field"><label for="startTime">وقت البداية</label><input id="startTime" type="time" required></div>
+      <div class="field"><label for="endTime">وقت النهاية</label><input id="endTime" type="time" required></div>
       <div class="field"><label for="subjectId">المادة الدراسية</label><select id="subjectId" required></select></div>
       <div class="field"><label for="room">القاعة <span class="field-hint">اختياري</span></label><input id="room" type="text" maxlength="100"></div>
       <div class="field"><label for="instructor">الدكتور/المحاضر <span class="field-hint">اختياري</span></label><input id="instructor" type="text" maxlength="150"></div>
@@ -209,8 +207,8 @@ function openForm(id) {
   document.getElementById("semester").value = e?.semester ? String(e.semester) : (scheduleData.semesters?.[0]?.id || "");
   fillScheduleSubjects(e?.subjectId || "");
   document.getElementById("dayOfWeek").value = e?.dayOfWeek != null ? String(e.dayOfWeek) : "0";
-  document.getElementById("startTime").value = e?.startTime ? Utils.formatTime12(e.startTime) : "8:00 ص";
-  document.getElementById("endTime").value = e?.endTime ? Utils.formatTime12(e.endTime) : "10:00 ص";
+  document.getElementById("startTime").value = normalizeScheduleTime(e?.startTime) || "08:00";
+  document.getElementById("endTime").value = normalizeScheduleTime(e?.endTime) || "10:00";
   if (e?.subjectId) document.getElementById("subjectId").value = e.subjectId;
   document.getElementById("room").value = e?.room || "";
   document.getElementById("instructor").value = e?.instructor || "";
@@ -219,8 +217,8 @@ function formPayload() { return {
   departmentId: document.getElementById("departmentId").value,
   semester: document.getElementById("semester").value,
   dayOfWeek: document.getElementById("dayOfWeek").value,
-  startTime: parseScheduleTime12(document.getElementById("startTime").value),
-  endTime: parseScheduleTime12(document.getElementById("endTime").value),
+  startTime: normalizeScheduleTime(document.getElementById("startTime").value),
+  endTime: normalizeScheduleTime(document.getElementById("endTime").value),
   subjectId: document.getElementById("subjectId").value.trim(),
   room: document.getElementById("room").value.trim(),
   instructor: document.getElementById("instructor").value.trim()
@@ -231,7 +229,7 @@ async function saveForm(btn) {
   if (!form.checkValidity()) { form.reportValidity(); return; }
   const payload = formPayload();
   if (!payload.startTime || !payload.endTime) {
-    error.textContent = "اكتب الوقت بنظام 12 ساعة، مثل 8:00 ص أو 10:00 م.";
+    error.textContent = "اختر وقت البداية والنهاية من الحقل المخصص للوقت.";
     error.style.display = "block";
     return;
   }
