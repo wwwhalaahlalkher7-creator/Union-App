@@ -121,17 +121,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           flex: 2,
-                          child: Transform.translate(
-                            offset: const Offset(0, -6),
+                          child: Align(
+                            alignment: Alignment.bottomCenter,
                             child: _HomeScheduleCard(
                               schedule: data.schedule,
                               onTap: () => context.push('/schedule'),
+                              extraTopHeight: 20,
                             ),
                           ),
                         ),
@@ -482,10 +483,12 @@ class _HomeScheduleCard extends StatelessWidget {
   const _HomeScheduleCard({
     required this.schedule,
     required this.onTap,
+    this.extraTopHeight = 0,
   });
 
   final ScheduleData schedule;
   final VoidCallback onTap;
+  final double extraTopHeight;
 
   static const _sudanOffset = Duration(hours: 2);
 
@@ -647,7 +650,9 @@ class _HomeScheduleCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(DesignTokens.radius16),
         child: Container(
-          padding: const EdgeInsets.all(13),
+          constraints: BoxConstraints(minHeight: 154 + extraTopHeight),
+          margin: EdgeInsets.only(top: -extraTopHeight),
+          padding: EdgeInsets.fromLTRB(13, 13 + extraTopHeight, 13, 13),
           decoration: BoxDecoration(
             color: accent.withValues(alpha: .07),
             borderRadius: BorderRadius.circular(DesignTokens.radius16),
@@ -676,7 +681,7 @@ class _HomeScheduleCard extends StatelessWidget {
                       textAlign: TextAlign.end,
                       style: TextStyle(
                         color: accent,
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -699,7 +704,7 @@ class _HomeScheduleCard extends StatelessWidget {
                       textAlign: TextAlign.end,
                       style: TextStyle(
                         color: cs.onSurfaceVariant,
-                        fontSize: 10.5,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -712,7 +717,7 @@ class _HomeScheduleCard extends StatelessWidget {
                         textAlign: TextAlign.end,
                         style: TextStyle(
                           color: cs.onSurfaceVariant,
-                          fontSize: 9.5,
+                          fontSize: 10.5,
                         ),
                       ),
                     ],
@@ -728,6 +733,7 @@ class _HomeScheduleCard extends StatelessWidget {
     );
   }
 }
+
 class _ScheduleState {
   const _ScheduleState({
     required this.now,

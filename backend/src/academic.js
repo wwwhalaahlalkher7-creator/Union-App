@@ -251,7 +251,7 @@ export async function badges(ctx) {
     metrics = await queryOne(ctx.env, `
     SELECT
       (SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=?) AS xp_total,
-      (SELECT COUNT(*) FROM material_progress WHERE student_id=?) AS progress_events,
+      (SELECT COUNT(*) FROM material_progress_events WHERE student_id=?) AS progress_events,
       (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials,
       (SELECT COUNT(DISTINCT m.subject_id)
          FROM material_progress mp
