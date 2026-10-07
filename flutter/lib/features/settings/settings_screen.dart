@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_version.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/di/app_dependencies.dart';
-import '../../core/storage/auth_storage.dart';
 import '../../core/update/update_service.dart';
 import '../../core/theme/design_tokens.dart';
 import 'settings_widgets.dart';

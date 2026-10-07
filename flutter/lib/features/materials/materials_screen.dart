@@ -11,12 +11,9 @@ import '../../core/errors/error_message.dart';
 import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/storage/auth_storage.dart';
 import '../../data/models/material_item.dart';
 import '../../data/models/material_progress.dart';
 import '../../data/models/student_profile.dart';
-import '../../data/repositories/materials_repository.dart';
-import '../../data/repositories/student_repository.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
@@ -183,7 +180,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
             if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
             return _State(
               message: e is ApiException
-                  ? (e as ApiException).message
+                  ? e.message
                   : l10n.t('connectionFailed'),
               retry: _reload,
             );

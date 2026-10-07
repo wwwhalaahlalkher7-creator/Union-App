@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/errors/error_message.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../data/models/content_item.dart';
-import '../../data/repositories/interactions_repository.dart';
 import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/action_feedback.dart';
 import '../../shared/widgets/app_card.dart';

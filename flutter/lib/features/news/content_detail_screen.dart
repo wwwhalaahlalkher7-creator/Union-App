@@ -4,9 +4,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/errors/error_message.dart';
 import '../../data/models/comment_item.dart';
 import '../../data/models/content_item.dart';
-import '../../data/repositories/content_repository.dart';
 import '../../core/di/app_dependencies.dart';
-import '../../data/repositories/interactions_repository.dart';
 import '../../shared/widgets/action_feedback.dart';
 
 part 'content_detail_widgets.dart';
