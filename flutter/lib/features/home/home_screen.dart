@@ -703,7 +703,7 @@ class _HomeScheduleCard extends StatelessWidget {
                     if (secondary != null) ...[
                       const SizedBox(height: 3),
                       Text(
-                        secondary!,
+                        secondary,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.end,
