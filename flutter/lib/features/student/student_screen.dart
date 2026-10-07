@@ -6,7 +6,6 @@ import '../../core/errors/error_message.dart';
 import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/student_profile.dart';
-import '../../data/repositories/student_repository.dart';
 import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/login_required_card.dart';

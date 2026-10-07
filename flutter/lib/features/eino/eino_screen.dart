@@ -282,7 +282,7 @@ class _EinoScreenState extends State<EinoScreen> {
       await _player.stop();
       await _player.play(UrlSource(url));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(sheetContext, e, fallbackKey: 'einoGenericError'))));
     }
   }
 
@@ -312,7 +312,7 @@ class _EinoScreenState extends State<EinoScreen> {
     try {
       memories = await _repository.memories(limit: 50);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(sheetContext, e, fallbackKey: 'einoGenericError'))));
       return;
     }
     if (!mounted) return;
@@ -360,7 +360,7 @@ class _EinoScreenState extends State<EinoScreen> {
                                 if (sheetContext.mounted) Navigator.pop(sheetContext);
                                 if (mounted) _showMemoryManager();
                               } catch (e) {
-                                if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+                                if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(ErrorMessage.from(sheetContext, e, fallbackKey: 'einoGenericError'))));
                               }
                             },
                           ),
@@ -383,7 +383,7 @@ class _EinoScreenState extends State<EinoScreen> {
     try {
       models = await _repository.models();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(sheetContext, e, fallbackKey: 'einoGenericError'))));
       return;
     }
     if (!mounted) return;
@@ -583,7 +583,7 @@ class _EinoScreenState extends State<EinoScreen> {
       await _repository.remember(content: text, category: category);
       if (mounted) _showMemoryManager();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(sheetContext, e, fallbackKey: 'einoGenericError'))));
     }
   }
 

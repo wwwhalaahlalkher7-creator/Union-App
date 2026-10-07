@@ -66,6 +66,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _sent = true);
       _msg(AppLocalizations.of(context).t('recoveryCodeSent'), false);
     } catch (e) {
+      if (!mounted) return;
       _msg(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), true);
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -104,6 +105,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         if (mounted) context.go('/login');
       });
     } catch (e) {
+      if (!mounted) return;
       _msg(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), true);
     } finally {
       if (mounted) setState(() => _resetting = false);

@@ -48,7 +48,11 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
       final selected=_semesters.firstWhere((x)=>x['id']?.toString()==_semesterId,orElse:()=>{});
       await _storage?.updateCachedSemester(semesterId:_semesterId!,semesterName:AcademicLabels.semester(selected,languageCode));
       if (mounted) _message(l10n.t('semesterSaved'), false);
-    } catch(e){_message(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), true);}
+    } catch(e){
+      if (mounted) {
+        _message(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), true);
+      }
+    }
     finally{if(mounted)setState(()=>_savingSemester=false);}
   }
 
@@ -64,7 +68,11 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
       _currentPassword.clear();_newPassword.clear();_confirmPassword.clear();
       await _storage?.clear();
       if(mounted) context.go('/login');
-    } catch(e){_message(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), true);}
+    } catch(e){
+      if (mounted) {
+        _message(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), true);
+      }
+    }
     finally{if(mounted)setState(()=>_changingPassword=false);}
   }
 

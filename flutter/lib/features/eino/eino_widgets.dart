@@ -25,7 +25,7 @@ class _EinoAnimatedEntryState extends State<EinoAnimatedEntry> with SingleTicker
 }
 
 class EinoTypingDots extends StatefulWidget {
-  const EinoTypingDots({required this.color});
+  const EinoTypingDots({super.key, required this.color});
   final Color color;
   @override State<EinoTypingDots> createState() => _EinoTypingDotsState();
 }

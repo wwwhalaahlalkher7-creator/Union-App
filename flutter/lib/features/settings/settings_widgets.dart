@@ -5,7 +5,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../shared/widgets/app_card.dart';
 
 class SettingsHeader extends StatelessWidget {
-  const SettingsHeader({required this.title, required this.subtitle});
+  const SettingsHeader({super.key, required this.title, required this.subtitle});
   final String title;
   final String subtitle;
 
@@ -43,7 +43,7 @@ class SettingsHeader extends StatelessWidget {
 }
 
 class SettingsSection extends StatelessWidget {
-  const SettingsSection({required this.title, required this.icon, required this.child});
+  const SettingsSection({super.key, required this.title, required this.icon, required this.child});
   final String title;
   final IconData icon;
   final Widget child;
@@ -71,7 +71,7 @@ class SettingsSection extends StatelessWidget {
 }
 
 class SettingsModeSelector extends StatelessWidget {
-  const SettingsModeSelector({required this.current, required this.onChanged, required this.labels});
+  const SettingsModeSelector({super.key, required this.current, required this.onChanged, required this.labels});
   final ThemeMode current;
   final ValueChanged<ThemeMode> onChanged;
   final Map<ThemeMode, String> labels;
@@ -110,7 +110,7 @@ class SettingsModeSelector extends StatelessWidget {
 }
 
 class SettingsLanguageSelector extends StatelessWidget {
-  const SettingsLanguageSelector({required this.current, required this.onChanged});
+  const SettingsLanguageSelector({super.key, required this.current, required this.onChanged});
   final String current;
   final ValueChanged<Locale?> onChanged;
 
@@ -150,7 +150,7 @@ class SettingsLanguageSelector extends StatelessWidget {
 }
 
 class SettingsChoiceOption extends StatelessWidget {
-  const SettingsChoiceOption({required this.label, required this.icon, required this.selected, required this.onTap});
+  const SettingsChoiceOption({super.key, required this.label, required this.icon, required this.selected, required this.onTap});
   final String label;
   final IconData icon;
   final bool selected;
@@ -208,6 +208,7 @@ class SettingsChoiceOption extends StatelessWidget {
 
 class SettingsAccentOption extends StatelessWidget {
   const SettingsAccentOption({
+    super.key,
     required this.color,
     required this.selected,
     required this.languageCode,
@@ -327,7 +328,7 @@ class BlackWhiteAccentPainter extends CustomPainter {
 }
 
 class SettingsLanguageOption extends StatelessWidget {
-  const SettingsLanguageOption({required this.name, required this.direction, required this.icon, required this.selected, required this.onTap});
+  const SettingsLanguageOption({super.key, required this.name, required this.direction, required this.icon, required this.selected, required this.onTap});
   final String name;
   final String direction;
   final IconData icon;
@@ -391,7 +392,7 @@ class SettingsLanguageOption extends StatelessWidget {
 }
 
 class SettingsSelectedMark extends StatelessWidget {
-  const SettingsSelectedMark();
+  const SettingsSelectedMark({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -405,7 +406,7 @@ class SettingsSelectedMark extends StatelessWidget {
 }
 
 class SettingsLogoutTile extends StatelessWidget {
-  const SettingsLogoutTile({required this.onTap, required this.loading});
+  const SettingsLogoutTile({super.key, required this.onTap, required this.loading});
   final VoidCallback onTap;
   final bool loading;
 

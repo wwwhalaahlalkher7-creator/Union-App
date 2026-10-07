@@ -10,7 +10,7 @@ import '../../shared/widgets/app_card.dart';
 import 'content_detail_screen.dart';
 
 class MediaCard extends StatefulWidget {
-  const MediaCard({required this.item, required this.type, required this.label, required this.onDetails});
+  const MediaCard({super.key, required this.item, required this.type, required this.label, required this.onDetails});
   final ContentItem item; final String type; final String label; final VoidCallback onDetails;
   @override State<MediaCard> createState() => _MediaCardState();
 }
