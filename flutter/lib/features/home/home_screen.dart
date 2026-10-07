@@ -515,33 +515,34 @@ class _HomeScheduleCard extends StatelessWidget {
       ..sort((a, b) => _minuteOfDay(a.startTime).compareTo(_minuteOfDay(b.startTime)));
 
     ScheduleItem? current;
-    ScheduleItem? next;
     ScheduleItem? lastEnded;
     for (final item in todayItems) {
       final start = _at(now, item.startTime);
       var end = _at(now, item.endTime);
-      // Be defensive with malformed overnight rows instead of producing a negative duration.
       if (!end.isAfter(start)) end = end.add(const Duration(days: 1));
 
       if (!now.isBefore(start) && now.isBefore(end)) {
         current = item;
-        // The next lecture must be genuinely upcoming. If schedules overlap,
-        // never show a misleading "starts after 0 minutes" or a lecture
-        // whose start time has already passed.
-        final index = todayItems.indexOf(item);
-        for (var i = index + 1; i < todayItems.length; i++) {
-          final candidateStart = _at(now, todayItems[i].startTime);
-          if (candidateStart.isAfter(now)) {
-            next = todayItems[i];
-            break;
-          }
-        }
         break;
       }
       if (!now.isBefore(end)) lastEnded = item;
-      if (now.isBefore(start)) {
-        next = item;
-        break;
+    }
+
+    // Find the next genuinely future lecture across the current day and the
+    // following week. This avoids the old "starts after 0 minutes" state and
+    // also means that after midnight the card immediately advances to the next
+    // day's real lecture instead of waiting for a manual refresh.
+    ScheduleItem? next;
+    DateTime? nextStart;
+    for (var offset = 0; offset < 7; offset++) {
+      final day = now.add(Duration(days: offset));
+      for (final item in schedule.items.where((item) => item.dayOfWeek == day.weekday % 7)) {
+        final start = _at(day, item.startTime);
+        if (!start.isAfter(now)) continue;
+        if (nextStart == null || start.isBefore(nextStart)) {
+          next = item;
+          nextStart = start;
+        }
       }
     }
 
@@ -660,7 +661,7 @@ class _HomeScheduleCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(DesignTokens.radius16),
         child: Container(
           // Keep the top edge fixed while shortening only the lower part.
-          height: 154,
+          height: 92 + extraTopHeight,
           margin: EdgeInsets.only(top: -extraTopHeight),
           padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
           decoration: BoxDecoration(

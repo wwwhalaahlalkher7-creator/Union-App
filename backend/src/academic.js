@@ -241,70 +241,62 @@ export async function xp(ctx) {
 export async function badges(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
 
-  // Badge definitions are application-owned. The endpoint intentionally derives
-  // eligibility from the normal student activity tables instead of reading or
-  // writing the legacy dashboard-managed `badges` / `student_badges` tables.
-  // This keeps badges available even when an older production database has not
-  // received the optional badge migrations yet.
-  let metrics = null;
-  try {
-    metrics = await queryOne(ctx.env, `
-    SELECT
-      (SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=?) AS xp_total,
-      (SELECT COUNT(*) FROM material_progress_events WHERE student_id=?) AS progress_events,
-      (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials,
-      (SELECT COUNT(DISTINCT m.subject_id)
-         FROM material_progress mp
-         JOIN materials m ON m.id=mp.material_id
-        WHERE mp.student_id=? AND mp.progress_percent>=100) AS completed_subjects,
-      (SELECT COUNT(*) FROM xp_events WHERE student_id=? AND event_type='learning_event_complete') AS learning_events,
-      (SELECT COUNT(*) FROM comments WHERE student_id=? AND status='visible') AS comments,
-      (SELECT COUNT(*) FROM reactions WHERE student_id=?) AS reactions,
-      (SELECT COUNT(*) FROM comment_replies WHERE student_id=? AND status='visible') AS replies
-  `,
-    a.session.student_id,
-    a.session.student_id,
-    a.session.student_id,
-    a.session.student_id,
-    a.session.student_id,
-    a.session.student_id,
-    a.session.student_id,
-    a.session.student_id,
-  );
-  } catch (e) {
-    // Badge rendering must never take down the XP page. If a legacy/partially
-    // migrated database is missing one of the activity tables, return the fixed
-    // catalogue with zero earned metrics; the next successful request will
-    // recompute the real state.
-    console.error(`[${ctx.requestId}] badge metrics unavailable`, e);
-  }
+  // Keep the badge endpoint self-contained and resilient: the catalogue is
+  // application-owned, while each metric is read independently so a missing
+  // optional/legacy table cannot turn the whole endpoint into a 500.
+  const studentId = a.session.student_id;
+  const metric = async (sql, fallback = 0) => {
+    try {
+      const row = await queryOne(ctx.env, sql, studentId);
+      const value = Number(Object.values(row || {})[0] ?? fallback);
+      return Number.isFinite(value) ? Math.max(0, value) : fallback;
+    } catch (e) {
+      console.warn(`[${ctx.requestId}] badge metric unavailable`, e);
+      return fallback;
+    }
+  };
 
-  const xpTotal = Number(metrics?.xp_total || 0);
+  const [xpTotal, progressEvents, completedMaterials, completedSubjects, learningEvents, comments, reactions, replies] = await Promise.all([
+    metric('SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=?'),
+    metric('SELECT COUNT(*) FROM material_progress_events WHERE student_id=?'),
+    metric('SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100'),
+    metric(`SELECT COUNT(DISTINCT m.subject_id)
+      FROM material_progress mp
+      JOIN materials m ON m.id=mp.material_id
+      WHERE mp.student_id=? AND mp.progress_percent>=100`),
+    metric(`SELECT COUNT(*) FROM xp_events WHERE student_id=? AND event_type='learning_event_complete'`),
+    metric(`SELECT COUNT(*) FROM comments WHERE student_id=? AND status='visible'`),
+    metric('SELECT COUNT(*) FROM reactions WHERE student_id=?'),
+    metric(`SELECT COUNT(*) FROM comment_replies WHERE student_id=? AND status='visible'`),
+  ]);
+
   const values = {
     xp_total: xpTotal,
     level: calculateLevel(xpTotal),
-    progress_events: Number(metrics?.progress_events || 0),
-    completed_materials: Number(metrics?.completed_materials || 0),
-    completed_subjects: Number(metrics?.completed_subjects || 0),
-    learning_events: Number(metrics?.learning_events || 0),
-    comments: Number(metrics?.comments || 0),
-    reactions: Number(metrics?.reactions || 0),
-    replies: Number(metrics?.replies || 0),
+    progress_events: progressEvents,
+    completed_materials: completedMaterials,
+    completed_subjects: completedSubjects,
+    learning_events: learningEvents,
+    comments,
+    reactions,
+    replies,
   };
 
   const definitions = badgeRows(xpTotal);
-  const rows = definitions.map((badge) => {
-    const current = Number(values[badge.rule_type] || 0);
-    const earned = Number(badge.rule_value || 0) > 0 && current >= Number(badge.rule_value);
-    return { ...badge, earned, awarded_at: null };
-  }).filter((badge) => badge.earned);
+  const rows = definitions
+    .map((badge) => {
+      const current = Number(values[badge.rule_type] || 0);
+      const earned = Number(badge.rule_value || 0) > 0 && current >= Number(badge.rule_value);
+      return { ...badge, earned, awarded_at: null };
+    })
+    .filter((badge) => badge.earned);
 
   const categories = badgeCategoryRows(values);
-  // The client expects the complete catalogue (9 categories). Categories are
-  // intentionally returned even when the student has zero progress in them.
   if (categories.length !== 9) {
-    console.warn(`[${ctx.requestId}] incomplete badge category catalogue: ${categories.length}/9`);
+    console.error(`[${ctx.requestId}] badge category catalogue is incomplete: ${categories.length}/9`);
+    return error('BADGE_CATALOG_INCOMPLETE', 'كتالوج الشارات غير مكتمل.', 500, ctx.requestId, ctx.cors);
   }
+
   return ok(ctx, {
     badges: rows,
     categories,
