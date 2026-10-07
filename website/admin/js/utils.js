@@ -11,6 +11,18 @@ const Utils = (function () {
     }).format(d);
   }
 
+  /** تنسيق وقت 24h القادم من قاعدة البيانات إلى نظام 12 ساعة بالعربية. */
+  function formatTime12(value) {
+    if (value === null || value === undefined || value === "") return "—";
+    const match = String(value).trim().match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return String(value);
+    const hour24 = Math.max(0, Math.min(23, Number(match[1])));
+    const minute = match[2];
+    const hour = hour24 % 12 === 0 ? 12 : hour24 % 12;
+    const suffix = hour24 < 12 ? "ص" : "م";
+    return `${hour}:${minute} ${suffix}`;
+  }
+
   /** تنسيق رقم بفواصل الآلاف بأرقام لاتينية (128 / 3,040) */
   function formatNumber(n) {
     return Number(n).toLocaleString("en-US");
@@ -120,5 +132,5 @@ const Utils = (function () {
     });
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  return { formatDate, formatNumber, displayText, escapeHtml, animateNumber };
+  return { formatDate, formatTime12, formatNumber, displayText, escapeHtml, animateNumber };
 })();

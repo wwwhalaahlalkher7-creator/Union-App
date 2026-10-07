@@ -289,7 +289,7 @@ class _Lecture extends StatelessWidget {
             ),
           ),
           Text(
-            '${item.startTime}\n${item.endTime}',
+            '${_formatClock12(item.startTime)}\n${_formatClock12(item.endTime)}',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: context.colors.primary,
@@ -301,6 +301,15 @@ class _Lecture extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatClock12(String value) {
+  final parts = value.split(':');
+  final hour24 = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 0;
+  final minute = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
+  final hour = hour24 % 12 == 0 ? 12 : hour24 % 12;
+  final suffix = hour24 < 12 ? 'ص' : 'م';
+  return '$hour:${minute.toString().padLeft(2, '0')} $suffix';
 }
 
 class _Msg extends StatelessWidget {

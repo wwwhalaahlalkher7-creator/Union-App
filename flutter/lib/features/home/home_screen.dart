@@ -528,21 +528,17 @@ class _HomeScheduleCard extends StatelessWidget {
       if (!now.isBefore(end)) lastEnded = item;
     }
 
-    // Find the next genuinely future lecture across the current day and the
-    // following week. This avoids the old "starts after 0 minutes" state and
-    // also means that after midnight the card immediately advances to the next
-    // day's real lecture instead of waiting for a manual refresh.
+    // The "next lecture" is only the next one for TODAY. Once midnight
+    // arrives, `today` changes naturally and the next day's schedule becomes
+    // today's schedule. This keeps the card honest: after the last lecture,
+    // it must say that there is no next lecture for today instead of showing
+    // tomorrow's lecture early.
     ScheduleItem? next;
-    DateTime? nextStart;
-    for (var offset = 0; offset < 7; offset++) {
-      final day = now.add(Duration(days: offset));
-      for (final item in schedule.items.where((item) => item.dayOfWeek == day.weekday % 7)) {
-        final start = _at(day, item.startTime);
-        if (!start.isAfter(now)) continue;
-        if (nextStart == null || start.isBefore(nextStart)) {
-          next = item;
-          nextStart = start;
-        }
+    for (final item in todayItems) {
+      final start = _at(now, item.startTime);
+      if (start.isAfter(now)) {
+        next = item;
+        break;
       }
     }
 
@@ -592,7 +588,14 @@ class _HomeScheduleCard extends StatelessWidget {
     });
   }
 
-  String _clock(String value) => value.length >= 5 ? value.substring(0, 5) : value;
+  String _clock(String value) {
+    final parts = value.split(':');
+    final hour24 = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 0;
+    final minute = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
+    final hour = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    final suffix = hour24 < 12 ? 'ص' : 'م';
+    return '$hour:${minute.toString().padLeft(2, '0')} $suffix';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -621,6 +624,8 @@ class _HomeScheduleCard extends StatelessWidget {
         final start = _at(state.now, state.next!.startTime);
         secondary = '${l10n.t('scheduleNext')} ${state.next!.subjectName} • '
             '${l10n.t('scheduleStartsIn', {'time': _duration(start.difference(state.now), l10n)})}';
+      } else {
+        secondary = 'لا توجد مادة تالية لليوم';
       }
     } else if (state.next != null) {
       final item = state.next!;
