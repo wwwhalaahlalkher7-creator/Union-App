@@ -241,20 +241,45 @@ export async function xp(ctx) {
 export async function badges(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
 
-  // Badge eligibility is derived from immutable activity metrics and a fixed
-  // application catalogue. There is deliberately no admin-controlled badge data.
+  // Badge definitions are application-owned. The endpoint intentionally derives
+  // eligibility from the normal student activity tables instead of reading or
+  // writing the legacy dashboard-managed `badges` / `student_badges` tables.
+  // This keeps badges available even when an older production database has not
+  // received the optional badge migrations yet.
   const definitions = badgeRows();
-  const metrics = await queryOne(ctx.env, `
+  let metrics = null;
+  try {
+    metrics = await queryOne(ctx.env, `
     SELECT
       (SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=?) AS xp_total,
-      (SELECT COUNT(*) FROM material_progress_events WHERE student_id=?) AS progress_events,
+      (SELECT COUNT(*) FROM material_progress WHERE student_id=?) AS progress_events,
       (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials,
-      (SELECT COUNT(DISTINCT m.subject_id) FROM material_progress mp JOIN materials m ON m.id=mp.material_id WHERE mp.student_id=? AND mp.progress_percent>=100 AND m.subject_id IS NOT NULL) AS completed_subjects,
+      (SELECT COUNT(DISTINCT m.subject_id)
+         FROM material_progress mp
+         JOIN materials m ON m.id=mp.material_id
+        WHERE mp.student_id=? AND mp.progress_percent>=100) AS completed_subjects,
       (SELECT COUNT(*) FROM xp_events WHERE student_id=? AND event_type='learning_event_complete') AS learning_events,
       (SELECT COUNT(*) FROM comments WHERE student_id=? AND status='visible') AS comments,
       (SELECT COUNT(*) FROM reactions WHERE student_id=?) AS reactions,
       (SELECT COUNT(*) FROM comment_replies WHERE student_id=? AND status='visible') AS replies
-  `, a.session.student_id, a.session.student_id, a.session.student_id, a.session.student_id, a.session.student_id, a.session.student_id, a.session.student_id, a.session.student_id);
+  `,
+    a.session.student_id,
+    a.session.student_id,
+    a.session.student_id,
+    a.session.student_id,
+    a.session.student_id,
+    a.session.student_id,
+    a.session.student_id,
+    a.session.student_id,
+  );
+  } catch (e) {
+    // Badge rendering must never take down the XP page. If a legacy/partially
+    // migrated database is missing one of the activity tables, return the fixed
+    // catalogue with zero earned metrics; the next successful request will
+    // recompute the real state.
+    console.error(`[${ctx.requestId}] badge metrics unavailable`, e);
+  }
+
   const xpTotal = Number(metrics?.xp_total || 0);
   const values = {
     xp_total: xpTotal,
@@ -268,41 +293,21 @@ export async function badges(ctx) {
     replies: Number(metrics?.replies || 0),
   };
 
-  const eligible = definitions.filter((badge) => {
+  const rows = definitions.map((badge) => {
     const current = Number(values[badge.rule_type] || 0);
-    return Number(badge.rule_value || 0) > 0 && current >= Number(badge.rule_value);
+    const earned = Number(badge.rule_value || 0) > 0 && current >= Number(badge.rule_value);
+    return {
+      ...badge,
+      earned,
+      awarded_at: null,
+    };
   });
 
-  let awardedRows = [];
-  try {
-    if (eligible.length) {
-      const results = await ctx.env.DB.batch(eligible.map((badge) =>
-        ctx.env.DB.prepare('INSERT INTO student_badges(student_id,badge_id) VALUES(?,?) ON CONFLICT(student_id,badge_id) DO NOTHING').bind(a.session.student_id, badge.id)
-      ));
-      awardedRows = eligible.filter((_, i) => Number(results[i]?.meta?.changes || 0) > 0).map((badge) => badge.id);
-    }
-  } catch (e) {
-    console.error(`[${ctx.requestId}] badge award write failed`, e);
-  }
-
-  let awardedAt = new Map();
-  try {
-    const rows = await queryAll(ctx.env, 'SELECT badge_id, awarded_at FROM student_badges WHERE student_id=?', a.session.student_id);
-    awardedAt = new Map(rows.map(row => [String(row.badge_id), row.awarded_at]));
-  } catch (e) {
-    console.error(`[${ctx.requestId}] badge award read failed`, e);
-  }
-
-  const rows = definitions.map((badge) => ({
-    ...badge,
-    earned: eligible.some((item) => item.id === badge.id) || awardedAt.has(String(badge.id)),
-    awarded_at: awardedAt.get(String(badge.id)) || null,
-  }));
   return ok(ctx, {
     badges: rows,
     earnedCount: rows.filter(r => r.earned).length,
     totalCount: rows.length,
-    newlyAwarded: awardedRows,
+    newlyAwarded: [],
   });
 }
 
@@ -449,46 +454,8 @@ export async function awardProgressXp(ctx, studentId, materialId, previousPage, 
   return xpAwarded;
 }
 
-export async function evaluateBadges(ctx, studentId) {
-  const definitions = badgeRows();
-  if (!definitions.length) return [];
-
-  const valuesRow = await queryOne(ctx.env, `
-    SELECT
-      COALESCE((SELECT SUM(xp) FROM xp_events WHERE student_id=?),0) AS xp_total,
-      COALESCE((SELECT level FROM student_stats WHERE student_id=?),0) AS level,
-      (SELECT COUNT(*) FROM material_progress_events WHERE student_id=?) AS progress_events,
-      (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials,
-      (SELECT COUNT(DISTINCT m.subject_id) FROM material_progress mp JOIN materials m ON m.id=mp.material_id WHERE mp.student_id=? AND mp.progress_percent>=100 AND m.subject_id IS NOT NULL) AS completed_subjects,
-      (SELECT COUNT(*) FROM xp_events WHERE student_id=? AND event_type='learning_event_complete') AS learning_events,
-      (SELECT COUNT(*) FROM comments WHERE student_id=? AND status='visible') AS comments,
-      (SELECT COUNT(*) FROM reactions WHERE student_id=?) AS reactions,
-      (SELECT COUNT(*) FROM comment_replies WHERE student_id=? AND status='visible') AS replies
-  `, studentId, studentId, studentId, studentId, studentId, studentId, studentId, studentId, studentId);
-  const xpTotal = Number(valuesRow?.xp_total || 0);
-  const values = {
-    xp_total: xpTotal,
-    level: Number(valuesRow?.level || calculateLevel(xpTotal)),
-    progress_events: Number(valuesRow?.progress_events || 0),
-    completed_materials: Number(valuesRow?.completed_materials || 0),
-    completed_subjects: Number(valuesRow?.completed_subjects || 0),
-    learning_events: Number(valuesRow?.learning_events || 0),
-    comments: Number(valuesRow?.comments || 0),
-    reactions: Number(valuesRow?.reactions || 0),
-    replies: Number(valuesRow?.replies || 0),
-  };
-
-  const eligible = definitions.filter((badge) => {
-    const current = Number(values[badge.rule_type] || 0);
-    const threshold = Number(badge.rule_value || 0);
-    return threshold > 0 && current >= threshold;
-  });
-  if (!eligible.length) return [];
-
-  const results = await ctx.env.DB.batch(
-    eligible.map((badge) => ctx.env.DB.prepare(
-      'INSERT INTO student_badges(student_id,badge_id) VALUES(?,?) ON CONFLICT(student_id,badge_id) DO NOTHING'
-    ).bind(studentId, badge.id))
-  );
-  return eligible.filter((_, index) => Number(results[index]?.meta?.changes || 0) > 0).map((badge) => badge.id);
+export async function evaluateBadges(_ctx, _studentId) {
+  // Badge eligibility is derived by GET /badges from the immutable catalogue.
+  // No persistent/admin-controlled badge state is required.
+  return [];
 }

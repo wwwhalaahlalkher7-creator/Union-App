@@ -65,8 +65,19 @@ class _XpScreenState extends State<XpScreen> {
       final badges = await badgesFuture;
       if (mounted) setState(() => _badgeSnapshot = badges);
     } catch (e) {
+      // Badges are supplementary to XP. If the badge endpoint is unavailable
+      // (old backend, temporary network issue, or partial deployment), keep
+      // the XP page fully usable and render the immutable local catalogue.
       if (mounted) {
-        setState(() => _badgeError = ErrorMessage.from(context, e, fallbackKey: 'badgesLoadError'));
+        final currentXp = _snapshot;
+        if (currentXp != null) {
+          setState(() {
+            _badgeSnapshot = BadgesRepository.fallbackForXp(currentXp);
+            _badgeError = null;
+          });
+        } else {
+          setState(() => _badgeError = ErrorMessage.from(context, e, fallbackKey: 'badgesLoadError'));
+        }
       }
     }
 
