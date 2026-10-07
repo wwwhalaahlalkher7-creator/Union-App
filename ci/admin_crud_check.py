@@ -15,9 +15,9 @@ SCHEMA_ABSENT_COLUMNS = {
     'schedules': {'created_at'},
 }
 
-TABLES = ['news','announcements','events','achievements','subjects','materials','schedules','students','badges']
+TABLES = ['news','announcements','events','achievements','subjects','materials','schedules','students']
 CONTENT = ['news','events','announcements','achievements']
-ACTIVE = ['materials','schedules','students','subjects','badges']
+ACTIVE = ['materials','schedules','students','subjects']
 
 # Verify every field exposed by ADMIN_FIELDS actually exists in the final D1 schema.
 try:
@@ -55,6 +55,12 @@ try:
 except Exception as exc:
     errors.append(f'Schema/contract check failed: {exc}')
 
+# Badge definitions are application-owned and must never be exposed as an admin CRUD resource.
+if re.search(r"\bbadges\s*:\s*['\"]badges['\"]", SOURCE):
+    errors.append('badges must not be exposed through the admin CRUD resource map')
+if re.search(r"\bbadges\s*:\s*\[", SOURCE):
+    errors.append('badges must not be present in ADMIN_FIELDS')
+
 # Current admin contract: dashboard DELETE is a true hard delete.
 # Content records are permanently removed after dependent comments/reactions are cleaned.
 # Operational records are also hard-deleted; active=0 remains only for the separate
@@ -85,7 +91,6 @@ try:
     con.execute("INSERT INTO semesters(id,name_ar,academic_year,number) VALUES('sem-1','فصل تجريبي','2026/2027',1)")
     con.execute("INSERT INTO students(id,student_number,full_name,department_id) VALUES('stu-1','S-1','طالب تجريبي','dep-1')")
     con.execute("INSERT INTO subjects(id,semester_id,department_id,name_ar) VALUES('sub-1','sem-1','dep-1','مادة تجريبية')")
-    con.execute("INSERT INTO badges(id,name_ar,rule_type) VALUES('badge-1','شارة تجريبية','level')")
 
     # Validate content update attribution matches the actual schema.
     update_rows = {

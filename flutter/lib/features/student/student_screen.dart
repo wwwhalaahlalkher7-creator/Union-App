@@ -167,6 +167,7 @@ class _StudentScreenState extends State<StudentScreen> {
                       child: _Stat(
                         'XP',
                         '${stats['xp_total'] ?? 0}',
+                        onTap: () => context.push('/xp'),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -200,9 +201,9 @@ class _StudentScreenState extends State<StudentScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _Action(
-                      l10n.t('viewBadges'),
-                      Icons.workspace_premium_rounded,
-                      () => context.push('/badges'),
+                      l10n.t('editProfile'),
+                      Icons.edit_rounded,
+                      () => context.push('/edit-profile'),
                     ),
                   ),
                 ],
@@ -259,15 +260,17 @@ class _Pill extends StatelessWidget {
 class _Stat extends StatelessWidget {
   const _Stat(
     this.label,
-    this.value,
-  );
+    this.value, {
+    this.onTap,
+  });
 
   final String label;
   final String value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final content = Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
         color: context.colors.surfaceContainerHigh,
@@ -295,6 +298,12 @@ class _Stat extends StatelessWidget {
           ),
         ],
       ),
+    );
+    if (onTap == null) return content;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: content),
     );
   }
 }

@@ -5,6 +5,8 @@ import '../../core/errors/error_message.dart';
 import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/xp_snapshot.dart';
+import '../../data/models/badge_item.dart';
+import '../../data/repositories/badges_repository.dart';
 import '../../data/repositories/xp_repository.dart';
 import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
@@ -21,8 +23,11 @@ class XpScreen extends StatefulWidget {
 
 class _XpScreenState extends State<XpScreen> {
   XpRepository? _repo;
+  BadgesRepository? _badgesRepo;
   XpSnapshot? _snapshot;
+  BadgeSnapshot? _badgeSnapshot;
   String? _error;
+  String? _badgeError;
   bool _loading = true;
   bool _lastErrorIsAuth = false;
 
@@ -33,25 +38,39 @@ class _XpScreenState extends State<XpScreen> {
   }
 
   Future<void> _load() async {
-    if (mounted) setState(() { _loading = true; _lastErrorIsAuth = false; });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+        _badgeError = null;
+      });
+    }
+
+    _repo ??= AppDependencies.instance.xp;
+    _badgesRepo ??= AppDependencies.instance.badges;
+
+    final xpFuture = _repo!.getXp();
+    final badgesFuture = _badgesRepo!.getBadges();
+
     try {
-      _repo ??= AppDependencies.instance.xp;
-      final snapshot = await _repo!.getXp();
-      if (mounted) {
-        setState(() {
-          _snapshot = snapshot;
-          _error = null;
-        });
-      }
+      final snapshot = await xpFuture;
+      if (mounted) setState(() => _snapshot = snapshot);
     } catch (e) {
       if (mounted) {
-        setState(
-          () { _error = ErrorMessage.from(context, e, fallbackKey: 'xpLoadError'); _lastErrorIsAuth = e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED'); },
-        );
+        setState(() { _error = ErrorMessage.from(context, e, fallbackKey: 'xpLoadError'); _lastErrorIsAuth = e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED'); });
       }
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
+
+    try {
+      final badges = await badgesFuture;
+      if (mounted) setState(() => _badgeSnapshot = badges);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _badgeError = ErrorMessage.from(context, e, fallbackKey: 'badgesLoadError'));
+      }
+    }
+
+    if (mounted) setState(() => _loading = false);
   }
 
 
@@ -92,29 +111,10 @@ class _XpScreenState extends State<XpScreen> {
             const SizedBox(height: DesignTokens.space16),
             _NextMilestone(snapshot: data),
             const SizedBox(height: DesignTokens.space24),
-            AppSection(
-              title: l10n.t('xpLog'),
-              subtitle: l10n.t('xpSubtitle'),
-              child: data.events.isEmpty
-                  ? AppCard(
-                      child: Row(
-                        children: [
-                          Icon(Icons.auto_awesome_outlined,
-                              color: Theme.of(context).colorScheme.primary),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text(l10n.t('noXp'))),
-                        ],
-                      ),
-                    )
-                  : Column(
-                      children: [
-                        for (var i = 0; i < data.events.length; i++)
-                          _EventTile(
-                            event: data.events[i],
-                            last: i == data.events.length - 1,
-                          ),
-                      ],
-                    ),
+            _BadgeCollection(
+              snapshot: _badgeSnapshot,
+              error: _badgeError,
+              retry: _load,
             ),
           ],
         ),
@@ -233,89 +233,151 @@ class _XpHero extends StatelessWidget {
   }
 }
 
-class _EventTile extends StatelessWidget {
-  const _EventTile({required this.event, required this.last});
+class _BadgeCollection extends StatelessWidget {
+  const _BadgeCollection({required this.snapshot, required this.error, required this.retry});
 
-  final XpEvent event;
-  final bool last;
+  final BadgeSnapshot? snapshot;
+  final String? error;
+  final VoidCallback retry;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 28,
-          child: Column(
+    if (snapshot == null) {
+      if (error != null) {
+        return AppCard(
+          child: Row(
             children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: cs.primary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              if (!last)
-                Container(
-                  width: 2,
-                  height: 66,
-                  color: cs.outlineVariant,
-                ),
+              Icon(Icons.emoji_events_outlined, color: cs.primary),
+              const SizedBox(width: 10),
+              Expanded(child: Text(error!, maxLines: 3, overflow: TextOverflow.ellipsis)),
+              IconButton(onPressed: retry, icon: const Icon(Icons.refresh_rounded)),
             ],
           ),
-        ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsetsDirectional.only(bottom: 10),
-            child: AppCard(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.add_circle_rounded, color: cs.primary),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _label(l10n, event.type),
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
+        );
+      }
+      return const ListSkeleton(count: 2);
+    }
+
+    final data = snapshot!;
+    final ratio = data.totalCount == 0 ? 0.0 : (data.earnedCount / data.totalCount).clamp(0.0, 1.0).toDouble();
+    return AppSection(
+      title: l10n.t('badgeCollection'),
+      subtitle: l10n.t('badgesEarned', {'earned': '${data.earnedCount}', 'total': '${data.totalCount}'}),
+      child: Column(
+        children: [
+          AppCard(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(color: cs.primaryContainer, shape: BoxShape.circle),
+                  child: Icon(Icons.workspace_premium_rounded, color: cs.onPrimaryContainer),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l10n.t('badgesEarned', {'earned': '${data.earnedCount}', 'total': '${data.totalCount}'}), style: const TextStyle(fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(value: ratio, minHeight: 7, borderRadius: BorderRadius.circular(7)),
+                    ],
                   ),
-                  Text(
-                    '+${event.xp}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      color: cs.primary,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 720 ? 4 : (constraints.maxWidth >= 480 ? 3 : 2);
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: data.badges.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: .88,
+                ),
+                itemBuilder: (context, index) => _BadgeCard(badge: data.badges[index]),
+              );
+            },
+          ),
+        ],
+      ),
     );
-  }
-
-  String _label(AppLocalizations l10n, String type) {
-    switch (type) {
-      case 'material_page':
-        return l10n.t('xpEventPage');
-      case 'material_complete':
-        return l10n.t('xpEventComplete');
-      case 'learning_event_complete':
-        return l10n.t('xpEventLearning');
-      default:
-        return l10n.t('xpEventOther');
-    }
   }
 }
 
+class _BadgeCard extends StatelessWidget {
+  const _BadgeCard({required this.badge});
+  final BadgeItem badge;
+
+  IconData _icon() => switch (badge.ruleType) {
+    'xp_total' => Icons.bolt_rounded,
+    'level' => Icons.trending_up_rounded,
+    'completed_materials' => Icons.menu_book_rounded,
+    'progress_events' => Icons.auto_stories_rounded,
+    'learning_events' => Icons.event_available_rounded,
+    'comments' => Icons.forum_outlined,
+    'reactions' => Icons.thumb_up_alt_outlined,
+    'replies' => Icons.reply_rounded,
+    'completed_subjects' => Icons.school_rounded,
+    _ => Icons.workspace_premium_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final languageCode = Localizations.localeOf(context).languageCode;
+    final description = badge.localizedDescription(languageCode);
+    return AppCard(
+      padding: const EdgeInsets.all(10),
+      borderColor: badge.earned ? cs.primary.withValues(alpha: .34) : null,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: badge.earned ? cs.primaryContainer : cs.surfaceContainerHighest,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(_icon(), color: badge.earned ? cs.onPrimaryContainer : cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            badge.localizedName(languageCode),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontWeight: FontWeight.w900, color: badge.earned ? cs.onSurface : cs.onSurfaceVariant, fontSize: 12),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10.5, height: 1.2),
+          ),
+          if (badge.earned) ...[
+            const SizedBox(height: 4),
+            Icon(Icons.check_circle_rounded, size: 16, color: cs.primary),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class _NextMilestone extends StatelessWidget {
   const _NextMilestone({required this.snapshot});

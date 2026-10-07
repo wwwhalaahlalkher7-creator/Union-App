@@ -20,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const _homeNewsLimit = 3;
   Future<_HomeData>? _future;
 
   @override
@@ -135,6 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             'XP',
                             '$xp',
                             context.colors.secondary,
+                            onTap: () => context.push('/xp'),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -198,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 level: level,
                 xp: xp,
                 onXpTap: () => context.push('/xp'),
-                onBadgesTap: () => context.push('/badges'),
+                onMaterialsTap: () => context.go('/materials'),
               ),
               const SizedBox(height: 20),
               Row(
@@ -228,7 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 )
               else
-                for (final item in data.news.take(3))
+                for (final item in data.news.take(_HomeScreenState._homeNewsLimit))
                   Padding(
                     padding: const EdgeInsets.only(bottom: 9),
                     child: _NewsTile(
@@ -262,23 +264,23 @@ class _QuickStat extends StatelessWidget {
   const _QuickStat(
     this.label,
     this.value,
-    this.color,
-  );
+    this.color, {
+    this.onTap,
+  });
 
   final String label;
   final String value;
   final Color color;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final content = Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
         color: context.colors.surface,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(
-          color: context.colors.outline,
-        ),
+        border: Border.all(color: context.colors.outline),
       ),
       child: Column(
         children: [
@@ -302,6 +304,16 @@ class _QuickStat extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+    if (onTap == null) return content;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(13),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(13),
+        child: content,
       ),
     );
   }
@@ -374,6 +386,8 @@ class _NewsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppCard(
       padding: const EdgeInsets.all(14),
+      onTap: onTap,
+      semanticLabel: item.title,
       child: Row(
         children: [
           Container(
@@ -387,36 +401,29 @@ class _NewsTile extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.end,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                      ),
-                      if (item.summary?.isNotEmpty == true) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          item.summary!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.end,
-                          style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 11),
-                        ),
-                      ],
-                    ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
                   ),
-                ),
+                  if (item.summary?.isNotEmpty == true) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      item.summary!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 11),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -508,11 +515,11 @@ class _EinoHomeCard extends StatelessWidget {
 }
 
 class _ProgressJourneyCard extends StatelessWidget {
-  const _ProgressJourneyCard({required this.level, required this.xp, required this.onXpTap, required this.onBadgesTap});
+  const _ProgressJourneyCard({required this.level, required this.xp, required this.onXpTap, required this.onMaterialsTap});
   final int level;
   final int xp;
   final VoidCallback onXpTap;
-  final VoidCallback onBadgesTap;
+  final VoidCallback onMaterialsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -537,7 +544,7 @@ class _ProgressJourneyCard extends StatelessWidget {
           Row(children: [
             Expanded(child: _JourneyAction(icon: Icons.bolt_rounded, label: l10n.t('viewXp'), onTap: onXpTap)),
             const SizedBox(width: 8),
-            Expanded(child: _JourneyAction(icon: Icons.emoji_events_rounded, label: l10n.t('viewBadges'), onTap: onBadgesTap)),
+            Expanded(child: _JourneyAction(icon: Icons.menu_book_rounded, label: l10n.t('materials'), onTap: onMaterialsTap)),
           ]),
         ],
       ),

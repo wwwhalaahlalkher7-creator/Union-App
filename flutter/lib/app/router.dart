@@ -18,7 +18,6 @@ import '../features/onboarding/onboarding_screen.dart';
 import '../features/recent/recent_screen.dart';
 import '../features/schedule/schedule_screen.dart';
 import '../features/settings/settings_screen.dart';
-import '../features/student/badges_screen.dart';
 import '../features/student/student_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/tools/tools_screen.dart';
@@ -68,11 +67,11 @@ GoRouter buildRouter({
     GoRoute(path: '/favorites', builder: (_, _) => const FavoritesScreen()),
     GoRoute(path: '/recent', builder: (_, _) => const RecentScreen()),
     GoRoute(path: '/xp', builder: (_, _) => const StudentAccessGate(child: XpScreen())),
-    GoRoute(path: '/badges', builder: (_, _) => const StudentAccessGate(child: BadgesScreen())),
     GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
     GoRoute(path: '/learning-events', builder: (_, _) => const StudentAccessGate(child: LearningEventsScreen())),
     GoRoute(path: '/learning-events/:id', builder: (_, state) => StudentAccessGate(child: LearningEventRouteScreen(eventId: state.pathParameters['id'] ?? ''))),
     GoRoute(path: '/eino', builder: (_, state) => EinoScreen(source: state.uri.queryParameters['from'] ?? 'home')),
+    GoRoute(path: '/edit-profile', builder: (_, _) => const StudentAccountScreen()),
     GoRoute(path: '/account-settings', builder: (_, _) => const StudentAccountScreen()),
     GoRoute(path: '/settings', builder: (_, _) => SettingsScreen(currentThemeMode: themeMode(), onThemeModeChanged: onThemeModeChanged, locale: locale(), onLocaleChanged: onLocaleChanged, accentColorId: accentColorId?.call(), onAccentColorChanged: onAccentColorChanged)),
   ]);

@@ -39,7 +39,6 @@ class XpRepository {
           level: level,
           levelXp: (total - start).clamp(0, 100),
           nextLevelXp: 100,
-          events: const [],
         );
       } catch (_) {
         // Preserve the original, more useful API/network error.

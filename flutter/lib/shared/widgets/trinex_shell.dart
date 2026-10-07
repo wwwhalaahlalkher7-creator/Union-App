@@ -28,13 +28,14 @@ class _TrinexShellState extends State<TrinexShell>
 
   bool _einoVisible = false;
 
-  bool get _readingMode =>
-      widget.location == '/media/detail';
+  bool get _readingMode => widget.location == '/media/detail';
+
+  bool get _hideFloatingEino => widget.location.startsWith('/student');
 
   @override
   void initState() {
     super.initState();
-    _einoVisible = !_readingMode;
+    _einoVisible = !_readingMode && !_hideFloatingEino;
     FocusManager.instance.addListener(_handleFocusChange);
   }
 
@@ -44,7 +45,7 @@ class _TrinexShellState extends State<TrinexShell>
     if (oldWidget.location != widget.location && _readingMode) {
       _einoVisible = false;
     } else if (oldWidget.location != widget.location && !_readingMode) {
-      _einoVisible = true;
+      _einoVisible = !_hideFloatingEino;
     }
   }
 
@@ -55,7 +56,7 @@ class _TrinexShellState extends State<TrinexShell>
     if (!mounted) return;
     if (isEditing && _einoVisible) {
       setState(() => _einoVisible = false);
-    } else if (!isEditing && !_einoVisible && !_readingMode) {
+    } else if (!isEditing && !_einoVisible && !_readingMode && !_hideFloatingEino) {
       setState(() => _einoVisible = true);
     }
   }

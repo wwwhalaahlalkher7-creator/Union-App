@@ -16,7 +16,6 @@ export const ADMIN_FIELDS = {
   materials: ['subject_id','title','description','drive_file_id','drive_url','mime_type','size_bytes','active','sort_order','drive_parent_id','drive_modified_at','drive_web_view_url','pinned','source'],
   schedules: ['semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer','active'],
   students: ['student_number','full_name','email','department_id','current_semester_id','active'],
-  badges: ['name_ar','description_ar','icon_url','rule_type','rule_value','active','sort_order'],
   comments: ['student_id','content_type','content_id','body','status'],
 };
 
@@ -34,6 +33,5 @@ export const ADMIN_SELECT_COLUMNS = {
   materials: 'id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,created_at,updated_at',
   schedules: 'id,semester_id,department_id,subject_id,day_of_week,start_time,end_time,room,lecturer,active,created_by,updated_by,updated_at',
   students: 'id,student_number,full_name,email,department_id,current_semester_id,active,CASE WHEN auth_secret_hash IS NULL THEN 0 ELSE 1 END AS registered,created_at,updated_at',
-  badges: 'id,name_ar,description_ar,icon_url,rule_type,rule_value,active,sort_order,created_at,updated_at',
   comments: 'id,student_id,content_type,content_id,body,status,created_at,updated_at',
 };

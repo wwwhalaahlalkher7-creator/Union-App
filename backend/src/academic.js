@@ -8,6 +8,7 @@ import {
   R2_MAX_OBJECT_BYTES, R2_MAX_STORAGE_BYTES, R2_MAX_CLASS_A_MONTHLY, R2_MAX_UPLOAD_FILES_PER_REQUEST, R2_ALLOWED_TYPES,
 } from './core.js';
 import { studentAuth } from './auth.js';
+import { badgeRows } from './badges_catalog.js';
 export async function semesters(ctx) { const rows = await queryAll(ctx.env, 'SELECT * FROM semesters WHERE active = 1 ORDER BY academic_year DESC, number'); return ok(ctx, rows); }
 
 export async function departments(ctx) { const rows = await queryAll(ctx.env, 'SELECT * FROM departments WHERE active = 1 ORDER BY sort_order, name_ar'); return ok(ctx, rows); }
@@ -219,10 +220,7 @@ export async function xp(ctx) {
   // xp_events is the source of truth. student_stats is a cached aggregate and
   // may be missing for older students or after a partial migration. Rebuild it
   // on read so the XP screen cannot silently stay at zero.
-  const [events, aggregate] = await Promise.all([
-    queryAll(ctx.env, 'SELECT event_type, source_id, xp, created_at FROM xp_events WHERE student_id = ? ORDER BY created_at DESC LIMIT 100', a.session.student_id),
-    queryOne(ctx.env, 'SELECT COALESCE(SUM(xp), 0) AS xp_total FROM xp_events WHERE student_id = ?', a.session.student_id),
-  ]);
+  const aggregate = await queryOne(ctx.env, 'SELECT COALESCE(SUM(xp), 0) AS xp_total FROM xp_events WHERE student_id = ?', a.session.student_id);
   const total = Math.max(0, Number(aggregate?.xp_total || 0));
   const level = calculateLevel(total);
   await ctx.env.DB.prepare(`
@@ -237,45 +235,37 @@ export async function xp(ctx) {
   const levelXp = Math.max(0, total - levelStartXp);
   return ok(ctx, {
     stats: { xp_total: total, level, level_xp: levelXp, next_level_xp: XP_LEVEL_BASE, level_start_xp: levelStartXp },
-    events,
   });
 }
 
 export async function badges(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
 
-  // Badge eligibility is derived from immutable activity metrics. The catalogue
-  // read and the award write are deliberately independent so a single stale
-  // student_badges row/table cannot make the whole profile/system screen fail.
-  const defaultBadges = [
-    { id:'badge-first-step', name_ar:'البداية', description_ar:'ابدأ أول تقدم دراسي موثق.', icon_url:null, rule_type:'progress_events', rule_value:1, active:1, sort_order:10 },
-    { id:'badge-first-complete', name_ar:'أول إنجاز', description_ar:'أكمل أول ملف دراسي.', icon_url:null, rule_type:'completed_materials', rule_value:1, active:1, sort_order:20 },
-    { id:'badge-five-complete', name_ar:'خمسة ملفات', description_ar:'أكمل 5 ملفات دراسية.', icon_url:null, rule_type:'completed_materials', rule_value:5, active:1, sort_order:30 },
-    { id:'badge-ten-complete', name_ar:'عشرة ملفات', description_ar:'أكمل 10 ملفات دراسية.', icon_url:null, rule_type:'completed_materials', rule_value:10, active:1, sort_order:40 },
-    { id:'badge-level-5', name_ar:'المستوى 5', description_ar:'وصل إلى المستوى الخامس.', icon_url:null, rule_type:'level', rule_value:5, active:1, sort_order:50 },
-    { id:'badge-500-xp', name_ar:'500 XP', description_ar:'اجمع 500 XP من أنشطتك الدراسية.', icon_url:null, rule_type:'xp_total', rule_value:500, active:1, sort_order:60 },
-  ];
-
-  let definitions = defaultBadges;
-  try {
-    const rows = await queryAll(ctx.env, 'SELECT id, name_ar, description_ar, icon_url, rule_type, rule_value, active, sort_order FROM badges WHERE active=1 ORDER BY sort_order ASC, id ASC');
-    if (rows.length) definitions = rows;
-  } catch (e) {
-    console.error(`[${ctx.requestId}] badge catalogue fallback`, e);
-  }
-
+  // Badge eligibility is derived from immutable activity metrics and a fixed
+  // application catalogue. There is deliberately no admin-controlled badge data.
+  const definitions = badgeRows();
   const metrics = await queryOne(ctx.env, `
     SELECT
       (SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=?) AS xp_total,
       (SELECT COUNT(*) FROM material_progress_events WHERE student_id=?) AS progress_events,
-      (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials
-  `, a.session.student_id, a.session.student_id, a.session.student_id);
+      (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials,
+      (SELECT COUNT(DISTINCT m.subject_id) FROM material_progress mp JOIN materials m ON m.id=mp.material_id WHERE mp.student_id=? AND mp.progress_percent>=100 AND m.subject_id IS NOT NULL) AS completed_subjects,
+      (SELECT COUNT(*) FROM xp_events WHERE student_id=? AND event_type='learning_event_complete') AS learning_events,
+      (SELECT COUNT(*) FROM comments WHERE student_id=? AND status='visible') AS comments,
+      (SELECT COUNT(*) FROM reactions WHERE student_id=?) AS reactions,
+      (SELECT COUNT(*) FROM comment_replies WHERE student_id=? AND status='visible') AS replies
+  `, a.session.student_id, a.session.student_id, a.session.student_id, a.session.student_id, a.session.student_id, a.session.student_id, a.session.student_id, a.session.student_id);
   const xpTotal = Number(metrics?.xp_total || 0);
   const values = {
     xp_total: xpTotal,
     level: calculateLevel(xpTotal),
     progress_events: Number(metrics?.progress_events || 0),
     completed_materials: Number(metrics?.completed_materials || 0),
+    completed_subjects: Number(metrics?.completed_subjects || 0),
+    learning_events: Number(metrics?.learning_events || 0),
+    comments: Number(metrics?.comments || 0),
+    reactions: Number(metrics?.reactions || 0),
+    replies: Number(metrics?.replies || 0),
   };
 
   const eligible = definitions.filter((badge) => {
@@ -460,26 +450,35 @@ export async function awardProgressXp(ctx, studentId, materialId, previousPage, 
 }
 
 export async function evaluateBadges(ctx, studentId) {
-  const badgeRows = await queryAll(ctx.env,
-    'SELECT id, rule_type, rule_value FROM badges WHERE active=1 ORDER BY sort_order ASC, id ASC');
-  if (!badgeRows.length) return [];
+  const definitions = badgeRows();
+  if (!definitions.length) return [];
 
   const valuesRow = await queryOne(ctx.env, `
     SELECT
-      COALESCE((SELECT xp_total FROM student_stats WHERE student_id=?), 0) AS xp_total,
-      COALESCE((SELECT level FROM student_stats WHERE student_id=?), 0) AS level,
+      COALESCE((SELECT SUM(xp) FROM xp_events WHERE student_id=?),0) AS xp_total,
+      COALESCE((SELECT level FROM student_stats WHERE student_id=?),0) AS level,
       (SELECT COUNT(*) FROM material_progress_events WHERE student_id=?) AS progress_events,
-      (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials
-  `, studentId, studentId, studentId, studentId);
+      (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials,
+      (SELECT COUNT(DISTINCT m.subject_id) FROM material_progress mp JOIN materials m ON m.id=mp.material_id WHERE mp.student_id=? AND mp.progress_percent>=100 AND m.subject_id IS NOT NULL) AS completed_subjects,
+      (SELECT COUNT(*) FROM xp_events WHERE student_id=? AND event_type='learning_event_complete') AS learning_events,
+      (SELECT COUNT(*) FROM comments WHERE student_id=? AND status='visible') AS comments,
+      (SELECT COUNT(*) FROM reactions WHERE student_id=?) AS reactions,
+      (SELECT COUNT(*) FROM comment_replies WHERE student_id=? AND status='visible') AS replies
+  `, studentId, studentId, studentId, studentId, studentId, studentId, studentId, studentId, studentId);
   const xpTotal = Number(valuesRow?.xp_total || 0);
   const values = {
     xp_total: xpTotal,
     level: Number(valuesRow?.level || calculateLevel(xpTotal)),
     progress_events: Number(valuesRow?.progress_events || 0),
     completed_materials: Number(valuesRow?.completed_materials || 0),
+    completed_subjects: Number(valuesRow?.completed_subjects || 0),
+    learning_events: Number(valuesRow?.learning_events || 0),
+    comments: Number(valuesRow?.comments || 0),
+    reactions: Number(valuesRow?.reactions || 0),
+    replies: Number(valuesRow?.replies || 0),
   };
 
-  const eligible = badgeRows.filter((badge) => {
+  const eligible = definitions.filter((badge) => {
     const current = Number(values[badge.rule_type] || 0);
     const threshold = Number(badge.rule_value || 0);
     return threshold > 0 && current >= threshold;

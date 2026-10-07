@@ -104,7 +104,7 @@ export function adminPermission(path, method) {
 }
 
 export function adminResourceTable(resource) {
-  const map = { news:'news', announcements:'announcements', events:'events', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', badges:'badges', comments:'comments' };
+  const map = { news:'news', announcements:'announcements', events:'events', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', comments:'comments' };
   return map[resource] || null;
 }
 
@@ -216,11 +216,6 @@ export async function adminCrud(ctx, table, id, actorId) {
   if (ctx.request.method === 'POST') {
     const body = await parseJson(ctx.request); const fields = cleanAdminPayload(table, body);
     if (CONTENT_TABLES.has(table) && fields.status !== undefined && !CONTENT_STATUS_VALUES.has(String(fields.status))) return error('CONTENT_STATUS_INVALID','حالة المحتوى غير مدعومة.',400,ctx.requestId,ctx.cors);
-    if (table === 'badges') {
-      const allowedRules = new Set(['xp_total','level','completed_materials','progress_events']);
-      if (fields.rule_type && !allowedRules.has(String(fields.rule_type))) return error('BADGE_RULE_INVALID','نوع قاعدة الشارة غير مدعوم.',400,ctx.requestId,ctx.cors);
-      if (fields.rule_value != null && (!Number.isInteger(Number(fields.rule_value)) || Number(fields.rule_value)<=0)) return error('BADGE_RULE_VALUE_INVALID','قيمة قاعدة الشارة يجب أن تكون رقمًا صحيحًا موجبًا.',400,ctx.requestId,ctx.cors);
-    }
     const id = String(body?.id || makeId(table.slice(0, -1) || table));
     if (table === 'students') {
       if (!fields.student_number || !fields.full_name || !fields.department_id) {
@@ -255,11 +250,6 @@ export async function adminCrud(ctx, table, id, actorId) {
   if (ctx.request.method === 'PATCH') {
     const body = await parseJson(ctx.request); const fields = cleanAdminPayload(table, body);
     if (CONTENT_TABLES.has(table) && fields.status !== undefined && !CONTENT_STATUS_VALUES.has(String(fields.status))) return error('CONTENT_STATUS_INVALID','حالة المحتوى غير مدعومة.',400,ctx.requestId,ctx.cors);
-    if (table === 'badges') {
-      const allowedRules = new Set(['xp_total','level','completed_materials','progress_events']);
-      if (fields.rule_type && !allowedRules.has(String(fields.rule_type))) return error('BADGE_RULE_INVALID','نوع قاعدة الشارة غير مدعوم.',400,ctx.requestId,ctx.cors);
-      if (fields.rule_value != null && (!Number.isInteger(Number(fields.rule_value)) || Number(fields.rule_value)<=0)) return error('BADGE_RULE_VALUE_INVALID','قيمة قاعدة الشارة يجب أن تكون رقمًا صحيحًا موجبًا.',400,ctx.requestId,ctx.cors);
-    }
     if (!Object.keys(fields).length) return error('ADMIN_NO_FIELDS','لم يتم إرسال أي تغييرات.',400,ctx.requestId,ctx.cors);
     if (table === 'students' && fields.student_number !== undefined &&
         !/^[0-9]+(?:-[0-9]+)?$/.test(String(fields.student_number).trim())) {
@@ -445,10 +435,6 @@ export async function adminCrud(ctx, table, id, actorId) {
       await ctx.env.DB.prepare('DELETE FROM schedules WHERE id=?').bind(id).run();
       await writeAudit(ctx, actorId, 'delete', table, id, { mode:'hard_delete' });
       return ok(ctx, { deleted:true, id, mode:'hard_delete' });
-    }
-
-    if (table === 'badges') {
-      return error('BADGE_ADMIN_DISABLED','الشارات نظام داخلي ثابت ولا تُدار من لوحة التحكم.',403,ctx.requestId,ctx.cors);
     }
 
     const result = await ctx.env.DB.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();

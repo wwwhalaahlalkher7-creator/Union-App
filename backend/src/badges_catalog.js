@@ -1,0 +1,50 @@
+// Immutable student badge catalogue. Badge definitions are part of the application
+// and are intentionally not configurable from the admin dashboard.
+export const BADGE_CATALOG = Object.freeze([
+  ['badge-first-step','البداية','ابدأ أول تقدم دراسي موثق.','progress_events',1,10],
+  ['badge-five-progress','خطوة ثابتة','سجّل 5 عمليات تقدم دراسي.','progress_events',5,20],
+  ['badge-ten-progress','مواظب','سجّل 10 عمليات تقدم دراسي.','progress_events',10,30],
+  ['badge-twentyfive-progress','متابع قوي','سجّل 25 عملية تقدم دراسي.','progress_events',25,40],
+  ['badge-fifty-progress','لا تتوقف','سجّل 50 عملية تقدم دراسي.','progress_events',50,50],
+  ['badge-hundred-progress','مئة خطوة','سجّل 100 عملية تقدم دراسي.','progress_events',100,60],
+  ['badge-quarter-thousand-progress','ربع ألف','سجّل 250 عملية تقدم دراسي.','progress_events',250,70],
+  ['badge-first-complete','أول إنجاز','أكمل أول ملف دراسي.','completed_materials',1,100],
+  ['badge-three-complete','ثلاثة ملفات','أكمل 3 ملفات دراسية.','completed_materials',3,110],
+  ['badge-five-complete','خمسة ملفات','أكمل 5 ملفات دراسية.','completed_materials',5,120],
+  ['badge-ten-complete','عشرة ملفات','أكمل 10 ملفات دراسية.','completed_materials',10,130],
+  ['badge-twenty-complete','عشرون ملفًا','أكمل 20 ملفًا دراسيًا.','completed_materials',20,140],
+  ['badge-thirty-complete','ثلاثون ملفًا','أكمل 30 ملفًا دراسيًا.','completed_materials',30,150],
+  ['badge-fifty-complete','موسوعة','أكمل 50 ملفًا دراسيًا.','completed_materials',50,160],
+  ['badge-first-subject','أول مادة','أكمل مادة دراسية واحدة.','completed_subjects',1,200],
+  ['badge-three-subjects','متعدد المواد','أكمل مواد من 3 مقررات مختلفة.','completed_subjects',3,210],
+  ['badge-five-subjects','واسع المعرفة','أكمل مواد من 5 مقررات مختلفة.','completed_subjects',5,220],
+  ['badge-eight-subjects','جامع المقررات','أكمل مواد من 8 مقررات مختلفة.','completed_subjects',8,230],
+  ['badge-xp-50','أول دفعة','اجمع 50 XP.','xp_total',50,300],
+  ['badge-xp-100','مئة XP','اجمع 100 XP.','xp_total',100,310],
+  ['badge-xp-250','ربع ألف XP','اجمع 250 XP.','xp_total',250,320],
+  ['badge-xp-500','500 XP','اجمع 500 XP.','xp_total',500,330],
+  ['badge-xp-1000','1000 XP','اجمع 1000 XP.','xp_total',1000,340],
+  ['badge-xp-2000','2000 XP','اجمع 2000 XP.','xp_total',2000,350],
+  ['badge-xp-5000','5000 XP','اجمع 5000 XP.','xp_total',5000,360],
+  ['badge-level-2','المستوى 2','وصل إلى المستوى الثاني.','level',2,400],
+  ['badge-level-3','المستوى 3','وصل إلى المستوى الثالث.','level',3,410],
+  ['badge-level-5','المستوى 5','وصل إلى المستوى الخامس.','level',5,420],
+  ['badge-level-10','المستوى 10','وصل إلى المستوى العاشر.','level',10,430],
+  ['badge-level-15','المستوى 15','وصل إلى المستوى الخامس عشر.','level',15,440],
+  ['badge-first-event','أول حدث','أكمل أول حدث تعليمي.','learning_events',1,500],
+  ['badge-five-events','محب التعلم','أكمل 5 أحداث تعليمية.','learning_events',5,510],
+  ['badge-ten-events','صانع العادة','أكمل 10 أحداث تعليمية.','learning_events',10,520],
+  ['badge-first-comment','صوتك مهم','اكتب أول تعليق ظاهر.','comments',1,600],
+  ['badge-five-comments','مشارك','اكتب 5 تعليقات ظاهرة.','comments',5,610],
+  ['badge-ten-comments','حوار مستمر','اكتب 10 تعليقات ظاهرة.','comments',10,620],
+  ['badge-first-reaction','تفاعل أول','أضف أول تفاعل.','reactions',1,630],
+  ['badge-ten-reactions','متفاعل','أضف 10 تفاعلات.','reactions',10,640],
+  ['badge-first-reply','مجيب','اكتب أول رد على تعليق.','replies',1,650],
+  ['badge-five-replies','حوار بنّاء','اكتب 5 ردود على التعليقات.','replies',5,660],
+]);
+
+export function badgeRows() {
+  return BADGE_CATALOG.map(([id,name_ar,description_ar,rule_type,rule_value,sort_order]) => ({
+    id, name_ar, description_ar, icon_url: null, rule_type, rule_value, active: 1, sort_order,
+  }));
+}

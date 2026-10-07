@@ -92,7 +92,7 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
     final l10n=AppLocalizations.of(context);
     if(_loading)return const Scaffold(body:Center(child:CircularProgressIndicator()));
     return Scaffold(
-      appBar:AppBar(title:Text(l10n.t('accountSettings'))),
+      appBar:AppBar(title:Text(l10n.t('editProfile'))),
       body:ListView(padding:const EdgeInsets.all(16),children:[
         Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
           Text(l10n.t('studentData'),style:Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight:FontWeight.w800)),
