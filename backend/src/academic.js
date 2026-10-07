@@ -8,7 +8,7 @@ import {
   R2_MAX_OBJECT_BYTES, R2_MAX_STORAGE_BYTES, R2_MAX_CLASS_A_MONTHLY, R2_MAX_UPLOAD_FILES_PER_REQUEST, R2_ALLOWED_TYPES,
 } from './core.js';
 import { studentAuth } from './auth.js';
-import { badgeRows } from './badges_catalog.js';
+import { badgeRows, badgeCategoryRows } from './badges_catalog.js';
 export async function semesters(ctx) { const rows = await queryAll(ctx.env, 'SELECT * FROM semesters WHERE active = 1 ORDER BY academic_year DESC, number'); return ok(ctx, rows); }
 
 export async function departments(ctx) { const rows = await queryAll(ctx.env, 'SELECT * FROM departments WHERE active = 1 ORDER BY sort_order, name_ar'); return ok(ctx, rows); }
@@ -246,7 +246,6 @@ export async function badges(ctx) {
   // writing the legacy dashboard-managed `badges` / `student_badges` tables.
   // This keeps badges available even when an older production database has not
   // received the optional badge migrations yet.
-  const definitions = badgeRows();
   let metrics = null;
   try {
     metrics = await queryOne(ctx.env, `
@@ -293,20 +292,19 @@ export async function badges(ctx) {
     replies: Number(metrics?.replies || 0),
   };
 
+  const definitions = badgeRows(xpTotal);
   const rows = definitions.map((badge) => {
     const current = Number(values[badge.rule_type] || 0);
     const earned = Number(badge.rule_value || 0) > 0 && current >= Number(badge.rule_value);
-    return {
-      ...badge,
-      earned,
-      awarded_at: null,
-    };
-  });
+    return { ...badge, earned, awarded_at: null };
+  }).filter((badge) => badge.earned);
 
+  const categories = badgeCategoryRows(values);
   return ok(ctx, {
     badges: rows,
-    earnedCount: rows.filter(r => r.earned).length,
-    totalCount: rows.length,
+    categories,
+    earnedCount: rows.length,
+    totalCount: rows.length + categories.filter(c => c.next).length,
     newlyAwarded: [],
   });
 }
@@ -457,7 +455,7 @@ export async function awardProgressXp(ctx, studentId, materialId, previousPage, 
 export async function evaluateBadges(ctx, studentId) {
   // Badge definitions are immutable application code. Persistence here is only
   // the student's earned state; there is no admin CRUD or dashboard control.
-  const definitions = badgeRows();
+  const definitions = badgeRows(0);
   if (!definitions.length) return [];
 
   const valuesRow = await queryOne(ctx.env, `
@@ -486,7 +484,8 @@ export async function evaluateBadges(ctx, studentId) {
     replies: Number(valuesRow?.replies || 0),
   };
 
-  const eligible = definitions.filter((badge) => {
+  const eligibleDefinitions = badgeRows(xpTotal);
+  const eligible = eligibleDefinitions.filter((badge) => {
     const current = Number(values[badge.rule_type] || 0);
     const threshold = Number(badge.rule_value || 0);
     return threshold > 0 && current >= threshold;

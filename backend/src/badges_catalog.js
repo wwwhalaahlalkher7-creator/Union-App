@@ -1,5 +1,4 @@
-// Immutable student badge catalogue. Badge definitions are part of the application
-// and are intentionally not configurable from the admin dashboard.
+// Immutable student badge catalogue. Badge definitions are application-owned and are not configurable from the admin dashboard.
 export const BADGE_CATALOG = Object.freeze([
   ['badge-first-step','البداية','ابدأ أول تقدم دراسي موثق.','progress_events',1,10],
   ['badge-five-progress','خطوة ثابتة','سجّل 5 عمليات تقدم دراسي.','progress_events',5,20],
@@ -43,8 +42,56 @@ export const BADGE_CATALOG = Object.freeze([
   ['badge-five-replies','حوار بنّاء','اكتب 5 ردود على التعليقات.','replies',5,660],
 ]);
 
-export function badgeRows() {
-  return BADGE_CATALOG.map(([id,name_ar,description_ar,rule_type,rule_value,sort_order]) => ({
+export const BADGE_CATEGORIES = Object.freeze([
+  { key: 'xp_total', name_ar: 'XP', icon: 'bolt', unlimited: true },
+  { key: 'level', name_ar: 'المستويات', icon: 'trending_up', unlimited: true },
+  { key: 'completed_materials', name_ar: 'المواد الدراسية', icon: 'menu_book', unlimited: false, max: 50 },
+  { key: 'completed_subjects', name_ar: 'المقررات', icon: 'school', unlimited: false, max: 50 },
+  { key: 'progress_events', name_ar: 'التقدم الدراسي', icon: 'auto_stories', unlimited: true },
+  { key: 'learning_events', name_ar: 'الأحداث التعليمية', icon: 'event', unlimited: true },
+  { key: 'comments', name_ar: 'التعليقات', icon: 'comment', unlimited: true },
+  { key: 'reactions', name_ar: 'التفاعلات', icon: 'thumb_up', unlimited: true },
+  { key: 'replies', name_ar: 'الردود', icon: 'reply', unlimited: true },
+]);
+
+function dynamicXpRows(current) {
+  const fixed = BADGE_CATALOG.filter(row => row[3] === 'xp_total');
+  const maxFixed = Math.max(...fixed.map(row => Number(row[4])));
+  const rows = [...fixed];
+  let threshold = maxFixed * 2;
+  let order = Math.max(...fixed.map(row => Number(row[5]))) + 10;
+  while (threshold <= Math.max(current, maxFixed) * 2 && threshold <= 100000000) {
+    rows.push([`badge-xp-${threshold}`, `${threshold} XP`, `اجمع ${threshold} XP.`, 'xp_total', threshold, order]);
+    threshold *= 2;
+    order += 10;
+  }
+  return rows;
+}
+
+export function badgeRows(currentXp = 0) {
+  const base = BADGE_CATALOG.filter(row => row[3] !== 'xp_total');
+  return [...base, ...dynamicXpRows(Number(currentXp) || 0)].map(([id,name_ar,description_ar,rule_type,rule_value,sort_order]) => ({
     id, name_ar, description_ar, icon_url: null, rule_type, rule_value, active: 1, sort_order,
   }));
+}
+
+export function badgeCategoryRows(values) {
+  const definitions = badgeRows(Number(values?.xp_total || 0));
+  return BADGE_CATEGORIES.map((category) => {
+    const current = Math.max(0, Number(values?.[category.key] || 0));
+    const candidates = definitions.filter(b => b.rule_type === category.key).sort((a,b) => Number(a.rule_value) - Number(b.rule_value));
+    const earned = candidates.filter(b => Number(b.rule_value) <= current);
+    let next = candidates.find(b => Number(b.rule_value) > current) || null;
+    if (!next && category.unlimited) {
+      const last = candidates[candidates.length - 1];
+      const nextValue = Math.max(current + 1, Number(last?.rule_value || 1) * 2);
+      next = { id: `badge-${category.key}-${nextValue}`, name_ar: `${nextValue}`, description_ar: `الوصول إلى ${nextValue}.`, icon_url: null, rule_type: category.key, rule_value: nextValue, active: 1, sort_order: 999999 };
+    }
+    const max = category.max || null;
+    const complete = max != null && current >= max;
+    return {
+      key: category.key, name_ar: category.name_ar, icon: category.icon, unlimited: category.unlimited, max, current,
+      earnedCount: earned.length, completed: complete, next: complete ? null : next,
+    };
+  }).filter(category => category.next || category.earnedCount > 0 || category.completed);
 }

@@ -251,6 +251,19 @@ class _BadgeCollection extends StatelessWidget {
   final String? error;
   final VoidCallback retry;
 
+  IconData _categoryIcon(String icon) => switch (icon) {
+    'bolt' => Icons.bolt_rounded,
+    'trending_up' => Icons.trending_up_rounded,
+    'menu_book' => Icons.menu_book_rounded,
+    'school' => Icons.school_rounded,
+    'auto_stories' => Icons.auto_stories_rounded,
+    'event' => Icons.event_available_rounded,
+    'comment' => Icons.forum_outlined,
+    'thumb_up' => Icons.thumb_up_alt_outlined,
+    'reply' => Icons.reply_rounded,
+    _ => Icons.workspace_premium_rounded,
+  };
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -273,116 +286,158 @@ class _BadgeCollection extends StatelessWidget {
     }
 
     final data = snapshot!;
-    final ratio = data.totalCount == 0 ? 0.0 : (data.earnedCount / data.totalCount).clamp(0.0, 1.0).toDouble();
     return AppSection(
       title: l10n.t('badgeCollection'),
-      subtitle: l10n.t('badgesEarned', {'earned': '${data.earnedCount}', 'total': '${data.totalCount}'}),
+      subtitle: l10n.t('badgesEarnedCount', {'earned': '${data.earnedCount}'}),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppCard(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(color: cs.primaryContainer, shape: BoxShape.circle),
-                  child: Icon(Icons.workspace_premium_rounded, color: cs.onPrimaryContainer),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(l10n.t('badgesEarned', {'earned': '${data.earnedCount}', 'total': '${data.totalCount}'}), style: const TextStyle(fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(value: ratio, minHeight: 7, borderRadius: BorderRadius.circular(7)),
-                    ],
-                  ),
-                ),
-              ],
+          if (data.badges.isNotEmpty) ...[
+            _BadgeSectionTitle(
+              icon: Icons.workspace_premium_rounded,
+              title: l10n.t('achievementsTitle'),
             ),
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 720 ? 4 : (constraints.maxWidth >= 480 ? 3 : 2);
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: data.badges.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: .88,
+            const SizedBox(height: 10),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 720 ? 4 : (constraints.maxWidth >= 480 ? 3 : 2);
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: data.badges.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: .92,
+                  ),
+                  itemBuilder: (context, index) => _BadgeCard(badge: data.badges[index]),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+          if (data.categories.isNotEmpty) ...[
+            _BadgeSectionTitle(
+              icon: Icons.lock_outline_rounded,
+              title: l10n.t('badgesNext'),
+            ),
+            const SizedBox(height: 10),
+            ...data.categories.map(
+              (category) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _BadgeCategoryCard(
+                  category: category,
+                  icon: _categoryIcon(category.icon),
                 ),
-                itemBuilder: (context, index) => _BadgeCard(badge: data.badges[index]),
-              );
-            },
-          ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _BadgeCard extends StatelessWidget {
-  const _BadgeCard({required this.badge});
-  final BadgeItem badge;
-
-  IconData _icon() => switch (badge.ruleType) {
-    'xp_total' => Icons.bolt_rounded,
-    'level' => Icons.trending_up_rounded,
-    'completed_materials' => Icons.menu_book_rounded,
-    'progress_events' => Icons.auto_stories_rounded,
-    'learning_events' => Icons.event_available_rounded,
-    'comments' => Icons.forum_outlined,
-    'reactions' => Icons.thumb_up_alt_outlined,
-    'replies' => Icons.reply_rounded,
-    'completed_subjects' => Icons.school_rounded,
-    _ => Icons.workspace_premium_rounded,
-  };
+class _BadgeSectionTitle extends StatelessWidget {
+  const _BadgeSectionTitle({required this.icon, required this.title});
+  final IconData icon;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final languageCode = Localizations.localeOf(context).languageCode;
-    final description = badge.localizedDescription(languageCode);
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: cs.primary),
+        const SizedBox(width: 8),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+      ],
+    );
+  }
+}
+
+class _BadgeCategoryCard extends StatelessWidget {
+  const _BadgeCategoryCard({required this.category, required this.icon});
+  final BadgeCategory category;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final next = category.next;
+    final progress = category.progress;
+
     return AppCard(
-      padding: const EdgeInsets.all(10),
-      borderColor: badge.earned ? cs.primary.withValues(alpha: .34) : null,
+      padding: const EdgeInsets.all(14),
+      borderColor: category.completed ? cs.primary.withValues(alpha: .30) : null,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: badge.earned ? cs.primaryContainer : cs.surfaceContainerHighest,
-              shape: BoxShape.circle,
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: category.completed ? cs.primaryContainer : cs.surfaceContainerHighest,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: category.completed ? cs.onPrimaryContainer : cs.onSurfaceVariant),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(category.name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 2),
+                    Text(
+                      category.completed
+                          ? l10n.t('badgeComplete')
+                          : l10n.t('badgeNext'),
+                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              if (category.completed)
+                Icon(Icons.check_circle_rounded, color: cs.primary)
+              else if (next != null)
+                Text(
+                  '${category.current} / ${next.ruleValue}',
+                  style: TextStyle(color: cs.primary, fontWeight: FontWeight.w900),
+                ),
+            ],
+          ),
+          if (!category.completed && next != null) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 8,
+                backgroundColor: cs.surfaceContainerHighest,
+              ),
             ),
-            child: Icon(_icon(), color: badge.earned ? cs.onPrimaryContainer : cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            badge.localizedName(languageCode),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontWeight: FontWeight.w900, color: badge.earned ? cs.onSurface : cs.onSurfaceVariant, fontSize: 12),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10.5, height: 1.2),
-          ),
-          if (badge.earned) ...[
-            const SizedBox(height: 4),
-            Icon(Icons.check_circle_rounded, size: 16, color: cs.primary),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    next.localizedName(Localizations.localeOf(context).languageCode),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.t('badgeRemaining', {'value': '${category.remaining}'}),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+                ),
+              ],
+            ),
           ],
         ],
       ),
