@@ -5,7 +5,6 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/errors/error_message.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/badge_item.dart';
-import '../../data/repositories/badges_repository.dart';
 import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_section.dart';

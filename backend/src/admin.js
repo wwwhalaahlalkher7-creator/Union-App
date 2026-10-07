@@ -14,6 +14,7 @@ import { deleteDriveFilesViaAppsScript } from './drive.js';
 
 import { ADMIN_ROLE_IDS, ADMIN_FIELDS, CONTENT_STATUS_VALUES, CONTENT_TABLES, CONTENT_UPDATED_BY_TABLES, ADMIN_SELECT_COLUMNS } from './admin/config.js';
 import { hasAdminPermission, requireAdminPermission } from './admin/permissions.js';
+export { requireAdminPermission } from './admin/permissions.js';
 
 export async function adminModerationComments(ctx) { const a=await requireAdminPermission(ctx, 'moderation.read'); if(a.response) return a.response; const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,"SELECT c.*,s.full_name,s.student_number, (SELECT COUNT(*) FROM comment_replies cr WHERE cr.comment_id=c.id AND cr.status='visible') AS reply_count FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?",status,limit); return ok(ctx,rows,{count:rows.length}); }
 

@@ -51,7 +51,6 @@ class _MediaCardState extends State<MediaCard> {
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'likeFailed'))));
     } finally {
-      client?.dispose();
       if (mounted) setState(() => _busy = false);
     }
   }

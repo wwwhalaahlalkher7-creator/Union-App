@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../data/models/notification_item.dart';
 import '../../data/repositories/notifications_repository.dart';
 import '../../core/di/app_dependencies.dart';
@@ -85,7 +86,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             return const ListSkeleton(count: 5);
           }
           if (snapshot.hasError) {
-            final e = snapshot.error;
+            final Object e = snapshot.error ?? Exception('Unknown error');
             if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
             return _StateView(icon: Icons.cloud_off_rounded, title: ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), action: l10n.t('retry'), onAction: _reload);
           }

@@ -3,11 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/content_item.dart';
 import '../../data/models/student_profile.dart';
-import '../../data/repositories/content_repository.dart';
-import '../../data/repositories/student_repository.dart';
 import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/list_skeleton.dart';
@@ -72,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
 
           if (snapshot.hasError) {
-            final e = snapshot.error;
+            final Object e = snapshot.error ?? Exception('Unknown error');
             return _StateMessage(
               message: ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'),
               retry: e is ApiException && !e.retryable ? null : () => setState(() => _future = _load()),

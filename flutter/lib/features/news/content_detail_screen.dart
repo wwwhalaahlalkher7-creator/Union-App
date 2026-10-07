@@ -84,7 +84,6 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         );
       }
     } finally {
-      client?.dispose();
       if (mounted) setState(() => _busy = false);
     }
   }

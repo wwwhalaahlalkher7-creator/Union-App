@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/schedule_item.dart';
 import '../../data/repositories/schedule_repository.dart';
@@ -74,7 +75,7 @@ class _ScheduleScreenState
           }
 
           if (snapshot.hasError) {
-            final e = snapshot.error;
+            final Object e = snapshot.error ?? Exception('Unknown error');
             if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
             return _Msg(message: ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), retry: _reload);
           }

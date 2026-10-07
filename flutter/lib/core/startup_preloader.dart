@@ -1,4 +1,4 @@
-import 'api_client.dart';
+import 'network/api_client.dart';
 
 /// Warms only public, read-only data that is useful immediately after launch.
 /// Failures are intentionally ignored: startup must never depend on the network.

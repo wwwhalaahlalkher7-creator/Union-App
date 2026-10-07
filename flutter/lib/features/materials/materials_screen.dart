@@ -8,6 +8,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/storage/auth_storage.dart';
@@ -178,11 +179,11 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
           }
 
           if (snapshot.hasError) {
-            final e = snapshot.error;
+            final Object e = snapshot.error ?? Exception('Unknown error');
             if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
             return _State(
               message: e is ApiException
-                  ? (snapshot.error as ApiException).message
+                  ? (e as ApiException).message
                   : l10n.t('connectionFailed'),
               retry: _reload,
             );

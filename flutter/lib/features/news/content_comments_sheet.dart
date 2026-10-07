@@ -180,7 +180,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                   if (snapshot.hasError) {
-                    final e = snapshot.error;
+                    final Object e = snapshot.error ?? Exception('Unknown error');
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(22),

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/student_profile.dart';
 import '../../data/repositories/student_repository.dart';
@@ -61,7 +62,7 @@ class _StudentScreenState extends State<StudentScreen> {
           }
 
           if (snapshot.hasError) {
-            final e = snapshot.error;
+            final Object e = snapshot.error ?? Exception('Unknown error');
             if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) {
               return const LoginRequiredCard();
             }
