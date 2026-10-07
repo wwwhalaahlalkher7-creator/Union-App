@@ -76,7 +76,7 @@ class EinoRepository {
     return _textFrom(json, 'No valid document analysis result was received from Eino.');
   }
 
-  Future<String> stt({required List<int> bytes, required String filename, required String contentType, String language = 'auto'}) async {
+  Future<String> stt({required List<int> bytes, required String filename, required String contentType, String language = 'ar'}) async {
     final json = await _client.postMultipartBytes(
       '/api/v1/eino/stt',
       bytes: bytes,

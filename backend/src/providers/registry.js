@@ -39,6 +39,7 @@ export function getModelRegistry(env = {}) {
     ],
     tts: [
       { provider:'groq', model:env.EINO_GROQ_TTS_MODEL || 'canopylabs/orpheus-arabic-saudi', priority:10 },
+      { provider:'groq', model:env.EINO_GROQ_TTS_EN_MODEL || 'canopylabs/orpheus-v1-english', priority:11 },
       { provider:'mistral', model:env.EINO_MISTRAL_TTS_MODEL || 'voxtral-mini-tts-2603', priority:20 },
       { provider:'free.ai', model:env.EINO_FREE_TTS_MODEL || 'kokoro', priority:30 },
     ],

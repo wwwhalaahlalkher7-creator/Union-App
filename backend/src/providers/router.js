@@ -147,9 +147,24 @@ export async function routeStt(env, args) {
   }, 'stt');
 }
 
+function hasArabic(text = '') { return /[\u0600-\u06FF]/.test(String(text)); }
+
 export async function routeTts(env, args) {
-  return routeCapability(env, EINO_CAPABILITIES.TTS, String(args?.model || '').trim(), (route) => async () => {
-    if (route.provider === 'groq') return groqTts({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
+  const requested = String(args?.model || '').trim();
+  const arabicModel = env.EINO_GROQ_TTS_MODEL || 'canopylabs/orpheus-arabic-saudi';
+  const englishModel = env.EINO_GROQ_TTS_EN_MODEL || 'canopylabs/orpheus-v1-english';
+  return routeCapability(env, EINO_CAPABILITIES.TTS, requested, (route) => async () => {
+    if (route.provider === 'groq') {
+      const model = requested || (hasArabic(args?.text) ? arabicModel : englishModel);
+      const isArabic = model === arabicModel;
+      return groqTts({
+        baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1',
+        apiKey: env.GROQ_API_KEY,
+        model,
+        voice: args?.voice || (isArabic ? 'abdullah' : 'autumn'),
+        ...args,
+      });
+    }
     if (route.provider === 'mistral') return mistralTts({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, voiceId: env.EINO_MISTRAL_TTS_VOICE_ID, ...args });
     const result = await freeAiTts({ ...argsForFree(env, route.model), ...args });
     return { audioUrl: result?.audio_url || result?.url || null, audioBase64: result?.audioBase64 || result?.audio_base64 || null, contentType: result?.contentType || result?.content_type || 'audio/mpeg', raw: result };
