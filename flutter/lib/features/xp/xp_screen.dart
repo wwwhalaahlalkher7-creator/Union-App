@@ -311,7 +311,7 @@ class _BadgeCollection extends StatelessWidget {
                     mainAxisSpacing: 8,
                     childAspectRatio: .92,
                   ),
-                  itemBuilder: (context, index) => _BadgeCard(badge: data.badges[index]),
+                  itemBuilder: (context, index) => _EarnedBadgeCard(badge: data.badges[index]),
                 );
               },
             ),
@@ -333,6 +333,52 @@ class _BadgeCollection extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+
+
+class _EarnedBadgeCard extends StatelessWidget {
+  const _EarnedBadgeCard({required this.badge});
+  final BadgeItem badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final languageCode = Localizations.localeOf(context).languageCode;
+
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      borderColor: cs.primary.withValues(alpha: .25),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: cs.primaryContainer,
+            ),
+            child: Icon(
+              Icons.workspace_premium_rounded,
+              color: cs.onPrimaryContainer,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 9),
+          Text(
+            badge.localizedName(languageCode),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+          ),
+          const SizedBox(height: 4),
+          Icon(Icons.check_circle_rounded, size: 16, color: cs.primary),
         ],
       ),
     );
