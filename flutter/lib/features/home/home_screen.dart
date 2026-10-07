@@ -650,9 +650,9 @@ class _HomeScheduleCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(DesignTokens.radius16),
         child: Container(
-          constraints: BoxConstraints(minHeight: 154 + extraTopHeight),
+          height: 174,
           margin: EdgeInsets.only(top: -extraTopHeight),
-          padding: EdgeInsets.fromLTRB(13, 13 + extraTopHeight, 13, 13),
+          padding: const EdgeInsets.fromLTRB(13, 13, 13, 13),
           decoration: BoxDecoration(
             color: accent.withValues(alpha: .07),
             borderRadius: BorderRadius.circular(DesignTokens.radius16),
@@ -688,8 +688,9 @@ class _HomeScheduleCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
+                      softWrap: true,
+                      overflow: TextOverflow.clip,
                       textAlign: TextAlign.end,
                       style: const TextStyle(
                         fontSize: 14,
@@ -699,8 +700,9 @@ class _HomeScheduleCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
+                      softWrap: true,
+                      overflow: TextOverflow.clip,
                       textAlign: TextAlign.end,
                       style: TextStyle(
                         color: cs.onSurfaceVariant,
@@ -712,8 +714,9 @@ class _HomeScheduleCard extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         secondary,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                        softWrap: true,
+                        overflow: TextOverflow.clip,
                         textAlign: TextAlign.end,
                         style: TextStyle(
                           color: cs.onSurfaceVariant,
