@@ -88,9 +88,9 @@ class _EinoScreenState extends State<EinoScreen> {
   }
 
 
-  Future<void> _send([String? preset]) async {
+  Future<void> _send() async {
     if (!_ready || _sending || _uploading) return;
-    final prompt = (preset ?? _controller.text).trim();
+    final prompt = _controller.text.trim();
     if (prompt.isEmpty) return;
     _controller.clear();
     if (_conversationId == null && await AppDependencies.instance.authStorage.isLoggedIn) {
@@ -219,31 +219,23 @@ class _EinoScreenState extends State<EinoScreen> {
       if (choice == 'image') {
         final mime = _mime(name);
         final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
-        final text = await _repository.vision(imageDataUrl: dataUrl);
+        final text = await _repository.vision(imageDataUrl: dataUrl, conversationId: _conversationId, attachmentName: name);
         if (mounted) {
           setState(() {
           _messages.add(EinoMessage(true, '🖼️ $name'));
           _messages.add(EinoMessage(false, text));
           });
         }
-        if (_conversationId != null) {
-          await _repository.appendConversationMessage(conversationId: _conversationId!, user: true, content: '🖼️ $name');
-          await _repository.appendConversationMessage(conversationId: _conversationId!, user: false, content: text);
-          await _loadHistory();
-        }
+        if (_conversationId != null) await _loadHistory();
       } else {
-        final text = await _repository.ocr(bytes: bytes, filename: name, contentType: _mime(name));
+        final text = await _repository.ocr(bytes: bytes, filename: name, contentType: _mime(name), conversationId: _conversationId);
         if (mounted) {
           setState(() {
           _messages.add(EinoMessage(true, '📄 $name'));
           _messages.add(EinoMessage(false, text));
           });
         }
-        if (_conversationId != null) {
-          await _repository.appendConversationMessage(conversationId: _conversationId!, user: true, content: '📄 $name');
-          await _repository.appendConversationMessage(conversationId: _conversationId!, user: false, content: text);
-          await _loadHistory();
-        }
+        if (_conversationId != null) await _loadHistory();
       }
       _scrollToBottom();
     } catch (e) {
@@ -311,17 +303,43 @@ class _EinoScreenState extends State<EinoScreen> {
   Future<void> _speak(EinoMessage message) async {
     if (message.user || message.text.trim().isEmpty) return;
     try {
-      final audio = await _repository.tts(text: message.text);
-      if (audio == null) return;
       await _player.stop();
-      if (audio.base64 != null && audio.base64!.isNotEmpty) {
-        await _player.play(BytesSource(base64Decode(audio.base64!)));
-      } else if (audio.url != null && audio.url!.isNotEmpty) {
-        await _player.play(UrlSource(audio.url!));
+      for (final chunk in _ttsChunks(message.text)) {
+        if (!mounted) return;
+        final audio = await _repository.tts(text: chunk);
+        if (audio == null) continue;
+        if (audio.base64 != null && audio.base64!.isNotEmpty) {
+          await _player.play(BytesSource(base64Decode(audio.base64!)));
+        } else if (audio.url != null && audio.url!.isNotEmpty) {
+          await _player.play(UrlSource(audio.url!));
+        } else {
+          continue;
+        }
+        await _player.onPlayerComplete.first;
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
     }
+  }
+
+  List<String> _ttsChunks(String value) {
+    final clean = value
+        .replaceAll(RegExp(r'```[\s\S]*?```'), ' ')
+        .replaceAll(RegExp(r'[*_#`>]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (clean.isEmpty) return const [];
+    final chunks = <String>[];
+    var remaining = clean;
+    while (remaining.length > 190) {
+      var cut = remaining.lastIndexOf(RegExp(r'[.!?؟،؛]'), 190);
+      if (cut < 100) cut = remaining.lastIndexOf(' ', 190);
+      if (cut < 1) cut = 190;
+      chunks.add(remaining.substring(0, cut + (remaining[cut] == ' ' ? 0 : 1)).trim());
+      remaining = remaining.substring(cut + 1).trimLeft();
+    }
+    if (remaining.isNotEmpty) chunks.add(remaining);
+    return chunks;
   }
 
   void _newChat({bool closeDrawer = false}) {
@@ -597,7 +615,7 @@ class _EinoScreenState extends State<EinoScreen> {
                     subtitle: _history[i].lastMessage == null ? null : Text(_history[i].lastMessage!, maxLines: 1, overflow: TextOverflow.ellipsis),
                     onTap: () => _openConversation(_history[i]),
                     trailing: IconButton(
-                      tooltip: l10n.t('einoMemoryForget'),
+                      tooltip: l10n.t('delete'),
                       icon: const Icon(Icons.delete_outline_rounded),
                       onPressed: () async {
                         try {

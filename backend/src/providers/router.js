@@ -150,8 +150,8 @@ export async function routeStt(env, args) {
 export async function routeTts(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.TTS, String(args?.model || '').trim(), (route) => async () => {
     if (route.provider === 'groq') return groqTts({ baseUrl: env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
-    if (route.provider === 'mistral') return mistralTts({ baseUrl: env.MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
+    if (route.provider === 'mistral') return mistralTts({ baseUrl: env.MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, voiceId: env.EINO_MISTRAL_TTS_VOICE_ID, ...args });
     const result = await freeAiTts({ ...argsForFree(env, route.model), ...args });
-    return { audioUrl: result?.audio_url || result?.url || null, raw: result };
+    return { audioUrl: result?.audio_url || result?.url || null, audioBase64: result?.audioBase64 || result?.audio_base64 || null, contentType: result?.contentType || result?.content_type || 'audio/mpeg', raw: result };
   }, 'tts');
 }

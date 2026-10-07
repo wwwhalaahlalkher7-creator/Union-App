@@ -7,8 +7,10 @@ export function getProviderRegistry(env = {}) {
   const free = bool(env.FREE_AI_BASE_URL) && bool(env.FREE_AI_API_KEY);
   const mistral = bool(env.MISTRAL_API_KEY);
   const groq = bool(env.GROQ_API_KEY);
+  const mistralCapabilities = ['text','vision','ocr','stt'];
+  if (mistral && bool(env.EINO_MISTRAL_TTS_VOICE_ID)) mistralCapabilities.push('tts');
   return Object.freeze({
-    mistral: { id:'mistral', enabled:mistral, priority:10, capabilities:['text','vision','ocr','stt','tts'] },
+    mistral: { id:'mistral', enabled:mistral, priority:10, capabilities:mistralCapabilities },
     groq: { id:'groq', enabled:groq, priority:20, capabilities:['text','vision','stt','tts'] },
     'free.ai': { id:'free.ai', enabled:free, priority:30, capabilities:['text','vision','ocr','stt','tts'] },
   });

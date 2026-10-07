@@ -52,21 +52,26 @@ class EinoRepository {
     });
   }
 
-  Future<String> vision({required String imageDataUrl, String mode = 'describe'}) async {
+  Future<String> vision({required String imageDataUrl, String mode = 'describe', String? conversationId, String? attachmentName}) async {
     final json = await _client.postJson('/api/v1/eino/vision', body: {
       'image': imageDataUrl,
       'mode': mode,
+      if (conversationId != null && conversationId.trim().isNotEmpty) 'conversationId': conversationId,
+      if (attachmentName != null && attachmentName.trim().isNotEmpty) 'attachmentName': attachmentName,
     });
     return _textFrom(json, 'No valid image analysis result was received from Eino.');
   }
 
-  Future<String> ocr({required List<int> bytes, required String filename, required String contentType}) async {
+  Future<String> ocr({required List<int> bytes, required String filename, required String contentType, String? conversationId}) async {
     final json = await _client.postMultipartBytes(
       '/api/v1/eino/ocr',
       bytes: bytes,
       filename: filename,
       fieldName: 'file',
       contentType: contentType,
+      fields: {
+        if (conversationId != null && conversationId.trim().isNotEmpty) 'conversationId': conversationId,
+      },
     );
     return _textFrom(json, 'No valid document analysis result was received from Eino.');
   }
@@ -83,10 +88,10 @@ class EinoRepository {
     return _textFrom(json, 'No valid speech transcription was received.');
   }
 
-  Future<EinoTtsAudio?> tts({required String text, String voice = 'af_heart'}) async {
+  Future<EinoTtsAudio?> tts({required String text, String? voice}) async {
     final json = await _client.postJson('/api/v1/eino/tts', body: {
       'text': text,
-      'voice': voice,
+      if (voice != null && voice.trim().isNotEmpty) 'voice': voice.trim(),
     });
     final data = json['data'];
     if (data is Map) {

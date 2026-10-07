@@ -51,10 +51,10 @@ export async function mistralStt({ baseUrl, apiKey, model = MISTRAL_DEFAULTS.stt
   return { text, model: data?.model || model, raw: data };
 }
 
-export async function mistralTts({ baseUrl, apiKey, model = MISTRAL_DEFAULTS.tts, text, voice, signal }) {
+export async function mistralTts({ baseUrl, apiKey, model = MISTRAL_DEFAULTS.tts, text, voiceId, signal }) {
   if (!apiKey) throw new Error('MISTRAL_API_KEY is empty');
   const response = await fetch(`${String(baseUrl || 'https://api.mistral.ai').replace(/\/+$/, '')}/v1/audio/speech`, {
-    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, input: text, voice, response_format: 'mp3' }), signal,
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, input: text, voice_id: voiceId, response_format: 'mp3' }), signal,
   });
   if (!response.ok) throw providerError(response.status, await response.text().catch(() => ''));
   const blob = await response.arrayBuffer();

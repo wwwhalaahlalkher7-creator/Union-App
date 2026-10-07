@@ -24,7 +24,7 @@ export async function groqStt({ baseUrl = 'https://api.groq.com/openai/v1', apiK
 
 export async function groqTts({ baseUrl = 'https://api.groq.com/openai/v1', apiKey, model = GROQ_DEFAULTS.tts, text, voice, signal }) {
   if (!apiKey) throw new Error('GROQ_API_KEY is empty');
-  const response = await fetch(`${String(baseUrl).replace(/\/+$/, '')}/audio/speech`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, input: text, voice: voice || model }), signal });
+  const response = await fetch(`${String(baseUrl).replace(/\/+$/, '')}/audio/speech`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, input: text, voice: voice || 'abdullah', response_format: 'wav' }), signal });
   if (!response.ok) throw providerError(response.status, await response.text().catch(() => ''));
   const blob = await response.arrayBuffer(); let binary = ''; for (const byte of new Uint8Array(blob)) binary += String.fromCharCode(byte);
   return { audioBase64: btoa(binary), contentType: response.headers.get('content-type') || 'audio/wav', model, raw: null };

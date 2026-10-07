@@ -174,6 +174,7 @@ export async function eino(ctx) {
       await ctx.env.DB.prepare("INSERT INTO eino_messages (id, conversation_id, role, content) VALUES (?, ?, 'assistant', ?)").bind(crypto.randomUUID(), conversation.id, providerResult.answer).run();
       await ctx.env.DB.prepare('UPDATE eino_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=?').bind(conversation.id, a.session.student_id).run();
     }
+    if (a?.session?.student_id) await maybeRememberExplicitRequest(ctx, a.session.student_id, message);
     const latencyMs=Date.now()-startedAt; await recordEinoTelemetry(ctx,'success',actorType,latencyMs);
     return ok(ctx,{message:providerResult.answer,conversationId:conversation?.id || null,provider:providerResult.provider,capability:'text',model:providerResult.model,routing:{capability:'text',candidates:routes.map(r=>`${r.provider}:${r.model}`),selected:`${providerResult.provider}:${providerResult.route.model}`,fallback:providerResult.route.priority!==routes[0]?.priority},usage:providerResult.usage||null,reliability:providerResult.reliability||null});
   } catch(e) {
@@ -183,6 +184,35 @@ export async function eino(ctx) {
     console.error(`[${ctx.requestId}] Eino provider routing error`,e); return error('EINO_PROVIDER_ERROR','مزود Eino غير متاح حاليًا. أعد المحاولة بعد قليل.',502,ctx.requestId,ctx.cors);
   } finally { clearTimeout(timeout); }
 
+}
+
+async function maybeRememberExplicitRequest(ctx, studentId, message) {
+  try {
+    const raw = String(message || '').trim();
+    const patterns = [
+      /^تذكر(?:ي|ني)?(?: أن)?\s+(.+)$/i,
+      /^احفظ(?:ي|ني)?(?: أن)?\s+(.+)$/i,
+      /^لا تنس(?:َ|ى|ي)?(?: أن)?\s+(.+)$/i,
+      /^(?:please\s+)?remember(?: that)?\s+(.+)$/i,
+      /^(?:please\s+)?save(?: that)?\s+(.+)$/i,
+    ];
+    let content = null;
+    for (const pattern of patterns) {
+      const match = raw.match(pattern);
+      if (match?.[1]?.trim()) { content = match[1].trim(); break; }
+    }
+    if (!content || content.length > 1200) return;
+    const category = /أفضل|افضل|أحب|احب|prefer|favorite|favourite/i.test(content) ? 'preference' : 'general';
+    const existing = await queryOne(ctx.env, 'SELECT id FROM eino_memories WHERE student_id=? AND content=? LIMIT 1', studentId, content);
+    if (existing) return;
+    const id = crypto.randomUUID();
+    await ctx.env.DB.prepare('INSERT INTO eino_memories(id, student_id, content, category, source) VALUES(?,?,?,?,?)')
+      .bind(id, studentId, content, category, 'explicit-chat').run();
+    try {
+      const semantic = await chromaIndexMemory(ctx, { id, studentId, content, category });
+      if (semantic.indexed) await ctx.env.DB.prepare('UPDATE eino_memories SET chroma_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(id, id).run();
+    } catch (e) { console.error(`[${ctx.requestId}] Eino explicit memory index error`, e); }
+  } catch (e) { console.error(`[${ctx.requestId}] Eino explicit memory save error`, e); }
 }
 
 export async function getEinoStudent(ctx) {
@@ -438,12 +468,32 @@ export async function einoMediaActor(ctx, capability) {
     await recordEinoTelemetry(ctx, `quota_${rate.scope}`, actorType);
     return { response: error(rate.scope === 'global' ? 'EINO_GLOBAL_LIMITED' : rate.scope === 'daily' ? 'EINO_DAILY_LIMITED' : 'EINO_RATE_LIMITED', 'وصلت إلى حد استخدام Eino. حاول لاحقًا.', 429, ctx.requestId, ctx.cors) };
   }
-  return { actorType };
+  return { actorType, studentId: a?.session?.student_id || null };
 }
 
 export function mediaLimit(request, maxBytes = 10 * 1024 * 1024) {
   const length = Number(request.headers.get('content-length') || 0);
   return !length || (Number.isFinite(length) && length <= maxBytes);
+}
+
+async function saveEinoMediaExchange(ctx, conversationId, studentId, userContent, assistantContent) {
+  const id = String(conversationId || '').trim();
+  if (!id || !studentId) return null;
+  const conversation = await getEinoConversation(ctx, studentId, id);
+  if (!conversation) {
+    const e = new Error('Eino conversation not found');
+    e.status = 404;
+    throw e;
+  }
+  const userText = String(userContent || '').trim().slice(0, EINO_MAX_MESSAGE);
+  const assistantText = String(assistantContent || '').trim().slice(0, EINO_MAX_MESSAGE);
+  if (!userText || !assistantText) return null;
+  await ctx.env.DB.batch([
+    ctx.env.DB.prepare("INSERT INTO eino_messages (id, conversation_id, role, content) VALUES (?, ?, 'user', ?)").bind(crypto.randomUUID(), id, userText),
+    ctx.env.DB.prepare("INSERT INTO eino_messages (id, conversation_id, role, content) VALUES (?, ?, 'assistant', ?)").bind(crypto.randomUUID(), id, assistantText),
+    ctx.env.DB.prepare('UPDATE eino_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=?').bind(id, studentId),
+  ]);
+  return id;
 }
 
 export async function einoVision(ctx) {
@@ -454,8 +504,12 @@ export async function einoVision(ctx) {
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 30000); const started = Date.now();
   try {
     const result = await routeVision(ctx.env, { imageDataUrl: image, prompt: String(body?.mode || 'describe'), signal: controller.signal });
+    const text = String(result?.text || result?.description || result?.caption || result?.result || '').trim();
+    if (actor.actorType === 'student' && body?.conversationId) {
+      await saveEinoMediaExchange(ctx, body.conversationId, actor.studentId, `🖼️ ${String(body?.attachmentName || 'صورة').trim()}`, text);
+    }
     await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
-    return ok(ctx, { text: String(result?.text || result?.description || result?.caption || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null });
+    return ok(ctx, { text, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null });
   } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
 }
 
@@ -466,7 +520,15 @@ export async function einoOcr(ctx) {
   if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق صورة أو مستند.', 400, ctx.requestId, ctx.cors);
   if (file.size > 10 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الملف يتجاوز 10MB.', 413, ctx.requestId, ctx.cors);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 60000); const started = Date.now();
-  try { const result = await routeOcr(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.content || result?.markdown || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  try {
+    const result = await routeOcr(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, signal: controller.signal });
+    const text = String(result?.text || result?.content || result?.markdown || result?.result || '').trim();
+    if (actor.actorType === 'student' && form?.get('conversationId')) {
+      await saveEinoMediaExchange(ctx, form.get('conversationId'), actor.studentId, `📄 ${file.name}`, text);
+    }
+    await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
+    return ok(ctx, { text, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null });
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
 }
 
 export async function einoStt(ctx) {

@@ -25,6 +25,8 @@ EINO_MISTRAL_VISION_MODEL = "mistral-small-2603"
 EINO_MISTRAL_OCR_MODEL = "mistral-ocr-latest"
 EINO_MISTRAL_STT_MODEL = "voxtral-mini-2602"
 EINO_MISTRAL_TTS_MODEL = "voxtral-mini-tts-2603"
+# Optional saved Mistral voice ID. Leave empty unless a voice profile is configured.
+EINO_MISTRAL_TTS_VOICE_ID = ""
 EINO_GROQ_TEXT_MODEL = "openai/gpt-oss-120b"
 EINO_GROQ_VISION_MODEL = "qwen/qwen3.8-27b"
 EINO_GROQ_STT_MODEL = "whisper-large-v3-turbo"
