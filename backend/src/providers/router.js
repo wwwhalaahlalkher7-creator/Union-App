@@ -83,9 +83,10 @@ function normalizeResult(result, route) {
   };
 }
 
-async function routeCapability(env, capability, requestedModel, operationFactory, label) {
+async function routeCapability(env, capability, requestedModel, operationFactory, label, routeFilter = null) {
   const allRoutes = getRoutesForCapability(env, capability);
-  const routes = requestedModel ? allRoutes.filter((route) => route.model === requestedModel) : allRoutes;
+  const eligibleRoutes = routeFilter ? allRoutes.filter(routeFilter) : allRoutes;
+  const routes = requestedModel ? eligibleRoutes.filter((route) => route.model === requestedModel) : eligibleRoutes;
   if (!routes.length) {
     const error = new Error(requestedModel ? `Requested ${label} model is not configured: ${requestedModel}` : `No ${label} provider configured`);
     error.status = requestedModel ? 400 : 503;
@@ -159,10 +160,11 @@ export async function routeTts(env, args) {
   const autoModel = requestedModel || (hasArabicText(text) ? arabicModel : englishModel);
   const voice = String(args?.voice || '').trim() || (autoModel === englishModel ? 'hannah' : 'noura');
   const routeArgs = { ...args, model: autoModel, voice };
-  return routeCapability(env, EINO_CAPABILITIES.TTS, autoModel, (route) => async () => {
+  const routeFilter = requestedModel ? null : (route) => route.provider !== 'groq' || route.model === autoModel;
+  return routeCapability(env, EINO_CAPABILITIES.TTS, requestedModel, (route) => async () => {
     if (route.provider === 'groq') return groqTts({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...routeArgs });
     if (route.provider === 'mistral') return mistralTts({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, voiceId: env.EINO_MISTRAL_TTS_VOICE_ID, ...routeArgs });
     const result = await freeAiTts({ ...argsForFree(env, route.model), ...routeArgs });
     return { audioUrl: result?.audio_url || result?.url || null, audioBase64: result?.audioBase64 || result?.audio_base64 || null, contentType: result?.contentType || result?.content_type || 'audio/mpeg', raw: result };
-  }, 'tts');
+  }, 'tts', routeFilter);
 }
