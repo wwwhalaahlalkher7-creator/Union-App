@@ -115,7 +115,7 @@ async function routeCapability(env, capability, requestedModel, operationFactory
 
 export async function routeText(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.TEXT, String(args?.model || '').trim(), (route) => async () => {
-    if (route.provider === 'mistral') return mistralChat({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
+    if (route.provider === 'mistral') return mistralChat({ baseUrl: `${String(env.EINO_MISTRAL_BASE_URL || 'https://api.mistral.ai').replace(/\/+$/, '')}/v1`, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
     if (route.provider === 'groq') return groqChat({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
     return freeAiChat({ ...argsForFree(env, route.model), ...args });
   }, 'text');
@@ -123,7 +123,7 @@ export async function routeText(env, args) {
 
 export async function routeVision(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.VISION, String(args?.model || '').trim(), (route) => async () => {
-    if (route.provider === 'mistral') return mistralVision({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
+    if (route.provider === 'mistral') return mistralVision({ baseUrl: `${String(env.EINO_MISTRAL_BASE_URL || 'https://api.mistral.ai').replace(/\/+$/, '')}/v1`, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
     if (route.provider === 'groq') return groqVision({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
     const result = await freeAiVision({ ...argsForFree(env, route.model), ...args });
     return { text: String(result?.text || result?.description || result?.caption || result?.result || '').trim(), raw: result };
