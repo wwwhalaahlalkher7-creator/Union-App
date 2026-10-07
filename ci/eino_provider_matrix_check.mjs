@@ -59,12 +59,14 @@ async function fallback(name, fn, failed, expected) {
 
 await primary('text', () => routeText(env, { messages: [{ role: 'user', content: 'hi' }] }), 'mistral');
 await fallback('text', () => routeText(env, { messages: [{ role: 'user', content: 'hi' }] }), 'mistral', 'groq');
+await fallback('text 429', () => routeText(env, { messages: [{ role: 'user', content: 'rate-limit' }] }), 'mistral', 'groq');
 await fallback('vision', () => routeVision(env, { imageDataUrl: 'data:image/png;base64,AA==', prompt: 'analyze' }), 'mistral', 'groq');
 await fallback('ocr', () => routeOcr(env, { file: new Uint8Array([1]), filename: 'a.png', contentType: 'image/png' }), 'mistral', 'free.ai');
 await fallback('stt', () => routeStt(env, { file: new Uint8Array([1]), filename: 'a.mp3', contentType: 'audio/mpeg', language: 'ar' }), 'groq', 'mistral');
 await fallback('tts', () => routeTts(env, { text: 'مرحبا', voice: 'test' }), 'groq', 'mistral');
 
 calls = [];
+resetProviderCircuitState();
 failProvider = 'mistral';
 failStatus = 400;
 await assert.rejects(() => routeText(env, { messages: [{ role: 'user', content: 'bad' }] }), /mistral request failed/);

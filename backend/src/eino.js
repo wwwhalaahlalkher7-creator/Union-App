@@ -169,7 +169,7 @@ export async function eino(ctx) {
   try {
     const routes = getRoutesForCapability(ctx.env, EINO_CAPABILITIES.TEXT);
     const filtered = requestedModel ? routes.filter((r) => r.model === requestedModel) : routes;
-    const providerResult = await routeText(ctx.env, { model: (filtered[0]?.model || requestedModel || routes[0]?.model), messages, temperature:0.4, maxTokens:900, signal:controller.signal });
+    const providerResult = await routeText(ctx.env, { ...(requestedModel ? { model: requestedModel } : {}), messages, temperature:0.4, maxTokens:900, signal:controller.signal });
     if (conversation) {
       await ctx.env.DB.prepare("INSERT INTO eino_messages (id, conversation_id, role, content) VALUES (?, ?, 'assistant', ?)").bind(crypto.randomUUID(), conversation.id, providerResult.answer).run();
       await ctx.env.DB.prepare('UPDATE eino_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=?').bind(conversation.id, a.session.student_id).run();
