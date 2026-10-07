@@ -454,8 +454,49 @@ export async function awardProgressXp(ctx, studentId, materialId, previousPage, 
   return xpAwarded;
 }
 
-export async function evaluateBadges(_ctx, _studentId) {
-  // Badge eligibility is derived by GET /badges from the immutable catalogue.
-  // No persistent/admin-controlled badge state is required.
-  return [];
+export async function evaluateBadges(ctx, studentId) {
+  // Badge definitions are immutable application code. Persistence here is only
+  // the student's earned state; there is no admin CRUD or dashboard control.
+  const definitions = badgeRows();
+  if (!definitions.length) return [];
+
+  const valuesRow = await queryOne(ctx.env, `
+    SELECT
+      COALESCE((SELECT SUM(xp) FROM xp_events WHERE student_id=?),0) AS xp_total,
+      COALESCE((SELECT level FROM student_stats WHERE student_id=?),0) AS level,
+      (SELECT COUNT(*) FROM material_progress_events WHERE student_id=?) AS progress_events,
+      (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials,
+      (SELECT COUNT(DISTINCT m.subject_id) FROM material_progress mp JOIN materials m ON m.id=mp.material_id WHERE mp.student_id=? AND mp.progress_percent>=100 AND m.subject_id IS NOT NULL) AS completed_subjects,
+      (SELECT COUNT(*) FROM xp_events WHERE student_id=? AND event_type='learning_event_complete') AS learning_events,
+      (SELECT COUNT(*) FROM comments WHERE student_id=? AND status='visible') AS comments,
+      (SELECT COUNT(*) FROM reactions WHERE student_id=?) AS reactions,
+      (SELECT COUNT(*) FROM comment_replies WHERE student_id=? AND status='visible') AS replies
+  `, studentId, studentId, studentId, studentId, studentId, studentId, studentId, studentId, studentId);
+
+  const xpTotal = Number(valuesRow?.xp_total || 0);
+  const values = {
+    xp_total: xpTotal,
+    level: Number(valuesRow?.level || calculateLevel(xpTotal)),
+    progress_events: Number(valuesRow?.progress_events || 0),
+    completed_materials: Number(valuesRow?.completed_materials || 0),
+    completed_subjects: Number(valuesRow?.completed_subjects || 0),
+    learning_events: Number(valuesRow?.learning_events || 0),
+    comments: Number(valuesRow?.comments || 0),
+    reactions: Number(valuesRow?.reactions || 0),
+    replies: Number(valuesRow?.replies || 0),
+  };
+
+  const eligible = definitions.filter((badge) => {
+    const current = Number(values[badge.rule_type] || 0);
+    const threshold = Number(badge.rule_value || 0);
+    return threshold > 0 && current >= threshold;
+  });
+  if (!eligible.length) return [];
+
+  const results = await ctx.env.DB.batch(
+    eligible.map((badge) => ctx.env.DB.prepare(
+      'INSERT INTO student_badges(student_id,badge_id) VALUES(?,?) ON CONFLICT(student_id,badge_id) DO NOTHING'
+    ).bind(studentId, badge.id))
+  );
+  return eligible.filter((_, index) => Number(results[index]?.meta?.changes || 0) > 0).map((badge) => badge.id);
 }
