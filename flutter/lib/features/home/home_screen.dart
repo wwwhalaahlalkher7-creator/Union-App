@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,6 +9,8 @@ import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/content_item.dart';
 import '../../data/models/student_profile.dart';
+import '../../data/models/schedule_item.dart';
+import '../../data/repositories/schedule_repository.dart';
 import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/list_skeleton.dart';
@@ -22,11 +26,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   static const _homeNewsLimit = 3;
   Future<_HomeData>? _future;
+  Timer? _clockTimer;
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<_HomeData> _load() async {
@@ -34,23 +42,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final studentRepo = AppDependencies.instance.student;
     final profileFuture = studentRepo.profile();
-    final statsFuture = studentRepo.stats();
+    final scheduleFuture = AppDependencies.instance.schedule.getSchedule();
 
     final values = await Future.wait<dynamic>([
       newsFuture,
       profileFuture,
-      statsFuture,
+      scheduleFuture,
     ]);
 
     return _HomeData(
       values[0] as List<ContentItem>,
       values[1] as StudentProfile,
-      values[2] as Map<String, dynamic>,
+      values[2] as ScheduleData,
     );
   }
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     super.dispose();
   }
 
@@ -80,14 +89,6 @@ class _HomeScreenState extends State<HomeScreen> {
           }
 
           final data = snapshot.data!;
-          final xp = int.tryParse(
-                '${data.stats['xp_total'] ?? 0}',
-              ) ??
-              0;
-          final level = int.tryParse(
-                '${data.stats['level'] ?? 1}',
-              ) ??
-              1;
 
           return ListView(
             padding: const EdgeInsetsDirectional.fromSTEB(
@@ -122,29 +123,52 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: _QuickStat(
-                            l10n.t('levelShort'),
-                            '$level',
-                            context.colors.primary,
+                          flex: 2,
+                          child: _HomeScheduleCard(
+                            schedule: data.schedule,
+                            onTap: () => context.push('/schedule'),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Expanded(
-                          child: _QuickStat(
-                            'XP',
-                            '$xp',
-                            context.colors.secondary,
-                            onTap: () => context.push('/xp'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _QuickStat(
-                            l10n.t('semesterShort'),
-                            data.profile.semesterName ?? '—',
-                            context.colors.tertiary,
+                        SizedBox(
+                          width: 92,
+                          child: Container(
+                            constraints: const BoxConstraints(minHeight: 92),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: context.colors.surface,
+                              borderRadius: BorderRadius.circular(DesignTokens.radius16),
+                              border: Border.all(color: context.colors.outline),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.school_rounded, color: context.colors.tertiary, size: 22),
+                                const SizedBox(height: 6),
+                                Text(
+                                  data.profile.semesterName ?? '—',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: context.colors.tertiary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  l10n.t('semesterShort'),
+                                  style: TextStyle(
+                                    color: context.colors.onSurfaceVariant,
+                                    fontSize: 9.5,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -196,13 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => context.push('/eino?from=home'),
               ),
               const SizedBox(height: DesignTokens.space16),
-              _ProgressJourneyCard(
-                level: level,
-                xp: xp,
-                onXpTap: () => context.push('/xp'),
-                onMaterialsTap: () => context.go('/materials'),
-              ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -252,71 +270,12 @@ class _HomeData {
   const _HomeData(
     this.news,
     this.profile,
-    this.stats,
+    this.schedule,
   );
 
   final List<ContentItem> news;
   final StudentProfile profile;
-  final Map<String, dynamic> stats;
-}
-
-class _QuickStat extends StatelessWidget {
-  const _QuickStat(
-    this.label,
-    this.value,
-    this.color, {
-    this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final content = Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: context.colors.outline),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: color,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: context.colors.onSurfaceVariant,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
-    if (onTap == null) return content;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(13),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(13),
-        child: content,
-      ),
-    );
-  }
+  final ScheduleData schedule;
 }
 
 class _Tile extends StatelessWidget {
@@ -514,49 +473,271 @@ class _EinoHomeCard extends StatelessWidget {
   }
 }
 
-class _ProgressJourneyCard extends StatelessWidget {
-  const _ProgressJourneyCard({required this.level, required this.xp, required this.onXpTap, required this.onMaterialsTap});
-  final int level;
-  final int xp;
-  final VoidCallback onXpTap;
-  final VoidCallback onMaterialsTap;
+
+
+class _HomeScheduleCard extends StatelessWidget {
+  const _HomeScheduleCard({
+    required this.schedule,
+    required this.onTap,
+  });
+
+  final ScheduleData schedule;
+  final VoidCallback onTap;
+
+  static const _sudanOffset = Duration(hours: 2);
+
+  DateTime _sudanNow() => DateTime.now().toUtc().add(_sudanOffset);
+
+  int _minuteOfDay(String value) {
+    final parts = value.split(':');
+    final hour = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 0;
+    final minute = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
+    return (hour * 60 + minute).clamp(0, 1439);
+  }
+
+  DateTime _at(DateTime day, String time) {
+    final minutes = _minuteOfDay(time);
+    return DateTime(day.year, day.month, day.day, minutes ~/ 60, minutes % 60);
+  }
+
+  _ScheduleState _state() {
+    final now = _sudanNow();
+    final today = now.weekday % 7; // Database convention: Sunday = 0.
+    final todayItems = schedule.items
+        .where((item) => item.dayOfWeek == today)
+        .toList()
+      ..sort((a, b) => _minuteOfDay(a.startTime).compareTo(_minuteOfDay(b.startTime)));
+
+    ScheduleItem? current;
+    ScheduleItem? next;
+    ScheduleItem? lastEnded;
+    for (final item in todayItems) {
+      final start = _at(now, item.startTime);
+      var end = _at(now, item.endTime);
+      // Be defensive with malformed overnight rows instead of producing a negative duration.
+      if (!end.isAfter(start)) end = end.add(const Duration(days: 1));
+
+      if (!now.isBefore(start) && now.isBefore(end)) {
+        current = item;
+        final index = todayItems.indexOf(item);
+        if (index + 1 < todayItems.length) next = todayItems[index + 1];
+        break;
+      }
+      if (!now.isBefore(end)) lastEnded = item;
+      if (now.isBefore(start)) {
+        next = item;
+        break;
+      }
+    }
+
+    return _ScheduleState(
+      now: now,
+      current: current,
+      next: next,
+      lastEnded: lastEnded,
+      hasTodayClasses: todayItems.isNotEmpty,
+    );
+  }
+
+  String _duration(Duration duration, AppLocalizations l10n) {
+    final totalMinutes = duration.inMinutes.clamp(0, 24 * 60);
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+
+    if (l10n.locale.languageCode == 'ar') {
+      String arabicMinutes(int value) {
+        if (value == 1) return 'دقيقة';
+        if (value == 2) return 'دقيقتين';
+        if (value >= 3 && value <= 10) return '$value دقائق';
+        return '$value دقيقة';
+      }
+
+      String arabicHours(int value) {
+        if (value == 1) return 'ساعة';
+        if (value == 2) return 'ساعتين';
+        if (value >= 3 && value <= 10) return '$value ساعات';
+        return '$value ساعة';
+      }
+
+      if (hours == 0) return arabicMinutes(minutes);
+      if (minutes == 0) return arabicHours(hours);
+      return '${arabicHours(hours)} و${arabicMinutes(minutes)}';
+    }
+
+    if (hours == 0) {
+      return l10n.t('scheduleMinutes', {'count': '$minutes'});
+    }
+    if (minutes == 0) {
+      return l10n.t('scheduleHours', {'count': '$hours'});
+    }
+    return l10n.t('scheduleHoursMinutes', {
+      'hours': '$hours',
+      'minutes': '$minutes',
+    });
+  }
+
+  String _clock(String value) => value.length >= 5 ? value.substring(0, 5) : value;
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    return AppCard(
-      padding: const EdgeInsets.all(DesignTokens.space16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(children: [
-            Container(width: 42, height: 42, decoration: BoxDecoration(color: cs.primaryContainer, shape: BoxShape.circle), child: Icon(Icons.auto_awesome_rounded, color: cs.onPrimaryContainer)),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(l10n.t('yourJourney'), style: const TextStyle(fontWeight: FontWeight.w900)),
-              const SizedBox(height: 2),
-              Text(l10n.t('levelValue', {'level': '$level'}), style: TextStyle(color: cs.primary, fontWeight: FontWeight.w800)),
-            ])),
-            Text('$xp XP', style: TextStyle(fontWeight: FontWeight.w900, color: cs.primary)),
-          ]),
-          const SizedBox(height: 14),
-          Row(children: [
-            Expanded(child: _JourneyAction(icon: Icons.bolt_rounded, label: l10n.t('viewXp'), onTap: onXpTap)),
-            const SizedBox(width: 8),
-            Expanded(child: _JourneyAction(icon: Icons.menu_book_rounded, label: l10n.t('materials'), onTap: onMaterialsTap)),
-          ]),
-        ],
+    final cs = Theme.of(context).colorScheme;
+    final state = _state();
+
+    Color accent;
+    IconData icon;
+    String eyebrow;
+    String title;
+    String subtitle;
+    String? secondary;
+
+    if (state.current != null) {
+      final item = state.current!;
+      final end = _at(state.now, item.endTime);
+      accent = AppColors.success;
+      icon = Icons.play_circle_fill_rounded;
+      eyebrow = l10n.t('scheduleNow');
+      title = item.subjectName;
+      subtitle = l10n.t('scheduleEndsIn', {
+        'time': _duration(end.difference(state.now), l10n),
+      });
+      if (state.next != null) {
+        final start = _at(state.now, state.next!.startTime);
+        secondary = '${l10n.t('scheduleNext')} ${state.next!.subjectName} • '
+            '${l10n.t('scheduleStartsIn', {'time': _duration(start.difference(state.now), l10n)})}';
+      }
+    } else if (state.next != null) {
+      final item = state.next!;
+      final start = _at(state.now, item.startTime);
+      accent = cs.primary;
+      icon = Icons.schedule_rounded;
+      eyebrow = l10n.t('scheduleNext');
+      title = item.subjectName;
+      subtitle = l10n.t('scheduleStartsIn', {
+        'time': _duration(start.difference(state.now), l10n),
+      });
+      secondary = '${_clock(item.startTime)} – ${_clock(item.endTime)}';
+    } else if (state.lastEnded != null) {
+      final item = state.lastEnded!;
+      accent = cs.onSurfaceVariant;
+      icon = Icons.check_circle_outline_rounded;
+      eyebrow = l10n.t('scheduleEnded');
+      title = item.subjectName;
+      subtitle = l10n.t('scheduleNoMoreToday');
+    } else if (!state.hasTodayClasses) {
+      accent = cs.primary;
+      icon = Icons.event_available_rounded;
+      eyebrow = l10n.t('scheduleToday');
+      title = l10n.t('scheduleNoClassesToday');
+      subtitle = l10n.t('scheduleTapToView');
+    } else {
+      accent = cs.onSurfaceVariant;
+      icon = Icons.event_busy_rounded;
+      eyebrow = l10n.t('scheduleToday');
+      title = l10n.t('scheduleNoMoreToday');
+      subtitle = l10n.t('scheduleTapToView');
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(DesignTokens.radius16),
+        child: Container(
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: .07),
+            borderRadius: BorderRadius.circular(DesignTokens.radius16),
+            border: Border.all(color: accent.withValues(alpha: .35)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: .13),
+                  borderRadius: BorderRadius.circular(DesignTokens.radius12),
+                ),
+                child: Icon(icon, color: accent, size: 24),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      eyebrow,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (secondary != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        secondary!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 10.5,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 7),
+              Icon(Icons.chevron_left_rounded, color: accent, size: 22),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-class _JourneyAction extends StatelessWidget {
-  const _JourneyAction({required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => OutlinedButton.icon(onPressed: onTap, icon: Icon(icon, size: 18), label: Text(label), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44), padding: const EdgeInsets.symmetric(horizontal: 10)));
+class _ScheduleState {
+  const _ScheduleState({
+    required this.now,
+    required this.current,
+    required this.next,
+    required this.lastEnded,
+    required this.hasTodayClasses,
+  });
+
+  final DateTime now;
+  final ScheduleItem? current;
+  final ScheduleItem? next;
+  final ScheduleItem? lastEnded;
+  final bool hasTodayClasses;
 }
