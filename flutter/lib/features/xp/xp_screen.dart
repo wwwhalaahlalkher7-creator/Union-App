@@ -65,9 +65,10 @@ class _XpScreenState extends State<XpScreen> {
       final badges = await badgesFuture;
       if (mounted) setState(() => _badgeSnapshot = badges);
     } catch (e) {
-      // Badges are supplementary to XP. If the badge endpoint is unavailable
-      // (old backend, temporary network issue, or partial deployment), keep
-      // the XP page fully usable and render the immutable local catalogue.
+      // Keep the XP page usable while deliberately using only the two
+      // minimal local badge fallbacks. The complete catalogue must come from
+      // the backend; seeing only these two categories is therefore also a
+      // useful signal that the badges endpoint still needs fixing.
       if (mounted) {
         final currentXp = _snapshot;
         if (currentXp != null) {
@@ -159,26 +160,18 @@ class _XpHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
+    final remaining = (snapshot.nextLevelXp - snapshot.levelXp).clamp(0, snapshot.nextLevelXp);
 
     return AppCard(
       padding: const EdgeInsets.all(DesignTokens.space20),
       borderColor: cs.primary.withValues(alpha: .25),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: cs.primaryContainer,
-                  borderRadius:
-                      BorderRadius.circular(DesignTokens.radius12),
-                ),
-                child: Icon(Icons.bolt_rounded,
-                    color: cs.onPrimaryContainer, size: 27),
-              ),
-              const SizedBox(width: 12),
+              _XpCircularProgress(progress: progress),
+              const SizedBox(width: 18),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,56 +183,125 @@ class _XpHero extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       l10n.t('xpValue', {'value': '${snapshot.totalXp}'}),
-                      style: TextStyle(
-                        color: cs.primary,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: TextStyle(color: cs.primary, fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
               ),
-              SizedBox(
-                width: 72,
-                height: 72,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 7,
-                      backgroundColor: cs.surfaceContainerHighest,
-                    ),
-                    Text(
-                      '${(progress * 100).round()}%',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ],
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(DesignTokens.radius12),
                 ),
+                child: Icon(Icons.bolt_rounded, color: cs.onPrimaryContainer, size: 27),
               ),
             ],
           ),
-          const SizedBox(height: DesignTokens.space20),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: cs.surfaceContainerHighest,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Text(
-              l10n.t('xpNextLevel', {
-                'current': '${snapshot.levelXp}',
-                'next': '${snapshot.nextLevelXp}',
-              }),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+          const SizedBox(height: 18),
+          _XpProgressBar(
+            progress: progress,
+            targetLabel: '${snapshot.nextLevelXp} XP',
+            remainingLabel: l10n.t('xpRemaining', {'value': '$remaining'}),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _XpCircularProgress extends StatelessWidget {
+  const _XpCircularProgress({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final percent = (progress * 100).round();
+    return SizedBox(
+      width: 74,
+      height: 74,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: progress),
+            duration: const Duration(milliseconds: 650),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, _) => SizedBox(
+              width: 74,
+              height: 74,
+              child: CircularProgressIndicator(
+                value: value,
+                strokeWidth: 8,
+                strokeCap: StrokeCap.round,
+                backgroundColor: cs.surfaceContainerHighest,
+              ),
+            ),
+          ),
+          Text(
+            '$percent%',
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _XpProgressBar extends StatelessWidget {
+  const _XpProgressBar({
+    required this.progress,
+    required this.targetLabel,
+    required this.remainingLabel,
+  });
+
+  final double progress;
+  final String targetLabel;
+  final String remainingLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: progress),
+            duration: const Duration(milliseconds: 520),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, _) => LinearProgressIndicator(
+              value: value,
+              minHeight: 5,
+              backgroundColor: cs.surfaceContainerHighest,
+            ),
+          ),
+        ),
+        const SizedBox(height: 7),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                remainingLabel,
+                textAlign: TextAlign.start,
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant, fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                targetLabel,
+                textAlign: TextAlign.end,
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -449,40 +511,15 @@ class _BadgeCategoryCard extends StatelessWidget {
                 ),
               ),
               if (category.completed)
-                Icon(Icons.check_circle_rounded, color: cs.primary)
-              else if (next != null)
-                Text(
-                  '${category.current} / ${next.ruleValue}',
-                  style: TextStyle(color: cs.primary, fontWeight: FontWeight.w900),
-                ),
+                Icon(Icons.check_circle_rounded, color: cs.primary),
             ],
           ),
           if (!category.completed && next != null) ...[
             const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 8,
-                backgroundColor: cs.surfaceContainerHighest,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    next.localizedName(Localizations.localeOf(context).languageCode),
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  l10n.t('badgeRemaining', {'value': '${category.remaining}'}),
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-                ),
-              ],
+            _XpProgressBar(
+              progress: progress,
+              targetLabel: '${next.ruleValue}',
+              remainingLabel: l10n.t('badgeRemaining', {'value': '${category.remaining}'}),
             ),
           ],
         ],
@@ -500,47 +537,46 @@ class _NextMilestone extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final remaining = (snapshot.nextLevelXp - snapshot.levelXp).clamp(0, snapshot.nextLevelXp);
+    final progress = snapshot.nextLevelXp <= 0
+        ? 0.0
+        : (snapshot.levelXp / snapshot.nextLevelXp).clamp(0.0, 1.0).toDouble();
     final isComplete = remaining == 0;
 
     return AppCard(
       padding: const EdgeInsets.all(DesignTokens.space16),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: cs.secondaryContainer,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              isComplete ? Icons.check_rounded : Icons.flag_rounded,
-              color: cs.onSecondaryContainer,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isComplete
-                      ? l10n.t('levelReady')
-                      : l10n.t('nextLevelGoal'),
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: cs.secondaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isComplete ? Icons.check_rounded : Icons.flag_rounded,
+                  color: cs.onSecondaryContainer,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  isComplete ? l10n.t('levelReady') : l10n.t('nextLevelGoal'),
                   style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  isComplete
-                      ? l10n.t('levelReadySubtitle')
-                      : l10n.t('xpRemaining', {'value': '$remaining'}),
-                  style: TextStyle(
-                    color: cs.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _XpProgressBar(
+            progress: progress,
+            targetLabel: '${snapshot.nextLevelXp} XP',
+            remainingLabel: isComplete
+                ? l10n.t('levelReadySubtitle')
+                : l10n.t('xpRemaining', {'value': '$remaining'}),
           ),
         ],
       ),
