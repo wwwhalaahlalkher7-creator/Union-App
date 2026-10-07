@@ -140,16 +140,27 @@ function renderSchedule(entries) {
 }
 
 function getEntry(id) { return (scheduleData.entries || []).find(e => e.id === id) || null; }
-function fillScheduleSubjects(selectedId = null) {
-  const el = document.getElementById("subjectId");
-  if (!el) return;
+function setScheduleSubjectName(selectedId = null) {
+  const input = document.getElementById("subjectName");
+  if (!input || !selectedId) return;
+  const subject = (scheduleData.subjects || []).find(x => x && x.id === selectedId);
+  if (subject) input.value = subject.name_ar || subject.name_en || subject.code || "";
+}
+
+function resolveScheduleSubjectId(name) {
+  const wanted = String(name || "").trim().toLocaleLowerCase();
+  if (!wanted) return "";
   const departmentId = document.getElementById("departmentId")?.value || "";
   const semesterId = document.getElementById("semester")?.value || "";
-  const subjects = (scheduleData.subjects || []).filter(s =>
-    s && s.id && (!departmentId || s.department_id === departmentId) && (!semesterId || s.semester_id === semesterId)
-  );
-  fillSelect("subjectId", subjects, "اختر المادة", "id", x => x.name_ar || x.name_en || x.code || x.id);
-  if (selectedId && subjects.some(s => s.id === selectedId)) el.value = selectedId;
+  const subject = (scheduleData.subjects || []).find(s => {
+    if (!s || !s.id) return false;
+    if (departmentId && s.department_id !== departmentId) return false;
+    if (semesterId && s.semester_id !== semesterId) return false;
+    return [s.name_ar, s.name_en, s.code, s.id]
+      .filter(Boolean)
+      .some(value => String(value).trim().toLocaleLowerCase() === wanted);
+  });
+  return subject?.id || "";
 }
 
 function openForm(id) {
@@ -162,7 +173,11 @@ function openForm(id) {
       <div class="field"><label for="dayOfWeek">اليوم</label><select id="dayOfWeek" required></select></div>
       <div class="field"><label for="startTime">وقت البداية</label><input id="startTime" type="time" required></div>
       <div class="field"><label for="endTime">وقت النهاية</label><input id="endTime" type="time" required></div>
-      <div class="field"><label for="subjectId">المادة الدراسية</label><select id="subjectId" required></select></div>
+      <div class="field">
+        <label for="subjectName">المادة الدراسية</label>
+        <input id="subjectName" type="text" required maxlength="150" autocomplete="off" placeholder="اكتب اسم المادة كما أُضيفت في صفحة المواد">
+        <span class="field-hint">تُدار أسماء المواد من صفحة المواد في لوحة التحكم.</span>
+      </div>
       <div class="field"><label for="room">القاعة <span class="field-hint">اختياري</span></label><input id="room" type="text" maxlength="100"></div>
       <div class="field"><label for="instructor">الدكتور/المحاضر <span class="field-hint">اختياري</span></label><input id="instructor" type="text" maxlength="150"></div>
     </div>
@@ -177,21 +192,18 @@ function openForm(id) {
     ]
   });
   const semesterLabel = x => x?.name_ar || x?.name_en || (x?.number != null ? `الفصل ${x.number}` : '') || x?.id || '—';
-  fillSelect("departmentId", scheduleData.departments || [], "اختر القسم", "id", x => x.name.ar || x.name.en || x.id);
-  fillSelect("semester", scheduleData.semesters || [], "اختر الفصل", "id", semesterLabel);
-  fillScheduleSubjects();
-  document.getElementById("departmentId")?.addEventListener("change", fillScheduleSubjects);
-  document.getElementById("semester")?.addEventListener("change", fillScheduleSubjects);
+  fillSelect("departmentId", scheduleData.departments || [], "", "id", x => x.name.ar || x.name.en || x.id);
+  fillSelect("semester", scheduleData.semesters || [], "", "id", semesterLabel);
   const days = Object.keys(DAYS).map(k => ({id:k,name:DAYS[k]}));
   fillSelect("dayOfWeek", days, "اختر اليوم", "id", x => x.name);
   document.getElementById("entryId").value = e?.id || "";
   document.getElementById("departmentId").value = e?.departmentId || scheduleData.departments?.[0]?.id || "";
   document.getElementById("semester").value = e?.semester ? String(e.semester) : (scheduleData.semesters?.[0]?.id || "");
-  fillScheduleSubjects(e?.subjectId || "");
+  setScheduleSubjectName(e?.subjectId || "");
+  if (e?.subjectName) document.getElementById("subjectName").value = e.subjectName;
   document.getElementById("dayOfWeek").value = e?.dayOfWeek != null ? String(e.dayOfWeek) : "0";
   document.getElementById("startTime").value = e?.startTime || "08:00";
   document.getElementById("endTime").value = e?.endTime || "10:00";
-  if (e?.subjectId) document.getElementById("subjectId").value = e.subjectId;
   document.getElementById("room").value = e?.room || "";
   document.getElementById("instructor").value = e?.instructor || "";
 }
@@ -201,7 +213,7 @@ function formPayload() { return {
   dayOfWeek: document.getElementById("dayOfWeek").value,
   startTime: document.getElementById("startTime").value,
   endTime: document.getElementById("endTime").value,
-  subjectId: document.getElementById("subjectId").value.trim(),
+  subjectId: resolveScheduleSubjectId(document.getElementById("subjectName").value),
   room: document.getElementById("room").value.trim(),
   instructor: document.getElementById("instructor").value.trim()
 }; }
@@ -210,6 +222,11 @@ async function saveForm(btn) {
   const error = document.getElementById("formError"); error.style.display = "none";
   if (!form.checkValidity()) { form.reportValidity(); return; }
   const payload = formPayload();
+  if (!payload.subjectId) {
+    error.textContent = "المادة غير موجودة ضمن مواد هذا القسم والفصل. أضفها أولًا من صفحة المواد ثم اكتب اسمها هنا.";
+    error.style.display = "block";
+    return;
+  }
   if (payload.startTime >= payload.endTime) { error.textContent = "وقت النهاية يجب أن يكون بعد وقت البداية."; error.style.display = "block"; return; }
   const id = document.getElementById("entryId").value;
   try {
