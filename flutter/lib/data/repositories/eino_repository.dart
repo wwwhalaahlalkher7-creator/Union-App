@@ -5,14 +5,51 @@ class EinoRepository {
 
   final ApiClient _client;
 
-  Future<String> chat({required String prompt, String context = ''}) async {
+  Future<EinoChatResponse> chat({required String prompt, String context = '', String? conversationId}) async {
     final json = await _client.postJson('/api/v1/eino/chat', body: {
       'message': prompt,
       if (context.trim().isNotEmpty) 'context': context,
+      if (conversationId != null && conversationId.trim().isNotEmpty) 'conversationId': conversationId,
     });
     final data = json['data'];
-    if (data is Map && data['message'] != null) return data['message'].toString().trim();
+    if (data is Map && data['message'] != null) {
+      return EinoChatResponse(data['message'].toString().trim(), data['conversationId']?.toString());
+    }
     throw const ApiException('No valid Eino response was received.');
+  }
+
+  Future<String> createConversation({String? title}) async {
+    final json = await _client.postJson('/api/v1/eino/chats', body: {
+      if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
+    });
+    final data = json['data'];
+    if (data is Map && data['id'] != null) return data['id'].toString();
+    throw const ApiException('No valid Eino conversation was created.');
+  }
+
+  Future<List<EinoConversation>> conversations({int limit = 30}) async {
+    final json = await _client.getJson('/api/v1/eino/chats', query: {'limit': '$limit'}, forceRefresh: true);
+    final data = json['data'];
+    final values = data is Map && data['conversations'] is List ? data['conversations'] as List : const [];
+    return values.whereType<Map>().map((v) => EinoConversation.fromJson(Map<String, dynamic>.from(v))).toList(growable: false);
+  }
+
+  Future<EinoConversationDetail> conversation(String id) async {
+    final json = await _client.getJson('/api/v1/eino/chats/$id/messages', forceRefresh: true);
+    final data = json['data'];
+    if (data is Map) return EinoConversationDetail.fromJson(Map<String, dynamic>.from(data));
+    throw const ApiException('No valid Eino conversation was received.');
+  }
+
+  Future<void> deleteConversation(String id) async {
+    await _client.deleteJson('/api/v1/eino/chats/$id');
+  }
+
+  Future<void> appendConversationMessage({required String conversationId, required bool user, required String content}) async {
+    await _client.postJson('/api/v1/eino/chats/$conversationId/messages', body: {
+      'role': user ? 'user' : 'assistant',
+      'content': content,
+    });
   }
 
   Future<String> vision({required String imageDataUrl, String mode = 'describe'}) async {
@@ -46,7 +83,7 @@ class EinoRepository {
     return _textFrom(json, 'No valid speech transcription was received.');
   }
 
-  Future<String?> tts({required String text, String voice = 'af_heart'}) async {
+  Future<EinoTtsAudio?> tts({required String text, String voice = 'af_heart'}) async {
     final json = await _client.postJson('/api/v1/eino/tts', body: {
       'text': text,
       'voice': voice,
@@ -54,7 +91,14 @@ class EinoRepository {
     final data = json['data'];
     if (data is Map) {
       final url = data['audioUrl'] ?? data['url'] ?? data['audio_url'];
-      return url?.toString();
+      final base64 = data['audioBase64'] ?? data['audio_base64'];
+      if (url != null || base64 != null) {
+        return EinoTtsAudio(
+          url: url?.toString(),
+          base64: base64?.toString(),
+          contentType: data['contentType']?.toString() ?? 'audio/mpeg',
+        );
+      }
     }
     return null;
   }
@@ -100,6 +144,59 @@ class EinoRepository {
   }
 }
 
+
+class EinoTtsAudio {
+  const EinoTtsAudio({this.url, this.base64, this.contentType = 'audio/mpeg'});
+  final String? url;
+  final String? base64;
+  final String contentType;
+}
+
+class EinoChatResponse {
+  const EinoChatResponse(this.message, this.conversationId);
+  final String message;
+  final String? conversationId;
+}
+
+class EinoConversation {
+  const EinoConversation({required this.id, required this.title, this.lastMessage, this.updatedAt});
+  final String id;
+  final String title;
+  final String? lastMessage;
+  final String? updatedAt;
+  factory EinoConversation.fromJson(Map<String, dynamic> json) => EinoConversation(
+    id: json['id']?.toString() ?? '',
+    title: json['title']?.toString() ?? 'محادثة Eino',
+    lastMessage: json['lastMessage']?.toString(),
+    updatedAt: json['updatedAt']?.toString(),
+  );
+}
+
+class EinoConversationMessage {
+  const EinoConversationMessage({required this.user, required this.content, this.createdAt});
+  final bool user;
+  final String content;
+  final String? createdAt;
+  factory EinoConversationMessage.fromJson(Map<String, dynamic> json) => EinoConversationMessage(
+    user: json['role']?.toString() == 'user',
+    content: json['content']?.toString() ?? '',
+    createdAt: json['createdAt']?.toString(),
+  );
+}
+
+class EinoConversationDetail {
+  const EinoConversationDetail({required this.conversation, required this.messages});
+  final EinoConversation conversation;
+  final List<EinoConversationMessage> messages;
+  factory EinoConversationDetail.fromJson(Map<String, dynamic> json) {
+    final c = json['conversation'];
+    final values = json['messages'];
+    return EinoConversationDetail(
+      conversation: EinoConversation.fromJson(c is Map ? Map<String, dynamic>.from(c) : const {}),
+      messages: values is List ? values.whereType<Map>().map((v) => EinoConversationMessage.fromJson(Map<String, dynamic>.from(v))).toList(growable: false) : const [],
+    );
+  }
+}
 
 class EinoCapabilities {
   const EinoCapabilities({

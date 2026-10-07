@@ -25,6 +25,7 @@ import { adminDriveSync, adminDriveSyncStatus } from './drive.js';
 import { learningEvents, learningEvent, completeLearningEvent, adminLearningEvents } from './learning_events.js';
 import {
   eino, einoCapabilities, einoModels, einoMemoryList, einoMemoryCreate, einoMemoryDelete,
+  einoConversationCreate, einoConversationList, einoConversationMessages, einoConversationMessageAppend, einoConversationDelete,
   einoVision, einoOcr, einoStt, einoTts,
 } from './eino.js';
 
@@ -149,6 +150,11 @@ export default {
       if (path.startsWith('/admin/')) return adminRoute(ctx);
 
       if (path === '/eino/chat' && request.method === 'POST') return eino(ctx);
+      if (path === '/eino/chats' && request.method === 'POST') return einoConversationCreate(ctx);
+      if (path === '/eino/chats' && request.method === 'GET') return einoConversationList(ctx);
+      if (/^\/eino\/chats\/[^/]+\/messages$/.test(path) && request.method === 'GET') return einoConversationMessages(ctx, path.split('/')[3]);
+      if (/^\/eino\/chats\/[^/]+\/messages$/.test(path) && request.method === 'POST') return einoConversationMessageAppend(ctx, path.split('/')[3]);
+      if (/^\/eino\/chats\/[^/]+$/.test(path) && request.method === 'DELETE') return einoConversationDelete(ctx, path.split('/')[3]);
       if (path === '/eino/capabilities' && request.method === 'GET') return einoCapabilities(ctx);
       if (path === '/eino/models' && request.method === 'GET') return einoModels(ctx);
       if (path === '/eino/memory' && request.method === 'GET') return einoMemoryList(ctx);

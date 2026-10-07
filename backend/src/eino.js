@@ -12,6 +12,75 @@ import { auth } from './auth.js';
 import { freeAiChat } from './providers/free_ai.js';
 import { EINO_CAPABILITIES, getProvidersForCapability, getRoutesForCapability, getModelRegistry } from './providers/registry.js';
 import { routeText, routeVision, routeOcr, routeStt, routeTts } from './providers/router.js';
+
+async function getEinoConversation(ctx, studentId, id) {
+  if (!id) return null;
+  return queryOne(ctx.env,
+    `SELECT id, student_id AS studentId, title, created_at AS createdAt, updated_at AS updatedAt
+       FROM eino_conversations WHERE id=? AND student_id=? LIMIT 1`, id, studentId);
+}
+
+export async function einoConversationCreate(ctx) {
+  const actor = await getEinoStudent(ctx);
+  if (actor.response) return actor.response;
+  const body = await parseJson(ctx.request);
+  const rawTitle = String(body?.title || '').trim();
+  const title = rawTitle.slice(0, 80) || 'محادثة Eino';
+  const id = crypto.randomUUID();
+  await ctx.env.DB.prepare('INSERT INTO eino_conversations (id, student_id, title) VALUES (?, ?, ?)').bind(id, actor.studentId, title).run();
+  return ok(ctx, { id, title });
+}
+
+export async function einoConversationList(ctx) {
+  const actor = await getEinoStudent(ctx);
+  if (actor.response) return actor.response;
+  const limit = clampInt(ctx.url.searchParams.get('limit'), 30, 1, 100);
+  const rows = await queryAll(ctx.env,
+    `SELECT c.id, c.title, c.created_at AS createdAt, c.updated_at AS updatedAt,
+            (SELECT m.content FROM eino_messages m WHERE m.conversation_id=c.id ORDER BY m.created_at DESC LIMIT 1) AS lastMessage
+       FROM eino_conversations c WHERE c.student_id=? ORDER BY c.updated_at DESC LIMIT ?`,
+    actor.studentId, limit);
+  return ok(ctx, { conversations: rows });
+}
+
+export async function einoConversationMessages(ctx, id) {
+  const actor = await getEinoStudent(ctx);
+  if (actor.response) return actor.response;
+  const conversation = await getEinoConversation(ctx, actor.studentId, id);
+  if (!conversation) return error('EINO_CONVERSATION_NOT_FOUND', 'المحادثة غير موجودة.', 404, ctx.requestId, ctx.cors);
+  const rows = await queryAll(ctx.env,
+    `SELECT id, role, content, created_at AS createdAt FROM eino_messages
+       WHERE conversation_id=? ORDER BY created_at ASC, id ASC`, id);
+  return ok(ctx, { conversation, messages: rows });
+}
+
+export async function einoConversationMessageAppend(ctx, id) {
+  const actor = await getEinoStudent(ctx);
+  if (actor.response) return actor.response;
+  const conversation = await getEinoConversation(ctx, actor.studentId, id);
+  if (!conversation) return error('EINO_CONVERSATION_NOT_FOUND', 'المحادثة غير موجودة.', 404, ctx.requestId, ctx.cors);
+  const body = await parseJson(ctx.request);
+  const role = String(body?.role || '').trim();
+  const content = String(body?.content || '').trim();
+  if (!['user', 'assistant'].includes(role) || !content || content.length > EINO_MAX_MESSAGE) {
+    return error('EINO_INPUT_INVALID', 'رسالة المحادثة غير صالحة.', 400, ctx.requestId, ctx.cors);
+  }
+  await ctx.env.DB.prepare(
+    'INSERT INTO eino_messages (id, conversation_id, role, content) VALUES (?, ?, ?, ?)'
+  ).bind(crypto.randomUUID(), id, role, content).run();
+  await ctx.env.DB.prepare('UPDATE eino_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=?').bind(id, actor.studentId).run();
+  return ok(ctx, { saved: true });
+}
+
+export async function einoConversationDelete(ctx, id) {
+  const actor = await getEinoStudent(ctx);
+  if (actor.response) return actor.response;
+  const conversation = await getEinoConversation(ctx, actor.studentId, id);
+  if (!conversation) return error('EINO_CONVERSATION_NOT_FOUND', 'المحادثة غير موجودة.', 404, ctx.requestId, ctx.cors);
+  await ctx.env.DB.prepare('DELETE FROM eino_conversations WHERE id=? AND student_id=?').bind(id, actor.studentId).run();
+  return ok(ctx, { deleted: true });
+}
+
 export async function eino(ctx) {
   const hasTextProvider = getRoutesForCapability(ctx.env, EINO_CAPABILITIES.TEXT).length > 0;
   if (!hasTextProvider) {
@@ -20,7 +89,7 @@ export async function eino(ctx) {
 
   const body = await parseJson(ctx.request);
   const message = String(body?.message || body?.prompt || '').trim();
-  const context = String(body?.context || '').trim();
+  let context = String(body?.context || '').trim();
   if (!message || message.length > EINO_MAX_MESSAGE || context.length > EINO_MAX_CONTEXT) {
     await recordEinoTelemetry(ctx, 'validation_invalid', 'unknown');
     return error('EINO_INPUT_INVALID', 'رسالة Eino أو سياق المحادثة غير صالح.', 400, ctx.requestId, ctx.cors);
@@ -36,6 +105,26 @@ export async function eino(ctx) {
       WHERE st.id = ? AND st.active = 1`, a.session.student_id) : null;
 
   const actorType = a?.session?.student_id ? 'student' : 'guest';
+  const conversationId = String(body?.conversationId || '').trim();
+  let conversation = null;
+  if (a?.session?.student_id) {
+    if (conversationId) {
+      conversation = await getEinoConversation(ctx, a.session.student_id, conversationId);
+      if (!conversation) return error('EINO_CONVERSATION_NOT_FOUND', 'المحادثة غير موجودة.', 404, ctx.requestId, ctx.cors);
+    } else {
+      conversation = { id: crypto.randomUUID(), title: message.length > 60 ? `${message.slice(0, 60)}…` : message };
+      await ctx.env.DB.prepare(
+        `INSERT INTO eino_conversations (id, student_id, title) VALUES (?, ?, ?)`
+      ).bind(conversation.id, a.session.student_id, conversation.title).run();
+    }
+    const previous = await queryAll(ctx.env,
+      `SELECT role, content FROM eino_messages WHERE conversation_id=? ORDER BY created_at DESC, id DESC LIMIT 12`, conversation.id);
+    const previousText = previous.reverse().map((m) => `${m.role === 'user' ? 'المستخدم' : 'إينو'}: ${m.content}`).join('\n');
+    if (previousText) {
+      const combined = [context, `سجل المحادثة المحفوظ:\n${previousText}`].filter(Boolean).join('\n');
+      context = combined.slice(0, EINO_MAX_CONTEXT);
+    }
+  }
   const actorKey = a?.session?.student_id
     ? `student:${a.session.student_id}`
     : `ip:${await sha256(ctx.request.headers.get('CF-Connecting-IP') || 'unknown')}`;
@@ -70,6 +159,10 @@ export async function eino(ctx) {
   const messages = [{ role: 'system', content: systemParts.join('\n') }];
   if (context) messages.push({ role: 'user', content: `سياق المحادثة السابق:\n${context}` });
   messages.push({ role: 'user', content: message });
+  if (conversation) {
+    await ctx.env.DB.prepare("INSERT INTO eino_messages (id, conversation_id, role, content) VALUES (?, ?, 'user', ?)")
+      .bind(crypto.randomUUID(), conversation.id, message).run();
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
   const startedAt = Date.now();
@@ -77,8 +170,12 @@ export async function eino(ctx) {
     const routes = getRoutesForCapability(ctx.env, EINO_CAPABILITIES.TEXT);
     const filtered = requestedModel ? routes.filter((r) => r.model === requestedModel) : routes;
     const providerResult = await routeText(ctx.env, { model: (filtered[0]?.model || requestedModel || routes[0]?.model), messages, temperature:0.4, maxTokens:900, signal:controller.signal });
+    if (conversation) {
+      await ctx.env.DB.prepare("INSERT INTO eino_messages (id, conversation_id, role, content) VALUES (?, ?, 'assistant', ?)").bind(crypto.randomUUID(), conversation.id, providerResult.answer).run();
+      await ctx.env.DB.prepare('UPDATE eino_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=?').bind(conversation.id, a.session.student_id).run();
+    }
     const latencyMs=Date.now()-startedAt; await recordEinoTelemetry(ctx,'success',actorType,latencyMs);
-    return ok(ctx,{message:providerResult.answer,provider:providerResult.provider,capability:'text',model:providerResult.model,routing:{capability:'text',candidates:routes.map(r=>`${r.provider}:${r.model}`),selected:`${providerResult.provider}:${providerResult.route.model}`,fallback:providerResult.route.priority!==routes[0]?.priority},usage:providerResult.usage||null,reliability:providerResult.reliability||null});
+    return ok(ctx,{message:providerResult.answer,conversationId:conversation?.id || null,provider:providerResult.provider,capability:'text',model:providerResult.model,routing:{capability:'text',candidates:routes.map(r=>`${r.provider}:${r.model}`),selected:`${providerResult.provider}:${providerResult.route.model}`,fallback:providerResult.route.priority!==routes[0]?.priority},usage:providerResult.usage||null,reliability:providerResult.reliability||null});
   } catch(e) {
     await recordEinoTelemetry(ctx,e?.name==='AbortError'?'timeout':'provider_error',actorType,Date.now()-startedAt);
     if(e?.name==='AbortError') return error('EINO_TIMEOUT','استغرق Eino وقتًا أطول من المتوقع. أعد المحاولة.',504,ctx.requestId,ctx.cors);
@@ -387,7 +484,15 @@ export async function einoTts(ctx) {
   const body = await parseJson(ctx.request); const text = String(body?.text || '').trim();
   if (!text || text.length > 6000) return error('EINO_INPUT_INVALID', 'النص غير صالح أو طويل جدًا.', 400, ctx.requestId, ctx.cors);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 30000); const started = Date.now();
-  try { const result = await routeTts(ctx.env, { text, voice: String(body?.voice || ''), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { audioUrl: result?.audio_url || result?.url || null, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  try {
+    const result = await routeTts(ctx.env, { text, voice: String(body?.voice || ''), signal: controller.signal });
+    const audioUrl = result?.audio_url || result?.audioUrl || result?.url || null;
+    const audioBase64 = result?.audioBase64 || result?.audio_base64 || null;
+    const contentType = result?.contentType || result?.content_type || 'audio/mpeg';
+    if (!audioUrl && !audioBase64) throw Object.assign(new Error('empty tts result'), { status: 502 });
+    await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
+    return ok(ctx, { audioUrl, audioBase64, contentType, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || null, reliability: result.reliability || null });
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
 }
 
 export async function einoMediaError(ctx, actorType, e, started) {

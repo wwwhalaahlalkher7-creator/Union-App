@@ -63,8 +63,3 @@ class EinoMessage {
   final String? retryPrompt;
 }
 
-class EinoChatPreview {
-  const EinoChatPreview(this.title, this.date);
-  final String title;
-  final DateTime date;
-}

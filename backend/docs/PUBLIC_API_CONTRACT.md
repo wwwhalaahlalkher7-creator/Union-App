@@ -68,8 +68,17 @@ Public content routes `/news`, `/events`, `/announcements`, `/achievements` are 
 ## Eino
 
 - `POST /eino/chat`
+- `POST /eino/chats`
+- `GET /eino/chats`
+- `GET /eino/chats/:id/messages`
+- `POST /eino/chats/:id/messages`
+- `DELETE /eino/chats/:id`
+- `POST /eino/vision`
+- `POST /eino/ocr`
+- `POST /eino/stt`
+- `POST /eino/tts`
 
-The Worker enforces input limits, quota governance and privacy-preserving telemetry before forwarding to Free.ai.
+Student chat history is stored per student in D1 and can be resumed across app sessions. Long-term Eino memory is available only to authenticated students. Media uses dedicated Eino vision/OCR/STT endpoints; TTS normalizes either provider audio URLs or base64 audio into a client-consumable response.
 
 ## Admin
 
