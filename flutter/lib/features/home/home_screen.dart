@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/content_item.dart';
 import '../../data/models/student_profile.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../data/repositories/student_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/list_skeleton.dart';
 import '../../features/eino/eino_face.dart';
@@ -21,7 +21,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  ApiClient? _client;
   Future<_HomeData>? _future;
 
   @override
@@ -31,11 +30,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<_HomeData> _load() async {
-    final newsFuture = ContentRepository().news();
+    final newsFuture = AppDependencies.instance.content.news();
 
-    _client ??= await AuthenticatedClient.create();
-
-    final studentRepo = StudentRepository(_client!);
+    final studentRepo = AppDependencies.instance.student;
     final profileFuture = studentRepo.profile();
     final statsFuture = studentRepo.stats();
 
@@ -54,7 +51,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _client?.dispose();
     super.dispose();
   }
 
@@ -78,7 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (snapshot.hasError) {
             final e = snapshot.error;
             return _StateMessage(
-              message: e is ApiException ? e.message : l10n.t('connectionFailed'),
+              message: ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'),
               retry: e is ApiException && !e.retryable ? null : () => setState(() => _future = _load()),
             );
           }

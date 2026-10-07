@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../core/storage/app_preferences.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/storage/auth_storage.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../features/eino/eino_face.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/utils/academic_labels.dart';
@@ -52,12 +52,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorMessage = null;
     });
 
-    ApiClient? client;
     try {
-      final storage = await AuthStorage.create();
-      client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: storage);
-
-      final response = await client.postJson(
+      final storage = AppDependencies.instance.authStorage;
+      final response = await AppDependencies.instance.apiClient.postJson(
         '/api/v1/auth/login',
         body: {
           'identifier': identifier,
@@ -83,10 +80,9 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = e is ApiException ? e.message : l10n.t('loginFailed');
+        _errorMessage = ErrorMessage.from(context, e, fallbackKey: 'loginFailed');
       });
     } finally {
-      client?.dispose();
       if (mounted) {
         setState(() => _isLoading = false);
       }

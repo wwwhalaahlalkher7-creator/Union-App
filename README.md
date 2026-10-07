@@ -44,7 +44,7 @@ Dashboard ──────┘                                  └──> Free
 
 ## الحالة الحالية
 
-- Flutter version: `2.0.0+2` من `flutter/VERSION`.
+- Flutter version: `2.0.2+1` من `flutter/VERSION`.
 - Backend API: `v1`.
 - Android Application ID: `com.leoassociation.app`.
 - Eino يمر عبر TRINEX API إلى سلسلة مزودين قابلة للاستبدال (Mistral ثم Groq ثم Free.ai كاحتياطي حسب القدرة والمهمة)؛ مفاتيح المزود لا تدخل التطبيق.

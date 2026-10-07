@@ -1,5 +1,6 @@
 import '../../core/network/api_client.dart';
 import '../models/learning_event.dart';
+import 'repository_parser.dart';
 
 class LearningEventsRepository {
   LearningEventsRepository(this._client);
@@ -7,21 +8,22 @@ class LearningEventsRepository {
 
   Future<List<LearningEvent>> list() async {
     final json = await _client.getJson('/api/v1/learning-events');
-    final raw = json['data'];
-    return raw is List
-        ? raw.whereType<Map>().map((e) => LearningEvent.fromJson(Map<String, dynamic>.from(e))).toList()
-        : const [];
+    return RepositoryParser.maps(json)
+        .map(LearningEvent.fromJson)
+        .toList(growable: false);
   }
 
   Future<LearningEvent> get(String id) async {
     final json = await _client.getJson('/api/v1/learning-events/$id');
-    final data = json['data'];
-    return LearningEvent.fromJson(data is Map ? Map<String, dynamic>.from(data) : const {});
+    return LearningEvent.fromJson(RepositoryParser.map(json));
   }
 
   Future<int> complete(String id) async {
-    final json = await _client.postJson('/api/v1/learning-events/$id/complete', body: const {});
-    final data = json['data'];
-    return int.tryParse('${data is Map ? data['xpAwarded'] : 0}') ?? 0;
+    final json = await _client.postJson(
+      '/api/v1/learning-events/$id/complete',
+      body: const {},
+    );
+    final data = RepositoryParser.map(json);
+    return RepositoryParser.integer(data['xpAwarded']);
   }
 }

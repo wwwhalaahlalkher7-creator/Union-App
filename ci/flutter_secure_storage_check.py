@@ -11,7 +11,7 @@ def read(rel):
 pubspec = read('flutter/pubspec.yaml')
 auth = read('flutter/lib/core/storage/auth_storage.dart')
 api = read('flutter/lib/core/network/api_client.dart')
-client = read('flutter/lib/core/network/authenticated_client.dart')
+di = read('flutter/lib/core/di/app_dependencies.dart')
 
 checks = [
     ('secure storage dependency', 'flutter_secure_storage:' in pubspec),
@@ -22,7 +22,7 @@ checks = [
     ('legacy copies removed', 'await prefs.remove(_access)' in auth and 'await prefs.remove(_refresh)' in auth),
     ('async access token', 'await authStorage?.accessToken' in api),
     ('async refresh token', 'await authStorage?.refreshToken' in api),
-    ('secure AuthStorage factory', 'await AuthStorage.create()' in client),
+    ('secure AuthStorage factory', 'await AuthStorage.create()' in di),
     ('no direct SharedPreferences auth construction', 'AuthStorage(prefs)' not in '\n'.join(p.read_text(encoding='utf-8', errors='ignore') for p in FLUTTER.rglob('*.dart'))),
 ]
 failed = [name for name, ok in checks if not ok]

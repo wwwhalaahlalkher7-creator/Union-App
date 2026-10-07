@@ -16,18 +16,18 @@ MAJOR.MINOR.PATCH+BUILD
 مثال:
 
 ```text
-2.0.1+3
-# إصلاحات وتحسينات في التحقق من التحديثات.
+2.0.2+1
+# ملاحظات الإصدار الحالية تُستخرج تلقائيًا من flutter/VERSION.
 ```
 
 من هذا الملف يتم توليد تلقائيًا:
 
-- Flutter/Android version name = `2.0.1`
-- Android build number = `3`
-- Backend `APP_VERSION = 2.0.1`
+- Flutter/Android version name = `2.0.2`
+- Android build number = `1`
+- Backend `APP_VERSION = 2.0.2`
 - Backend `APP_RELEASE_NOTES` من التعليقات
-- GitHub tag = `v2.0.1`
-- GitHub Release = `Union App v2.0.1`
+- GitHub tag = `v2.0.2`
+- GitHub Release = `TRINEX v2.0.2`
 
 ## الإصدار التلقائي
 
@@ -47,7 +47,7 @@ MAJOR.MINOR.PATCH+BUILD
 
 المقارنة بين الإصدارات تعتمد على `MAJOR.MINOR.PATCH` فقط، ولا تستخدم رقم البناء `+BUILD` لاكتشاف إصدار جديد.
 
-رابط التحديث يبقى حاليًا فارغًا (`APP_UPDATE_URL = ""`). عند تجهيز صفحة التحميل الثابتة لاحقًا، نضع رابط الصفحة مرة واحدة في إعدادات الإنتاج، وتبقى الصفحة ثابتة بينما يتغير ملف APK المنشور خلفها.
+رابط التحديث الحالي هو `https://ush-eng.great-site.net/download.html`، وتبقى صفحة التحميل ثابتة بينما يتغير ملف APK المنشور خلفها.
 
 ## Release checklist
 

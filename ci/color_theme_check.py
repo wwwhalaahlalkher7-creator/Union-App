@@ -17,6 +17,7 @@ theme_files = {
 allow = {
     Path('flutter/lib/features/eino/eino_face.dart'),
     Path('flutter/lib/features/tools/tools_screen.dart'),
+    Path('flutter/lib/features/tools/resistor_calculator_tab.dart'),
 }
 hex_re = re.compile(r'\b(?:const\s+)?Color\(0x[0-9A-Fa-f]{8}\)')
 violations = []

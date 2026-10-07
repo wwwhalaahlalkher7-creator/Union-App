@@ -8,48 +8,13 @@ import {
   R2_MAX_OBJECT_BYTES, R2_MAX_STORAGE_BYTES, R2_MAX_CLASS_A_MONTHLY, R2_MAX_UPLOAD_FILES_PER_REQUEST, R2_ALLOWED_TYPES,
   normalizeEmail, isValidEmail,
 } from './core.js';
-import { recordAuthEvent, staffAuth } from './auth.js';
+import { recordAuthEvent } from './auth.js';
 import { deleteOwnedMediaUrls, extractMediaUrlsFromRow, markOwnedMediaAttached } from './media.js';
 import { deleteDriveFilesViaAppsScript } from './drive.js';
 
-const ADMIN_ROLE_PERMISSIONS = Object.freeze({
-  super_admin: ['*'],
-  content_manager: ['content.read', 'content.write', 'dashboard.read'],
-  academic_manager: ['academic.read', 'academic.write', 'dashboard.read'],
-  moderator: ['moderation.read', 'moderation.write', 'notifications.read', 'notifications.write', 'dashboard.read'],
-});
-const ADMIN_ROLE_IDS = new Set(Object.keys(ADMIN_ROLE_PERMISSIONS));
+import { ADMIN_ROLE_IDS, ADMIN_FIELDS, CONTENT_STATUS_VALUES, CONTENT_TABLES, CONTENT_UPDATED_BY_TABLES, ADMIN_SELECT_COLUMNS } from './admin/config.js';
+import { hasAdminPermission, requireAdminPermission } from './admin/permissions.js';
 
-const ADMIN_FIELDS = {
-  news: ['title','body','image_url','images_json','publish_at','expires_at','status','category','publisher'],
-  announcements: ['title','body','type','target_department_id','target_semester_id','publish_at','expires_at','status'],
-  events: ['title','body','image_url','images_json','category','event_at','end_at','location','publisher','status'],
-  achievements: ['title','description','intro','highlights_title','highlights','badge','publisher','image_url','images_json','achieved_at','status'],
-  subjects: ['semester_id','department_id','code','name_ar','name_en','active','sort_order'],
-  materials: ['subject_id','title','description','drive_file_id','drive_url','mime_type','size_bytes','active','sort_order','drive_parent_id','drive_modified_at','drive_web_view_url','pinned','source'],
-  schedules: ['semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer','active'],
-  students: ['student_number','full_name','email','department_id','current_semester_id','active'],
-  badges: ['name_ar','description_ar','icon_url','rule_type','rule_value','active','sort_order'],
-  comments: ['student_id','content_type','content_id','body','status'],
-};
-
-const CONTENT_STATUS_VALUES = Object.freeze(new Set(['draft', 'published']));
-const CONTENT_TABLES = Object.freeze(new Set(['news', 'events', 'announcements', 'achievements']));
-const CONTENT_UPDATED_BY_TABLES = Object.freeze(new Set(['news', 'events', 'achievements']));
-
-
-const ADMIN_SELECT_COLUMNS = {
-  news: 'id,title,body,image_url,images_json,publish_at,expires_at,status,category,publisher,created_by,updated_by,created_at,updated_at',
-  announcements: 'id,title,body,type,target_department_id,target_semester_id,publish_at,expires_at,status,created_by,created_at,updated_at',
-  events: 'id,title,body,image_url,images_json,category,event_at,end_at,location,publisher,status,created_by,updated_by,created_at,updated_at',
-  achievements: 'id,title,description,intro,highlights_title,highlights,badge,publisher,image_url,images_json,achieved_at,status,created_by,updated_by,created_at,updated_at',
-  subjects: 'id,semester_id,department_id,code,name_ar,name_en,active,sort_order',
-  materials: 'id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,created_at,updated_at',
-  schedules: 'id,semester_id,department_id,subject_id,day_of_week,start_time,end_time,room,lecturer,active,created_by,updated_by,updated_at',
-  students: 'id,student_number,full_name,email,department_id,current_semester_id,active,CASE WHEN auth_secret_hash IS NULL THEN 0 ELSE 1 END AS registered,created_at,updated_at',
-  badges: 'id,name_ar,description_ar,icon_url,rule_type,rule_value,active,sort_order,created_at,updated_at',
-  comments: 'id,student_id,content_type,content_id,body,status,created_at,updated_at',
-};
 export async function adminModerationComments(ctx) { const a=await requireAdminPermission(ctx, 'moderation.read'); if(a.response) return a.response; const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,"SELECT c.*,s.full_name,s.student_number, (SELECT COUNT(*) FROM comment_replies cr WHERE cr.comment_id=c.id AND cr.status='visible') AS reply_count FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?",status,limit); return ok(ctx,rows,{count:rows.length}); }
 
 export async function adminModerationComment(ctx,id) { const a=await requireAdminPermission(ctx, 'moderation.write'); if(a.response) return a.response; const body=await parseJson(ctx.request); const status=String(body?.status||'').trim(); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const r=await ctx.env.DB.prepare('UPDATE comments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run(); if(!r.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,a.session.staff_user_id,'status_update','comment',id,{status}); return ok(ctx,{id,status}); }
@@ -107,23 +72,6 @@ export async function adminDashboardOverview(ctx) {
     visibleComments: Number(comments?.count || 0),
     announcements: Number(announcements?.count || 0),
   });
-}
-
-export function hasAdminPermission(roleId, permissionName) {
-  const allowed = ADMIN_ROLE_PERMISSIONS[roleId] || [];
-  return allowed.includes('*') || allowed.includes(permissionName);
-}
-
-export async function requireAdminPermission(ctx, permissionName) {
-  const a = await staffAuth(ctx);
-  if (a.response) return a;
-  if (!a.session.staff_user_id || a.session.staff_active !== 1) {
-    return { response: error('STAFF_AUTH_REQUIRED', 'صلاحيات الإدارة مطلوبة.', 403, ctx.requestId, ctx.cors) };
-  }
-  if (!hasAdminPermission(a.session.staff_role_id, permissionName)) {
-    return { response: error('FORBIDDEN', 'ليس لديك صلاحية لتنفيذ هذا الإجراء.', 403, ctx.requestId, ctx.cors) };
-  }
-  return a;
 }
 
 export async function adminRoute(ctx) {

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/schedule_item.dart';
 import '../../data/repositories/schedule_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/login_required_card.dart';
 
 class ScheduleScreen extends StatefulWidget {
@@ -18,7 +18,6 @@ class ScheduleScreen extends StatefulWidget {
 
 class _ScheduleScreenState
     extends State<ScheduleScreen> {
-  ApiClient? _client;
   late Future<ScheduleData> _future;
   int? _selectedDay;
   bool _week = false;
@@ -30,9 +29,8 @@ class _ScheduleScreenState
   }
 
   Future<ScheduleData> _load() async {
-    _client ??= await AuthenticatedClient.create();
 
-    return ScheduleRepository(_client!).getSchedule();
+    return AppDependencies.instance.schedule.getSchedule();
   }
 
   Future<void> _reload() async {
@@ -45,11 +43,7 @@ class _ScheduleScreenState
     await future;
   }
 
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
+
 
   String _day(AppLocalizations l10n, int number) {
     return {
@@ -82,7 +76,7 @@ class _ScheduleScreenState
           if (snapshot.hasError) {
             final e = snapshot.error;
             if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
-            return _Msg(message: e is ApiException ? e.message : AppLocalizations.of(context).t('connectionFailed'), retry: _reload);
+            return _Msg(message: ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), retry: _reload);
           }
 
           final data = snapshot.data!;

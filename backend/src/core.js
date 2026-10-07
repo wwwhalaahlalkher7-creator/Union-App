@@ -1,3 +1,4 @@
+import { API_ERRORS } from './errors.js';
 export const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
@@ -72,14 +73,25 @@ export function ok(ctx, data, meta = null, status = 200) {
 export function databaseErrorResponse(e, requestId, cors) {
   const message = String(e?.message || e || '');
   if (/UNIQUE constraint failed/i.test(message)) {
-    return error('CONFLICT', 'البيانات موجودة بالفعل أو تتعارض مع سجل موجود.', 409, requestId, cors);
+    return error('CONFLICT', API_ERRORS.CONFLICT[0], API_ERRORS.CONFLICT[1], requestId, cors);
   }
   if (/FOREIGN KEY constraint failed|NOT NULL constraint failed|CHECK constraint failed/i.test(message)) {
-    return error('DATA_CONSTRAINT', 'البيانات المرسلة لا تتوافق مع العلاقات أو القيود الحالية.', 400, requestId, cors);
+    return error('DATA_CONSTRAINT', API_ERRORS.DATA_CONSTRAINT[0], API_ERRORS.DATA_CONSTRAINT[1], requestId, cors);
   }
-  return error('INTERNAL_ERROR', 'حدث خطأ غير متوقع. حاول مرة أخرى.', 500, requestId, cors);
+  return error('INTERNAL_ERROR', API_ERRORS.INTERNAL_ERROR[0], API_ERRORS.INTERNAL_ERROR[1], requestId, cors);
 }
 
+/**
+ * Creates a stable validation error without leaking implementation details.
+ * Route handlers should prefer this over ad-hoc Response objects.
+ */
+export function validationError(code, message, requestId, cors, details = null) {
+  return error(code, message, 400, requestId, cors, details);
+}
+
+/**
+ * Canonical API error envelope. Never expose raw database/provider errors.
+ */
 export function error(code, message, status = 400, requestId = crypto.randomUUID(), cors = {}, details = null) {
   const safeDetails = details == null ? null : String(details).slice(0, 500);
   return new Response(JSON.stringify({ success: false, error: { code, message, details: safeDetails, requestId } }), {

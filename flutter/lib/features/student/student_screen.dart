@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
-import '../../core/storage/auth_storage.dart';
+import '../../core/errors/error_message.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/student_profile.dart';
 import '../../data/repositories/student_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/login_required_card.dart';
 
@@ -19,7 +18,6 @@ class StudentScreen extends StatefulWidget {
 }
 
 class _StudentScreenState extends State<StudentScreen> {
-  ApiClient? _client;
   late Future<_StudentData?> _future;
 
   @override
@@ -29,11 +27,9 @@ class _StudentScreenState extends State<StudentScreen> {
   }
 
   Future<_StudentData?> _load() async {
-    final storage = await AuthStorage.create();
-    if (!await storage.isLoggedIn) return null;
-    _client ??= await AuthenticatedClient.create();
+    if (!await AppDependencies.instance.authStorage.isLoggedIn) return null;
 
-    final repository = StudentRepository(_client!);
+    final repository = AppDependencies.instance.student;
     final profile = await repository.profile();
     final stats = await repository.stats();
 
@@ -48,11 +44,7 @@ class _StudentScreenState extends State<StudentScreen> {
     await _future;
   }
 
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +71,7 @@ class _StudentScreenState extends State<StudentScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(e is ApiException ? e.message : AppLocalizations.of(context).t('connectionFailed'), textAlign: TextAlign.center),
+                    Text(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), textAlign: TextAlign.center),
                     if (e is! ApiException || e.retryable) ...[
                       const SizedBox(height: 12),
                       FilledButton.icon(onPressed: _reload, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry'))),

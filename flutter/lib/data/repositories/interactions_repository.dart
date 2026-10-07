@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import 'repository_parser.dart';
 import '../models/comment_item.dart';
 
 class CommentPage {
@@ -21,14 +22,10 @@ class InteractionsRepository {
       '/api/v1/content/$type/$id/comments',
       query: {'limit': '20', 'offset': '$offset'},
     );
-    final rows = json['data'];
-    final items = rows is List
-        ? rows
-            .whereType<Map>()
-            .map((row) => CommentItem.fromJson(Map<String, dynamic>.from(row)))
-            .toList()
-        : const <CommentItem>[];
-    return CommentPage(items: items, total: _toInt(json['meta']?['total'] ?? json['total'] ?? items.length));
+    final items = RepositoryParser.maps(json)
+        .map(CommentItem.fromJson)
+        .toList(growable: false);
+    return CommentPage(items: items, total: RepositoryParser.integer(json['meta'] is Map ? (json['meta'] as Map)['total'] : json['total'], fallback: items.length));
   }
 
   Future<List<CommentItem>> comments(
@@ -42,12 +39,9 @@ class InteractionsRepository {
       '/api/v1/comments/$id/replies',
       query: {'limit': '50', 'offset': '$offset'},
     );
-    final rows = json['data'];
-    if (rows is! List) return const [];
-    return rows
-        .whereType<Map>()
-        .map((row) => CommentItem.fromJson(Map<String, dynamic>.from(row)))
-        .toList();
+    return RepositoryParser.maps(json)
+        .map(CommentItem.fromJson)
+        .toList(growable: false);
   }
 
   Future<void> addComment(String type, String id, String body) async {
@@ -91,4 +85,3 @@ class InteractionsRepository {
   }
 }
 
-int _toInt(dynamic value) => value is int ? value : int.tryParse(value?.toString() ?? '') ?? 0;

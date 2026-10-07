@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import 'repository_parser.dart';
 import '../models/student_profile.dart';
 
 class StudentRepository {
@@ -7,8 +8,8 @@ class StudentRepository {
 
   Future<StudentProfile> profile() async {
     final j = await _client.getJson('/api/v1/student/profile');
-    final d = j['data'];
-    return StudentProfile.fromJson(d is Map ? Map<String, dynamic>.from(d) : const {});
+    final d = RepositoryParser.map(j);
+    return StudentProfile.fromJson(d);
   }
 
   Future<Map<String, dynamic>> stats() async {
@@ -18,14 +19,12 @@ class StudentRepository {
 
   Future<List<Map<String, dynamic>>> departments() async {
     final j = await _client.getJson('/api/v1/departments');
-    final d = j['data'];
-    return d is List ? d.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : const [];
+    return RepositoryParser.maps(j);
   }
 
   Future<List<Map<String, dynamic>>> semesters() async {
     final j = await _client.getJson('/api/v1/semesters');
-    final d = j['data'];
-    return d is List ? d.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : const [];
+    return RepositoryParser.maps(j);
   }
 
   Future<Map<String, dynamic>> register({
@@ -44,7 +43,7 @@ class StudentRepository {
     });
     final d = j['data'];
     if (d is Map) return Map<String, dynamic>.from(d);
-    throw const ApiException('Account creation failed. Please verify the data and try again.');
+    throw const ApiException('Account creation failed.', code: 'ACCOUNT_CREATION_FAILED', kind: ApiErrorKind.response);
   }
 
 }

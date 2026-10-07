@@ -1,31 +1,37 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import '../storage/auth_storage.dart';
 import 'offline_cache.dart';
 import 'offline_state.dart';
+import 'api_transport.dart';
+import 'api_response_decoder.dart';
+import 'api_error_messages.dart';
+import 'session_refresher.dart';
+import '../errors/app_error.dart';
+export '../errors/app_error.dart' show ApiException, ApiErrorKind;
 
 class _CachedResponse {
   const _CachedResponse(this.value, this.expiresAt);
+
   final Map<String, dynamic> value;
   final DateTime expiresAt;
 }
 
-enum ApiErrorKind { offline, timeout, server, response, auth, client }
-
-class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode, this.code, this.cause, this.kind = ApiErrorKind.client, this.retryable = false});
-  final String message; final int? statusCode; final String? code; final Object? cause; final ApiErrorKind kind; final bool retryable;
-  @override String toString() => 'ApiException($statusCode): $message';
-}
-
 class ApiClient {
   static final Map<String, _CachedResponse> _publicCache = <String, _CachedResponse>{};
-  static Future<bool>? _refreshInFlight;
   ApiClient({required this.baseUrl, http.Client? client, this.authStorage}) : _client = client ?? http.Client();
-  final String baseUrl; final http.Client _client; final AuthStorage? authStorage;
+  final String baseUrl;
+  final http.Client _client;
+  final AuthStorage? authStorage;
+  late final ApiTransport _transport = ApiTransport(_client);
+  late final ApiResponseDecoder _decoder = const ApiResponseDecoder();
+  late final SessionRefresher _sessionRefresher = SessionRefresher(
+    client: _client,
+    storage: authStorage,
+    uri: _buildUri('/api/v1/auth/refresh'),
+  );
 
   static const _offlineCacheMaxStale = Duration(days: 7);
 
@@ -68,23 +74,23 @@ class ApiClient {
       request.files.add(http.MultipartFile.fromBytes(fieldName, bytes, filename: filename, contentType: _mediaType(contentType)));
       final streamed = await request.send().timeout(const Duration(seconds: 90));
       final response = await http.Response.fromStream(streamed);
-      return _decode(response);
+      return _decoder.decode(response);
     }
     try {
       final result = await send();
       return result;
     } on ApiException catch (e) {
       if (e.statusCode == 401 && (await authStorage?.refreshToken)?.isNotEmpty == true) {
-        final refreshed = await _refreshSession();
+        final refreshed = await _sessionRefresher.refresh();
         if (refreshed) return send();
       }
       rethrow;
     } on TimeoutException catch (e) {
-      throw ApiException('File processing timed out. Please try again.', cause: e, kind: ApiErrorKind.timeout, retryable: true);
+      throw ApiException(ApiErrorMessages.fileTimeout, cause: e, kind: ApiErrorKind.timeout, retryable: true);
     } on SocketException catch (e) {
-      throw ApiException('No internet connection. Check your connection and try again.', cause: e, kind: ApiErrorKind.offline, retryable: true);
+      throw ApiException(ApiErrorMessages.offline, cause: e, kind: ApiErrorKind.offline, retryable: true);
     } on http.ClientException catch (e) {
-      throw ApiException('No internet connection. Check your connection and try again.', cause: e, kind: ApiErrorKind.offline, retryable: true);
+      throw ApiException(ApiErrorMessages.offline, cause: e, kind: ApiErrorKind.offline, retryable: true);
     }
   }
 
@@ -118,13 +124,15 @@ class ApiClient {
       if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
       if (body != null) { headers['Content-Type'] = 'application/json'; }
       final timeout = _requestTimeout(path);
-      final response = switch (method) {
-        'GET' => await _client.get(uri, headers: headers).timeout(timeout),
-        'DELETE' => await _client.delete(uri, headers: headers).timeout(timeout),
-        _ => await _client.post(uri, headers: headers, body: jsonEncode(body ?? const {})).timeout(timeout),
-      };
+      final response = await _transport.send(
+        method,
+        uri,
+        headers: headers,
+        body: body,
+        timeout: timeout,
+      );
       if (response.statusCode == 401 && retry && _canRefreshFor(path) && (await authStorage?.refreshToken)?.isNotEmpty == true) {
-        final refreshed = await _refreshSession();
+        final refreshed = await _sessionRefresher.refresh();
         if (refreshed) {
           return await _request(method, path, query: query, body: body, retry: false, cacheTtl: cacheTtl, forceRefresh: forceRefresh);
         }
@@ -133,7 +141,7 @@ class ApiClient {
       // server, even when the server returns 4xx/5xx. Clear the offline banner
       // before decoding the payload so server errors never look like offline mode.
       OfflineState.instance.markOnline();
-      final decoded = _decode(response);
+      final decoded = _decoder.decode(response);
       if (canCache) {
         _publicCache[cacheKey] = _CachedResponse(decoded, DateTime.now().add(cacheTtl));
       }
@@ -143,13 +151,13 @@ class ApiClient {
       return decoded;
     } on ApiException { rethrow; }
       on TimeoutException catch (e) {
-        throw ApiException('The service request timed out. Please try again.', cause: e, kind: ApiErrorKind.timeout, retryable: true);
+        throw ApiException(ApiErrorMessages.timeout, cause: e, kind: ApiErrorKind.timeout, retryable: true);
       }
       on SocketException catch (e) {
-        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('No internet connection. Check your connection and try again.', cause: e, kind: ApiErrorKind.offline, retryable: true));
+        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException(ApiErrorMessages.offline, cause: e, kind: ApiErrorKind.offline, retryable: true));
       }
       on http.ClientException catch (e) {
-        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException('No internet connection. Check your connection and try again.', cause: e, kind: ApiErrorKind.offline, retryable: true));
+        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException(ApiErrorMessages.offline, cause: e, kind: ApiErrorKind.offline, retryable: true));
       }
   }
 
@@ -197,43 +205,6 @@ class ApiClient {
         !normalized.contains('/auth/logout');
   }
 
-  Future<bool> _refreshSession() async {
-    final existing = _refreshInFlight;
-    if (existing != null) return existing;
-
-    final future = _performRefresh();
-    _refreshInFlight = future;
-    try {
-      return await future;
-    } finally {
-      if (identical(_refreshInFlight, future)) _refreshInFlight = null;
-    }
-  }
-
-  Future<bool> _performRefresh() async {
-    final storage = authStorage;
-    final refresh = await storage?.refreshToken;
-    if (refresh == null || refresh.isEmpty) return false;
-    try {
-      final response = await _client.post(
-        _buildUri('/api/v1/auth/refresh'),
-        headers: const {'Accept': 'application/json', 'Content-Type': 'application/json'},
-        body: jsonEncode({'refreshToken': refresh}),
-      ).timeout(const Duration(seconds: 15));
-      final decoded = jsonDecode(response.body);
-      if (response.statusCode >= 200 && response.statusCode < 300 &&
-          decoded is Map<String, dynamic> && decoded['success'] == true) {
-        final data = decoded['data'];
-        if (data is Map) {
-          await storage?.saveRefreshedSession(Map<String, dynamic>.from(data));
-          return true;
-        }
-      }
-    } catch (_) {}
-    await storage?.clear();
-    return false;
-  }
-
   Uri _buildUri(String path, [Map<String, String>? query]) {
     final base = Uri.parse(baseUrl);
     final basePath = base.path.endsWith('/') ? base.path.substring(0, base.path.length - 1) : base.path;
@@ -246,39 +217,5 @@ class ApiClient {
       queryParameters: {...base.queryParameters, ...?query},
     );
   }
-  Map<String, dynamic> _decode(http.Response response) {
-    dynamic body; try { body = jsonDecode(response.body); } catch (_) {}
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final status = response.statusCode;
-      final server = status >= 500;
-      final message = server ? 'The server returned an error. Please try again.' : (_extractErrorMessage(body) ?? 'The request could not be completed.');
-      throw ApiException(
-        message,
-        statusCode: status,
-        code: _extractErrorCode(body),
-        kind: server ? ApiErrorKind.server : (status == 401 ? ApiErrorKind.auth : ApiErrorKind.response),
-        retryable: server || status == 408 || status == 429,
-      );
-    }
-    if (body is! Map<String, dynamic>) throw const ApiException('Invalid server response.', kind: ApiErrorKind.response);
-    if (body['success'] == false) throw ApiException(_extractErrorMessage(body) ?? 'The request could not be completed.', code: _extractErrorCode(body));
-    return body;
-  }
-  String? _extractErrorMessage(dynamic body) {
-    if (body is! Map<String, dynamic>) return null;
-    final error = body['error'];
-    if (error is Map<String, dynamic> && error['message'] != null) return error['message'].toString();
-    if (error != null && error is! Map) return error.toString();
-    if (body['message'] != null) return body['message'].toString();
-    return null;
-  }
-
-  String? _extractErrorCode(dynamic body) {
-    if (body is! Map<String, dynamic>) return null;
-    final error = body['error'];
-    if (error is Map<String, dynamic> && error['code'] != null) return error['code'].toString();
-    if (body['code'] != null) return body['code'].toString();
-    return null;
-  }
-  void dispose() => _client.close();
+  void dispose() => _transport.dispose();
 }

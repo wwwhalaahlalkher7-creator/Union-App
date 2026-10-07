@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../data/models/notification_item.dart';
 import '../../data/repositories/notifications_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/login_required_card.dart';
 import '../../shared/widgets/list_skeleton.dart';
@@ -18,7 +18,6 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  ApiClient? _client;
   NotificationsRepository? _repository;
   Future<List<NotificationItem>>? _future;
   int _filter = 0;
@@ -31,24 +30,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _init() async {
     try {
-      final client = await AuthenticatedClient.create();
-      if (!mounted) {
-        client.dispose();
-        return;
-      }
-      _client = client;
-      _repository = NotificationsRepository(client);
+      _repository = AppDependencies.instance.notifications;
       setState(() => _future = _repository!.list());
-    } catch (_) {
-      if (mounted) setState(() => _future = Future.error(Exception()));
+    } catch (error, stackTrace) {
+      if (mounted) {
+        setState(() => _future = Future.error(error, stackTrace));
+      }
     }
   }
 
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
+
 
   Future<void> _reload() async {
     final repo = _repository;
@@ -65,8 +56,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       await repo.markRead([item.id]);
       if (mounted) setState(() => _future = repo.list());
-    } catch (_) {
-      // Keep the notification visible; a later refresh can retry the operation.
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorMessage.from(context, error, fallbackKey: 'genericError'))),
+      );
     }
   }
 
@@ -93,7 +87,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           if (snapshot.hasError) {
             final e = snapshot.error;
             if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
-            return _StateView(icon: Icons.cloud_off_rounded, title: e is ApiException ? e.message : l10n.t('connectionFailed'), action: l10n.t('retry'), onAction: _reload);
+            return _StateView(icon: Icons.cloud_off_rounded, title: ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), action: l10n.t('retry'), onAction: _reload);
           }
 
           final all = snapshot.data ?? const <NotificationItem>[];

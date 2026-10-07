@@ -11,11 +11,12 @@ import 'package:llama_flutter_android/llama_flutter_android.dart';
 import 'package:record/record.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../data/repositories/eino_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import 'eino_face.dart';
 import 'services/eino_local_model_service.dart';
+import 'eino_widgets.dart';
 
 class EinoScreen extends StatefulWidget {
   const EinoScreen({super.key, this.source = 'home'});
@@ -34,15 +35,14 @@ class _EinoScreenState extends State<EinoScreen> {
   final _localEngine = EinoLocalEngine();
   EinoLocalModel? _loadedLocalModel;
   late EinoRepository _repository;
-  ApiClient? _client;
   bool _ready = false;
   bool _sending = false;
   bool _recording = false;
   bool _uploading = false;
   EinoCapabilities? _capabilities;
   bool _loadingCapabilities = false;
-  final List<_Message> _messages = [];
-  final List<_ChatPreview> _history = [];
+  final List<EinoMessage> _messages = [];
+  final List<EinoChatPreview> _history = [];
 
   EinoMood get _mood => _recording || _sending || _uploading
       ? EinoMood.thinking
@@ -59,13 +59,7 @@ class _EinoScreenState extends State<EinoScreen> {
   }
 
   Future<void> _init() async {
-    final client = await AuthenticatedClient.create();
-    if (!mounted) {
-      client.dispose();
-      return;
-    }
-    _client = client;
-    _repository = EinoRepository(client);
+    _repository = AppDependencies.instance.eino;
     setState(() => _ready = true);
     await _loadCapabilities();
   }
@@ -77,7 +71,6 @@ class _EinoScreenState extends State<EinoScreen> {
     _recorder.dispose();
     _player.dispose();
     _localEngine.dispose();
-    _client?.dispose();
     super.dispose();
   }
 
@@ -102,28 +95,6 @@ class _EinoScreenState extends State<EinoScreen> {
         _ => [l10n.t('suggestStudy'), l10n.t('suggestDay'), l10n.t('suggestConcept'), l10n.t('suggestApp')],
       };
 
-  String _friendlyError(Object error, AppLocalizations l10n) {
-    if (error is ApiException) {
-      switch (error.code) {
-        case 'EINO_PROVIDER_LIMITED':
-        case 'EINO_RATE_LIMITED':
-        case 'EINO_DAILY_LIMITED':
-        case 'EINO_GLOBAL_LIMITED':
-          return l10n.t('einoRateLimited');
-        case 'EINO_PROVIDER_AUTH':
-          return l10n.t('einoProviderAuth');
-        case 'EINO_PROVIDER_ROUTE':
-          return l10n.t('einoProviderRoute');
-        case 'EINO_PROVIDER_ERROR':
-          return l10n.t('einoProviderUnavailable');
-        case 'EINO_TIMEOUT':
-          return l10n.t('einoTimeout');
-      }
-      if (error.statusCode == 429) return l10n.t('einoRateLimited');
-      return l10n.t('einoGenericError');
-    }
-    return l10n.t('einoGenericError');
-  }
 
   Future<void> _send([String? preset]) async {
     if (!_ready || _sending || _uploading) return;
@@ -131,7 +102,7 @@ class _EinoScreenState extends State<EinoScreen> {
     if (prompt.isEmpty) return;
     _controller.clear();
     setState(() {
-      _messages.add(_Message(true, prompt));
+      _messages.add(EinoMessage(true, prompt));
       _sending = true;
     });
     _rememberChat(prompt);
@@ -142,7 +113,7 @@ class _EinoScreenState extends State<EinoScreen> {
   void _rememberChat(String prompt) {
     final title = prompt.length > 34 ? '${prompt.substring(0, 34)}…' : prompt;
     _history.removeWhere((x) => x.title == title);
-    _history.insert(0, _ChatPreview(title, DateTime.now()));
+    _history.insert(0, EinoChatPreview(title, DateTime.now()));
     if (_history.length > 12) _history.removeLast();
   }
 
@@ -158,13 +129,13 @@ class _EinoScreenState extends State<EinoScreen> {
 
   Future<void> _requestAnswer(String prompt) async {
     try {
-      final history = _messages.length > 10 ? _messages.sublist(_messages.length - 10) : List<_Message>.from(_messages);
+      final history = _messages.length > 10 ? _messages.sublist(_messages.length - 10) : List<EinoMessage>.from(_messages);
       final historyText = history.where((m) => !m.isError && m.text != prompt).map((m) => '${m.user ? 'المستخدم' : 'إينو'}: ${m.text}').join('\n');
       final l10n = AppLocalizations.of(context);
       final contextPayload = ['صفحة المستخدم الحالية: ${_sourceLabel(l10n)}.', if (historyText.isNotEmpty) 'سياق المحادثة السابق:\n$historyText'].join('\n');
       try {
         final answer = await _repository.chat(prompt: prompt, context: contextPayload);
-        if (mounted) setState(() => _messages.add(_Message(false, answer)));
+        if (mounted) setState(() => _messages.add(EinoMessage(false, answer)));
       } catch (onlineError) {
         final local = _loadedLocalModel;
         if (local != null && _localEngine.isLoaded) {
@@ -177,16 +148,16 @@ class _EinoScreenState extends State<EinoScreen> {
               chunks.add(chunk);
             }
             final answer = chunks.join().trim();
-            if (mounted) setState(() => _messages.add(_Message(false, answer.isEmpty ? _friendlyError(onlineError, AppLocalizations.of(context)) : answer)));
+            if (mounted) setState(() => _messages.add(EinoMessage(false, answer.isEmpty ? ErrorMessage.from(context, onlineError, fallbackKey: 'einoGenericError') : answer)));
           } catch (localError) {
-            if (mounted) setState(() => _messages.add(_Message(false, _friendlyError(localError, AppLocalizations.of(context)), isError: true, retryPrompt: prompt)));
+            if (mounted) setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, localError, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
           }
         } else if (mounted) {
-          setState(() => _messages.add(_Message(false, _friendlyError(onlineError, AppLocalizations.of(context)), isError: true, retryPrompt: prompt)));
+          setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, onlineError, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _messages.add(_Message(false, _friendlyError(e, AppLocalizations.of(context)), isError: true, retryPrompt: prompt)));
+      if (mounted) setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
     } finally {
       if (mounted) setState(() => _sending = false);
       _scrollToBottom();
@@ -227,22 +198,22 @@ class _EinoScreenState extends State<EinoScreen> {
         final text = await _repository.vision(imageDataUrl: dataUrl);
         if (mounted) {
           setState(() {
-          _messages.add(_Message(true, '🖼️ $name'));
-          _messages.add(_Message(false, text));
+          _messages.add(EinoMessage(true, '🖼️ $name'));
+          _messages.add(EinoMessage(false, text));
           });
         }
       } else {
         final text = await _repository.ocr(bytes: bytes, filename: name, contentType: _mime(name));
         if (mounted) {
           setState(() {
-          _messages.add(_Message(true, '📄 $name'));
-          _messages.add(_Message(false, text));
+          _messages.add(EinoMessage(true, '📄 $name'));
+          _messages.add(EinoMessage(false, text));
           });
         }
       }
       _scrollToBottom();
     } catch (e) {
-      if (mounted) setState(() => _messages.add(_Message(false, _friendlyError(e, l10n), isError: true)));
+      if (mounted) setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true)));
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -278,7 +249,7 @@ class _EinoScreenState extends State<EinoScreen> {
           _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
         }
       } catch (e) {
-        if (mounted) setState(() => _messages.add(_Message(false, _friendlyError(e, AppLocalizations.of(context)), isError: true)));
+        if (mounted) setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true)));
       } finally {
         if (mounted) setState(() => _uploading = false);
         try { await File(path).delete(); } catch (_) {}
@@ -294,7 +265,7 @@ class _EinoScreenState extends State<EinoScreen> {
     if (mounted) setState(() => _recording = true);
   }
 
-  Future<void> _copyMessage(_Message message) async {
+  Future<void> _copyMessage(EinoMessage message) async {
     if (message.text.trim().isEmpty) return;
     await Clipboard.setData(ClipboardData(text: message.text));
     if (!mounted) return;
@@ -303,7 +274,7 @@ class _EinoScreenState extends State<EinoScreen> {
     );
   }
 
-  Future<void> _speak(_Message message) async {
+  Future<void> _speak(EinoMessage message) async {
     if (message.user || message.text.trim().isEmpty) return;
     try {
       final url = await _repository.tts(text: message.text);
@@ -311,7 +282,7 @@ class _EinoScreenState extends State<EinoScreen> {
       await _player.stop();
       await _player.play(UrlSource(url));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e, AppLocalizations.of(context)))));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
     }
   }
 
@@ -341,7 +312,7 @@ class _EinoScreenState extends State<EinoScreen> {
     try {
       memories = await _repository.memories(limit: 50);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e, AppLocalizations.of(context)))));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
       return;
     }
     if (!mounted) return;
@@ -389,7 +360,7 @@ class _EinoScreenState extends State<EinoScreen> {
                                 if (sheetContext.mounted) Navigator.pop(sheetContext);
                                 if (mounted) _showMemoryManager();
                               } catch (e) {
-                                if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(_friendlyError(e, l10n))));
+                                if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
                               }
                             },
                           ),
@@ -412,7 +383,7 @@ class _EinoScreenState extends State<EinoScreen> {
     try {
       models = await _repository.models();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e, l10n))));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
       return;
     }
     if (!mounted) return;
@@ -500,14 +471,14 @@ class _EinoScreenState extends State<EinoScreen> {
                 progressNotifier.dispose();
                 if (mounted) {
                   ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(content: Text(e.toString())),
+                    SnackBar(content: Text(ErrorMessage.from(this.context, e, fallbackKey: 'einoGenericError'))),
                   );
                 }
               }
             } catch (e) {
               if (mounted) {
                 ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text(e.toString())),
+                  SnackBar(content: Text(ErrorMessage.from(this.context, e, fallbackKey: 'einoGenericError'))),
                 );
               }
             }
@@ -548,7 +519,7 @@ class _EinoScreenState extends State<EinoScreen> {
                                 .replaceAll('{first}', result.firstTokenMs.toString());
                             ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(text)));
                           } catch (e) {
-                            if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(e.toString())));
+                            if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(this.context, e, fallbackKey: 'einoGenericError'))));
                           }
                         },
                         icon: const Icon(Icons.speed_rounded),
@@ -612,7 +583,7 @@ class _EinoScreenState extends State<EinoScreen> {
       await _repository.remember(content: text, category: category);
       if (mounted) _showMemoryManager();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e, l10n))));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
     }
   }
 
@@ -680,7 +651,7 @@ class _EinoScreenState extends State<EinoScreen> {
         Expanded(child: _messages.isEmpty ? _welcome(cs, l10n) : ListView.builder(controller: _scroll, padding: const EdgeInsetsDirectional.fromSTEB(12.88, 11.04, 12.88, 22.08), itemCount: _messages.length + (_sending || _uploading ? 1 : 0), itemBuilder: (_, i) {
           if (i == _messages.length) return _typingBubble(cs, uploading: _uploading);
           final message = _messages[i];
-          return _AnimatedEntry(key: ValueKey('${message.text}-$i'), child: _bubble(context, message));
+          return EinoAnimatedEntry(key: ValueKey('${message.text}-$i'), child: _bubble(context, message));
         })),
         SafeArea(top: false, child: Padding(padding: const EdgeInsetsDirectional.fromSTEB(9.2, 3.68, 9.2, 9.2), child: _composer(cs, l10n))),
       ]),
@@ -848,7 +819,7 @@ class _EinoScreenState extends State<EinoScreen> {
     );
   }
 
-  Widget _bubble(BuildContext context, _Message m) {
+  Widget _bubble(BuildContext context, EinoMessage m) {
     final cs = Theme.of(context).colorScheme;
 
     if (m.isError) {
@@ -975,7 +946,7 @@ class _EinoScreenState extends State<EinoScreen> {
                     AppLocalizations.of(context).t('einoProcessing'),
                     style: TextStyle(color: cs.onSurfaceVariant),
                   )
-                : _TypingDots(color: cs.onSurfaceVariant),
+                : EinoTypingDots(color: cs.onSurfaceVariant),
           ],
         ),
       ),
@@ -1048,61 +1019,3 @@ class _EinoScreenState extends State<EinoScreen> {
   }
 
 }
-
-class _AnimatedEntry extends StatefulWidget { const _AnimatedEntry({required this.child, super.key}); final Widget child; @override State<_AnimatedEntry> createState() => _AnimatedEntryState(); }
-class _AnimatedEntryState extends State<_AnimatedEntry> with SingleTickerProviderStateMixin { late final AnimationController _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 260))..forward(); @override void dispose() { _controller.dispose(); super.dispose(); } @override Widget build(BuildContext context) { final curved = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic); return AnimatedBuilder(animation: curved, builder: (context, child) => Opacity(opacity: curved.value, child: Transform.translate(offset: Offset(0, (1 - curved.value) * 12), child: child)), child: widget.child); } }
-class _TypingDots extends StatefulWidget {
-  const _TypingDots({required this.color});
-  final Color color;
-
-  @override
-  State<_TypingDots> createState() => _TypingDotsState();
-}
-
-class _TypingDotsState extends State<_TypingDots>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (i) {
-            final phase = (_controller.value - i * .18) % 1.0;
-            final lift = phase < .5 ? phase * 2 : (1 - phase) * 2;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 1.84),
-              child: Transform.translate(
-                offset: Offset(0, -lift * 4),
-                child: Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: widget.color.withValues(alpha: .6 + lift * .4),
-                  ),
-                ),
-              ),
-            );
-          }),
-        );
-      },
-    );
-  }
-}
-
-class _Message { const _Message(this.user, this.text, {this.isError = false, this.retryPrompt}); final bool user; final String text; final bool isError; final String? retryPrompt; }
-class _ChatPreview { const _ChatPreview(this.title, this.date); final String title; final DateTime date; }

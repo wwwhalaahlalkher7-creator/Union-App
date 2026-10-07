@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/badge_item.dart';
 import '../../data/repositories/badges_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_section.dart';
 import '../../shared/widgets/list_skeleton.dart';
@@ -17,7 +17,6 @@ class BadgesScreen extends StatefulWidget {
 }
 
 class _BadgesScreenState extends State<BadgesScreen> {
-  ApiClient? _client;
   BadgeSnapshot? _snapshot;
   String? _error;
   bool _loading = true;
@@ -28,18 +27,17 @@ class _BadgesScreenState extends State<BadgesScreen> {
   Future<void> _load() async {
     if (mounted) setState(() => _loading = true);
     try {
-      _client ??= await AuthenticatedClient.create();
-      final snapshot = await BadgesRepository(_client!).getBadges();
+      final snapshot = await AppDependencies.instance.badges.getBadges();
       if (mounted) setState(() { _snapshot = snapshot; _error = null; });
     } catch (e) {
-      if (mounted) setState(() => _error = e is ApiException ? e.message : AppLocalizations.of(context).t('badgesLoadError'));
+      if (mounted) setState(() => _error = ErrorMessage.from(context, e, fallbackKey: 'badgesLoadError'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
-  void dispose() { _client?.dispose(); super.dispose(); }
+  void dispose() { super.dispose(); }
 
   @override
   Widget build(BuildContext context) {

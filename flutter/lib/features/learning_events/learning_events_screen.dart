@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../data/models/learning_event.dart';
 import '../../data/repositories/learning_events_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/list_skeleton.dart';
 
@@ -17,7 +17,6 @@ class LearningEventsScreen extends StatefulWidget {
 }
 
 class _LearningEventsScreenState extends State<LearningEventsScreen> {
-  ApiClient? _client;
   LearningEventsRepository? _repo;
   Future<List<LearningEvent>>? _future;
 
@@ -29,8 +28,7 @@ class _LearningEventsScreenState extends State<LearningEventsScreen> {
 
   Future<void> _init() async {
     try {
-      _client ??= await AuthenticatedClient.create();
-      _repo ??= LearningEventsRepository(_client!);
+      _repo ??= AppDependencies.instance.learningEvents;
       setState(() => _future = _repo!.list());
     } catch (e) {
       if (mounted) setState(() => _future = Future.error(e));
@@ -45,11 +43,7 @@ class _LearningEventsScreenState extends State<LearningEventsScreen> {
     await future;
   }
 
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +111,6 @@ class LearningEventRouteScreen extends StatefulWidget {
 
 class _LearningEventRouteScreenState extends State<LearningEventRouteScreen> {
   Future<LearningEvent>? _future;
-  ApiClient? _client;
 
   @override
   void initState() {
@@ -127,19 +120,14 @@ class _LearningEventRouteScreenState extends State<LearningEventRouteScreen> {
 
   Future<void> _load() async {
     try {
-      _client ??= await AuthenticatedClient.create();
-      final event = await LearningEventsRepository(_client!).get(widget.eventId);
+      final event = await AppDependencies.instance.learningEvents.get(widget.eventId);
       if (mounted) setState(() => _future = Future.value(event));
     } catch (e) {
       if (mounted) setState(() => _future = Future.error(e));
     }
   }
 
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -171,14 +159,11 @@ class _LearningEventDetailScreenState extends State<LearningEventDetailScreen> {
     if (_event.completed || _busy) return;
     setState(() { _busy = true; _message = null; });
     try {
-      final client = await AuthenticatedClient.create();
-      try {
-        final repo = LearningEventsRepository(client);
-        final xp = await repo.complete(_event.id);
+      final repo = AppDependencies.instance.learningEvents;
+      final xp = await repo.complete(_event.id);
         if (mounted) setState(() { _event = LearningEvent(id: _event.id, title: _event.title, description: _event.description, design: _event.design, xpReward: _event.xpReward, completed: true, config: _event.config, publishAt: _event.publishAt, expiresAt: _event.expiresAt); _message = xp > 0 ? '+$xp XP' : 'تم تسجيل الحدث.'; });
-      } finally { client.dispose(); }
     } catch (e) {
-      if (mounted) setState(() => _message = e is ApiException ? e.message : AppLocalizations.of(context).t('eventCompleteFailed'));
+      if (mounted) setState(() => _message = ErrorMessage.from(context, e, fallbackKey: 'eventCompleteFailed'));
     } finally { if (mounted) setState(() => _busy = false); }
   }
 

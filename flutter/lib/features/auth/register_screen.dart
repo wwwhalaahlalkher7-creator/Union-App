@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../core/storage/app_preferences.dart';
-import '../../core/storage/auth_storage.dart';
 import '../../data/repositories/student_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../features/eino/eino_face.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/utils/academic_labels.dart';
@@ -35,8 +34,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   List<Map<String, dynamic>> _semesters = const [];
   String? _selectedSemester;
 
-  ApiClient? _client;
-  AuthStorage? _storage;
   StudentRepository? _studentRepo;
 
   @override
@@ -47,9 +44,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _initAuth() async {
     try {
-      _storage = await AuthStorage.create();
-      _client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: _storage!);
-      _studentRepo = StudentRepository(_client!);
+      _studentRepo = AppDependencies.instance.student;
       final repo = _studentRepo!;
       final semesters = await repo.semesters();
       if (!mounted) return;
@@ -62,8 +57,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         setState(() {
           _academicLoading = false;
-          _academicLoadError = e.toString();
-          _errorMessage ??= e.toString();
+          _academicLoadError = ErrorMessage.from(context, e, fallbackKey: 'connectionFailed');
+          _errorMessage ??= ErrorMessage.from(context, e, fallbackKey: 'connectionFailed');
         });
       }
     }
@@ -76,7 +71,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _client?.dispose();
     super.dispose();
   }
 
@@ -109,10 +103,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      if (_studentRepo == null || _storage == null) {
+      if (_studentRepo == null) {
         await _initAuth();
       }
-      if (_studentRepo == null || _storage == null) {
+      if (_studentRepo == null) {
         throw const ApiException('Registration service could not be initialized. Please try again.');
       }
       final repo = _studentRepo!;
@@ -123,7 +117,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         semesterId: _selectedSemester!,
       );
 
-      await _storage?.saveSession(result);
+      await AppDependencies.instance.authStorage.saveSession(result);
 
       final prefs = AppPreferences();
       await prefs.init();

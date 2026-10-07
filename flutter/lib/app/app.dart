@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/app_version.dart';
+import '../core/di/app_dependencies.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/design_tokens.dart';
@@ -39,8 +40,7 @@ class _TrinexAppState extends State<TrinexApp> {
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
   String _accentColorId = 'amber';
-  late final Future<void> _preferencesFuture =
-      widget.startupFutureOverride ?? _loadPreferences();
+  late final Future<void> _preferencesFuture = _bootstrap();
   late final GoRouter _router;
 
   @override
@@ -56,9 +56,16 @@ class _TrinexAppState extends State<TrinexApp> {
       locale: () => _locale,
       initialLocation: widget.initialLocationOverride ?? '/splash',
     );
-    // Warm public cache without making startup dependent on the network.
-    unawaited(const StartupPreloader().warmPublicCache());
+
     if (widget.enableStartupUpdateCheck) _checkForUpdate();
+  }
+
+  Future<void> _bootstrap() async {
+    await Future.wait<void>([
+      widget.startupFutureOverride ?? _loadPreferences(),
+      AppDependencies.instance.initialize(),
+    ]);
+    unawaited(StartupPreloader(AppDependencies.instance.apiClient).warmPublicCache());
   }
 
   Future<void> _loadPreferences() async {
@@ -74,9 +81,9 @@ class _TrinexAppState extends State<TrinexApp> {
 
   Future<void> _checkForUpdate() async {
     await _preferencesFuture;
-    final info = await const UpdateService().check();
+    final service = UpdateService(AppDependencies.instance.apiClient);
+    final info = await service.check();
     if (!mounted || info == null) return;
-    const service = UpdateService();
     if (!service.isForceRequired(info) && !service.isOptional(info)) return;
     await Future<void>.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
@@ -142,6 +149,13 @@ class _TrinexAppState extends State<TrinexApp> {
     await _preferences.setAccentColorId(colorId);
     if (!mounted) return;
     setState(() => _accentColorId = colorId);
+  }
+
+  @override
+  void dispose() {
+    AppDependencies.instance.dispose();
+    _router.dispose();
+    super.dispose();
   }
 
   @override

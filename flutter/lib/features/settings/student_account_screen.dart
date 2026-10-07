@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../core/storage/auth_storage.dart';
 import '../../data/repositories/student_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/utils/academic_labels.dart';
 import '../../shared/widgets/action_feedback.dart';
 
@@ -17,8 +17,7 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
   final _currentPassword = TextEditingController();
   final _newPassword = TextEditingController();
   final _confirmPassword = TextEditingController();
-  ApiClient? _client;
-  StudentRepository? _repo;
+  late final StudentRepository _repo = AppDependencies.instance.student;
   AuthStorage? _storage;
   List<Map<String,dynamic>> _semesters = const [];
   String? _semesterId;
@@ -27,18 +26,16 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
   bool _hideCurrent = true, _hideNew = true, _hideConfirm = true;
 
   @override void initState(){super.initState(); _load();}
-  @override void dispose(){_currentPassword.dispose();_newPassword.dispose();_confirmPassword.dispose();_client?.dispose();super.dispose();}
+  @override void dispose(){_currentPassword.dispose();_newPassword.dispose();_confirmPassword.dispose();super.dispose();}
 
   Future<void> _load() async {
     try {
-      _storage=await AuthStorage.create();
-      _client=ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage:_storage!);
-      _repo=StudentRepository(_client!);
-      final profile=await _repo!.profile();
-      final semesters=await _repo!.semesters();
+      _storage=AppDependencies.instance.authStorage;
+      final profile=await _repo.profile();
+      final semesters=await _repo.semesters();
       if(!mounted)return;
       setState((){_profile={'name':profile.name,'number':profile.number,'department':profile.departmentName??'—','email':profile.email};_semesterId=profile.semesterId;_semesters=semesters;_loading=false;});
-    } catch(e){if(mounted){setState(()=>_loading=false);_message(e.toString(),true);}}
+    } catch(e){if(mounted){setState(()=>_loading=false);_message(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'),true);}}
   }
 
   Future<void> _saveSemester() async {
@@ -47,11 +44,11 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
     final languageCode=Localizations.localeOf(context).languageCode;
     setState(()=>_savingSemester=true);
     try {
-      await _client!.postJson('/api/v1/student/semester',body:{'semesterId':_semesterId});
+      await AppDependencies.instance.apiClient.postJson('/api/v1/student/semester',body:{'semesterId':_semesterId});
       final selected=_semesters.firstWhere((x)=>x['id']?.toString()==_semesterId,orElse:()=>{});
       await _storage?.updateCachedSemester(semesterId:_semesterId!,semesterName:AcademicLabels.semester(selected,languageCode));
       if (mounted) _message(l10n.t('semesterSaved'), false);
-    } catch(e){_message(e is ApiException?e.message:e.toString(), true);}
+    } catch(e){_message(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), true);}
     finally{if(mounted)setState(()=>_savingSemester=false);}
   }
 
@@ -61,13 +58,13 @@ class _StudentAccountScreenState extends State<StudentAccountScreen> {
     if(_newPassword.text!=_confirmPassword.text){_message(AppLocalizations.of(context).t('passwordMismatchLocal'),true);return;}
     setState(()=>_changingPassword=true);
     try {
-      await _client!.postJson('/api/v1/auth/change-password',body:{
+      await AppDependencies.instance.apiClient.postJson('/api/v1/auth/change-password',body:{
         'currentPassword':_currentPassword.text,'newPassword':_newPassword.text,'confirmPassword':_confirmPassword.text,
       });
       _currentPassword.clear();_newPassword.clear();_confirmPassword.clear();
       await _storage?.clear();
       if(mounted) context.go('/login');
-    } catch(e){_message(e is ApiException?e.message:e.toString(), true);}
+    } catch(e){_message(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), true);}
     finally{if(mounted)setState(()=>_changingPassword=false);}
   }
 

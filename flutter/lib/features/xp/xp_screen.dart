@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/xp_snapshot.dart';
 import '../../data/repositories/xp_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/login_required_card.dart';
 import '../../shared/widgets/app_section.dart';
@@ -19,7 +19,6 @@ class XpScreen extends StatefulWidget {
 }
 
 class _XpScreenState extends State<XpScreen> {
-  ApiClient? _client;
   XpRepository? _repo;
   XpSnapshot? _snapshot;
   String? _error;
@@ -35,8 +34,7 @@ class _XpScreenState extends State<XpScreen> {
   Future<void> _load() async {
     if (mounted) setState(() { _loading = true; _lastErrorIsAuth = false; });
     try {
-      _client ??= await AuthenticatedClient.create();
-      _repo ??= XpRepository(_client!);
+      _repo ??= AppDependencies.instance.xp;
       final snapshot = await _repo!.getXp();
       if (mounted) {
         setState(() {
@@ -47,9 +45,7 @@ class _XpScreenState extends State<XpScreen> {
     } catch (e) {
       if (mounted) {
         setState(
-          () { _error = e is ApiException
-              ? e.message
-              : AppLocalizations.of(context).t('xpLoadError'); _lastErrorIsAuth = e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED'); },
+          () { _error = ErrorMessage.from(context, e, fallbackKey: 'xpLoadError'); _lastErrorIsAuth = e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED'); },
         );
       }
     } finally {
@@ -57,11 +53,7 @@ class _XpScreenState extends State<XpScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
+
 
   @override
   Widget build(BuildContext context) {

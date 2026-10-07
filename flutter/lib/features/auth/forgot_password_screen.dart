@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/storage/auth_storage.dart';
+import '../../core/errors/error_message.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../shared/widgets/action_feedback.dart';
 
@@ -23,8 +22,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _password = TextEditingController();
   final _confirm = TextEditingController();
 
-  ApiClient? _client;
-  AuthStorage? _storage;
   bool _sending = false;
   bool _resetting = false;
   bool _sent = false;
@@ -43,16 +40,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     _code.dispose();
     _password.dispose();
     _confirm.dispose();
-    _client?.dispose();
     super.dispose();
-  }
-
-  Future<void> _init() async {
-    _storage ??= await AuthStorage.create();
-    _client ??= ApiClient(
-      baseUrl: AppConstants.apiBaseUrl,
-      authStorage: _storage!,
-    );
   }
 
   String _normalizeDigits(String value) {
@@ -70,8 +58,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
     setState(() => _sending = true);
     try {
-      await _init();
-      await _client!.postJson(
+      await AppDependencies.instance.apiClient.postJson(
         '/api/v1/auth/forgot-password',
         body: {'studentNumber': studentNumber},
       );
@@ -79,7 +66,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _sent = true);
       _msg(AppLocalizations.of(context).t('recoveryCodeSent'), false);
     } catch (e) {
-      _msg(e is ApiException ? e.message : e.toString(), true);
+      _msg(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), true);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -102,8 +89,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     setState(() => _resetting = true);
     try {
-      await _init();
-      await _client!.postJson(
+      await AppDependencies.instance.apiClient.postJson(
         '/api/v1/auth/reset-password',
         body: {
           'studentNumber': _number.text.trim(),
@@ -118,7 +104,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         if (mounted) context.go('/login');
       });
     } catch (e) {
-      _msg(e is ApiException ? e.message : e.toString(), true);
+      _msg(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), true);
     } finally {
       if (mounted) setState(() => _resetting = false);
     }

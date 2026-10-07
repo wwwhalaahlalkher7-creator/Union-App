@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/localization/app_localizations.dart';
 
-import '../../core/storage/auth_storage.dart';
+import '../../core/di/app_dependencies.dart';
 import 'app_card.dart';
 
 /// Keeps student-only features explicit instead of waiting for a 401 response.
@@ -21,8 +21,7 @@ class _StudentAccessGateState extends State<StudentAccessGate> {
   late final Future<bool> _accessFuture = _readAccess();
 
   Future<bool> _readAccess() async {
-    final storage = await AuthStorage.create();
-    return await storage.isLoggedIn;
+    return AppDependencies.instance.authStorage.isLoggedIn;
   }
 
   @override

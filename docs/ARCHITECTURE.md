@@ -1,81 +1,77 @@
-# المعمارية الحالية
+# TRINEX Architecture & Maintenance Guide
 
-## 1. الصورة الكبيرة
+## Goal
 
-```text
-Flutter Android ───────┐
-                       │
-Website ───────────────┼──> Cloudflare Worker API v1 ──> D1
-Dashboard ─────────────┘              │
-                                      ├──> TRINEX Drive (Google Apps Script) → Google Drive
-                                      ├──> TRINEX Gmail (Google Apps Script) → Gmail
-                                      └──> Mistral → Groq → Free.ai (capability fallbacks)
+The project follows a boundary-oriented architecture: UI handles presentation, repositories handle feature data access, the network layer handles transport, and the backend owns validation/business rules.
+
+## Flutter layers
+
+- `lib/app/` — application bootstrap and routing.
+- `lib/core/` — cross-cutting infrastructure:
+  - `errors/` — shared error model and user-facing error mapping.
+  - `network/` — HTTP, authentication refresh, offline policy and response parsing.
+  - `storage/` — secure/local persistence.
+  - `theme/` — design tokens and theme.
+  - `localization/` — translated UI strings.
+- `lib/data/models/` — API/domain data models.
+- `lib/data/repositories/` — feature data access and API boundaries.
+- `lib/features/` — screens and feature-specific presentation.
+- `lib/shared/` — reusable UI components and utilities.
+
+### Error flow
+
+`HTTP/API failure -> ApiException -> ErrorMessage.from(context, error) -> localized UI message`
+
+Do not:
+- display `Exception.toString()` directly to users;
+- duplicate HTTP status handling inside screens;
+- silently replace malformed API data with fake/empty domain objects unless that behavior is explicitly part of the contract;
+- expose raw provider, database, stack-trace, or infrastructure errors.
+
+## Backend layers
+
+- `src/index.js` — routing and top-level request boundary.
+- `src/core.js` — shared response, database, JSON and request utilities.
+- `src/errors.js` — stable API error codes and default safe messages.
+- feature modules (`auth.js`, `academic.js`, `admin.js`, `student.js`, etc.) — business rules and route handlers.
+- `src/providers/` — external AI/provider adapters.
+
+### Error contract
+
+Every API failure should use the common envelope:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "STABLE_ERROR_CODE",
+    "message": "Safe user-facing message",
+    "details": null,
+    "requestId": "..."
+  }
+}
 ```
 
-### القواعد الأساسية
+`code` is the stable contract. `message` is safe for display. `requestId` is for support/debugging.
 
-1. **TRINEX API هو بوابة التشغيل** للتطبيق والموقع ولوحة الإدارة.
-2. **D1 هو مخزن البيانات التشغيلي** للمحتوى والحسابات والسجلات والعدادات.
-3. Google Apps Script ليس API للتطبيق؛ دوره الحالي هو adapter محدود لفهرسة Google Drive.
-4. Eino لا يحمل أسرار المزود داخل Flutter؛ الطلب يمر عبر Worker ثم طبقة توجيه capability-first التي تختار Mistral/Groq/Free.ai حسب القدرة والأخطاء القابلة لإعادة المحاولة.
-5. لوحة الإدارة تغيّر البيانات عبر API، وليس عبر اتصال مباشر بقاعدة D1 من المتصفح.
+## Maintenance rules
 
-## 2. Flutter
+1. Keep screens focused on UI state and interaction.
+2. Put API calls in repositories/services rather than widgets.
+3. Validate external data at the boundary.
+4. Prefer named error codes over free-form error strings.
+5. Keep localization in `app_localizations.dart`; do not hard-code user-facing text in infrastructure.
+6. Keep authentication/session behavior inside the network/auth layer.
+7. Do not introduce a new error-handling pattern when an existing shared helper can handle it.
+8. When a feature grows beyond a few hundred lines, split reusable sections, controllers/state, and services instead of extending the screen indefinitely.
 
-```text
-lib/
-├── app/                    router + app shell
-├── core/                   config, network, storage, theme, update
-├── data/
-│   ├── models/             DTO/domain models
-│   └── repositories/       API-facing repositories
-├── features/               screens by feature
-└── shared/widgets/          reusable UI components
-```
+## Current refactor foundation
 
-القاعدة: الشاشة لا تبني HTTP requests بنفسها. استخدم repository ثم `ApiClient`/`AuthenticatedClient`.
+This refactor introduces:
 
-## 3. Backend
+- `core/errors/app_error.dart`
+- `core/errors/error_message.dart`
+- `core/network/response_parser.dart`
+- `backend/src/errors.js`
 
-`backend/src/index.js` هو **Worker entry point + HTTP router فقط**. منطق المجال مفصول حسب المسؤولية:
-
-```text
-src/index.js
-├── core.js          response, parsing, DB/query, crypto, shared limits
-├── auth.js          student/staff sessions and authentication
-├── public.js        public content, settings and public materials
-├── student.js       student profile, notifications and devices
-├── academic.js      semesters, subjects, materials, schedule, progress, XP, badges
-├── interactions.js  comments, replies and reactions
-├── media.js         R2 media upload/read/ownership/quota
-├── admin.js         permissions, CRUD, moderation, audit and admin settings
-├── eino.js          Eino gateway, memory, media, quota and telemetry
-└── drive.js         Google Drive synchronization adapter
-```
-
-قاعدة الصيانة: أضف المسار إلى `index.js`، وضع منطق التنفيذ في module مالك للنطاق. الوحدات لا تتعامل مع HTTP routing مباشرة؛ تستقبل `ctx` موحدًا وتعيد `Response` عبر helpers الموجودة في `core.js`. لا تعيد دمج domain logic داخل `index.js`.
-
-## 4. D1
-
-المigrations في `backend/migrations/` مرتبة رقميًا. كل migration مطبقة على الإنتاج تعتبر تاريخًا دائمًا.
-
-**ممنوع:** تعديل أو حذف migration قديمة بعد تطبيقها على الإنتاج.
-
-**المسموح:** إضافة `0019_...sql` ثم تشغيلها عبر pipeline.
-
-## 5. Website + Dashboard
-
-- `website/` = public site.
-- `website/admin/` = admin UI.
-- كلاهما يستخدمان TRINEX API.
-- `website/admin/worker/` مسؤول عن حماية مسار `/admin` عند نشر Worker الخاص باللوحة.
-
-## 6. CI/CD
-
-GitHub Actions تقسم التحقق إلى:
-
-- Flutter analyze/test/build.
-- Backend syntax + migrations + security contracts.
-- Website JavaScript/security/package/deploy.
-
-الهدف من `ci/*.py` ليس اختبار كل سطر، بل حماية invariants حرجة تمنع رجوع أخطاء سبق إصلاحها.
+These are intended as the foundation for the next incremental decomposition of the largest screens/modules. The existing feature behavior and API routes remain unchanged.

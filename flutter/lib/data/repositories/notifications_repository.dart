@@ -1,5 +1,6 @@
 import '../../core/network/api_client.dart';
 import '../models/notification_item.dart';
+import 'repository_parser.dart';
 
 class NotificationsRepository {
   NotificationsRepository(this._client);
@@ -7,14 +8,17 @@ class NotificationsRepository {
 
   Future<List<NotificationItem>> list() async {
     final json = await _client.getJson('/api/v1/student/notifications');
-    final data = json['data'];
-    if (data is! List) return const [];
-    return data.whereType<Map>().map((e) => NotificationItem.fromJson(Map<String, dynamic>.from(e))).toList();
+    return RepositoryParser.maps(json)
+        .map(NotificationItem.fromJson)
+        .toList(growable: false);
   }
 
   Future<void> markRead(Iterable<String> ids) async {
-    final list = ids.where((id) => id.isNotEmpty).toList();
+    final list = ids.where((id) => id.isNotEmpty).toList(growable: false);
     if (list.isEmpty) return;
-    await _client.postJson('/api/v1/student/notifications/read', body: {'ids': list});
+    await _client.postJson(
+      '/api/v1/student/notifications/read',
+      body: {'ids': list},
+    );
   }
 }

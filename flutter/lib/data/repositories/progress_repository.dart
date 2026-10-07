@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import 'repository_parser.dart';
 import '../models/material_progress.dart';
 
 class ProgressRepository {
@@ -7,10 +8,9 @@ class ProgressRepository {
 
   Future<ProgressSnapshot> getProgress() async {
     final json = await _client.getJson('/api/v1/progress');
-    final raw = json['data'];
-    final items = raw is List
-        ? raw.whereType<Map>().map((e) => MaterialProgress.fromJson(Map<String, dynamic>.from(e))).toList()
-        : const <MaterialProgress>[];
+    final items = RepositoryParser.maps(json)
+        .map(MaterialProgress.fromJson)
+        .toList(growable: false);
     final meta = json['meta'];
     final summary = meta is Map ? Map<String, dynamic>.from(meta['summary'] is Map ? meta['summary'] : const {}) : const <String, dynamic>{};
     return ProgressSnapshot(items: items, summary: summary);
@@ -23,8 +23,7 @@ class ProgressRepository {
       'pageNumber': pageNumber,
       'pageCount': pageCount,
     });
-    final data = json['data'];
-    return ProgressUpdate.fromJson(data is Map ? Map<String, dynamic>.from(data) : const {});
+    return ProgressUpdate.fromJson(RepositoryParser.map(json));
   }
 }
 
@@ -45,12 +44,12 @@ class ProgressUpdate {
   final int xpAwarded;
 
   factory ProgressUpdate.fromJson(Map<String, dynamic> json) => ProgressUpdate(
-    percent: int.tryParse((json['progressPercent'] ?? 0).toString()) ?? 0,
+    percent: RepositoryParser.integer(json['progressPercent']),
     completed: json['completed'] == true || json['completed'] == 1,
-    activeSeconds: int.tryParse((json['activeSeconds'] ?? 0).toString()) ?? 0,
+    activeSeconds: RepositoryParser.integer(json['activeSeconds']),
     accepted: json['accepted'] != false,
-    pageNumber: int.tryParse((json['pageNumber'] ?? 0).toString()) ?? 0,
-    pageCount: int.tryParse((json['pageCount'] ?? 0).toString()) ?? 0,
-    xpAwarded: int.tryParse((json['xpAwarded'] ?? 0).toString()) ?? 0,
+    pageNumber: RepositoryParser.integer(json['pageNumber']),
+    pageCount: RepositoryParser.integer(json['pageCount']),
+    xpAwarded: RepositoryParser.integer(json['xpAwarded']),
   );
 }
