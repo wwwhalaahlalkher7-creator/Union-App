@@ -93,5 +93,5 @@ export function badgeCategoryRows(values) {
       key: category.key, name_ar: category.name_ar, icon: category.icon, unlimited: category.unlimited, max, current,
       earnedCount: earned.length, completed: complete, next: complete ? null : next,
     };
-  }).filter(category => category.next || category.earnedCount > 0 || category.completed);
+  });
 }

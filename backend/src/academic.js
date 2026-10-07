@@ -300,6 +300,11 @@ export async function badges(ctx) {
   }).filter((badge) => badge.earned);
 
   const categories = badgeCategoryRows(values);
+  // The client expects the complete catalogue (9 categories). Categories are
+  // intentionally returned even when the student has zero progress in them.
+  if (categories.length !== 9) {
+    console.warn(`[${ctx.requestId}] incomplete badge category catalogue: ${categories.length}/9`);
+  }
   return ok(ctx, {
     badges: rows,
     categories,

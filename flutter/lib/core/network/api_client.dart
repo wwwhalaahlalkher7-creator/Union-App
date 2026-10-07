@@ -48,8 +48,7 @@ class ApiClient {
         p.startsWith('/api/v1/schedule') ||
         p.startsWith('/api/v1/student/stats') ||
         p.startsWith('/api/v1/progress') ||
-        p.startsWith('/api/v1/xp') ||
-        p.startsWith('/api/v1/badges');
+        p.startsWith('/api/v1/xp');
   }
 
 

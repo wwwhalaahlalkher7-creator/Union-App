@@ -65,13 +65,15 @@ class _XpScreenState extends State<XpScreen> {
       final badges = await badgesFuture;
       if (mounted) setState(() => _badgeSnapshot = badges);
     } catch (e) {
-      // Keep the XP page usable while deliberately using only the two
-      // minimal local badge fallbacks. The complete catalogue must come from
-      // the backend; seeing only these two categories is therefore also a
-      // useful signal that the badges endpoint still needs fixing.
+      // Do not hide a backend 4xx/5xx behind the two-item local fallback.
+      // The fallback is reserved for genuine connectivity failures only, so
+      // a broken badges deployment remains visible and debuggable.
       if (mounted) {
+        final apiError = e is ApiException ? e : null;
+        final canUseFallback = apiError?.kind == ApiErrorKind.offline ||
+            apiError?.kind == ApiErrorKind.timeout;
         final currentXp = _snapshot;
-        if (currentXp != null) {
+        if (canUseFallback && currentXp != null) {
           setState(() {
             _badgeSnapshot = BadgesRepository.fallbackForXp(currentXp);
             _badgeError = null;

@@ -525,8 +525,17 @@ class _HomeScheduleCard extends StatelessWidget {
 
       if (!now.isBefore(start) && now.isBefore(end)) {
         current = item;
+        // The next lecture must be genuinely upcoming. If schedules overlap,
+        // never show a misleading "starts after 0 minutes" or a lecture
+        // whose start time has already passed.
         final index = todayItems.indexOf(item);
-        if (index + 1 < todayItems.length) next = todayItems[index + 1];
+        for (var i = index + 1; i < todayItems.length; i++) {
+          final candidateStart = _at(now, todayItems[i].startTime);
+          if (candidateStart.isAfter(now)) {
+            next = todayItems[i];
+            break;
+          }
+        }
         break;
       }
       if (!now.isBefore(end)) lastEnded = item;
@@ -650,9 +659,10 @@ class _HomeScheduleCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(DesignTokens.radius16),
         child: Container(
-          height: 174,
+          // Keep the top edge fixed while shortening only the lower part.
+          height: 154,
           margin: EdgeInsets.only(top: -extraTopHeight),
-          padding: const EdgeInsets.fromLTRB(13, 13, 13, 13),
+          padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
           decoration: BoxDecoration(
             color: accent.withValues(alpha: .07),
             borderRadius: BorderRadius.circular(DesignTokens.radius16),
