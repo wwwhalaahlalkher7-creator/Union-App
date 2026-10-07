@@ -115,16 +115,16 @@ async function routeCapability(env, capability, requestedModel, operationFactory
 
 export async function routeText(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.TEXT, String(args?.model || '').trim(), (route) => async () => {
-    if (route.provider === 'mistral') return mistralChat({ baseUrl: env.MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
-    if (route.provider === 'groq') return groqChat({ baseUrl: env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
+    if (route.provider === 'mistral') return mistralChat({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
+    if (route.provider === 'groq') return groqChat({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
     return freeAiChat({ ...argsForFree(env, route.model), ...args });
   }, 'text');
 }
 
 export async function routeVision(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.VISION, String(args?.model || '').trim(), (route) => async () => {
-    if (route.provider === 'mistral') return mistralVision({ baseUrl: env.MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
-    if (route.provider === 'groq') return groqVision({ baseUrl: env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
+    if (route.provider === 'mistral') return mistralVision({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
+    if (route.provider === 'groq') return groqVision({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
     const result = await freeAiVision({ ...argsForFree(env, route.model), ...args });
     return { text: String(result?.text || result?.description || result?.caption || result?.result || '').trim(), raw: result };
   }, 'vision');
@@ -132,7 +132,7 @@ export async function routeVision(env, args) {
 
 export async function routeOcr(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.OCR, String(args?.model || '').trim(), (route) => async () => {
-    if (route.provider === 'mistral') return mistralOcr({ baseUrl: env.MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
+    if (route.provider === 'mistral') return mistralOcr({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
     const result = await freeAiOcr({ ...argsForFree(env, route.model), ...args });
     return { text: String(result?.text || result?.content || result?.markdown || result?.result || '').trim(), raw: result };
   }, 'ocr');
@@ -140,8 +140,8 @@ export async function routeOcr(env, args) {
 
 export async function routeStt(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.STT, String(args?.model || '').trim(), (route) => async () => {
-    if (route.provider === 'groq') return groqStt({ baseUrl: env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
-    if (route.provider === 'mistral') return mistralStt({ baseUrl: env.MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
+    if (route.provider === 'groq') return groqStt({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
+    if (route.provider === 'mistral') return mistralStt({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
     const result = await freeAiStt({ ...argsForFree(env, route.model), ...args });
     return { text: String(result?.text || result?.transcript || result?.result || '').trim(), raw: result };
   }, 'stt');
@@ -149,8 +149,8 @@ export async function routeStt(env, args) {
 
 export async function routeTts(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.TTS, String(args?.model || '').trim(), (route) => async () => {
-    if (route.provider === 'groq') return groqTts({ baseUrl: env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
-    if (route.provider === 'mistral') return mistralTts({ baseUrl: env.MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, voiceId: env.EINO_MISTRAL_TTS_VOICE_ID, ...args });
+    if (route.provider === 'groq') return groqTts({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
+    if (route.provider === 'mistral') return mistralTts({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, voiceId: env.EINO_MISTRAL_TTS_VOICE_ID, ...args });
     const result = await freeAiTts({ ...argsForFree(env, route.model), ...args });
     return { audioUrl: result?.audio_url || result?.url || null, audioBase64: result?.audioBase64 || result?.audio_base64 || null, contentType: result?.contentType || result?.content_type || 'audio/mpeg', raw: result };
   }, 'tts');

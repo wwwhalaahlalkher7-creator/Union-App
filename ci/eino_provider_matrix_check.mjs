@@ -6,9 +6,9 @@ const env = {
   GROQ_API_KEY: 'test-groq',
   FREE_AI_API_KEY: 'test-free',
   FREE_AI_BASE_URL: 'https://free.test',
-  MISTRAL_BASE_URL: 'https://mistral.test',
+  EINO_MISTRAL_BASE_URL: 'https://mistral.test',
   EINO_MISTRAL_TTS_VOICE_ID: 'test-voice',
-  GROQ_BASE_URL: 'https://groq.test',
+  EINO_GROQ_BASE_URL: 'https://groq.test',
 };
 
 let calls = [];
