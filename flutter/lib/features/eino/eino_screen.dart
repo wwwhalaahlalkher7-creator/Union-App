@@ -39,21 +39,11 @@ class _EinoScreenState extends State<EinoScreen> {
   bool _sending = false;
   bool _recording = false;
   bool _uploading = false;
-  String _sttLanguage = 'ar';
   EinoCapabilities? _capabilities;
   bool _loadingCapabilities = false;
   final List<EinoMessage> _messages = [];
   final List<EinoConversation> _history = [];
   String? _conversationId;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final locale = Localizations.localeOf(context).languageCode;
-    if (!_recording && !_sending && !_uploading && const {'ar', 'en', 'fr'}.contains(locale)) {
-      _sttLanguage = locale;
-    }
-  }
 
   EinoMood get _mood => _recording || _sending || _uploading
       ? EinoMood.thinking
@@ -279,7 +269,9 @@ class _EinoScreenState extends State<EinoScreen> {
       setState(() => _uploading = true);
       try {
         final file = File(path);
-        final text = await _repository.stt(bytes: await file.readAsBytes(), filename: 'eino_recording.m4a', contentType: 'audio/mp4', language: _sttLanguage);
+        final locale = Localizations.localeOf(context).languageCode;
+        final language = const {'ar', 'en', 'fr'}.contains(locale) ? locale : 'ar';
+        final text = await _repository.stt(bytes: await file.readAsBytes(), filename: 'eino_recording.m4a', contentType: 'audio/mp4', language: language);
         if (text.trim().isNotEmpty) {
           _controller.text = text.trim();
           _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
@@ -857,17 +849,6 @@ class _EinoScreenState extends State<EinoScreen> {
                 ),
               ),
             ),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'STT: $_sttLanguage',
-            enabled: !_sending && !_uploading && !_recording,
-            onSelected: (value) => setState(() => _sttLanguage = value),
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'ar', child: Text('العربية')),
-              PopupMenuItem(value: 'en', child: Text('English')),
-              PopupMenuItem(value: 'fr', child: Text('Français')),
-            ],
-            icon: const Icon(Icons.translate_rounded),
           ),
           IconButton(
             tooltip: _recording

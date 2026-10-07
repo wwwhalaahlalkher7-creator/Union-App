@@ -538,10 +538,7 @@ export async function einoStt(ctx) {
   if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق ملف صوتي.', 400, ctx.requestId, ctx.cors);
   if (file.size > 25 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الصوت يتجاوز 25MB.', 413, ctx.requestId, ctx.cors);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 60000); const started = Date.now();
-  try {
-    const requestedLanguage = String(form.get('language') || 'ar').trim().toLowerCase();
-    if (!['ar', 'en', 'fr'].includes(requestedLanguage)) return error('EINO_STT_LANGUAGE_UNSUPPORTED', 'لغة STT المدعومة هي العربية أو الإنجليزية أو الفرنسية فقط.', 400, ctx.requestId, ctx.cors);
-    const result = await routeStt(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, language: requestedLanguage, signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.transcript || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  try { const result = await routeStt(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, language: (() => { const value = String(form.get('language') || 'ar').trim().toLowerCase(); return ['ar','en','fr'].includes(value) ? value : 'ar'; })(), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.transcript || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
 }
 
 export async function einoTts(ctx) {

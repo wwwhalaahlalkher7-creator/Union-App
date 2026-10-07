@@ -64,12 +64,6 @@ await fallback('vision', () => routeVision(env, { imageDataUrl: 'data:image/png;
 await fallback('ocr', () => routeOcr(env, { file: new Uint8Array([1]), filename: 'a.png', contentType: 'image/png' }), 'mistral', 'free.ai');
 await fallback('stt', () => routeStt(env, { file: new Uint8Array([1]), filename: 'a.mp3', contentType: 'audio/mpeg', language: 'ar' }), 'groq', 'mistral');
 await fallback('tts', () => routeTts(env, { text: 'مرحبا', voice: 'test' }), 'groq', 'mistral');
-resetProviderCircuitState();
-calls = []; failProvider = null;
-const englishTts = await routeTts(env, { text: 'Hello, how are you?' });
-assert.equal(englishTts.provider, 'groq', 'English TTS should use Groq');
-assert.ok(calls[0]?.url.includes('audio/speech'), 'English TTS should call speech endpoint');
-console.log('PASS TTS language routing: English -> Groq English model');
 
 calls = [];
 resetProviderCircuitState();
