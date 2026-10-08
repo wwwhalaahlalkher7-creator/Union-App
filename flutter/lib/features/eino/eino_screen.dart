@@ -932,7 +932,6 @@ class _EinoScreenState extends State<EinoScreen> {
                           ],
                         ),
                       ),
-                    ),
                   const SizedBox(height: 5),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
