@@ -244,7 +244,7 @@ class _EinoScreenState extends State<EinoScreen> {
     if (bytes.length > 20 * 1024 * 1024) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).t('einoFileTooLarge')),
+          SnackBar(content: Text(AppLocalizations.of(context).t('einoFileTooLarge'))),
         );
       }
       return;
@@ -401,13 +401,13 @@ class _EinoScreenState extends State<EinoScreen> {
   Future<void> _toggleRecording() async {
     if (_sending || _uploading) return;
     if (_recording) {
+      final locale = Localizations.localeOf(context).languageCode;
       final path = await _recorder.stop();
       if (mounted) setState(() => _recording = false);
       if (path == null) return;
       setState(() => _uploading = true);
       try {
         final file = File(path);
-        final locale = Localizations.localeOf(context).languageCode;
         final language = const {'ar', 'en', 'fr'}.contains(locale) ? locale : 'ar';
         final text = await _repository.stt(bytes: await file.readAsBytes(), filename: 'eino_recording.m4a', contentType: 'audio/mp4', language: language);
         if (text.trim().isNotEmpty) {
