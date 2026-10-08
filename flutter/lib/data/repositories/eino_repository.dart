@@ -60,7 +60,7 @@ class EinoRepository {
   Future<EinoGeneratedImage> generateImage({required String prompt, int? seed}) async {
     final json = await _client.postJson('/api/v1/eino/image', body: {
       'prompt': prompt.trim(),
-      'seed': ?seed,
+      if (seed != null) 'seed': seed,
     });
     final data = json['data'];
     if (data is Map && data['imageBase64'] != null) {

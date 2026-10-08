@@ -21,3 +21,6 @@ for (const needle of [
   'WHERE request_count + ? <= ?',
 ]) if (!eino.includes(needle)) throw new Error(`missing weighted quota rule: ${needle}`);
 console.log('EINO QUOTA POLICY CHECK PASSED');
+
+const wrangler = fs.readFileSync(new URL('../backend/wrangler.toml', import.meta.url), 'utf8');
+for (const [k,v] of [['EINO_STUDENT_DAILY_LIMIT','50'],['EINO_GUEST_DAILY_LIMIT','10'],['EINO_GLOBAL_DAILY_LIMIT','1000']]) { if (!new RegExp(`${k}\\s*=\\s*\"${v}\"`).test(wrangler)) throw new Error(`deployment quota mismatch: ${k}`); }

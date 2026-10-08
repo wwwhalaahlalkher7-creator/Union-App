@@ -143,21 +143,31 @@ async function fetchEinoMaterialFile(ctx, row, signal) {
   const fileId = String(row?.drive_file_id || '').trim();
   if (!fileId) throw Object.assign(new Error('Material has no Drive file id'), { status: 404 });
   const url = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`;
+  const expectedType = String(row.mime_type || '').toLowerCase();
   const response = await fetch(url, {
     method: 'GET',
-    headers: { accept: 'application/pdf' },
+    headers: { accept: expectedType || 'application/octet-stream' },
     redirect: 'follow',
     signal,
   });
   if (!response.ok) throw Object.assign(new Error(`Material download failed (${response.status})`), { status: 502 });
-  const contentType = (response.headers.get('content-type') || '').toLowerCase();
-  const expectedType = String(row.mime_type || 'application/pdf').toLowerCase();
+  const responseType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
   const bytes = await response.arrayBuffer();
   if (!bytes.byteLength) throw Object.assign(new Error('Material file is empty'), { status: 502 });
   if (bytes.byteLength > 20 * 1024 * 1024) throw Object.assign(new Error('Material file exceeds Eino file limit'), { status: 413 });
-  const looksPdf = contentType.includes('pdf') || expectedType.includes('pdf') || contentType.includes('octet-stream');
-  if (!looksPdf) throw Object.assign(new Error('Material file is not a supported PDF'), { status: 415 });
-  return { bytes, filename: String(row.title || 'material').trim().replace(/[\\/:*?"<>|]/g, '_').slice(0, 120) + '.pdf', contentType: 'application/pdf' };
+  const safeTitle = String(row.title || 'material').trim().replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
+  const knownTypes = new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown','text/csv','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.presentationml.presentation']);
+  const extension = safeTitle.match(/\.[A-Za-z0-9]{1,6}$/)?.[0] || ({
+    'application/pdf':'.pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'.docx',
+    'text/plain':'.txt',
+    'text/markdown':'.md',
+    'text/csv':'.csv',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'.xlsx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation':'.pptx',
+  }[expectedType] || '.pdf');
+  const contentType = knownTypes.has(expectedType) ? expectedType : (knownTypes.has(responseType) ? responseType : 'application/pdf');
+  return { bytes, filename: safeTitle.includes('.') ? safeTitle : safeTitle + extension, contentType };
 }
 
 async function retrieveEinoMaterialGrounding(ctx, session, query, signal) {
@@ -628,7 +638,7 @@ export async function einoLongSummary(ctx) {
       reliability: result.reliability || null,
     });
   } catch (e) {
-    return einoMediaError(ctx, actor.actorType, e, started);
+    return einoMediaError(ctx, actor.actorType, e, started, 'long-summary');
   } finally { clearTimeout(timeout); }
 }
 
@@ -758,7 +768,7 @@ export async function einoVision(ctx) {
     await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
     await recordEinoRequestTelemetry(ctx, { actorType:actor.actorType, capability:EINO_CAPABILITIES.VISION, status:'success', provider:result.provider, model:result.model || result.route?.model, latencyMs:Date.now()-started, costUnits:einoCapabilityCost(EINO_CAPABILITIES.VISION), fallback:Boolean(result.reliability?.fallback) });
     return ok(ctx, { text, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null });
-  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started, EINO_CAPABILITIES.VISION); } finally { clearTimeout(timeout); }
 }
 
 export async function einoOcr(ctx) {
@@ -777,7 +787,7 @@ export async function einoOcr(ctx) {
     await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
     await recordEinoRequestTelemetry(ctx, { actorType:actor.actorType, capability:EINO_CAPABILITIES.OCR, status:'success', provider:result.provider, model:result.model || result.route?.model, latencyMs:Date.now()-started, costUnits:einoCapabilityCost(EINO_CAPABILITIES.OCR), fallback:Boolean(result.reliability?.fallback) });
     return ok(ctx, { text, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null });
-  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started, EINO_CAPABILITIES.OCR); } finally { clearTimeout(timeout); }
 }
 
 export async function einoStt(ctx) {
@@ -787,7 +797,7 @@ export async function einoStt(ctx) {
   if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق ملف صوتي.', 400, ctx.requestId, ctx.cors);
   if (file.size > 25 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الصوت يتجاوز 25MB.', 413, ctx.requestId, ctx.cors);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 60000); const started = Date.now();
-  try { const result = await routeStt(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, language: (() => { const value = String(form.get('language') || 'ar').trim().toLowerCase(); return ['ar','en','fr'].includes(value) ? value : 'ar'; })(), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); await recordEinoRequestTelemetry(ctx, { actorType:actor.actorType, capability:'stt', status:'success', provider:result.provider, model:result.model || result.route?.model, latencyMs:Date.now()-started, costUnits:einoCapabilityCost(EINO_CAPABILITIES.STT), fallback:Boolean(result.reliability?.fallback) }); return ok(ctx, { text: String(result?.text || result?.transcript || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  try { const result = await routeStt(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, language: (() => { const value = String(form.get('language') || 'ar').trim().toLowerCase(); return ['ar','en','fr'].includes(value) ? value : 'ar'; })(), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); await recordEinoRequestTelemetry(ctx, { actorType:actor.actorType, capability:'stt', status:'success', provider:result.provider, model:result.model || result.route?.model, latencyMs:Date.now()-started, costUnits:einoCapabilityCost(EINO_CAPABILITIES.STT), fallback:Boolean(result.reliability?.fallback) }); return ok(ctx, { text: String(result?.text || result?.transcript || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started, EINO_CAPABILITIES.STT); } finally { clearTimeout(timeout); }
 }
 
 export async function einoTts(ctx) {
@@ -804,7 +814,7 @@ export async function einoTts(ctx) {
     await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
     await recordEinoRequestTelemetry(ctx, { actorType:actor.actorType, capability:EINO_CAPABILITIES.TTS, status:'success', provider:result.provider, model:result.model || result.route?.model, latencyMs:Date.now()-started, costUnits:einoCapabilityCost(EINO_CAPABILITIES.TTS), fallback:Boolean(result.reliability?.fallback) });
     return ok(ctx, { audioUrl, audioBase64, contentType, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || null, reliability: result.reliability || null });
-  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started, EINO_CAPABILITIES.TTS); } finally { clearTimeout(timeout); }
 }
 
 export async function einoFileAnalysis(ctx) {
@@ -824,7 +834,7 @@ export async function einoFileAnalysis(ctx) {
     await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
     await recordEinoRequestTelemetry(ctx, { actorType:actor.actorType, capability:'file-analysis', status:'success', provider:result.provider, model:result.model || result.route?.model, latencyMs:Date.now()-started, costUnits:einoCapabilityCost('file-analysis'), fallback:Boolean(result.reliability?.fallback) });
     return ok(ctx, { text, provider: result.provider, model: result.model || result.route?.model || null, reliability: result.reliability || null });
-  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started, 'file-analysis'); } finally { clearTimeout(timeout); }
 }
 
 export async function einoImage(ctx) {
@@ -838,7 +848,7 @@ export async function einoImage(ctx) {
     await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
     await recordEinoRequestTelemetry(ctx, { actorType:actor.actorType, capability:'image-generation', status:'success', provider:result.provider, model:result.model || result.route?.model, latencyMs:Date.now()-started, costUnits:einoCapabilityCost('image-generation'), fallback:Boolean(result.reliability?.fallback) });
     return ok(ctx, { imageBase64: result.imageBase64, contentType: result.contentType, provider: result.provider, model: result.model, reliability: result.reliability || null });
-  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); }
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started, 'image-generation'); }
 }
 
 export async function einoMediaError(ctx, actorType, e, started, capability='unknown') {
@@ -882,18 +892,57 @@ export async function consumeEinoQuota(ctx, actorKey, cost = 1) {
   const windowStarted = new Date(Math.floor(now / (EINO_WINDOW_SECONDS * 1000)) * EINO_WINDOW_SECONDS * 1000).toISOString();
   const dayStarted = new Date(Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate())).toISOString();
 
-  // All Eino quotas are weighted units. This keeps expensive operations such as
-  // image generation and long summaries from consuming the same budget as chat.
-  const global = await consumeEinoBucket(ctx, 'day', 'global', dayStarted, globalLimit, units);
-  if (!global.allowed) return { allowed: false, scope: 'global', remaining: 0 };
+  // Check all three scopes before charging any of them. This avoids burning global/daily
+  // units when the request is going to be rejected by the burst limiter.
+  const scopes = [
+    ['day', 'global', dayStarted, globalLimit],
+    ['day', actorKey, dayStarted, dailyLimit],
+    ['window', actorKey, windowStarted, EINO_WINDOW_LIMIT],
+  ];
+  for (const [bucketType, scopeKey, bucketStartedAt, limit] of scopes) {
+    const row = await queryOne(ctx.env,
+      'SELECT request_count FROM eino_quota_usage WHERE bucket_type=? AND scope_key=? AND bucket_started_at=?',
+      bucketType, scopeKey, bucketStartedAt);
+    if (Number(row?.request_count || 0) + units > limit) {
+      const scope = bucketType === 'window' ? 'window' : scopeKey === 'global' ? 'global' : 'daily';
+      return { allowed: false, scope, remaining: Math.max(0, limit - Number(row?.request_count || 0)) };
+    }
+  }
 
-  const daily = await consumeEinoBucket(ctx, 'day', actorKey, dayStarted, dailyLimit, units);
-  if (!daily.allowed) return { allowed: false, scope: 'daily', remaining: 0 };
+  const consumed = [];
+  for (const [bucketType, scopeKey, bucketStartedAt, limit] of scopes) {
+    const result = await consumeEinoBucket(ctx, bucketType, scopeKey, bucketStartedAt, limit, units);
+    if (!result.allowed) {
+      for (const item of consumed) await refundEinoBucket(ctx, ...item);
+      const scope = bucketType === 'window' ? 'window' : scopeKey === 'global' ? 'global' : 'daily';
+      return { allowed: false, scope, remaining: 0 };
+    }
+    consumed.push([bucketType, scopeKey, bucketStartedAt, units]);
+  }
+  return {
+    allowed: true,
+    cost: units,
+    remaining: Math.min(
+      await quotaRemaining(ctx, 'day', 'global', dayStarted, globalLimit),
+      await quotaRemaining(ctx, 'day', actorKey, dayStarted, dailyLimit),
+      await quotaRemaining(ctx, 'window', actorKey, windowStarted, EINO_WINDOW_LIMIT),
+    ),
+  };
+}
 
-  const burst = await consumeEinoBucket(ctx, 'window', actorKey, windowStarted, EINO_WINDOW_LIMIT, units);
-  if (!burst.allowed) return { allowed: false, scope: 'window', remaining: 0 };
+async function quotaRemaining(ctx, bucketType, scopeKey, bucketStartedAt, limit) {
+  const row = await queryOne(ctx.env,
+    'SELECT request_count FROM eino_quota_usage WHERE bucket_type=? AND scope_key=? AND bucket_started_at=?',
+    bucketType, scopeKey, bucketStartedAt);
+  return Math.max(0, limit - Number(row?.request_count || 0));
+}
 
-  return { allowed: true, cost: units, remaining: Math.min(burst.remaining, daily.remaining, global.remaining) };
+async function refundEinoBucket(ctx, bucketType, scopeKey, bucketStartedAt, units) {
+  await ctx.env.DB.prepare(`
+    UPDATE eino_quota_usage
+       SET request_count = MAX(0, request_count - ?), updated_at = CURRENT_TIMESTAMP
+     WHERE bucket_type=? AND scope_key=? AND bucket_started_at=?
+  `).bind(units, bucketType, scopeKey, bucketStartedAt).run();
 }
 
 export async function consumeEinoBucket(ctx, bucketType, scopeKey, bucketStartedAt, limit, cost = 1) {
