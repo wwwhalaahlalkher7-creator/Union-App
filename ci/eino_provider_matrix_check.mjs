@@ -4,15 +4,18 @@ import { routeText, routeVision, routeOcr, routeStt, routeTts, resetProviderCirc
 const env = {
   MISTRAL_API_KEY: 'test-mistral',
   GROQ_API_KEY: 'test-groq',
+  GEMINI_API_KEY: 'test-gemini',
   FREE_AI_API_KEY: 'test-free',
   FREE_AI_BASE_URL: 'https://free.test',
   EINO_MISTRAL_BASE_URL: 'https://mistral.test',
   EINO_MISTRAL_TTS_VOICE_ID: 'test-voice',
   EINO_GROQ_BASE_URL: 'https://groq.test',
+  EINO_GEMINI_BASE_URL: 'https://gemini.test/v1beta',
 };
 
 let calls = [];
 let failProvider = null;
+let failProviders = new Set();
 let failStatus = 503;
 
 function json(body, status = 200, headers = {}) {
@@ -25,9 +28,15 @@ function json(body, status = 200, headers = {}) {
 globalThis.fetch = async (url, options = {}) => {
   const target = String(url);
   calls.push({ url: target, method: options.method || 'GET' });
-  const provider = target.includes('mistral.test') ? 'mistral' : target.includes('groq.test') ? 'groq' : 'free.ai';
-  if (provider === failProvider) return json({ error: 'forced test failure' }, failStatus);
+  const provider = target.includes('mistral.test') ? 'mistral' : target.includes('groq.test') ? 'groq' : target.includes('gemini.test') ? 'gemini' : 'free.ai';
+  if (provider === failProvider || failProviders.has(provider)) return json({ error: 'forced test failure' }, failStatus);
+  if (provider === 'gemini' && target.includes('/upload/v1beta/files')) {
+    return new Response(null, { status: 200, headers: { 'x-goog-upload-url': 'https://gemini.test/upload-session' } });
+  }
+  if (target.includes('/upload-session')) return json({ file: { uri: 'https://gemini.test/files/mock', mimeType: 'audio/mpeg' } });
 
+  if (target.includes('gemini.test') && target.includes('/interactions')) return json({ output_text: 'gemini-ok', output_audio: { data: 'AQID' } });
+  if (target.includes('gemini.test') && target.includes(':generateContent')) return json({ candidates: [{ content: { parts: [{ text: 'gemini-ok' }] } }], modelVersion: 'gemini-mock' });
   if (target.includes('/chat/completions')) return json({ choices: [{ message: { content: `ok-${provider}` } }], model: 'mock-model' });
   if (target.includes('/v1/ocr')) return json({ pages: [{ markdown: 'ocr-ok' }], model: 'mock-ocr' });
   if (target.includes('/audio/transcriptions')) return json({ text: `stt-${provider}`, model: 'mock-stt' });
@@ -42,6 +51,7 @@ globalThis.fetch = async (url, options = {}) => {
 async function primary(name, fn, expected) {
   calls = [];
   failProvider = null;
+  failProviders = new Set();
   const result = await fn();
   assert.equal(result.provider, expected, `${name}: wrong primary provider`);
   console.log(`PASS ${name}: primary -> ${expected}`);
@@ -50,6 +60,7 @@ async function primary(name, fn, expected) {
 async function fallback(name, fn, failed, expected) {
   calls = [];
   failProvider = failed;
+  failProviders = new Set();
   failStatus = 503;
   const result = await fn();
   assert.equal(result.provider, expected, `${name}: fallback provider not selected`);
@@ -67,6 +78,36 @@ await fallback('tts', () => routeTts(env, { text: 'مرحبا', voice: 'test' })
 
 calls = [];
 resetProviderCircuitState();
+failProviders = new Set(['groq', 'mistral']);
+const geminiText = await routeText(env, { messages: [{ role: 'user', content: 'gemini fallback' }] });
+assert.equal(geminiText.provider, 'gemini', 'text: groq -> gemini fallback failed');
+console.log('PASS text: groq -> gemini');
+
+calls = [];
+resetProviderCircuitState();
+failProviders = new Set(['groq', 'mistral']);
+const geminiVision = await routeVision(env, { imageDataUrl: 'data:image/png;base64,AA==', prompt: 'gemini vision fallback' });
+assert.equal(geminiVision.provider, 'gemini', 'vision: groq+mistral -> gemini fallback failed');
+console.log('PASS vision: groq+mistral -> gemini');
+
+calls = [];
+resetProviderCircuitState();
+failProviders = new Set(['groq', 'mistral']);
+const geminiStt = await routeStt(env, { file: new Uint8Array([1]), filename: 'a.mp3', contentType: 'audio/mpeg', language: 'ar' });
+assert.equal(geminiStt.provider, 'gemini', 'stt: groq+mistral -> gemini fallback failed');
+console.log('PASS stt: groq+mistral -> gemini');
+
+calls = [];
+resetProviderCircuitState();
+failProviders = new Set(['groq', 'mistral']);
+const geminiTts = await routeTts(env, { text: 'مرحبا بإينو' });
+assert.equal(geminiTts.provider, 'gemini', 'tts: groq+mistral -> gemini fallback failed');
+assert.equal(geminiTts.contentType, 'audio/wav');
+console.log('PASS tts: groq+mistral -> gemini');
+
+calls = [];
+resetProviderCircuitState();
+failProviders = new Set();
 failProvider = 'mistral';
 failStatus = 400;
 await assert.rejects(() => routeText(env, { messages: [{ role: 'user', content: 'bad' }] }), /mistral request failed/);
@@ -75,6 +116,7 @@ console.log('PASS non-retryable 400: fallback stopped');
 
 calls = [];
 failProvider = null;
+failProviders = new Set();
 resetProviderCircuitState();
 const requestedModel = await routeText(env, { model: 'mistral-small-2603', messages: [{ role: 'user', content: 'model-select' }] });
 assert.equal(requestedModel.provider, 'mistral', 'requested model should select matching provider');

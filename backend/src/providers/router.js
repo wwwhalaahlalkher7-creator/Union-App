@@ -3,6 +3,7 @@ import { freeAiChat } from './free_ai.js';
 import { freeAiVision, freeAiOcr, freeAiStt, freeAiTts } from './free_ai_media.js';
 import { mistralChat, mistralVision, mistralOcr, mistralStt, mistralTts } from './mistral.js';
 import { groqChat, groqVision, groqStt, groqTts } from './groq.js';
+import { geminiChat, geminiVision, geminiStt, geminiTts } from './gemini.js';
 
 const CIRCUIT_FAILURE_THRESHOLD = 3;
 const CIRCUIT_COOLDOWN_MS = 30_000;
@@ -118,6 +119,7 @@ export async function routeText(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.TEXT, String(args?.model || '').trim(), (route) => async () => {
     if (route.provider === 'mistral') return mistralChat({ baseUrl: `${String(env.EINO_MISTRAL_BASE_URL || 'https://api.mistral.ai').replace(/\/+$/, '')}/v1`, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
     if (route.provider === 'groq') return groqChat({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
+    if (route.provider === 'gemini') return geminiChat({ baseUrl: env.EINO_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta', apiKey: env.GEMINI_API_KEY, model: route.model, ...args });
     return freeAiChat({ ...argsForFree(env, route.model), ...args });
   }, 'text');
 }
@@ -126,6 +128,7 @@ export async function routeVision(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.VISION, String(args?.model || '').trim(), (route) => async () => {
     if (route.provider === 'mistral') return mistralVision({ baseUrl: `${String(env.EINO_MISTRAL_BASE_URL || 'https://api.mistral.ai').replace(/\/+$/, '')}/v1`, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
     if (route.provider === 'groq') return groqVision({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
+    if (route.provider === 'gemini') return geminiVision({ baseUrl: env.EINO_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta', apiKey: env.GEMINI_API_KEY, model: route.model, ...args });
     const result = await freeAiVision({ ...argsForFree(env, route.model), ...args });
     return { text: String(result?.text || result?.description || result?.caption || result?.result || '').trim(), raw: result };
   }, 'vision');
@@ -143,6 +146,7 @@ export async function routeStt(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.STT, String(args?.model || '').trim(), (route) => async () => {
     if (route.provider === 'groq') return groqStt({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
     if (route.provider === 'mistral') return mistralStt({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
+    if (route.provider === 'gemini') return geminiStt({ baseUrl: env.EINO_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta', apiKey: env.GEMINI_API_KEY, model: route.model, ...args });
     const result = await freeAiStt({ ...argsForFree(env, route.model), ...args });
     return { text: String(result?.text || result?.transcript || result?.result || '').trim(), raw: result };
   }, 'stt');
@@ -159,11 +163,13 @@ export async function routeTts(env, args) {
   const arabicModel = env.EINO_GROQ_TTS_MODEL || 'canopylabs/orpheus-arabic-saudi';
   const autoModel = requestedModel || (hasArabicText(text) ? arabicModel : englishModel);
   const voice = String(args?.voice || '').trim() || (autoModel === englishModel ? 'hannah' : 'noura');
-  const routeArgs = { ...args, model: autoModel, voice };
   const routeFilter = requestedModel ? null : (route) => route.provider !== 'groq' || route.model === autoModel;
   return routeCapability(env, EINO_CAPABILITIES.TTS, requestedModel, (route) => async () => {
+    const routeVoice = args?.voice || (route.provider === 'groq' ? (route.model === englishModel ? 'hannah' : 'noura') : route.provider === 'gemini' ? 'Kore' : undefined);
+    const routeArgs = { ...args, model: route.model, ...(routeVoice ? { voice: routeVoice } : {}) };
     if (route.provider === 'groq') return groqTts({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...routeArgs });
     if (route.provider === 'mistral') return mistralTts({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, voiceId: env.EINO_MISTRAL_TTS_VOICE_ID, ...routeArgs });
+    if (route.provider === 'gemini') return geminiTts({ baseUrl: env.EINO_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta', apiKey: env.GEMINI_API_KEY, model: route.model, voice: routeVoice || 'Kore', ...routeArgs });
     const result = await freeAiTts({ ...argsForFree(env, route.model), ...routeArgs });
     return { audioUrl: result?.audio_url || result?.url || null, audioBase64: result?.audioBase64 || result?.audio_base64 || null, contentType: result?.contentType || result?.content_type || 'audio/mpeg', raw: result };
   }, 'tts', routeFilter);

@@ -285,6 +285,7 @@ jobs:
           FREE_AI_API_KEY: ${{ secrets.FREE_AI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FREE_AI_BASE_URL: ${{ secrets.FREE_AI_BASE_URL }}
           EINO_EMBEDDING_API_KEY: ${{ secrets.EINO_EMBEDDING_API_KEY }}
           STAFF_BOOTSTRAP_TOKEN: ${{ secrets.STAFF_BOOTSTRAP_TOKEN }}
@@ -303,6 +304,7 @@ jobs:
             FREE_AI_API_KEY \
             MISTRAL_API_KEY \
             GROQ_API_KEY \
+            GEMINI_API_KEY \
             FREE_AI_BASE_URL \
             EINO_EMBEDDING_API_KEY \
             GOOGLE_APPS_SCRIPT_DRIVE_TOKEN \
