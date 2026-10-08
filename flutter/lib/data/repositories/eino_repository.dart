@@ -13,7 +13,12 @@ class EinoRepository {
     });
     final data = json['data'];
     if (data is Map && data['message'] != null) {
-      return EinoChatResponse(data['message'].toString().trim(), data['conversationId']?.toString());
+      return EinoChatResponse(
+        data['message'].toString().trim(),
+        data['conversationId']?.toString(),
+        sources: data['sources'] is List ? (data['sources'] as List).whereType<Map>().map((v) => EinoSource.fromJson(Map<String, dynamic>.from(v))).toList(growable: false) : const [],
+        grounded: data['grounding'] is Map,
+      );
     }
     throw const ApiException('No valid Eino response was received.');
   }
@@ -52,14 +57,61 @@ class EinoRepository {
     });
   }
 
-  Future<String> vision({required String imageDataUrl, String mode = 'describe', String? conversationId, String? attachmentName}) async {
+  Future<EinoGeneratedImage> generateImage({required String prompt, int? seed}) async {
+    final json = await _client.postJson('/api/v1/eino/image', body: {
+      'prompt': prompt.trim(),
+      if (seed != null) 'seed': seed,
+    });
+    final data = json['data'];
+    if (data is Map && data['imageBase64'] != null) {
+      return EinoGeneratedImage(
+        base64: data['imageBase64'].toString(),
+        contentType: data['contentType']?.toString() ?? 'image/jpeg',
+        provider: data['provider']?.toString(),
+        model: data['model']?.toString(),
+      );
+    }
+    throw const ApiException('No valid generated image was received from Eino.');
+  }
+
+  Future<String> imageAnalysis({required String imageDataUrl, String prompt = 'حلل هذه الصورة بدقة، واقرأ النصوص والمخططات والعناصر المهمة فيها. إذا كانت أكاديمية فاشرح ما يظهر فيها دون اختلاق معلومات.', String? conversationId, String? attachmentName}) async {
     final json = await _client.postJson('/api/v1/eino/vision', body: {
       'image': imageDataUrl,
-      'mode': mode,
+      'mode': prompt,
       if (conversationId != null && conversationId.trim().isNotEmpty) 'conversationId': conversationId,
       if (attachmentName != null && attachmentName.trim().isNotEmpty) 'attachmentName': attachmentName,
     });
     return _textFrom(json, 'No valid image analysis result was received from Eino.');
+  }
+
+  Future<String> vision({required String imageDataUrl, String mode = 'describe', String? conversationId, String? attachmentName}) => imageAnalysis(
+    imageDataUrl: imageDataUrl,
+    prompt: mode,
+    conversationId: conversationId,
+    attachmentName: attachmentName,
+  );
+
+  Future<String> fileAnalysis({required List<int> bytes, required String filename, required String contentType, String? conversationId, String? prompt}) async {
+    final json = await _client.postMultipartBytes(
+      '/api/v1/eino/file-analysis',
+      bytes: bytes,
+      filename: filename,
+      fieldName: 'file',
+      contentType: contentType,
+      fields: {
+        if (conversationId != null && conversationId.trim().isNotEmpty) 'conversationId': conversationId,
+        if (prompt != null && prompt.trim().isNotEmpty) 'prompt': prompt.trim(),
+      },
+    );
+    return _textFrom(json, 'No valid file analysis result was received from Eino.');
+  }
+
+  Future<String> longSummary({required String text, String? conversationId}) async {
+    final json = await _client.postJson('/api/v1/eino/long-summary', body: {
+      'text': text,
+      if (conversationId != null && conversationId.trim().isNotEmpty) 'conversationId': conversationId,
+    });
+    return _textFrom(json, 'No valid long summary was received from Eino.');
   }
 
   Future<String> ocr({required List<int> bytes, required String filename, required String contentType, String? conversationId}) async {
@@ -157,10 +209,34 @@ class EinoTtsAudio {
   final String contentType;
 }
 
+class EinoGeneratedImage {
+  const EinoGeneratedImage({required this.base64, required this.contentType, this.provider, this.model});
+  final String base64;
+  final String contentType;
+  final String? provider;
+  final String? model;
+}
+
 class EinoChatResponse {
-  const EinoChatResponse(this.message, this.conversationId);
+  const EinoChatResponse(this.message, this.conversationId, {this.sources = const [], this.grounded = false});
   final String message;
   final String? conversationId;
+  final List<EinoSource> sources;
+  final bool grounded;
+}
+
+class EinoSource {
+  const EinoSource({this.title, this.url, this.materialId, this.subjectId});
+  final String? title;
+  final String? url;
+  final String? materialId;
+  final String? subjectId;
+  factory EinoSource.fromJson(Map<String, dynamic> json) => EinoSource(
+    title: json['title']?.toString(),
+    url: json['url']?.toString(),
+    materialId: json['materialId']?.toString(),
+    subjectId: json['subjectId']?.toString(),
+  );
 }
 
 class EinoConversation {

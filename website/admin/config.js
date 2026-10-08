@@ -11,7 +11,7 @@ window.APP_CONFIG = {
     baseUrl: (typeof window !== 'undefined' && window.location && window.location.hostname !== 'ush-eng.great-site.net') ? (window.location.origin + '/api/v1') : 'https://leo-association-api.www-halaahlalkher7.workers.dev/api/v1'
   },
   modules: {
-    dashboard:true, students:true, schedule:true, materials:true, news:true,
+    dashboard:true, students:true, schedule:true, materials:true, news:true, einoMonitor:true,
     ads:false, users:true, security:true, settings:true
   }
 };

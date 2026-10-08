@@ -19,14 +19,14 @@ import {
 import {
   adminNotifications, adminNotificationSend,
   adminAuthEvents, adminModerationComments, adminModerationComment, adminModerationReplies, adminModerationReply, adminDeleteReply, adminDashboardOverview,
-  adminEinoUsage, adminRoute,
+  adminEinoUsage, adminEinoMonitor, adminRoute,
 } from './admin.js';
 import { adminDriveSync, adminDriveSyncStatus } from './drive.js';
 import { learningEvents, learningEvent, completeLearningEvent, adminLearningEvents } from './learning_events.js';
 import {
   eino, einoCapabilities, einoModels, einoMemoryList, einoMemoryCreate, einoMemoryDelete,
   einoConversationCreate, einoConversationList, einoConversationMessages, einoConversationMessageAppend, einoConversationDelete,
-  einoVision, einoOcr, einoStt, einoTts, einoFileAnalysis, einoImage,
+  einoVision, einoOcr, einoStt, einoTts, einoFileAnalysis, einoImage, einoLongSummary,
 } from './eino.js';
 
 export default {
@@ -147,6 +147,7 @@ export default {
       if (/^\/admin\/moderation\/replies\/[^/]+$/.test(path) && request.method === 'DELETE') return adminDeleteReply(ctx, path.split('/')[4]);
       if (path === '/admin/dashboard/overview' && request.method === 'GET') return adminDashboardOverview(ctx);
       if (path === '/admin/security/eino-usage' && request.method === 'GET') return adminEinoUsage(ctx);
+      if (path === '/admin/security/eino-monitor' && request.method === 'GET') return adminEinoMonitor(ctx);
       if (path.startsWith('/admin/')) return adminRoute(ctx);
 
       if (path === '/eino/chat' && request.method === 'POST') return eino(ctx);
@@ -166,6 +167,7 @@ export default {
       if (path === '/eino/tts' && request.method === 'POST') return einoTts(ctx);
       if (path === '/eino/image' && request.method === 'POST') return einoImage(ctx);
       if (path === '/eino/file-analysis' && request.method === 'POST') return einoFileAnalysis(ctx);
+      if (path === '/eino/long-summary' && request.method === 'POST') return einoLongSummary(ctx);
 
       return error('NOT_FOUND', 'المسار غير موجود.', 404, requestId, cors);
     } catch (e) {

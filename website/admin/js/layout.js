@@ -39,6 +39,7 @@
       items: [
         { key: "users", label: "المستخدمون", icon: "fa-user-shield", href: "users.html" },
         { key: "security", label: "الأمان", icon: "fa-lock", href: "security.html" },
+        { key: "einoMonitor", label: "مراقبة Eino", icon: "fa-robot", href: "eino-monitor.html" },
         { key: "settings", label: "إعدادات الموقع", icon: "fa-gear", href: "settings.html" }
       ]
     }

@@ -56,10 +56,14 @@ class _EinoTypingDotsState extends State<EinoTypingDots> with TickerProviderStat
 }
 
 class EinoMessage {
-  const EinoMessage(this.user, this.text, {this.isError = false, this.retryPrompt});
+  const EinoMessage(this.user, this.text, {this.isError = false, this.retryPrompt, this.sourceTitle, this.imageBase64, this.imageContentType});
   final bool user;
   final String text;
   final bool isError;
   final String? retryPrompt;
+  final String? sourceTitle;
+  final String? imageBase64;
+  final String? imageContentType;
 }
+
 

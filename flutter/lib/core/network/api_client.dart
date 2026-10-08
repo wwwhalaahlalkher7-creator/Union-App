@@ -180,13 +180,16 @@ class ApiClient {
     // The Worker gives Eino up to 30s for chat/vision/TTS and up to 60s for
     // OCR/STT. A 20s Flutter timeout would make the app report a failure
     // while the backend is still processing a valid request.
-    if (normalized.contains('/eino/ocr') || normalized.contains('/eino/stt')) {
+    if (normalized.contains('/eino/ocr') || normalized.contains('/eino/stt') || normalized.contains('/eino/file-analysis')) {
       return const Duration(seconds: 90);
     }
     if (normalized.contains('/eino/chat') ||
         normalized.contains('/eino/vision') ||
         normalized.contains('/eino/tts')) {
       return const Duration(seconds: 45);
+    }
+    if (normalized.contains('/eino/image')) {
+      return const Duration(seconds: 90);
     }
     return const Duration(seconds: 20);
   }

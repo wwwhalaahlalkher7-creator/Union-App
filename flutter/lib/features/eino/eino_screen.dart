@@ -7,6 +7,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:llama_flutter_android/llama_flutter_android.dart';
 import 'package:record/record.dart';
 
@@ -61,8 +62,34 @@ class _EinoScreenState extends State<EinoScreen> {
 
   Future<void> _init() async {
     _repository = AppDependencies.instance.eino;
-    setState(() => _ready = true);
+    if (mounted) setState(() => _ready = true);
+    await _showEinoDataNoticeIfNeeded();
     await Future.wait([_loadCapabilities(), _loadHistory()]);
+  }
+
+  Future<void> _showEinoDataNoticeIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('eino_data_notice_seen_v1') == true || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('تنبيه الخصوصية وتحسين Eino'),
+          content: const Text(
+            'لتحليل أداء Eino وتطويره وتحسين المزودات، نستخدم بعض البيانات التشغيلية عند استخدامه، مثل نوع الطلب، المزود والنموذج المستخدمين، زمن الاستجابة، حالة النجاح أو الخطأ، واستهلاك وحدات الاستخدام.\n\nلا يتم وضع نصوص محادثاتك أو أرقام الطلاب أو عناوين IP أو محتوى ملفاتك داخل لوحة مراقبة Eino، وسجل المراقبة التشغيلي محدود المدة.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('فهمت، متابعة'),
+            ),
+          ],
+        ),
+      ),
+    );
+    await prefs.setBool('eino_data_notice_seen_v1', true);
   }
 
   @override
@@ -153,7 +180,7 @@ class _EinoScreenState extends State<EinoScreen> {
         final response = await _repository.chat(prompt: prompt, context: contextPayload, conversationId: _conversationId);
         _conversationId ??= response.conversationId;
         if (mounted) {
-          setState(() => _messages.add(EinoMessage(false, response.message)));
+          setState(() => _messages.add(EinoMessage(false, response.message, sourceTitle: response.sources.isNotEmpty ? response.sources.first.title : null)));
           await _loadHistory();
         }
       } catch (onlineError) {
@@ -198,17 +225,30 @@ class _EinoScreenState extends State<EinoScreen> {
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: Wrap(children: [
+          ListTile(leading: const Icon(Icons.auto_awesome_outlined), title: const Text('توليد صورة'), subtitle: const Text('أنشئ صورة جديدة من وصفك'), onTap: () => Navigator.pop(context, 'generate')),
           ListTile(leading: const Icon(Icons.image_outlined), title: Text(l10n.t('einoAttachImage')), subtitle: Text(l10n.t('einoVisionSubtitle')), onTap: () => Navigator.pop(context, 'image')),
           ListTile(leading: const Icon(Icons.description_outlined), title: Text(l10n.t('einoAttachDocument')), subtitle: Text(l10n.t('einoDocumentSubtitle')), onTap: () => Navigator.pop(context, 'document')),
         ]),
       ),
     );
     if (!mounted || choice == null) return;
-    final result = await FilePicker.platform.pickFiles(withData: true, type: choice == 'image' ? FileType.image : FileType.custom, allowedExtensions: choice == 'document' ? ['pdf', 'docx', 'txt'] : null);
+    if (choice == 'generate') {
+      await _generateImage();
+      return;
+    }
+    final result = await FilePicker.platform.pickFiles(withData: true, type: choice == 'image' ? FileType.image : FileType.custom, allowedExtensions: choice == 'document' ? ['pdf', 'docx', 'txt', 'md', 'csv', 'xlsx', 'pptx'] : null);
     if (result == null || result.files.isEmpty) return;
     final file = result.files.single;
     final bytes = file.bytes;
     if (bytes == null || bytes.isEmpty) return;
+    if (bytes.length > 20 * 1024 * 1024) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).t('einoFileTooLarge')),
+        );
+      }
+      return;
+    }
     setState(() => _uploading = true);
     try {
       final name = file.name;
@@ -217,22 +257,35 @@ class _EinoScreenState extends State<EinoScreen> {
         await _loadHistory();
       }
       if (choice == 'image') {
+        final prompt = await _askImagePrompt();
+        if (!mounted || prompt == null) return;
         final mime = _mime(name);
         final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
-        final text = await _repository.vision(imageDataUrl: dataUrl, conversationId: _conversationId, attachmentName: name);
+        final text = await _repository.imageAnalysis(
+          imageDataUrl: dataUrl,
+          prompt: prompt,
+          conversationId: _conversationId,
+          attachmentName: name,
+        );
         if (mounted) {
           setState(() {
-          _messages.add(EinoMessage(true, '🖼️ $name'));
-          _messages.add(EinoMessage(false, text));
+            _messages.add(EinoMessage(true, '🖼️ $name\n$prompt'));
+            _messages.add(EinoMessage(false, text));
           });
         }
         if (_conversationId != null) await _loadHistory();
       } else {
-        final text = await _repository.ocr(bytes: bytes, filename: name, contentType: _mime(name), conversationId: _conversationId);
+        final text = await _repository.fileAnalysis(
+          bytes: bytes,
+          filename: name,
+          contentType: _mime(name),
+          conversationId: _conversationId,
+          prompt: 'حلل هذا الملف بدقة، استخرج أهم المعلومات منه، ثم قدم ملخصًا واضحًا ومنظمًا بالعربية. إذا كان الملف أكاديميًا، ركز على المفاهيم والقوانين والنقاط المهمة للمذاكرة ولا تضف معلومات غير موجودة فيه.',
+        );
         if (mounted) {
           setState(() {
-          _messages.add(EinoMessage(true, '📄 $name'));
-          _messages.add(EinoMessage(false, text));
+            _messages.add(EinoMessage(true, '📄 $name'));
+            _messages.add(EinoMessage(false, text));
           });
         }
         if (_conversationId != null) await _loadHistory();
@@ -243,6 +296,91 @@ class _EinoScreenState extends State<EinoScreen> {
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
+  }
+
+  Future<void> _generateImage() async {
+    final prompt = await _askImageGenerationPrompt();
+    if (!mounted || prompt == null || prompt.trim().isEmpty) return;
+    if (_conversationId == null && await AppDependencies.instance.authStorage.isLoggedIn) {
+      _conversationId = await _repository.createConversation(title: 'توليد صورة: ${prompt.length > 55 ? '${prompt.substring(0, 55)}…' : prompt}');
+      await _loadHistory();
+    }
+    setState(() => _uploading = true);
+    try {
+      final result = await _repository.generateImage(prompt: prompt);
+      if (!mounted) return;
+      setState(() {
+        _messages.add(EinoMessage(true, '🎨 $prompt'));
+        _messages.add(EinoMessage(false, 'تم إنشاء الصورة بناءً على وصفك.', imageBase64: result.base64, imageContentType: result.contentType));
+      });
+      if (_conversationId != null) {
+        await _repository.appendConversationMessage(conversationId: _conversationId!, user: true, content: '🎨 $prompt');
+        await _repository.appendConversationMessage(conversationId: _conversationId!, user: false, content: 'تم إنشاء صورة بواسطة Eino.');
+        await _loadHistory();
+      }
+    } catch (e) {
+      if (mounted) setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+      _scrollToBottom();
+    }
+  }
+
+  Future<String?> _askImageGenerationPrompt() async {
+    final controller = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('توليد صورة'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 3,
+            maxLines: 6,
+            textDirection: TextDirection.rtl,
+            decoration: const InputDecoration(
+              hintText: 'اكتب وصف الصورة التي تريدها…',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('توليد')),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<String?> _askImagePrompt() async {
+    final controller = TextEditingController(text: 'حلل هذه الصورة بدقة، واقرأ النصوص والمخططات والعناصر المهمة فيها. إذا كانت أكاديمية فاشرح ما يظهر فيها دون اختلاق معلومات.');
+    final prompt = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('ماذا تريد من Eino أن تفعل بالصورة؟'),
+        content: TextField(
+          controller: controller,
+          minLines: 3,
+          maxLines: 7,
+          autofocus: true,
+          textDirection: TextDirection.rtl,
+          decoration: const InputDecoration(
+            hintText: 'مثال: اشرح السؤال الموجود في الصورة خطوة بخطوة',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('تحليل')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (prompt == null || prompt.trim().isEmpty) return null;
+    return prompt.trim();
   }
 
   String _mime(String name) {
@@ -756,13 +894,45 @@ class _EinoScreenState extends State<EinoScreen> {
                       const EinoFace(size: 31, mood: EinoMood.happy),
                       const SizedBox(width: 9),
                       Expanded(
-                        child: SelectableText(
-                          m.text,
-                          style: const TextStyle(height: 1.55),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (m.imageBase64 != null) ...[
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Image.memory(base64Decode(m.imageBase64!), fit: BoxFit.contain),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            SelectableText(
+                              m.text,
+                              style: const TextStyle(height: 1.55),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
+                  if (m.sourceTitle != null && m.sourceTitle!.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(start: 40, top: 6, bottom: 2),
+                      child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.public_outlined, size: 15, color: cs.primary),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                'المصدر: ${m.sourceTitle}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 12.5, color: cs.primary, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 5),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,

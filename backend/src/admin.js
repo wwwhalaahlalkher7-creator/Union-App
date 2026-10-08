@@ -694,3 +694,30 @@ export async function adminEinoUsage(ctx) {
     })),
   });
 }
+
+
+export async function adminEinoMonitor(ctx) {
+  const a = await requireAdminPermission(ctx, 'superadmin.read');
+  if (a.response) return a.response;
+  const hours = clampInt(ctx.url.searchParams.get('hours'), 24, 1, 168);
+  const limit = clampInt(ctx.url.searchParams.get('limit'), 100, 1, 200);
+  const since = new Date(Date.now() - hours * 3600000).toISOString();
+  const [summary, providers, tasks, recent, quota, legacy] = await Promise.all([
+    queryAll(ctx.env, `SELECT status, COUNT(*) AS count, ROUND(AVG(latency_ms)) AS avgLatencyMs, SUM(cost_units) AS costUnits FROM eino_request_telemetry WHERE occurred_at >= ? GROUP BY status ORDER BY count DESC`, since),
+    queryAll(ctx.env, `SELECT COALESCE(provider,'unknown') AS provider, COUNT(*) AS requests, SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) AS successes, SUM(CASE WHEN status!='success' THEN 1 ELSE 0 END) AS failures, ROUND(AVG(latency_ms)) AS avgLatencyMs, SUM(cost_units) AS costUnits FROM eino_request_telemetry WHERE occurred_at >= ? GROUP BY provider ORDER BY requests DESC`, since),
+    queryAll(ctx.env, `SELECT COALESCE(task,capability) AS task, COUNT(*) AS requests, SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) AS successes, ROUND(AVG(latency_ms)) AS avgLatencyMs, SUM(cost_units) AS costUnits FROM eino_request_telemetry WHERE occurred_at >= ? GROUP BY COALESCE(task,capability) ORDER BY requests DESC`, since),
+    queryAll(ctx.env, `SELECT id, occurred_at AS occurredAt, actor_type AS actorType, capability, task, status, provider, model, latency_ms AS latencyMs, cost_units AS costUnits, fallback, error_code AS errorCode FROM eino_request_telemetry WHERE occurred_at >= ? ORDER BY occurred_at DESC LIMIT ?`, since, limit),
+    queryAll(ctx.env, `SELECT bucket_type AS bucketType, SUM(request_count) AS units FROM eino_quota_usage WHERE bucket_started_at >= ? GROUP BY bucket_type ORDER BY bucket_type`, since),
+    queryAll(ctx.env, `SELECT event_type AS eventType, actor_type AS actorType, SUM(event_count) AS count, ROUND(SUM(total_latency_ms)/NULLIF(SUM(event_count),0)) AS avgLatencyMs FROM eino_telemetry WHERE bucket_started_at >= ? GROUP BY event_type, actor_type ORDER BY count DESC`, since),
+  ]);
+  return ok(ctx, {
+    hours, since, privacy: { prompts: false, responses: false, studentIds: false, ipAddresses: false, fileContents: false, requestIdsAreRandom: true, retentionDays: 14 },
+    limits: { window: EINO_WINDOW_LIMIT, windowSeconds: EINO_WINDOW_SECONDS, studentDaily: positiveInt(ctx.env.EINO_STUDENT_DAILY_LIMIT, EINO_STUDENT_DAILY_LIMIT_DEFAULT), guestDaily: positiveInt(ctx.env.EINO_GUEST_DAILY_LIMIT, EINO_GUEST_DAILY_LIMIT_DEFAULT), globalDaily: positiveInt(ctx.env.EINO_GLOBAL_DAILY_LIMIT, EINO_GLOBAL_DAILY_LIMIT_DEFAULT) },
+    summary: summary.map(r => ({status:r.status,count:Number(r.count||0),avgLatencyMs:Number(r.avgLatencyMs||0),costUnits:Number(r.costUnits||0)})),
+    providers: providers.map(r => ({provider:r.provider,requests:Number(r.requests||0),successes:Number(r.successes||0),failures:Number(r.failures||0),avgLatencyMs:Number(r.avgLatencyMs||0),costUnits:Number(r.costUnits||0)})),
+    tasks: tasks.map(r => ({task:r.task,requests:Number(r.requests||0),successes:Number(r.successes||0),avgLatencyMs:Number(r.avgLatencyMs||0),costUnits:Number(r.costUnits||0)})),
+    recent: recent.map(r => ({...r,latencyMs:Number(r.latencyMs||0),costUnits:Number(r.costUnits||0),fallback:Boolean(r.fallback)})),
+    quota: quota.map(r => ({bucketType:r.bucketType,units:Number(r.units||0)})),
+    legacy: legacy.map(r => ({...r,count:Number(r.count||0),avgLatencyMs:Number(r.avgLatencyMs||0)})),
+  });
+}

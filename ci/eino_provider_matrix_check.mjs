@@ -124,6 +124,13 @@ const specialistEnv = { ...env, TAVILY_API_KEY: 'test-tavily', EXA_API_KEY: 'tes
 const searchResult = await routeWebSearch(specialistEnv, { query: 'latest TRINEX', maxResults: 3, preferredProvider: 'tavily' });
 assert.equal(searchResult.provider, 'tavily');
 console.log('PASS web search: tavily primary');
+failProvider = 'tavily';
+resetProviderCircuitState();
+const exaFallbackSearch = await routeWebSearch(specialistEnv, { query: 'latest TRINEX', maxResults: 3, preferredProvider: 'tavily' });
+assert.equal(exaFallbackSearch.provider, 'exa');
+console.log('PASS web search: tavily -> exa fallback');
+failProvider = null;
+resetProviderCircuitState();
 const deepgramResult = await routeStt(specialistEnv, { file: new Uint8Array([1]), filename: 'a.mp3', contentType: 'audio/mpeg', language: 'ar' });
 assert.equal(deepgramResult.provider, 'groq');
 failProvider = 'groq';

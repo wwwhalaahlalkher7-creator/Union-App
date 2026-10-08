@@ -26,10 +26,12 @@ export const MATERIAL_MIN_ACTIVE_SECONDS = 60;
 export const EINO_MAX_MESSAGE = 4000;
 export const EINO_MAX_CONTEXT = 6000;
 export const EINO_WINDOW_SECONDS = 10 * 60;
-export const EINO_WINDOW_LIMIT = 20;
-export const EINO_STUDENT_DAILY_LIMIT_DEFAULT = 100;
-export const EINO_GUEST_DAILY_LIMIT_DEFAULT = 20;
-export const EINO_GLOBAL_DAILY_LIMIT_DEFAULT = 2000;
+export const EINO_WINDOW_LIMIT = 8;
+// Eino quotas are weighted units, not raw request counts. A normal chat costs 1
+// unit; expensive multimodal/search/generation operations consume more.
+export const EINO_STUDENT_DAILY_LIMIT_DEFAULT = 50;
+export const EINO_GUEST_DAILY_LIMIT_DEFAULT = 10;
+export const EINO_GLOBAL_DAILY_LIMIT_DEFAULT = 1000;
 
 // R2 safety budget: deliberately below Cloudflare's free-tier ceiling.
 // The Worker itself is also on the Free plan, so routing media reads through
