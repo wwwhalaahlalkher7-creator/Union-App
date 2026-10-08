@@ -1,3 +1,4 @@
+import 'package:latext/latext.dart';
 import 'package:flutter/material.dart';
 
 class EinoAnimatedEntry extends StatefulWidget {
@@ -51,6 +52,35 @@ class _EinoTypingDotsState extends State<EinoTypingDots> with TickerProviderStat
           }),
         );
       },
+    );
+  }
+}
+
+
+/// Renders Eino's mathematical notation using a real TeX renderer instead of
+/// showing LaTeX source as ordinary text. We normalize the delimiters emitted
+/// by different providers to the delimiters supported consistently by LaTexT.
+class EinoMathText extends StatelessWidget {
+  const EinoMathText(this.text, {super.key, this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  String _normalize(String value) {
+    var result = value
+        .replaceAllMapped(RegExp(r'\\\[([\s\S]*?)\\\]'), (m) => '\$\$${m.group(1)}\$\$')
+        .replaceAllMapped(RegExp(r'\\\(([\s\S]*?)\\\)'), (m) => '\$${m.group(1)}\$');
+    // Some providers emit Unicode minus or non-breaking spaces inside math.
+    result = result.replaceAll('\u2212', '-').replaceAll('\u00a0', ' ');
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = _normalize(text);
+    final effective = style ?? DefaultTextStyle.of(context).style;
+    return LaTexT(
+      laTeXCode: Text(normalized, style: effective.copyWith(height: effective.height ?? 1.55)),
     );
   }
 }

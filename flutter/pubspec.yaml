@@ -25,6 +25,7 @@ dependencies:
   convert: ^3.1.2
   llama_flutter_android: ^0.2.6
   pdfrx: ^2.6.5
+  latext: ^0.5.1
 
 dev_dependencies:
   flutter_test:

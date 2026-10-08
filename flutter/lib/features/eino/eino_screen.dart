@@ -904,7 +904,7 @@ class _EinoScreenState extends State<EinoScreen> {
                               ),
                               const SizedBox(height: 8),
                             ],
-                            SelectableText(
+                            EinoMathText(
                               m.text,
                               style: const TextStyle(height: 1.55),
                             ),
