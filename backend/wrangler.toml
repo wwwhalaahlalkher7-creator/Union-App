@@ -2,6 +2,9 @@ name = "leo-association-api"
 main = "src/index.js"
 compatibility_date = "2026-09-10"
 
+[ai]
+binding = "AI"
+
 [vars]
 APP_VERSION = "2.0.2"
 MINIMUM_APP_VERSION = "2.0.0"
@@ -36,6 +39,10 @@ EINO_GROQ_TEXT_MODEL = "openai/gpt-oss-120b"
 EINO_GROQ_VISION_MODEL = "qwen/qwen3.8-27b"
 EINO_GROQ_STT_MODEL = "whisper-large-v3-turbo"
 EINO_GROQ_TTS_MODEL = "canopylabs/orpheus-arabic-saudi"
+EINO_DEEPGRAM_STT_MODEL = "nova-3"
+EINO_TAVILY_SEARCH_MODEL = "search"
+EINO_EXA_SEARCH_MODEL = "search"
+EINO_CLOUDFLARE_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
 EINO_EMBEDDING_BASE_URL = ""
 EINO_EMBEDDING_MODEL = ""
 # Optional JSON model catalog. Keep empty to use the safe metadata-only fallback.

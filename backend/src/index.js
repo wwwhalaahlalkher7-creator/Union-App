@@ -26,7 +26,7 @@ import { learningEvents, learningEvent, completeLearningEvent, adminLearningEven
 import {
   eino, einoCapabilities, einoModels, einoMemoryList, einoMemoryCreate, einoMemoryDelete,
   einoConversationCreate, einoConversationList, einoConversationMessages, einoConversationMessageAppend, einoConversationDelete,
-  einoVision, einoOcr, einoStt, einoTts,
+  einoVision, einoOcr, einoStt, einoTts, einoFileAnalysis, einoImage,
 } from './eino.js';
 
 export default {
@@ -164,6 +164,8 @@ export default {
       if (path === '/eino/ocr' && request.method === 'POST') return einoOcr(ctx);
       if (path === '/eino/stt' && request.method === 'POST') return einoStt(ctx);
       if (path === '/eino/tts' && request.method === 'POST') return einoTts(ctx);
+      if (path === '/eino/image' && request.method === 'POST') return einoImage(ctx);
+      if (path === '/eino/file-analysis' && request.method === 'POST') return einoFileAnalysis(ctx);
 
       return error('NOT_FOUND', 'المسار غير موجود.', 404, requestId, cors);
     } catch (e) {

@@ -14,3 +14,7 @@ STAFF_BOOTSTRAP_TOKEN=""
 CHROMA_TOKEN=""
 
 # Student password recovery is delivered by the existing Google Apps Script adapter.
+
+TAVILY_API_KEY=""
+EXA_API_KEY=""
+DEEPGRAM_API_KEY=""

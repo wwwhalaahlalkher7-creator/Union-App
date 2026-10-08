@@ -11,7 +11,8 @@ import { auth } from './auth.js';
 
 import { freeAiChat } from './providers/free_ai.js';
 import { EINO_CAPABILITIES, getProvidersForCapability, getRoutesForCapability, getModelRegistry } from './providers/registry.js';
-import { routeText, routeVision, routeOcr, routeStt, routeTts } from './providers/router.js';
+import { routeText, routeVision, routeOcr, routeStt, routeTts, routeWebSearch, routeImageGeneration, routeFileAnalysis, formatSearchContext } from './providers/router.js';
+import { classifyTextTask } from './providers/task_router.js';
 
 async function getEinoConversation(ctx, studentId, id) {
   if (!id) return null;
@@ -156,6 +157,30 @@ export async function eino(ctx) {
     const memories = await retrieveEinoMemories(ctx, a.session.student_id, message);
     if (memories.length) systemParts.push(`ذكريات Eino التي سمح بها الطالب، استخدمها فقط عندما تكون ذات صلة ولا تعتبرها حقائق مطلقة:\n${memories.map((m) => `- [${m.category}] ${m.content}`).join('\n')}`);
   }
+  const task = classifyTextTask({ message, context, requestedTask: body?.task });
+  let searchSources = [];
+  if (task === 'web-search' || task === 'research') {
+    const searchController = new AbortController();
+    const searchTimeout = setTimeout(() => searchController.abort(), 15000);
+    try {
+      const search = await routeWebSearch(ctx.env, {
+        query: message,
+        maxResults: task === 'research' ? 8 : 5,
+        searchDepth: task === 'research' ? 'advanced' : 'basic',
+        preferredProvider: task === 'research' ? 'exa' : 'tavily',
+        signal: searchController.signal,
+      });
+      searchSources = Array.isArray(search?.results) ? search.results : [];
+      if (!searchSources.length) throw Object.assign(new Error('Search returned no sources'), { status: 502 });
+      const sourceContext = formatSearchContext(searchSources);
+      context = [context, `نتائج بحث خارجي حديثة (استخدمها كمصادر، ولا تخترع مصادر):\n${sourceContext}`].filter(Boolean).join('\n\n').slice(0, EINO_MAX_CONTEXT);
+      systemParts.push('هذه الإجابة مبنية على بحث خارجي حديث. لا تدّعِ أن معلومات البحث من ذاكرتك، واذكر المصادر ذات الصلة في نهاية الإجابة بصيغة [1] [2] حسب السياق المرفق.');
+    } finally { clearTimeout(searchTimeout); }
+  }
+  if (task === 'summary') systemParts.push('هذه مهمة تلخيص طويلة. حافظ على المعلومات المهمة، لا تضف معلومات غير موجودة، ونظم النتيجة بعناوين ونقاط عند الحاجة.');
+  if (task === 'academic' || task === 'reasoning') systemParts.push('هذه مهمة أكاديمية. اشرح الخطوات والمنطق بوضوح، ولا تختلق حقائق أو نتائج غير مبررة.');
+  if (task === 'app') systemParts.push('هذه مهمة تخص تطبيق TRINEX. اعتمد على السياق المرفق فقط عندما يتعلق الأمر بسلوك أو ميزة محددة، ولا تدّعي معرفة حالة حساب أو بيانات غير متاحة.');
+
   const messages = [{ role: 'system', content: systemParts.join('\n') }];
   if (context) messages.push({ role: 'user', content: `سياق المحادثة السابق:\n${context}` });
   messages.push({ role: 'user', content: message });
@@ -169,14 +194,14 @@ export async function eino(ctx) {
   try {
     const routes = getRoutesForCapability(ctx.env, EINO_CAPABILITIES.TEXT);
     const filtered = requestedModel ? routes.filter((r) => r.model === requestedModel) : routes;
-    const providerResult = await routeText(ctx.env, { ...(requestedModel ? { model: requestedModel } : {}), messages, temperature:0.4, maxTokens:900, signal:controller.signal });
+    const providerResult = await routeText(ctx.env, { ...(requestedModel ? { model: requestedModel } : {}), task, messages, temperature:0.4, maxTokens: task === 'summary' ? 1800 : 900, signal:controller.signal });
     if (conversation) {
       await ctx.env.DB.prepare("INSERT INTO eino_messages (id, conversation_id, role, content) VALUES (?, ?, 'assistant', ?)").bind(crypto.randomUUID(), conversation.id, providerResult.answer).run();
       await ctx.env.DB.prepare('UPDATE eino_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=?').bind(conversation.id, a.session.student_id).run();
     }
     if (a?.session?.student_id) await maybeRememberExplicitRequest(ctx, a.session.student_id, message);
     const latencyMs=Date.now()-startedAt; await recordEinoTelemetry(ctx,'success',actorType,latencyMs);
-    return ok(ctx,{message:providerResult.answer,conversationId:conversation?.id || null,provider:providerResult.provider,capability:'text',model:providerResult.model,routing:{capability:'text',candidates:routes.map(r=>`${r.provider}:${r.model}`),selected:`${providerResult.provider}:${providerResult.route.model}`,fallback:providerResult.route.priority!==routes[0]?.priority},usage:providerResult.usage||null,reliability:providerResult.reliability||null});
+    return ok(ctx,{message:providerResult.answer,conversationId:conversation?.id || null,provider:providerResult.provider,capability:'text',model:providerResult.model,routing:{capability:'text',task,candidates:routes.map(r=>`${r.provider}:${r.model}`),selected:`${providerResult.provider}:${providerResult.route.model}`,fallback:providerResult.route.priority!==routes[0]?.priority},sources:searchSources.map((item,index)=>({index:index+1,title:item?.title||item?.name||`مصدر ${index+1}`,url:item?.url||item?.link||null})),usage:providerResult.usage||null,reliability:providerResult.reliability||null});
   } catch(e) {
     await recordEinoTelemetry(ctx,e?.name==='AbortError'?'timeout':'provider_error',actorType,Date.now()-startedAt);
     if(e?.name==='AbortError') return error('EINO_TIMEOUT','استغرق Eino وقتًا أطول من المتوقع. أعد المحاولة.',504,ctx.requestId,ctx.cors);
@@ -555,6 +580,35 @@ export async function einoTts(ctx) {
     await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
     return ok(ctx, { audioUrl, audioBase64, contentType, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || null, reliability: result.reliability || null });
   } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+}
+
+export async function einoFileAnalysis(ctx) {
+  const actor = await einoMediaActor(ctx, 'file-analysis'); if (actor.response) return actor.response;
+  if (!mediaLimit(ctx.request, 20 * 1024 * 1024)) return error('EINO_FILE_TOO_LARGE', 'حجم الملف يتجاوز الحد المسموح.', 413, ctx.requestId, ctx.cors);
+  const form = await ctx.request.formData().catch(() => null); const file = form?.get('file');
+  if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق ملف.', 400, ctx.requestId, ctx.cors);
+  if (file.size > 20 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الملف يتجاوز 20MB.', 413, ctx.requestId, ctx.cors);
+  const prompt = String(form.get('prompt') || 'حلل الملف وقدم خلاصة دقيقة ومفيدة.').trim().slice(0, 4000);
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 90000); const started = Date.now();
+  try {
+    const result = await routeFileAnalysis(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, prompt, signal: controller.signal });
+    const text = String(result?.answer || result?.text || '').trim();
+    await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
+    return ok(ctx, { text, provider: result.provider, model: result.model || result.route?.model || null, reliability: result.reliability || null });
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+}
+
+export async function einoImage(ctx) {
+  const actor = await einoMediaActor(ctx, 'image-generation'); if (actor.response) return actor.response;
+  const body = await parseJson(ctx.request);
+  const prompt = String(body?.prompt || '').trim();
+  if (!prompt || prompt.length > 2048) return error('EINO_INPUT_INVALID', 'وصف الصورة غير صالح أو طويل جدًا.', 400, ctx.requestId, ctx.cors);
+  const started = Date.now();
+  try {
+    const result = await routeImageGeneration(ctx.env, { prompt, steps: body?.steps, seed: body?.seed });
+    await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
+    return ok(ctx, { imageBase64: result.imageBase64, contentType: result.contentType, provider: result.provider, model: result.model, reliability: result.reliability || null });
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); }
 }
 
 export async function einoMediaError(ctx, actorType, e, started) {

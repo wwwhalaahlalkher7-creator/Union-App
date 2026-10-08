@@ -3,7 +3,11 @@ import { freeAiChat } from './free_ai.js';
 import { freeAiVision, freeAiOcr, freeAiStt, freeAiTts } from './free_ai_media.js';
 import { mistralChat, mistralVision, mistralOcr, mistralStt, mistralTts } from './mistral.js';
 import { groqChat, groqVision, groqStt, groqTts } from './groq.js';
-import { geminiChat, geminiVision, geminiStt, geminiTts } from './gemini.js';
+import { geminiChat, geminiVision, geminiStt, geminiTts, geminiFileAnalysis } from './gemini.js';
+import { tavilySearch, exaSearch, formatSearchContext } from './search.js';
+import { deepgramStt } from './deepgram.js';
+import { cloudflareImage } from './cloudflare_ai.js';
+import { textRouteOrder } from './task_router.js';
 
 const CIRCUIT_FAILURE_THRESHOLD = 3;
 const CIRCUIT_COOLDOWN_MS = 30_000;
@@ -116,12 +120,35 @@ async function routeCapability(env, capability, requestedModel, operationFactory
 }
 
 export async function routeText(env, args) {
-  return routeCapability(env, EINO_CAPABILITIES.TEXT, String(args?.model || '').trim(), (route) => async () => {
-    if (route.provider === 'mistral') return mistralChat({ baseUrl: `${String(env.EINO_MISTRAL_BASE_URL || 'https://api.mistral.ai').replace(/\/+$/, '')}/v1`, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
-    if (route.provider === 'groq') return groqChat({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
-    if (route.provider === 'gemini') return geminiChat({ baseUrl: env.EINO_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta', apiKey: env.GEMINI_API_KEY, model: route.model, ...args });
-    return freeAiChat({ ...argsForFree(env, route.model), ...args });
-  }, 'text');
+  const requestedModel = String(args?.model || '').trim();
+  const task = String(args?.task || 'chat').trim();
+  const order = textRouteOrder(task);
+  const routes = getRoutesForCapability(env, EINO_CAPABILITIES.TEXT)
+    .filter((route) => requestedModel ? route.model === requestedModel : order.includes(route.provider))
+    .sort((a, b) => requestedModel ? a.priority - b.priority : (order.indexOf(a.provider) - order.indexOf(b.provider)) || (a.priority - b.priority));
+  if (!routes.length) {
+    const e = new Error(requestedModel ? `Requested text model is not configured: ${requestedModel}` : 'No text provider configured');
+    e.status = requestedModel ? 400 : 503;
+    throw e;
+  }
+  let last;
+  for (const route of routes) {
+    try {
+      const result = await runRoute(route, async () => {
+        if (route.provider === 'mistral') return mistralChat({ baseUrl: `${String(env.EINO_MISTRAL_BASE_URL || 'https://api.mistral.ai').replace(/\/+$/, '')}/v1`, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
+        if (route.provider === 'groq') return groqChat({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
+        if (route.provider === 'gemini') return geminiChat({ baseUrl: env.EINO_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta', apiKey: env.GEMINI_API_KEY, model: route.model, ...args });
+        return freeAiChat({ ...argsForFree(env, route.model), ...args });
+      });
+      result.reliability = { ...result.reliability, task, taskOrder: order, fallback: route !== routes[0] };
+      return result;
+    } catch (error) {
+      last = error;
+      if (error?.code === 'CIRCUIT_OPEN' || retryable(error)) continue;
+      break;
+    }
+  }
+  throw last || Object.assign(new Error('All text providers failed'), { status: 503 });
 }
 
 export async function routeVision(env, args) {
@@ -145,6 +172,7 @@ export async function routeOcr(env, args) {
 export async function routeStt(env, args) {
   return routeCapability(env, EINO_CAPABILITIES.STT, String(args?.model || '').trim(), (route) => async () => {
     if (route.provider === 'groq') return groqStt({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
+    if (route.provider === 'deepgram') return deepgramStt({ apiKey: env.DEEPGRAM_API_KEY, model: route.model, ...args });
     if (route.provider === 'mistral') return mistralStt({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
     if (route.provider === 'gemini') return geminiStt({ baseUrl: env.EINO_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta', apiKey: env.GEMINI_API_KEY, model: route.model, ...args });
     const result = await freeAiStt({ ...argsForFree(env, route.model), ...args });
@@ -174,3 +202,60 @@ export async function routeTts(env, args) {
     return { audioUrl: result?.audio_url || result?.url || null, audioBase64: result?.audioBase64 || result?.audio_base64 || null, contentType: result?.contentType || result?.content_type || 'audio/mpeg', raw: result };
   }, 'tts', routeFilter);
 }
+
+
+export async function routeWebSearch(env, args) {
+  const preferred = String(args?.preferredProvider || '').trim();
+  const routes = getRoutesForCapability(env, 'web-search').sort((a, b) => {
+    if (preferred) return (a.provider === preferred ? -1 : 1) - (b.provider === preferred ? -1 : 1) || a.priority - b.priority;
+    return a.priority - b.priority;
+  });
+  if (!routes.length) throw Object.assign(new Error('No web search provider configured'), { status: 503 });
+  let last;
+  for (const route of routes) {
+    try {
+      return await runRoute(route, async () => {
+        if (route.provider === 'tavily') return tavilySearch({ apiKey: env.TAVILY_API_KEY, query: args.query, maxResults: args.maxResults, searchDepth: args.searchDepth, signal: args.signal });
+        if (route.provider === 'exa') return exaSearch({ apiKey: env.EXA_API_KEY, query: args.query, maxResults: args.maxResults, signal: args.signal });
+        throw Object.assign(new Error(`Unsupported search provider ${route.provider}`), { status: 503 });
+      });
+    } catch (error) {
+      last = error;
+      if (error?.code === 'CIRCUIT_OPEN' || retryable(error)) continue;
+      break;
+    }
+  }
+  throw last || Object.assign(new Error('All web search providers failed'), { status: 503 });
+}
+
+
+export async function routeFileAnalysis(env, args) {
+  const routes = getRoutesForCapability(env, 'file-analysis');
+  if (!routes.length) throw Object.assign(new Error('No file analysis provider configured'), { status: 503 });
+  let last;
+  for (const route of routes) {
+    try {
+      const result = await runRoute(route, async () => {
+        if (route.provider === 'gemini') return geminiFileAnalysis({ baseUrl: env.EINO_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta', apiKey: env.GEMINI_API_KEY, model: route.model, ...args });
+        if (route.provider === 'mistral') {
+          const extracted = await mistralOcr({ baseUrl: env.EINO_MISTRAL_BASE_URL, apiKey: env.MISTRAL_API_KEY, model: env.EINO_MISTRAL_OCR_MODEL || 'mistral-ocr-latest', ...args });
+          const text = String(extracted?.text || extracted?.content || extracted?.markdown || '').trim();
+          if (!text) throw Object.assign(new Error('Mistral OCR returned no text'), { status: 502 });
+          return mistralChat({ baseUrl: `${String(env.EINO_MISTRAL_BASE_URL || 'https://api.mistral.ai').replace(/\/+$/, '')}/v1`, apiKey: env.MISTRAL_API_KEY, model: route.model, messages: [{ role: 'system', content: 'حلل محتوى الملف المستخرج بدقة ولا تضف معلومات غير موجودة.' }, { role: 'user', content: `${args.prompt || 'حلل الملف'}\n\nمحتوى الملف:\n${text.slice(0, 18000)}` }], maxTokens: 1800, signal: args.signal });
+        }
+        throw Object.assign(new Error(`Unsupported file analysis provider ${route.provider}`), { status: 503 });
+      });
+      return result;
+    } catch (error) { last = error; if (error?.code === 'CIRCUIT_OPEN' || retryable(error)) continue; break; }
+  }
+  throw last || Object.assign(new Error('All file analysis providers failed'), { status: 503 });
+}
+
+export async function routeImageGeneration(env, args) {
+  return routeCapability(env, 'image-generation', '', (route) => async () => {
+    if (route.provider === 'cloudflare-ai') return cloudflareImage({ ai: env.AI, model: route.model, ...args });
+    throw Object.assign(new Error(`Unsupported image provider ${route.provider}`), { status: 503 });
+  }, 'image-generation');
+}
+
+export { formatSearchContext };

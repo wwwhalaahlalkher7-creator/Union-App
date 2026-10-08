@@ -94,7 +94,7 @@ export async function geminiVision({ baseUrl, apiKey, model = GEMINI_DEFAULTS.vi
 }
 
 
-async function uploadFile({ baseUrl, apiKey, file, filename, contentType, signal }) {
+export async function uploadFile({ baseUrl, apiKey, file, filename, contentType, signal }) {
   const base = String(baseUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
   const bytes = file instanceof ArrayBuffer ? new Uint8Array(file) : new Uint8Array(file || []);
   const mimeType = contentType || 'application/octet-stream';
@@ -130,6 +130,22 @@ async function uploadFile({ baseUrl, apiKey, file, filename, contentType, signal
   const fileInfo = data?.file || data;
   if (!fileInfo?.uri) throw providerError(200, 'Gemini Files API returned no file URI');
   return { uri: fileInfo.uri, mimeType: fileInfo.mimeType || mimeType };
+}
+
+export async function geminiFileAnalysis({ baseUrl, apiKey, model = GEMINI_DEFAULTS.vision, file, filename, contentType, prompt, signal }) {
+  if (!apiKey) throw new Error('GEMINI_API_KEY is empty');
+  const uploaded = await uploadFile({ baseUrl, apiKey, file, filename, contentType, signal });
+  const body = {
+    contents: [{ role: 'user', parts: [
+      { text: String(prompt || 'حلل الملف وقدم خلاصة دقيقة ومفيدة.') },
+      { fileData: { mimeType: uploaded.mimeType, fileUri: uploaded.uri } },
+    ] }],
+    generationConfig: { temperature: 0.2, maxOutputTokens: 1800 },
+  };
+  const { data } = await generate({ baseUrl, apiKey, model, body, signal });
+  const answer = extractText(data);
+  if (!answer) throw providerError(200, 'empty file analysis');
+  return { answer, model: data?.modelVersion || model, usage: data?.usageMetadata || null, raw: data };
 }
 
 export async function geminiStt({ baseUrl, apiKey, model = GEMINI_DEFAULTS.stt, file, filename, contentType, language, signal }) {

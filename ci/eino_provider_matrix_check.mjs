@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { routeText, routeVision, routeOcr, routeStt, routeTts, resetProviderCircuitState } from '../backend/src/providers/router.js';
+import { routeText, routeVision, routeOcr, routeStt, routeTts, routeWebSearch, routeImageGeneration, routeFileAnalysis, resetProviderCircuitState } from '../backend/src/providers/router.js';
 
 const env = {
   MISTRAL_API_KEY: 'test-mistral',
@@ -28,8 +28,11 @@ function json(body, status = 200, headers = {}) {
 globalThis.fetch = async (url, options = {}) => {
   const target = String(url);
   calls.push({ url: target, method: options.method || 'GET' });
-  const provider = target.includes('mistral.test') ? 'mistral' : target.includes('groq.test') ? 'groq' : target.includes('gemini.test') ? 'gemini' : 'free.ai';
+  const provider = target.includes('mistral.test') ? 'mistral' : target.includes('groq.test') ? 'groq' : target.includes('gemini.test') ? 'gemini' : target.includes('api.tavily.com') ? 'tavily' : target.includes('api.exa.ai') ? 'exa' : target.includes('api.deepgram.com') ? 'deepgram' : 'free.ai';
   if (provider === failProvider || failProviders.has(provider)) return json({ error: 'forced test failure' }, failStatus);
+  if (provider === 'tavily') return json({ results: [{ title: 'TRINEX', url: 'https://example.test/trinex', content: 'fresh result' }] });
+  if (provider === 'exa') return json({ results: [{ title: 'Academic', url: 'https://example.test/paper', highlights: ['fresh academic result'] }] });
+  if (provider === 'deepgram') return json({ results: { channels: [{ alternatives: [{ transcript: 'deepgram-ok' }] }] }, metadata: { model_info: { 'nova-3': {} } } });
   if (provider === 'gemini' && target.includes('/upload/v1beta/files')) {
     return new Response(null, { status: 200, headers: { 'x-goog-upload-url': 'https://gemini.test/upload-session' } });
   }
@@ -68,9 +71,10 @@ async function fallback(name, fn, failed, expected) {
   console.log(`PASS ${name}: ${failed} -> ${expected}`);
 }
 
-await primary('text', () => routeText(env, { messages: [{ role: 'user', content: 'hi' }] }), 'mistral');
-await fallback('text', () => routeText(env, { messages: [{ role: 'user', content: 'hi' }] }), 'mistral', 'groq');
-await fallback('text 429', () => routeText(env, { messages: [{ role: 'user', content: 'rate-limit' }] }), 'mistral', 'groq');
+await primary('chat text', () => routeText(env, { task: 'chat', messages: [{ role: 'user', content: 'hi' }] }), 'groq');
+await primary('academic text', () => routeText(env, { task: 'academic', messages: [{ role: 'user', content: 'اشرح polymorphism' }] }), 'mistral');
+await fallback('academic text', () => routeText(env, { task: 'academic', messages: [{ role: 'user', content: 'اشرح polymorphism' }] }), 'mistral', 'gemini');
+await fallback('chat text 429', () => routeText(env, { task: 'chat', messages: [{ role: 'user', content: 'rate-limit' }] }), 'groq', 'mistral');
 await fallback('vision', () => routeVision(env, { imageDataUrl: 'data:image/png;base64,AA==', prompt: 'analyze' }), 'mistral', 'groq');
 await fallback('ocr', () => routeOcr(env, { file: new Uint8Array([1]), filename: 'a.png', contentType: 'image/png' }), 'mistral', 'free.ai');
 await fallback('stt', () => routeStt(env, { file: new Uint8Array([1]), filename: 'a.mp3', contentType: 'audio/mpeg', language: 'ar' }), 'groq', 'mistral');
@@ -110,9 +114,29 @@ resetProviderCircuitState();
 failProviders = new Set();
 failProvider = 'mistral';
 failStatus = 400;
-await assert.rejects(() => routeText(env, { messages: [{ role: 'user', content: 'bad' }] }), /mistral request failed/);
+await assert.rejects(() => routeText(env, { task: 'academic', messages: [{ role: 'user', content: 'bad' }] }), /mistral request failed/);
 assert.equal(calls.length, 1, 'non-retryable 400 must not cascade');
 console.log('PASS non-retryable 400: fallback stopped');
+
+failProvider = null;
+failStatus = 503;
+const specialistEnv = { ...env, TAVILY_API_KEY: 'test-tavily', EXA_API_KEY: 'test-exa', DEEPGRAM_API_KEY: 'test-deepgram', AI: { run: async () => ({ image: 'AQID' }) } };
+const searchResult = await routeWebSearch(specialistEnv, { query: 'latest TRINEX', maxResults: 3, preferredProvider: 'tavily' });
+assert.equal(searchResult.provider, 'tavily');
+console.log('PASS web search: tavily primary');
+const deepgramResult = await routeStt(specialistEnv, { file: new Uint8Array([1]), filename: 'a.mp3', contentType: 'audio/mpeg', language: 'ar' });
+assert.equal(deepgramResult.provider, 'groq');
+failProvider = 'groq';
+const deepgramFallback = await routeStt(specialistEnv, { file: new Uint8Array([1]), filename: 'a.mp3', contentType: 'audio/mpeg', language: 'ar' });
+assert.equal(deepgramFallback.provider, 'deepgram');
+console.log('PASS stt: groq -> deepgram specialist');
+failProvider = null; failProviders = new Set(); resetProviderCircuitState();
+const imageResult = await routeImageGeneration(specialistEnv, { prompt: 'a simple academic illustration' });
+assert.equal(imageResult.provider, 'cloudflare-ai');
+console.log('PASS image generation: cloudflare-ai');
+const fileResult = await routeFileAnalysis(specialistEnv, { file: new Uint8Array([1]), filename: 'note.txt', contentType: 'text/plain', prompt: 'summarize' });
+assert.equal(fileResult.provider, 'gemini');
+console.log('PASS file analysis: gemini primary');
 
 calls = [];
 failProvider = null;
