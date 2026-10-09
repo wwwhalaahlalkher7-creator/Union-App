@@ -67,7 +67,7 @@ class EinoMathText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = style ?? DefaultTextStyle.of(context).style;
-    final lines = text.replaceAll('\r\n', '\n').split('\n');
+    final lines = _prepareMathLines(text.replaceAll('\r\n', '\n'));
     final widgets = <Widget>[];
     var inCode = false;
     final code = <String>[];
@@ -84,7 +84,7 @@ class EinoMathText extends StatelessWidget {
       if (inCode) { code.add(line); continue; }
       final trimmed = line.trim();
       if (trimmed.isEmpty) { widgets.add(const SizedBox(height: 5)); continue; }
-      final displayMath = RegExp(r'^\$\$(.*)\$\$$').firstMatch(trimmed) ?? RegExp(r'^\\\[(.*)\\\]$').firstMatch(trimmed);
+      final displayMath = RegExp(r'^\$\$([\s\S]*?)\$\$$').firstMatch(trimmed) ?? RegExp(r'^\\\[([\s\S]*?)\\\]$').firstMatch(trimmed) ?? (RegExp(r'\\(?:sqrt|frac|sum|int|times|cdot|Longleftrightarrow)|\^[{]').hasMatch(trimmed) ? RegExp(r'^(.*)$').firstMatch(trimmed) : null);
       if (displayMath != null) {
         widgets.add(Container(width: double.infinity, alignment: Alignment.center, padding: const EdgeInsets.symmetric(vertical: 7), child: LaTexT(laTeXCode: Text('\$\$${displayMath.group(1)}\$\$', style: base))));
         continue;
@@ -111,6 +111,31 @@ class EinoMathText extends StatelessWidget {
     }
     if (code.isNotEmpty) widgets.add(SelectableText(code.join('\n'), style: base.copyWith(fontFamily: 'monospace')));
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: widgets);
+  }
+
+  List<String> _prepareMathLines(String input) {
+    final source = input.split('\n');
+    final out = <String>[];
+    final buffer = <String>[];
+    String? closing;
+    for (final line in source) {
+      final t = line.trim();
+      if (closing != null) {
+        if (t.contains(closing)) {
+          buffer.add(t.substring(0, t.indexOf(closing)));
+          out.add(r'\[' + buffer.join(' ') + r'\]');
+          final tail = t.substring(t.indexOf(closing) + closing!.length).trim();
+          if (tail.isNotEmpty) out.add(tail);
+          buffer.clear(); closing = null;
+        } else { buffer.add(t); }
+        continue;
+      }
+      if (t == r'\[' || t == r'\(') { closing = t == r'\[' ? r'\]' : r'\)'; buffer.clear(); continue; }
+      if (t == r'\]' || t == r'\)' || t == ']\\' || t == ')\\' || t == '[\\' || t == '(\\') continue;
+      out.add(line);
+    }
+    if (buffer.isNotEmpty) out.add(buffer.join(' '));
+    return out;
   }
 
   Widget _inline(String input, TextStyle base, {String prefix = ''}) {
