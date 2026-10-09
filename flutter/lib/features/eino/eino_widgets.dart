@@ -124,7 +124,7 @@ class EinoMathText extends StatelessWidget {
         if (t.contains(closing)) {
           buffer.add(t.substring(0, t.indexOf(closing)));
           out.add(r'\[' + buffer.join(' ') + r'\]');
-          final tail = t.substring(t.indexOf(closing) + closing!.length).trim();
+          final tail = t.substring(t.indexOf(closing) + closing.length).trim();
           if (tail.isNotEmpty) out.add(tail);
           buffer.clear(); closing = null;
         } else { buffer.add(t); }
@@ -146,7 +146,7 @@ class EinoMathText extends StatelessWidget {
     for (final match in math.allMatches(input)) {
       if (match.start > cursor) parts.add(RichText(text: _markdownSpans(input.substring(cursor, match.start), base))); 
       final formula = match.group(1) ?? match.group(2) ?? '';
-      parts.add(LaTexT(laTeXCode: Text('\$${formula}\$', style: base)));
+      parts.add(LaTexT(laTeXCode: Text('\$$formula\$', style: base)));
       cursor = match.end;
     }
     if (cursor < input.length) parts.add(RichText(text: _markdownSpans(input.substring(cursor), base))); 
