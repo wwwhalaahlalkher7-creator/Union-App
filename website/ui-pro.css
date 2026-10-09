@@ -108,6 +108,10 @@ header#header.scrolled {
 }
 .logo p { color: var(--primary-glow) !important; font-size: .7rem !important; opacity: .9; }
 .menu-toggle {
+  appearance: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
   display: flex !important;
   width: 44px;
   height: 44px;

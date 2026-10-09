@@ -199,6 +199,11 @@
         return { icon: entry.icon, text: entry.label };
     }
 
+    function safeAchievementImageUrl(value) {
+        try { const url = new URL(String(value || "")); return url.protocol === "https:" ? url.href : ""; }
+        catch (_) { return ""; }
+    }
+
     function buildGallery(images) {
         const wrap = document.createElement("div");
         const isSingle = images.length === 1;
@@ -210,7 +215,8 @@
             item.className = "gallery-item";
 
             const img = document.createElement("img");
-            img.src = images[i];
+            img.src = safeAchievementImageUrl(images[i]);
+            if (!img.src) return;
             img.alt = "صورة من الإنجاز";
             img.loading = "lazy";
             item.appendChild(img);
@@ -234,7 +240,7 @@
     }
 
     function updateLightboxImage() {
-        document.getElementById("lightboxImg").src = lbImages[lbIndex];
+        document.getElementById("lightboxImg").src = safeAchievementImageUrl(lbImages[lbIndex]);
         document.getElementById("lightboxCounter").textContent = (lbIndex + 1) + " / " + lbImages.length;
         const showNav = lbImages.length > 1;
         document.getElementById("lightboxPrev").style.display = showNav ? "flex" : "none";
@@ -287,7 +293,7 @@
         
 
         // استخراج جميع روابط الصور المرفقة (يدعم أكثر من صورة للإنجاز الواحد)
-        const images = (Array.isArray(fields.images) ? fields.images : [fields.imageUrl]).filter(Boolean);
+        const images = (Array.isArray(fields.images) ? fields.images : [fields.imageUrl]).map(safeAchievementImageUrl).filter(Boolean);
 
         // تنسيق تاريخ العرض: تاريخ النشر المجدول وإلا تاريخ إنشاء السجل
         const dateSource = fields.achievedAt || record.createdAt;

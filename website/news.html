@@ -261,10 +261,9 @@
                 const catDetails = parseCategory(item.category);
 
                 // تجهيز عنصر الصورة إن وُجدت
-                const imageSection = item.image 
-                    ? `<div class="news-image-wrap">
-                           <img src="${item.image}" alt="صورة الخبر" loading="lazy" decoding="async">
-                       </div>` 
+                const imageUrl = safeNewsImageUrl(item.image);
+                const imageSection = imageUrl
+                    ? '<div class="news-image-wrap"><img alt="صورة الخبر" loading="lazy" decoding="async"></div>'
                     : '';
 
                 card.innerHTML = `
@@ -276,7 +275,6 @@
                     </span>
                     <span class="news-date">
                         <i class="far fa-calendar"></i>
-                        ${dateString}
                     </span>
                 </div>
                 <div class="news-body">
@@ -285,7 +283,7 @@
                     <div class="news-footer">
                         <span>
                             <i class="far fa-user"></i>
-                            الناشر: ${item.publisher || "أمانة الإعلام"}
+                            الناشر:
                         </span>
                         <span class="verified-badge">
                             موثق
@@ -296,8 +294,13 @@
                 `;
 
                 // حماية المحتوى النصي من ثغرات الحقن (XSS)
-                card.querySelector("h2").textContent = item.title;
-                card.querySelector("p").textContent = item.content;
+                card.querySelector("h2").textContent = item.title || "";
+                card.querySelector("p").textContent = item.content || "";
+                const dateNode = card.querySelector(".news-date");
+                if (dateNode) dateNode.appendChild(document.createTextNode(" " + dateString));
+                const publisherNode = card.querySelector(".news-footer span");
+                if (publisherNode) publisherNode.appendChild(document.createTextNode(" " + (item.publisher || "أمانة الإعلام")));
+                if (imageUrl) card.querySelector(".news-image-wrap img").src = imageUrl;
                 container.appendChild(card);
 
                 // ✅ Phase 4 — فتح تفاصيل الخبر عند الضغط على البطاقة (باستثناء زر القلب)
@@ -437,6 +440,13 @@
     // ----------------------------------------------------
     // ✅ Phase 4 — تفاصيل الخبر ضمن صفحة واحدة (Modal) مع رابط قابل للمشاركة عبر ?id=
     // ----------------------------------------------------
+    function safeNewsImageUrl(value) {
+        try {
+            const url = new URL(String(value || ""));
+            return url.protocol === "https:" ? url.href : "";
+        } catch (_) { return ""; }
+    }
+
     function findNewsById(id) {
         return allNewsData.find(n => n.id === id) || null;
     }
@@ -461,8 +471,9 @@
             const dateString = isNaN(parsedDate) ? item.date : parsedDate.toLocaleDateString("ar-EG", {
                 year: "numeric", month: "long", day: "numeric"
             });
-            const imageSection = item.image
-                ? `<div class="news-modal-image-wrap"><img src="${item.image}" alt="صورة الخبر" loading="lazy" decoding="async"></div>`
+            const imageUrl = safeNewsImageUrl(item.image);
+            const imageSection = imageUrl
+                ? '<div class="news-modal-image-wrap"><img alt="صورة الخبر" loading="lazy" decoding="async"></div>'
                 : "";
 
             modalBody.innerHTML = `
@@ -471,12 +482,12 @@
                 <div class="news-modal-body">
                     <div class="news-meta">
                         <span class="news-tag ${catDetails.badgeClass}"><i class="fas ${catDetails.icon}"></i> ${catDetails.label}</span>
-                        <span class="news-date"><i class="far fa-calendar"></i> ${dateString}</span>
+                        <span class="news-date"><i class="far fa-calendar"></i></span>
                     </div>
                     <h2 id="newsModalTitle"></h2>
                     <p id="newsModalText"></p>
                     <div class="news-footer">
-                        <span><i class="far fa-user"></i> الناشر: ${item.publisher || "أمانة الإعلام"}</span>
+                        <span><i class="far fa-user"></i> الناشر: </span>
                         <button type="button" class="news-modal-share" id="newsModalShareBtn">
                             <i class="fas fa-share-nodes"></i> مشاركة
                         </button>
@@ -484,8 +495,13 @@
                 </div>`;
 
             // حماية النصوص من الحقن عبر textContent
-            modalBody.querySelector("#newsModalTitle").textContent = item.title;
-            modalBody.querySelector("#newsModalText").textContent = item.content;
+            modalBody.querySelector("#newsModalTitle").textContent = item.title || "";
+            modalBody.querySelector("#newsModalText").textContent = item.content || "";
+            const modalDate = modalBody.querySelector(".news-date");
+            if (modalDate) modalDate.appendChild(document.createTextNode(" " + dateString));
+            const modalPublisher = modalBody.querySelector(".news-footer span");
+            if (modalPublisher) modalPublisher.appendChild(document.createTextNode(item.publisher || "أمانة الإعلام"));
+            if (imageUrl) modalBody.querySelector(".news-modal-image-wrap img").src = imageUrl;
 
             modalBody.querySelector("#newsModalShareBtn").addEventListener("click", () => shareNewsLink(item.id));
         }

@@ -52,6 +52,12 @@ export default {
       const path = url.pathname.slice(base.length) || '/';
       const ctx = { request, env, url, path, requestId, cors };
 
+      // Reject unsupported verbs on administrative endpoints explicitly. OPTIONS is
+      // handled above; admin handlers only support the methods declared by the API.
+      if (path.startsWith('/admin/') && !['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+        return error('METHOD_NOT_ALLOWED', 'طريقة الطلب غير مدعومة لهذا المسار.', 405, requestId, cors);
+      }
+
       if (request.method === 'GET' && path === '/health') return health(ctx);
       if (request.method === 'GET' && path === '/version') return publicVersion(ctx);
       if (request.method === 'GET' && path === '/app/update') return appUpdate(ctx);

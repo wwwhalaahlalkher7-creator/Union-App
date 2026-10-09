@@ -50,10 +50,21 @@
     if (el) el.textContent = value;
   }
 
-  function setHref(id, value) {
-    if (!value) return;
+  function safeLink(value, protocols = ["https:"]) {
+    try {
+      const parsed = new URL(String(value || "").trim());
+      if (!protocols.includes(parsed.protocol)) return "";
+      return parsed.href;
+    } catch (_) { return ""; }
+  }
+
+  function setHref(id, value, protocols = ["https:"]) {
+    const href = safeLink(value, protocols);
+    if (!href) return;
     const el = document.getElementById(id);
-    if (el) el.setAttribute("href", value);
+    if (!el) return;
+    el.setAttribute("href", href);
+    if (el.target === "_blank") el.setAttribute("rel", "noopener noreferrer");
   }
 
   /** ✅ جديد — يطبّق لون الهوية (SiteThemeColor) على --primary و--primary-glow في كل صفحات الموقع العام */
@@ -93,10 +104,10 @@
       setText("heroTitle", s.HeroTitle);
       setText("heroSubtitle", s.HeroSubtitle);
 
-      if (s.ContactEmail) setHref("contactEmailLink", "mailto:" + s.ContactEmail);
+      if (s.ContactEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s.ContactEmail))) setHref("contactEmailLink", "mailto:" + s.ContactEmail, ["mailto:"]);
       if (s.ContactPhone) {
         const digits = s.ContactPhone.toString().replace(/[^0-9]/g, "");
-        if (digits) setHref("contactWhatsappLink", "https://wa.me/" + digits);
+        if (digits) setHref("contactWhatsappLink", "https://wa.me/" + digits, ["https:"]);
       }
       setHref("contactFacebookLink", s.Facebook);
       setHref("contactTwitterLink", s.Twitter);

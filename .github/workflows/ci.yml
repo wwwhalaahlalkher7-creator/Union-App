@@ -265,6 +265,7 @@ jobs:
           python3 ci/backend_api_contract_check.py
           python3 ci/admin_crud_check.py
           python3 ci/auth_hardening_check.py
+          node ci/api_authorization_check.mjs
           python3 ci/eino_provider_check.py
           python3 ci/eino_dashboard_check.py
           python3 ci/eino_observability_check.py
@@ -352,6 +353,8 @@ jobs:
       - name: Web security checks
         run: |
           python3 ci/web_security_check.py
+          python3 ci/website_audit_regression_check.py
+          python3 ci/interactive_controls_audit.py
           python3 ci/xss_dom_check.py
           python3 ci/admin_ui_payload_check.py
 

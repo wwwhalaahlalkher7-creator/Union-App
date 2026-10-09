@@ -94,9 +94,13 @@ export async function adminRoute(ctx) {
 
 export function adminPermission(path, method) {
   if (path.includes('/dashboard/')) return 'dashboard.read';
+  if (path.includes('/security/auth-events') || path.includes('/security/eino-monitor')) return 'superadmin.read';
+  if (path.includes('/security/eino-usage')) return 'dashboard.read';
   if (path.includes('/staff')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
   if (path.includes('/settings')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
   if (path.includes('/audit-logs')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
+  if (path.includes('/drive')) return method === 'GET' ? 'academic.read' : 'academic.write';
+  if (path.includes('/learning-events')) return method === 'GET' ? 'notifications.read' : 'notifications.write';
   if (path.includes('/notifications') || path.includes('/announcements')) return method === 'GET' ? 'notifications.read' : 'notifications.write';
   if (path.includes('/students') || path.includes('/subjects') || path.includes('/materials') || path.includes('/schedule')) return method === 'GET' ? 'academic.read' : 'academic.write';
   if (path.includes('/comments') || path.includes('/moderation')) return method === 'GET' ? 'moderation.read' : 'moderation.write';

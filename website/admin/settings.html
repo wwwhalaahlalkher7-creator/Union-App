@@ -271,7 +271,7 @@ body[data-page="settings"] #pageContent > * {
       reader.onload = () => {
         preview.src = reader.result;
         preview.style.display = "block";
-        hint.innerHTML = `<i class="fa-solid fa-image"></i> ${file.name}`;
+        hint.replaceChildren(Object.assign(document.createElement("i"), { className: "fa-solid fa-image" }), document.createTextNode(" " + file.name));
       };
       reader.readAsDataURL(file);
     });

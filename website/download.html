@@ -22,7 +22,7 @@
     <h2 id="siteLogoName">رابطة كلية الهندسة والعمارة</h2>
     <p>جامعة شندي</p>
   </div>
-  <div class="menu-toggle" id="menuToggle" aria-label="قائمة التنقل" aria-expanded="false"><i class="fas fa-bars"></i></div>
+  <button class="menu-toggle" id="menuToggle" type="button" aria-label="فتح قائمة التنقل" aria-controls="navMenu" aria-expanded="false"><i class="fas fa-bars" aria-hidden="true"></i></button>
   <nav id="navMenu">
     <ul>
       <li><a href="index.html">الرئيسية</a></li>
@@ -185,6 +185,39 @@
   setDownloadButton(downloadButton, '');
   setDownloadButton(downloadZipButton, '');
   loadLatestRelease();
+
+  // The download page has no page-specific navigation handler, so wire the
+  // responsive menu here and keep its accessible state/icon in sync.
+  const menuToggle = document.getElementById('menuToggle');
+  const navMenu = document.getElementById('navMenu');
+  const menuIcon = menuToggle && menuToggle.querySelector('i');
+  function setMenuOpen(open) {
+    if (!menuToggle || !navMenu) return;
+    navMenu.classList.toggle('active', open);
+    menuToggle.setAttribute('aria-expanded', String(open));
+    menuToggle.setAttribute('aria-label', open ? 'إغلاق قائمة التنقل' : 'فتح قائمة التنقل');
+    if (menuIcon) {
+      menuIcon.classList.toggle('fa-bars', !open);
+      menuIcon.classList.toggle('fa-xmark', open);
+    }
+  }
+  if (menuToggle && navMenu) {
+    menuToggle.addEventListener('click', function () {
+      setMenuOpen(!navMenu.classList.contains('active'));
+    });
+    document.addEventListener('click', function (event) {
+      if (navMenu.classList.contains('active') &&
+          !navMenu.contains(event.target) && !menuToggle.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    });
+    navMenu.addEventListener('click', function (event) {
+      if (event.target.closest('a')) setMenuOpen(false);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') setMenuOpen(false);
+    });
+  }
 </script>
 <script src="site-settings.js"></script>
 <script src="ui-pro.js?v=5"></script>

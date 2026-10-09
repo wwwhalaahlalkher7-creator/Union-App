@@ -143,6 +143,11 @@
     let lbImages = [];
     let lbIndex = 0;
 
+    function safeEventImageUrl(value) {
+        try { const url = new URL(String(value || "")); return url.protocol === "https:" ? url.href : ""; }
+        catch (_) { return ""; }
+    }
+
     function buildGallery(images) {
         const wrap = document.createElement("div");
         const isSingle = images.length === 1;
@@ -154,7 +159,8 @@
             item.className = "gallery-item";
 
             const img = document.createElement("img");
-            img.src = images[i];
+            img.src = safeEventImageUrl(images[i]);
+            if (!img.src) return;
             img.alt = "صورة من الفعالية";
             img.loading = "lazy";
             item.appendChild(img);
@@ -178,7 +184,7 @@
     }
 
     function updateLightboxImage() {
-        document.getElementById("lightboxImg").src = lbImages[lbIndex];
+        document.getElementById("lightboxImg").src = safeEventImageUrl(lbImages[lbIndex]);
         document.getElementById("lightboxCounter").textContent = (lbIndex + 1) + " / " + lbImages.length;
         const showNav = lbImages.length > 1;
         document.getElementById("lightboxPrev").style.display = showNav ? "flex" : "none";
@@ -253,7 +259,7 @@
         
         const statusEntry = computeEventStatus({Date: fields.eventAt, EndDate: fields.endAt});
 
-        const images = [fields.imageUrl].filter(Boolean);
+        const images = [fields.imageUrl].map(safeEventImageUrl).filter(Boolean);
 
         // حقل Date الموحّد: يُستخدم للعرض والترتيب الزمني معاً (فارغ = تاريخ إنشاء السجل)
         const dateSource = fields.eventAt || record.createdAt;

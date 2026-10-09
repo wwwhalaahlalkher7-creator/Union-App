@@ -127,8 +127,8 @@
             <iframe id="pdfModalFrame" title="معاينة ملف PDF" src="about:blank" loading="lazy"></iframe>
         </div>
         <div class="modal-footer">
-            <a id="modalOpenDrive" href="#" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> فتح في Drive</a>
-            <a id="modalDownload" href="#" target="_blank" rel="noopener"><i class="fas fa-download"></i> تنزيل</a>
+            <a id="modalOpenDrive" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1"><i class="fas fa-up-right-from-square"></i> فتح في Drive</a>
+            <a id="modalDownload" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1"><i class="fas fa-download"></i> تنزيل</a>
             <button id="modalShare" type="button"><i class="fas fa-share-nodes"></i> مشاركة</button>
         </div>
     </div>
@@ -822,13 +822,35 @@
         // ====================================================================
         let lastFocusedBeforeModal = null;
 
+        function safeCourseUrl(value) {
+            try {
+                const url = new URL(String(value || ""));
+                return url.protocol === "https:" ? url.href : "";
+            } catch (_) { return ""; }
+        }
+
         function openPdfModal(file) {
             lastFocusedBeforeModal = document.activeElement;
 
-            document.getElementById('pdfModalTitle').textContent = file.name;
-            document.getElementById('pdfModalFrame').src = file.previewLink;
-            document.getElementById('modalOpenDrive').href = file.link;
-            document.getElementById('modalDownload').href = file.downloadLink;
+            const previewUrl = safeCourseUrl(file.previewLink);
+            const openUrl = safeCourseUrl(file.link);
+            const downloadUrl = safeCourseUrl(file.downloadLink);
+            if (!previewUrl || !openUrl || !downloadUrl) {
+                showToast('رابط الملف غير صالح أو غير آمن', 'fa-triangle-exclamation');
+                return;
+            }
+            document.getElementById('pdfModalTitle').textContent = file.name || '';
+            document.getElementById('pdfModalFrame').src = previewUrl;
+            const openDriveLink = document.getElementById('modalOpenDrive');
+            const downloadLink = document.getElementById('modalDownload');
+            openDriveLink.href = openUrl;
+            downloadLink.href = downloadUrl;
+            openDriveLink.rel = 'noopener noreferrer';
+            downloadLink.rel = 'noopener noreferrer';
+            openDriveLink.removeAttribute('aria-disabled');
+            openDriveLink.removeAttribute('tabindex');
+            downloadLink.removeAttribute('aria-disabled');
+            downloadLink.removeAttribute('tabindex');
 
             const modal = document.getElementById('pdfModal');
             modal.classList.add('show');
@@ -843,6 +865,12 @@
             const modal = document.getElementById('pdfModal');
             modal.classList.remove('show');
             document.getElementById('pdfModalFrame').src = 'about:blank';
+            for (const id of ['modalOpenDrive', 'modalDownload']) {
+                const link = document.getElementById(id);
+                link.removeAttribute('href');
+                link.setAttribute('aria-disabled', 'true');
+                link.setAttribute('tabindex', '-1');
+            }
             if (lastFocusedBeforeModal) lastFocusedBeforeModal.focus();
         }
 
