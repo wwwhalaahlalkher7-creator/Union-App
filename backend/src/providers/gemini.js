@@ -4,7 +4,7 @@ export const GEMINI_DEFAULTS = Object.freeze({
   text: 'gemini-3.5-flash-lite',
   vision: 'gemini-3.5-flash-lite',
   stt: 'gemini-3.5-transcribe',
-  tts: 'gemini-3.8-flash-lite-tts',
+  tts: 'gemini-3.8-flash-tts',
 });
 
 function providerError(status, body, headers = null) {

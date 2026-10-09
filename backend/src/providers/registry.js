@@ -66,7 +66,7 @@ export function getModelRegistry(env = {}) {
       { provider:'groq', model:env.EINO_GROQ_TTS_MODEL || 'canopylabs/orpheus-arabic-saudi', priority:10 },
       { provider:'groq', model:'canopylabs/orpheus-v1-english', priority:11 },
       { provider:'mistral', model:env.EINO_MISTRAL_TTS_MODEL || 'voxtral-mini-tts-2603', priority:20 },
-      { provider:'gemini', model:env.EINO_GEMINI_TTS_MODEL || 'gemini-3.8-flash-lite-tts', priority:30 },
+      { provider:'gemini', model:env.EINO_GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts', priority:30 },
       { provider:'free.ai', model:env.EINO_FREE_TTS_MODEL || 'kokoro', priority:40 },
     ],
   };

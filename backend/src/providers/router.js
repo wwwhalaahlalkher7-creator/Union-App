@@ -13,6 +13,9 @@ const CIRCUIT_FAILURE_THRESHOLD = 3;
 const CIRCUIT_COOLDOWN_MS = 30_000;
 const MAX_PROVIDER_ATTEMPTS = 2;
 const RETRYABLE = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+// Provider authentication/model/format failures should not block other configured providers.
+// Keep HTTP 400 non-fallbackable because it usually indicates an invalid caller payload.
+const FALLBACKABLE_PROVIDER_STATUS = new Set([401, 403, 404, 408, 409, 413, 415, 425, 429, 500, 502, 503, 504]);
 const circuitState = new Map();
 
 function argsForFree(env, model) { return { baseUrl: env.FREE_AI_BASE_URL, apiKey: env.FREE_AI_API_KEY, model }; }
@@ -52,6 +55,9 @@ function backoffMs(attempt, error) {
 }
 
 function retryable(error) { return RETRYABLE.has(Number(error?.status || 0)) || error?.name === 'AbortError'; }
+function shouldFallback(error) {
+  return error?.code === 'CIRCUIT_OPEN' || error?.name === 'AbortError' || FALLBACKABLE_PROVIDER_STATUS.has(Number(error?.status || 0));
+}
 
 async function sleep(ms) { if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms)); }
 
@@ -112,8 +118,9 @@ async function routeCapability(env, capability, requestedModel, operationFactory
       return result;
     } catch (error) {
       last = error;
-      if (error?.code === 'CIRCUIT_OPEN') { skipped += 1; continue; }
-      if (!retryable(error)) break;
+      if (error?.code === 'CIRCUIT_OPEN') skipped += 1;
+      if (shouldFallback(error)) continue;
+      break;
     }
   }
   throw last || new Error(`All ${label} providers failed`);
@@ -144,7 +151,7 @@ export async function routeText(env, args) {
       return result;
     } catch (error) {
       last = error;
-      if (error?.code === 'CIRCUIT_OPEN' || retryable(error)) continue;
+      if (shouldFallback(error)) continue;
       break;
     }
   }
@@ -215,13 +222,18 @@ export async function routeWebSearch(env, args) {
   for (const route of routes) {
     try {
       return await runRoute(route, async () => {
-        if (route.provider === 'tavily') return tavilySearch({ apiKey: env.TAVILY_API_KEY, query: args.query, maxResults: args.maxResults, searchDepth: args.searchDepth, signal: args.signal });
-        if (route.provider === 'exa') return exaSearch({ apiKey: env.EXA_API_KEY, query: args.query, maxResults: args.maxResults, signal: args.signal });
-        throw Object.assign(new Error(`Unsupported search provider ${route.provider}`), { status: 503 });
+        let result;
+        if (route.provider === 'tavily') result = await tavilySearch({ apiKey: env.TAVILY_API_KEY, query: args.query, maxResults: args.maxResults, searchDepth: args.searchDepth, signal: args.signal });
+        else if (route.provider === 'exa') result = await exaSearch({ apiKey: env.EXA_API_KEY, query: args.query, maxResults: args.maxResults, signal: args.signal });
+        else throw Object.assign(new Error(`Unsupported search provider ${route.provider}`), { status: 503 });
+        if (!Array.isArray(result?.results) || result.results.length === 0) {
+          throw Object.assign(new Error(`${route.provider} returned no search results`), { status: 502, provider: route.provider });
+        }
+        return result;
       });
     } catch (error) {
       last = error;
-      if (error?.code === 'CIRCUIT_OPEN' || retryable(error)) continue;
+      if (shouldFallback(error)) continue;
       break;
     }
   }
@@ -246,7 +258,7 @@ export async function routeFileAnalysis(env, args) {
         throw Object.assign(new Error(`Unsupported file analysis provider ${route.provider}`), { status: 503 });
       });
       return result;
-    } catch (error) { last = error; if (error?.code === 'CIRCUIT_OPEN' || retryable(error)) continue; break; }
+    } catch (error) { last = error; if (shouldFallback(error)) continue; break; }
   }
   throw last || Object.assign(new Error('All file analysis providers failed'), { status: 503 });
 }

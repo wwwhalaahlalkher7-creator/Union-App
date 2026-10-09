@@ -433,7 +433,7 @@ class _EinoScreenState extends State<EinoScreen> {
 
   Future<void> _copyMessage(EinoMessage message) async {
     if (message.text.trim().isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: message.text));
+    await Clipboard.setData(ClipboardData(text: einoPlainText(message.text)));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppLocalizations.of(context).t('copied'))),
@@ -444,7 +444,7 @@ class _EinoScreenState extends State<EinoScreen> {
     if (message.user || message.text.trim().isEmpty) return;
     try {
       await _player.stop();
-      for (final chunk in _ttsChunks(message.text)) {
+      for (final chunk in _ttsChunks(einoPlainText(message.text, forSpeech: true))) {
         if (!mounted) return;
         final audio = await _repository.tts(text: chunk);
         if (audio == null) continue;

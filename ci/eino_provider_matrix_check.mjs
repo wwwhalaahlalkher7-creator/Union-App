@@ -17,6 +17,7 @@ let calls = [];
 let failProvider = null;
 let failProviders = new Set();
 let failStatus = 503;
+let emptySearchProvider = null;
 
 function json(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), {
@@ -30,8 +31,8 @@ globalThis.fetch = async (url, options = {}) => {
   calls.push({ url: target, method: options.method || 'GET' });
   const provider = target.includes('mistral.test') ? 'mistral' : target.includes('groq.test') ? 'groq' : target.includes('gemini.test') ? 'gemini' : target.includes('api.tavily.com') ? 'tavily' : target.includes('api.exa.ai') ? 'exa' : target.includes('api.deepgram.com') ? 'deepgram' : 'free.ai';
   if (provider === failProvider || failProviders.has(provider)) return json({ error: 'forced test failure' }, failStatus);
-  if (provider === 'tavily') return json({ results: [{ title: 'TRINEX', url: 'https://example.test/trinex', content: 'fresh result' }] });
-  if (provider === 'exa') return json({ results: [{ title: 'Academic', url: 'https://example.test/paper', highlights: ['fresh academic result'] }] });
+  if (provider === 'tavily') return json({ results: emptySearchProvider === 'tavily' ? [] : [{ title: 'TRINEX', url: 'https://example.test/trinex', content: 'fresh result' }] });
+  if (provider === 'exa') return json({ results: emptySearchProvider === 'exa' ? [] : [{ title: 'Academic', url: 'https://example.test/paper', highlights: ['fresh academic result'] }] });
   if (provider === 'deepgram') return json({ results: { channels: [{ alternatives: [{ transcript: 'deepgram-ok' }] }] }, metadata: { model_info: { 'nova-3': {} } } });
   if (provider === 'gemini' && target.includes('/upload/v1beta/files')) {
     return new Response(null, { status: 200, headers: { 'x-goog-upload-url': 'https://gemini.test/upload-session' } });
@@ -129,6 +130,20 @@ resetProviderCircuitState();
 const exaFallbackSearch = await routeWebSearch(specialistEnv, { query: 'latest TRINEX', maxResults: 3, preferredProvider: 'tavily' });
 assert.equal(exaFallbackSearch.provider, 'exa');
 console.log('PASS web search: tavily -> exa fallback');
+failProvider = 'tavily';
+failStatus = 403;
+resetProviderCircuitState();
+const forbiddenSearchFallback = await routeWebSearch(specialistEnv, { query: 'latest TRINEX', maxResults: 3, preferredProvider: 'tavily' });
+assert.equal(forbiddenSearchFallback.provider, 'exa', 'Tavily 403 must fall back to Exa');
+console.log('PASS web search: Tavily 403 -> Exa fallback');
+failProvider = null;
+failStatus = 503;
+emptySearchProvider = 'tavily';
+resetProviderCircuitState();
+const emptySearchFallback = await routeWebSearch(specialistEnv, { query: 'latest TRINEX', maxResults: 3, preferredProvider: 'tavily' });
+assert.equal(emptySearchFallback.provider, 'exa', 'empty Tavily results must fall back to Exa');
+console.log('PASS web search: empty Tavily results -> Exa fallback');
+emptySearchProvider = null;
 failProvider = null;
 resetProviderCircuitState();
 const deepgramResult = await routeStt(specialistEnv, { file: new Uint8Array([1]), filename: 'a.mp3', contentType: 'audio/mpeg', language: 'ar' });
