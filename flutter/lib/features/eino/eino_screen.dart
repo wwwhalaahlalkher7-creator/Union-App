@@ -1031,7 +1031,7 @@ class _EinoScreenState extends State<EinoScreen> {
             child: Row(children: [
               Icon(Icons.volume_up_rounded, color: cs.primary),
               const SizedBox(width: 10),
-              Expanded(child: Text('Eino تقرأ الإجابة…', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              const Expanded(child: Text('Eino تقرأ الإجابة…', maxLines: 1, overflow: TextOverflow.ellipsis)),
               IconButton(tooltip: _readerPaused ? 'متابعة القراءة' : 'إيقاف مؤقت', onPressed: _toggleReaderPlayback, icon: Icon(_readerPaused ? Icons.play_arrow_rounded : Icons.pause_rounded)),
             ]),
           ),
