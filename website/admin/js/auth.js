@@ -17,7 +17,19 @@ const Auth = (() => {
   function get(){try{const s=normalizeSession(JSON.parse(sessionStorage.getItem(KEY)||'null'));if(s&&s.expiresAt>Date.now()){if(s.role!==JSON.parse(sessionStorage.getItem(KEY)||'null')?.role)sessionStorage.setItem(KEY,JSON.stringify(s));return s;}return null;}catch{return null;}}
   function clear(){sessionStorage.removeItem(KEY);}
   function requireAuth(){const s=get();if(!s){location.replace('login.html');return null;}return s;}
-  async function logout(){const s=get();try{if(s?.token) await fetch(window.APP_CONFIG.api.baseUrl+'/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+s.token}});}catch{} clear();location.replace('login.html');}
+  async function logout(options={}){
+    const s=get();
+    // مصدر مركزي واحد لتسجيل الخروج: استخدم Adapter إن كان متاحاً،
+    // وإلا نفّذ الطلب مباشرة كمسار احتياطي لصفحات الدخول المبكرة.
+    if(!options.skipRemote && s?.token){
+      try{
+        if(window.Adapter && typeof window.Adapter.logoutSession==='function') await window.Adapter.logoutSession(s.token);
+        else { const base=window.APP_CONFIG?.api?.baseUrl; if(base) await fetch(base.replace(/\/$/, '')+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+s.token}}); }
+      }catch{/* انتهاء الجلسة محلياً لا يعتمد على توفر الشبكة */}
+    }
+    clear();
+    location.replace('login.html');
+  }
   return {SESSION_HOURS:0.25,save,get,clear,requireAuth,logout,normalizeRole};
 })();
 window.Auth = Object.freeze(Auth);

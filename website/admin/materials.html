@@ -5,16 +5,9 @@
 <title>المواد الدراسية | لوحة تحكم TRINEX</title>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"><link rel="stylesheet" href="css/admin.css">
 <style>
-body[data-page="materials"] .page-content{padding-top:24px}
-.department-picker{margin-bottom:14px}
-.materials-filter-row{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-top:14px}
-.materials-filter-row .semester-wrap{display:flex;align-items:center;gap:8px;flex:1;max-width:330px}
-.materials-filter-row .semester-wrap .form-control{min-height:46px;border-radius:13px}
-@media(max-width:650px){.materials-filter-row{display:block}.materials-filter-row .semester-wrap{max-width:none}}
 </style>
 <script src="config.js"></script><script src="js/theme.js"></script><script src="js/auth.js"></script>
 <style>
-body[data-page="materials"] .page-content{padding-top:24px}
 .materials-select-card{border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--surface) 94%,var(--blueprint-100)),var(--surface));border:1px solid color-mix(in srgb,var(--blueprint-700) 18%,var(--line));box-shadow:0 12px 34px rgba(10,28,52,.16)}
 .materials-select-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .materials-select-grid .form-control{min-height:50px;border-radius:14px;font-size:1rem}
@@ -33,7 +26,7 @@ body[data-page="materials"] .page-content{padding-top:24px}
 .materials-locked{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:color-mix(in srgb,var(--surface-sunken) 75%,transparent);color:var(--ink-500);font-size:.78rem}
 @media(max-width:700px){.materials-select-grid{grid-template-columns:1fr}.materials-subject-grid{grid-template-columns:1fr}}
 </style>
-  <link rel="stylesheet" href="css/admin-central.css?v=1.0.0">
+  <link rel="stylesheet" href="css/admin-central.css?v=1.1.0">
 </head>
 <body data-page="materials"><div id="app-shell"></div>
 <template id="pageTemplate">
@@ -47,7 +40,7 @@ body[data-page="materials"] .page-content{padding-top:24px}
   </div>
   <div id="materialsWorkspace" style="margin-top:18px"></div>
 </template>
-<script src="js/api-adapter.js?v=3.0.2"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/modal.js"></script><script src="js/layout.js"></script>
+<script src="js/api-adapter.js?v=3.2.0"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/modal.js"></script><script src="js/layout.js"></script>
 <script>
 let materialsIndex={tree:[]}; let selectedSectionId='';
 const M$=id=>document.getElementById(id);

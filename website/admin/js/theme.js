@@ -66,10 +66,16 @@ window.AdminTheme = (function () {
     const base = cfg && cfg.api && cfg.api.baseUrl;
     if (!base) return; // لا خدمة مضبوطة بعد — يبقى اللون الافتراضي في admin.css
 
-    fetch(base.replace(/\/$/, '') + "/public/settings")
-      .then(r => r.json())
-      .then(payload => {
-        const data = payload && payload.data;
+    // استخدم طبقة الاتصال المركزية، مع إبقاء إعدادات المظهر عامة بلا رمز جلسة.
+    const loadSettings = window.Adapter && typeof window.Adapter.getPublicSettings === "function"
+      ? window.Adapter.getPublicSettings()
+      : fetch(base.replace(/\/$/, '') + "/public/settings").then(r => {
+          if (!r.ok) throw new Error("تعذّر جلب إعدادات المظهر");
+          return r.json();
+        }).then(payload => payload && payload.data);
+
+    Promise.resolve(loadSettings)
+      .then(data => {
         if (data && data.AdminThemeColor) apply(data.AdminThemeColor);
       })
       .catch(() => { /* تجاهل — يبقى اللون المحفوظ محلياً أو الافتراضي */ });

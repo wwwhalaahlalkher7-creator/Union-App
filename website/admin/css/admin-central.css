@@ -194,6 +194,92 @@
   margin-block-start: 0;
 }
 
+
+/* مكونات أكاديمية مشتركة بين صفحة المواد والجداول */
+body[data-page="materials"] .page-content,
+body[data-page="schedule"] .page-content {
+  padding-top: 24px;
+}
+
+.department-picker {
+  margin-bottom: var(--admin-space-3);
+  min-width: 0;
+}
+
+.materials-filter-row,
+.schedule-filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-2);
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.materials-filter-row { margin-top: var(--admin-space-3); }
+.schedule-filter-row { margin-bottom: var(--admin-space-3); }
+
+.materials-filter-row .semester-wrap,
+.schedule-filter-row .semester-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 330px;
+}
+
+.materials-filter-row .semester-wrap .form-control,
+.schedule-filter-row .semester-wrap .form-control {
+  min-height: 46px;
+  border-radius: 13px;
+}
+
+/* حالات تفاعل واضحة ومتسقة، مع الحفاظ على ألوان الهوية الحالية */
+.page-content .btn:focus-visible,
+.page-content .icon-btn:focus-visible,
+.page-content input:focus-visible,
+.page-content select:focus-visible,
+.page-content textarea:focus-visible,
+.topbar a:focus-visible,
+.topbar button:focus-visible {
+  outline: 2px solid var(--blueprint-500);
+  outline-offset: 2px;
+}
+
+/* لا نسمح لعناصر التحكم أو محتوى البطاقات بتوسيع الشاشة عرضياً */
+.page-content .card,
+.page-content .card-header,
+.page-content .toolbar,
+.page-content .field,
+.page-content .table-scroll {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 650px) {
+  .materials-filter-row,
+  .schedule-filter-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .materials-filter-row .semester-wrap,
+  .schedule-filter-row .semester-wrap {
+    max-width: none;
+    width: 100%;
+  }
+
+  .schedule-filter-row .toolbar-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--admin-space-2);
+  }
+
+  .schedule-filter-row .toolbar-group .btn {
+    flex: 1 1 140px;
+  }
+}
+
 /* نقاط الاستجابة مشتركة لكل الصفحات الإدارية */
 @media (max-width: 760px) {
   .dashboard-hero {
@@ -267,5 +353,95 @@
   .section-header,
   .card-header {
     scroll-behavior: auto;
+  }
+}
+
+/* المرحلة الثالثة: ضبط البنرات وترويسات الصفحات عبر جميع المقاسات */
+.page-intro,
+.page-header,
+.section-header,
+.dashboard-hero {
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.page-intro > *,
+.page-header > *,
+.section-header > *,
+.dashboard-hero > *,
+.dashboard-hero-copy > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.page-intro .btn,
+.page-header .btn,
+.section-header .btn {
+  max-width: 100%;
+  white-space: normal;
+}
+
+/* أزرار وإجراءات الترويسات تلتف بدلاً من دفع الصفحة خارج عرض الشاشة */
+.page-intro .actions,
+.page-header .actions,
+.section-header .actions,
+.page-intro .header-actions,
+.page-header .header-actions,
+.section-header .header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--admin-space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    flex-wrap: wrap;
+    row-gap: var(--admin-space-2);
+  }
+
+  .topbar-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .topbar-actions {
+    max-width: 100%;
+  }
+
+  .page-intro,
+  .page-header,
+  .section-header {
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-intro,
+  .page-header,
+  .section-header,
+  .dashboard-hero {
+    border-radius: var(--admin-banner-radius);
+    gap: var(--admin-space-2);
+  }
+
+  .page-intro .actions,
+  .page-header .actions,
+  .section-header .actions,
+  .page-intro .header-actions,
+  .page-header .header-actions,
+  .section-header .header-actions {
+    width: 100%;
+  }
+
+  .page-intro .actions > .btn,
+  .page-header .actions > .btn,
+  .section-header .actions > .btn,
+  .page-intro .header-actions > .btn,
+  .page-header .header-actions > .btn,
+  .section-header .header-actions > .btn {
+    flex: 1 1 130px;
   }
 }

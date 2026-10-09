@@ -1,17 +1,42 @@
 window.Adapter = (() => {
-  const base=()=>window.APP_CONFIG.api.baseUrl.replace(/\/$/,'');
+  const base=()=>{
+    const value=window.APP_CONFIG?.api?.baseUrl;
+    if(typeof value!=='string'||!value.trim()) throw new Error('عنوان خدمة API غير مضبوط في إعدادات لوحة التحكم.');
+    return value.trim().replace(/\/$/,'');
+  };
   const token=()=>{try{return Auth.get()?.token||'';}catch{return '';}};
-  async function req(path, options={}){
-    const headers={'Content-Type':'application/json',...(options.headers||{})}; if(token()) headers.Authorization='Bearer '+token();
-    const r=await fetch(base()+path,{...options,headers}); let d=null; try{d=await r.json();}catch{}
-    if(!r.ok||d?.success===false) { const detail=d?.error?.details||d?.error?.message||d?.error; throw new Error(typeof detail==='string'?detail:'تعذّر تنفيذ الطلب'); }
-    return d?.data ?? d;
+  function responseMessage(data, fallback){
+    const error=data?.error;
+    const candidates=[error?.details,error?.message,typeof error==='string'?error:null,data?.message];
+    const detail=candidates.find(value=>typeof value==='string'&&value.trim());
+    return detail || fallback;
   }
+  async function request(path, options={}, {multipart=false, authenticated=true, fallback='تعذّر تنفيذ الطلب'}={}){
+    const headers={...(multipart?{}:{'Content-Type':'application/json'}),...(options.headers||{})};
+    const currentToken=authenticated?token():'';
+    if(currentToken) headers.Authorization='Bearer '+currentToken;
+    let response;
+    try { response=await fetch(base()+path,{...options,headers}); }
+    catch(error){
+      if(error instanceof TypeError) throw new Error('تعذّر الاتصال بالخادم. تحقق من اتصال الإنترنت ثم أعد المحاولة.');
+      throw error;
+    }
+    let data=null;
+    try { data=await response.json(); } catch { /* قد يعيد الخادم استجابة غير JSON */ }
+    if(!response.ok||data?.success===false){
+      const statusFallback=response.status===401||response.status===403
+        ? 'انتهت الجلسة أو لا تملك صلاحية تنفيذ هذه العملية.'
+        : response.status>=500 ? 'حدث خطأ في الخادم. حاول مرة أخرى لاحقاً.' : fallback;
+      throw new Error(responseMessage(data,statusFallback));
+    }
+    return data?.data ?? data;
+  }
+  async function req(path, options={}){ return request(path,options); }
+  // طلبات عامة تمر عبر طبقة الاتصال نفسها دون إرفاق رمز جلسة الإدارة.
+  async function reqPublic(path, options={}){ return request(path,options,{authenticated:false,fallback:'تعذّر جلب الإعدادات العامة'}); }
+  async function getPublicSettings(){ return reqPublic('/public/settings'); }
   async function reqMultipart(path, formData){
-    const headers={}; if(token()) headers.Authorization='Bearer '+token();
-    const r=await fetch(base()+path,{method:'POST',body:formData,headers}); let d=null; try{d=await r.json();}catch{}
-    if(!r.ok||d?.success===false) { const detail=d?.error?.details||d?.error?.message||d?.error; throw new Error(typeof detail==='string'?detail:'تعذّر رفع الوسيط'); }
-    return d?.data ?? d;
+    return request(path,{method:'POST',body:formData},{multipart:true,fallback:'تعذّر رفع الوسيط'});
   }
   async function uploadMediaFiles(files){
     const list=Array.from(files||[]).filter(Boolean);
@@ -174,8 +199,8 @@ window.Adapter = (() => {
   async function listFailedLoginAttempts(){return (await req('/admin/security/auth-events?limit=50')).map(r=>({id:r.id,fields:{Timestamp:r.created_at,User:r.actor_name||r.actor_user_id||r.actor_email||r.actor_id||'',Role:r.role_name||'',Action:r.event_type,Details:r.event_type}}));}
   async function changePassword(oldPassword,newPassword){return req('/auth/staff/change-password',{method:'POST',body:JSON.stringify({currentPassword:oldPassword,newPassword})});}
   async function login(userId,password){const d=await req('/auth/staff/login',{method:'POST',headers:{},body:JSON.stringify({userId,password})});return {token:d.token,refreshToken:d.refreshToken,name:d.staffDisplayName||userId,role:d.staffRole||d.role_name||d.staffRoleId,expiresAt:Date.now()+((d.expiresInSeconds||900)*1000)};}
-  async function logoutSession(t){try{await fetch(base()+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+t}});}catch{}}
+  async function logoutSession(t){try{await request('/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+t}});}catch{/* تسجيل الخروج المحلي يستمر حتى عند تعذر الشبكة */}}
   async function getOverviewStats(){return req('/admin/dashboard/overview');}
   async function getEinoUsage(hours=24){return req('/admin/security/eino-usage?hours='+encodeURIComponent(Math.min(168,Math.max(1,Number(hours)||24))));} async function getEinoMonitor(hours=24,limit=100){return req('/admin/security/eino-monitor?hours='+encodeURIComponent(Math.min(168,Math.max(1,Number(hours)||24)))+'&limit='+encodeURIComponent(Math.min(200,Math.max(1,Number(limit)||100))));} async function getRecentNews(l){return (await listContent('news')).slice(0,l||5).map(r=>({id:r.id,title:r.fields.Title,date:r.fields.Date,views:0}));} async function getSystemHealth(){try{await req('/health');return [{name:'Association API',configured:true,lastSuccess:new Date().toISOString()}];}catch{return [{name:'Association API',configured:true,lastSuccess:null}];}}
-  return {CONTENT_TYPES:schemas,getContentSchema:t=>schemas[t],listContent,createContent,updateContent,deleteContent,listStudentsAdmin,createStudentAdmin,updateStudentAdmin,deleteStudentAdmin,toggleStudentAdmin,listScheduleAdmin,createScheduleEntry,updateScheduleEntry,deleteScheduleEntry,toggleScheduleEntry,listMaterialsAdmin,syncDriveMaterials,createMaterialFolder,renameMaterialItem,deleteMaterialItem,deleteSubject,uploadMaterialPdf,getSiteSettings,updateSiteSettings,listUsers,createUser,updateUser,toggleUserActive,deleteUser,listAuditLog,listFailedLoginAttempts,listModerationComments,moderateComment,deleteCommentAdmin,listModerationReplies,moderateReply,deleteReplyAdmin,changePassword,login,logoutSession,getOverviewStats,getEinoUsage,getEinoMonitor,getRecentNews,getSystemHealth,sendNotification,listNotifications,listLearningEvents,createLearningEvent,updateLearningEvent,deleteLearningEvent,ROLE_BADGE};
+  return {CONTENT_TYPES:schemas,getPublicSettings,getContentSchema:t=>schemas[t],listContent,createContent,updateContent,deleteContent,listStudentsAdmin,createStudentAdmin,updateStudentAdmin,deleteStudentAdmin,toggleStudentAdmin,listScheduleAdmin,createScheduleEntry,updateScheduleEntry,deleteScheduleEntry,toggleScheduleEntry,listMaterialsAdmin,syncDriveMaterials,createMaterialFolder,renameMaterialItem,deleteMaterialItem,deleteSubject,uploadMaterialPdf,getSiteSettings,updateSiteSettings,listUsers,createUser,updateUser,toggleUserActive,deleteUser,listAuditLog,listFailedLoginAttempts,listModerationComments,moderateComment,deleteCommentAdmin,listModerationReplies,moderateReply,deleteReplyAdmin,changePassword,login,logoutSession,getOverviewStats,getEinoUsage,getEinoMonitor,getRecentNews,getSystemHealth,sendNotification,listNotifications,listLearningEvents,createLearningEvent,updateLearningEvent,deleteLearningEvent,ROLE_BADGE};
 })();

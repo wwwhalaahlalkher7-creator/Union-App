@@ -1,10 +1,11 @@
-/* ============================================================
-   يُستخدم في login.html فقط (عكس js/auth.js): إن وُجدت جلسة
-   صالحة بالفعل، لا داعي لإظهار نموذج الدخول من جديد.
-   ============================================================ */
+/*
+ * حارس صفحة الدخول: يعتمد على Auth باعتباره المصدر المركزي للجلسة
+ * بدلاً من إعادة تحليل sessionStorage وتكرار منطق انتهاء الصلاحية.
+ */
 (function () {
   try {
-    const s = JSON.parse(sessionStorage.getItem("assoc_admin_session"));
-    if (s && s.expiresAt > Date.now()) location.replace("index.html");
-  } catch (e) { /* لا شيء محفوظ أو تالف — تابع لعرض نموذج الدخول */ }
+    if (window.Auth && typeof window.Auth.get === "function" && window.Auth.get()) {
+      location.replace("index.html");
+    }
+  } catch (e) { /* عند تعذر قراءة الجلسة، تابع عرض نموذج الدخول */ }
 })();

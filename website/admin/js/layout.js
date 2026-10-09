@@ -255,12 +255,9 @@
   function initLogout() {
     const btn = document.getElementById("logoutBtn");
     btn.addEventListener("click", async () => {
-      const session = (typeof Auth !== "undefined") ? Auth.get() : null;
-      if (session && typeof Adapter !== "undefined" && Adapter.logoutSession) {
-        try { await Adapter.logoutSession(session.token); } catch (e) { /* تجاهل — الانتهاء التلقائي يكفي */ }
-      }
-      if (typeof Auth !== "undefined") Auth.logout();
-      else { sessionStorage.removeItem("assoc_admin_session"); location.href = "login.html"; }
+      // Auth هو المالك الوحيد لتدفق تسجيل الخروج؛ تجنّب إرسال طلبين إلى API.
+      if (typeof Auth !== "undefined") await Auth.logout();
+      else { sessionStorage.removeItem("assoc_admin_session"); location.replace("login.html"); }
     });
   }
 

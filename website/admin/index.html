@@ -5,7 +5,7 @@
 <title>الرئيسية | لوحة تحكم TRINEX</title>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"><link rel="stylesheet" href="css/admin.css">
 <script src="config.js"></script><script src="js/theme.js"></script><script src="js/auth.js"></script>
-  <link rel="stylesheet" href="css/admin-central.css?v=1.0.0">
+  <link rel="stylesheet" href="css/admin-central.css?v=1.1.0">
 </head>
 <body data-page="dashboard"><div id="app-shell"></div>
 <template id="pageTemplate">
@@ -64,7 +64,7 @@
   </div>
 </div>
 </template>
-<script src="js/api-adapter.js?v=3.0.2"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/layout.js"></script>
+<script src="js/api-adapter.js?v=3.2.0"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/layout.js"></script>
 <script>
 document.addEventListener('shell:ready',async()=>{document.getElementById('pageContent').appendChild(document.getElementById('pageTemplate').content.cloneNode(true));bindQuickRoleGuards();await Promise.all([loadStats(),loadHealth(),loadNews(),loadEinoUsage()]);});
 function bindQuickRoleGuards(){

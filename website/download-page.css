@@ -174,3 +174,23 @@
 .download-actions .download-button { color: #fff !important; }
 .download-actions .download-button.secondary,
 .download-actions .download-button.btn-secondary { color: #fff !important; }
+
+
+/* Keep the download page navigation consistent with the rest of the site. */
+body.download-page #navMenu ul {
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body.download-page #navMenu ul li {
+  list-style: none !important;
+}
+
+body.download-page #navMenu ul li a,
+body.download-page #navMenu ul li a:hover,
+body.download-page #navMenu ul li a:focus,
+body.download-page #navMenu ul li a:active {
+  text-decoration: none !important;
+  border-bottom: 0 !important;
+}
