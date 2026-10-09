@@ -11,7 +11,7 @@ api = '\n'.join(p.read_text(encoding='utf-8') for p in (root / 'backend/src').rg
 checks = {
     'dashboard session-only auth storage': 'sessionStorage.setItem(KEY' in auth and 'sessionStorage.getItem(KEY' in auth and 'sessionStorage.removeItem(KEY' in auth,
     'login uses Auth.save': 'window.Auth.save(session)' in login,
-    'login redirect uses sessionStorage': 'sessionStorage.getItem("assoc_admin_session")' in redirect,
+    'login redirect uses centralized Auth.get': 'window.Auth.get()' in redirect and 'sessionStorage.getItem("assoc_admin_session")' not in redirect,
     'public CSP object/frame hardening': "object-src 'none'" in public_worker and "frame-src 'none'" in public_worker,
     'dashboard CSP object/frame hardening': "object-src 'none'" in dash_worker and "frame-src 'none'" in dash_worker,
     'API security headers': all(x in api for x in ["'x-content-type-options': 'nosniff'", "'x-frame-options': 'DENY'", "'referrer-policy': 'no-referrer'", "'cache-control': 'no-store'", "'content-security-policy': \"default-src 'none'"]),
