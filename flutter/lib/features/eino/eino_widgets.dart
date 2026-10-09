@@ -71,7 +71,8 @@ class EinoMathText extends StatelessWidget {
     final widgets = <Widget>[];
     var inCode = false;
     final code = <String>[];
-    for (final raw in lines) {
+    for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      final raw = lines[lineIndex];
       final line = raw.trimRight();
       if (line.trimLeft().startsWith('```')) {
         if (inCode) {
@@ -84,9 +85,26 @@ class EinoMathText extends StatelessWidget {
       if (inCode) { code.add(line); continue; }
       final trimmed = line.trim();
       if (trimmed.isEmpty) { widgets.add(const SizedBox(height: 5)); continue; }
-      final displayMath = RegExp(r'^\$\$([\s\S]*?)\$\$$').firstMatch(trimmed) ?? RegExp(r'^\\\[([\s\S]*?)\\\]$').firstMatch(trimmed) ?? (RegExp(r'\\(?:sqrt|frac|sum|int|times|cdot|Longleftrightarrow)|\^[{]').hasMatch(trimmed) ? RegExp(r'^(.*)$').firstMatch(trimmed) : null);
-      if (displayMath != null) {
-        widgets.add(Container(width: double.infinity, alignment: Alignment.center, padding: const EdgeInsets.symmetric(vertical: 7), child: LaTexT(laTeXCode: Text('\$\$${displayMath.group(1)}\$\$', style: base))));
+      // GitHub-Flavored Markdown tables: render as a real, horizontally
+      // scrollable table instead of exposing pipe and separator characters.
+      if (trimmed.contains('|') && lineIndex + 1 < lines.length &&
+          _isTableSeparator(lines[lineIndex + 1])) {
+        final tableRows = <List<String>>[_splitTableRow(trimmed)];
+        lineIndex += 2; // skip header separator as well as the header itself
+        while (lineIndex < lines.length && lines[lineIndex].trim().contains('|') && lines[lineIndex].trim().isNotEmpty) {
+          tableRows.add(_splitTableRow(lines[lineIndex].trim()));
+          lineIndex++;
+        }
+        lineIndex--; // the outer loop increments once more
+        widgets.add(_markdownTable(context, tableRows, base));
+        continue;
+      }
+      final dollarDisplay = RegExp(r'^\$\$([\s\S]*?)\$\$$').firstMatch(trimmed);
+      final bracketDisplay = RegExp(r'^\\\[([\s\S]*?)\\\]$').firstMatch(trimmed);
+      final rawLatex = RegExp(r'\\(?:sqrt|frac|sum|int|lim|times|cdot|Longleftrightarrow|left|begin)|\^[{]|_[{]').hasMatch(trimmed);
+      final displayFormula = dollarDisplay?.group(1) ?? bracketDisplay?.group(1) ?? (rawLatex ? trimmed : null);
+      if (displayFormula != null) {
+        widgets.add(Container(width: double.infinity, alignment: Alignment.center, padding: const EdgeInsets.symmetric(vertical: 7), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: LaTexT(laTeXCode: Text('\$\$${displayFormula}\$\$', style: base)))));
         continue;
       }
       if (RegExp(r'^\s*([-*_]\s*){3,}$').hasMatch(line)) { widgets.add(const Divider(height: 14)); continue; }
@@ -113,6 +131,62 @@ class EinoMathText extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: widgets);
   }
 
+  bool _isTableSeparator(String line) {
+    final cells = _splitTableRow(line.trim());
+    return cells.length >= 2 && cells.every((cell) =>
+      RegExp(r'^:?-{3,}:?$').hasMatch(cell.replaceAll(' ', '')));
+  }
+
+  List<String> _splitTableRow(String line) {
+    var value = line.trim();
+    if (value.startsWith('|')) value = value.substring(1);
+    if (value.endsWith('|')) value = value.substring(0, value.length - 1);
+    return value.split('|').map((cell) => cell.trim().replaceAll(r'\|', '|')).toList();
+  }
+
+  Widget _markdownTable(BuildContext context, List<List<String>> rows, TextStyle base) {
+    if (rows.isEmpty) return const SizedBox.shrink();
+    final columnCount = rows.map((row) => row.length).fold<int>(0, (a, b) => a > b ? a : b);
+    if (columnCount == 0) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    final normalized = rows.map((row) => List<String>.generate(columnCount,
+      (i) => i < row.length ? row[i] : '')).toList();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Table(
+          defaultColumnWidth: const IntrinsicColumnWidth(),
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          border: TableBorder(
+            horizontalInside: BorderSide(color: colors.outlineVariant.withValues(alpha: .7)),
+            verticalInside: BorderSide(color: colors.outlineVariant.withValues(alpha: .55)),
+          ),
+          children: List<TableRow>.generate(normalized.length, (rowIndex) {
+            final isHeader = rowIndex == 0;
+            return TableRow(
+              decoration: isHeader ? BoxDecoration(color: colors.primary.withValues(alpha: .12)) : null,
+              children: normalized[rowIndex].map((cell) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 54, maxWidth: 260),
+                  child: EinoMathText(cell, style: base.copyWith(
+                    fontWeight: isHeader ? FontWeight.w800 : base.fontWeight,
+                  )),
+                ),
+              )).toList(),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
   List<String> _prepareMathLines(String input) {
     final source = input.split('\n');
     final out = <String>[];
@@ -124,7 +198,7 @@ class EinoMathText extends StatelessWidget {
         if (t.contains(closing)) {
           buffer.add(t.substring(0, t.indexOf(closing)));
           out.add(r'\[' + buffer.join(' ') + r'\]');
-          final tail = t.substring(t.indexOf(closing) + closing.length).trim();
+          final tail = t.substring(t.indexOf(closing) + closing!.length).trim();
           if (tail.isNotEmpty) out.add(tail);
           buffer.clear(); closing = null;
         } else { buffer.add(t); }
@@ -146,7 +220,7 @@ class EinoMathText extends StatelessWidget {
     for (final match in math.allMatches(input)) {
       if (match.start > cursor) parts.add(RichText(text: _markdownSpans(input.substring(cursor, match.start), base))); 
       final formula = match.group(1) ?? match.group(2) ?? '';
-      parts.add(LaTexT(laTeXCode: Text('\$$formula\$', style: base)));
+      parts.add(LaTexT(laTeXCode: Text('\$${formula}\$', style: base)));
       cursor = match.end;
     }
     if (cursor < input.length) parts.add(RichText(text: _markdownSpans(input.substring(cursor), base))); 
@@ -178,6 +252,10 @@ class EinoMathText extends StatelessWidget {
 String einoPlainText(String input, {bool forSpeech = false}) {
   var value = input.replaceAllMapped(RegExp(r'```[^\n]*\n([\s\S]*?)```'), (m) => m.group(1) ?? ' ');
   value = value.replaceAllMapped(RegExp(r'\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)|\$\$([\s\S]*?)\$\$|\$([^$\n]+)\$'), (m) => ' ${m.group(1) ?? m.group(2) ?? m.group(3) ?? m.group(4) ?? ''} ');
+  // Convert Markdown tables into readable tab-separated text for clipboard/TTS.
+  value = value.replaceAllMapped(RegExp(r'^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$', multiLine: true), (_) => '');
+  value = value.replaceAllMapped(RegExp(r'^\s*\|?(.+\|.+)\|?\s*$', multiLine: true), (m) =>
+    (m.group(1) ?? '').split('|').map((cell) => cell.trim()).join('    '));
   value = value.replaceAll(RegExp(r'^\s{0,3}#{1,6}\s+', multiLine: true), '');
   value = value.replaceAll(RegExp(r'^\s*([-*+]\s+|\d+[.)]\s+|>\s+)', multiLine: true), '');
   value = value.replaceAllMapped(RegExp(r'\*\*(.*?)\*\*|__(.*?)__|\*(.*?)\*|_(.*?)_|~~(.*?)~~|`([^`]+)`'), (m) => m.group(1) ?? m.group(2) ?? m.group(3) ?? m.group(4) ?? m.group(5) ?? m.group(6) ?? '');

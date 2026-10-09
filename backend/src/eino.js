@@ -37,8 +37,7 @@ export async function einoConversationList(ctx) {
   if (actor.response) return actor.response;
   const limit = clampInt(ctx.url.searchParams.get('limit'), 30, 1, 100);
   const rows = await queryAll(ctx.env,
-    `SELECT c.id, c.title, c.created_at AS createdAt, c.updated_at AS updatedAt,
-            (SELECT m.content FROM eino_messages m WHERE m.conversation_id=c.id ORDER BY m.created_at DESC LIMIT 1) AS lastMessage
+    `SELECT c.id, c.title, c.created_at AS createdAt, c.updated_at AS updatedAt
        FROM eino_conversations c WHERE c.student_id=? ORDER BY c.updated_at DESC LIMIT ?`,
     actor.studentId, limit);
   return ok(ctx, { conversations: rows });

@@ -40,6 +40,8 @@ class _EinoScreenState extends State<EinoScreen> {
   bool _sending = false;
   bool _recording = false;
   bool _uploading = false;
+  bool _readerActive = false;
+  bool _readerPaused = false;
   EinoCapabilities? _capabilities;
   bool _loadingCapabilities = false;
   final List<EinoMessage> _messages = [];
@@ -115,6 +117,19 @@ class _EinoScreenState extends State<EinoScreen> {
   }
 
 
+  // Create a short, topic-oriented title from the first user question rather than
+  // storing the whole first message verbatim. Assistant replies never influence it.
+  String _conversationTitle(String question) {
+    var value = einoPlainText(question).replaceAll(RegExp(r'\s+'), ' ').trim();
+    value = value.replaceFirst(RegExp(r'^(?:من فضلك\s+|لو سمحت\s+|ممكن\s+|هل يمكنك\s+|أريد منك\s+|عايزك\s+|اشرح لي\s+|اشرح\s+|حل لي\s+|حل\s+|ما هو\s+|ما هي\s+|كيف يمكنني\s+)', caseSensitive: false), '');
+    value = value.replaceAll(RegExp(r'[؟?!。，،؛:]+$'), '').trim();
+    if (value.isEmpty) value = einoPlainText(question).trim();
+    final words = value.split(RegExp(r'\s+'));
+    if (words.length > 7) value = '${words.take(7).join(' ')}…';
+    if (value.length > 52) value = '${value.substring(0, 49).trimRight()}…';
+    return value.isEmpty ? 'محادثة جديدة' : value;
+  }
+
   Future<void> _send() async {
     if (!_ready || _sending || _uploading) return;
     final prompt = _controller.text.trim();
@@ -122,7 +137,7 @@ class _EinoScreenState extends State<EinoScreen> {
     _controller.clear();
     if (_conversationId == null && await AppDependencies.instance.authStorage.isLoggedIn) {
       try {
-        _conversationId = await _repository.createConversation(title: prompt.length > 80 ? '${prompt.substring(0, 80)}…' : prompt);
+        _conversationId = await _repository.createConversation(title: _conversationTitle(prompt));
         await _loadHistory();
       } catch (_) {
         // The chat endpoint can still create the conversation server-side.
@@ -444,10 +459,14 @@ class _EinoScreenState extends State<EinoScreen> {
     if (message.user || message.text.trim().isEmpty) return;
     try {
       await _player.stop();
+      if (mounted) setState(() { _readerActive = true; _readerPaused = false; });
       for (final chunk in _ttsChunks(einoPlainText(message.text, forSpeech: true))) {
         if (!mounted) return;
         final audio = await _repository.tts(text: chunk);
         if (audio == null) continue;
+        // Subscribe before starting playback so short clips cannot finish before
+        // the completion listener is attached.
+        final completed = _player.onPlayerComplete.first;
         if (audio.base64 != null && audio.base64!.isNotEmpty) {
           await _player.play(BytesSource(base64Decode(audio.base64!)));
         } else if (audio.url != null && audio.url!.isNotEmpty) {
@@ -455,10 +474,23 @@ class _EinoScreenState extends State<EinoScreen> {
         } else {
           continue;
         }
-        await _player.onPlayerComplete.first;
+        await completed;
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+    } finally {
+      if (mounted) setState(() { _readerActive = false; _readerPaused = false; });
+    }
+  }
+
+  Future<void> _toggleReaderPlayback() async {
+    if (!_readerActive) return;
+    if (_readerPaused) {
+      await _player.resume();
+      if (mounted) setState(() => _readerPaused = false);
+    } else {
+      await _player.pause();
+      if (mounted) setState(() => _readerPaused = true);
     }
   }
 
@@ -752,7 +784,6 @@ class _EinoScreenState extends State<EinoScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    subtitle: _history[i].lastMessage == null ? null : Text(_history[i].lastMessage!, maxLines: 1, overflow: TextOverflow.ellipsis),
                     onTap: () => _openConversation(_history[i]),
                     trailing: IconButton(
                       tooltip: l10n.t('delete'),
@@ -872,14 +903,17 @@ class _EinoScreenState extends State<EinoScreen> {
       child: Container(
         constraints: const BoxConstraints(maxWidth: 620),
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 13.8, vertical: 11.04),
-        decoration: BoxDecoration(
-          color: m.user ? cs.primary : cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(18).copyWith(
-            bottomRight: m.user ? const Radius.circular(5) : null,
-            bottomLeft: !m.user ? const Radius.circular(5) : null,
-          ),
-        ),
+        padding: m.user
+            ? const EdgeInsets.symmetric(horizontal: 13.8, vertical: 11.04)
+            : const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        decoration: m.user
+            ? BoxDecoration(
+                color: cs.primary,
+                borderRadius: BorderRadius.circular(18).copyWith(
+                  bottomRight: const Radius.circular(5),
+                ),
+              )
+            : const BoxDecoration(),
         child: m.user
             ? Text(
                 m.text,
@@ -984,68 +1018,80 @@ class _EinoScreenState extends State<EinoScreen> {
   }
 
   Widget _composer(ColorScheme cs, AppLocalizations l10n) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(21.6),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: .4)),
-      ),
-      padding: const EdgeInsetsDirectional.fromSTEB(5.52, 4.6, 5.52, 4.6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          IconButton(
-            tooltip: l10n.t('einoAttach'),
-            onPressed: _sending || _uploading ? null : _pickMedia,
-            icon: const Icon(Icons.add_rounded),
+    final hasText = _controller.text.trim().isNotEmpty;
+    final busy = _sending || _uploading;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_readerActive)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(22)),
+            child: Row(children: [
+              Icon(Icons.volume_up_rounded, color: cs.primary),
+              const SizedBox(width: 10),
+              Expanded(child: Text('Eino تقرأ الإجابة…', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              IconButton(tooltip: _readerPaused ? 'متابعة القراءة' : 'إيقاف مؤقت', onPressed: _toggleReaderPlayback, icon: Icon(_readerPaused ? Icons.play_arrow_rounded : Icons.pause_rounded)),
+            ]),
           ),
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              minLines: 1,
-              maxLines: 6,
-              textCapitalization: TextCapitalization.sentences,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: l10n.t('einoHint'),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 7.36,
-                  vertical: 10.12,
+        Container(
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: cs.outlineVariant.withValues(alpha: .45)),
+          ),
+          padding: const EdgeInsetsDirectional.fromSTEB(6, 5, 6, 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              IconButton(
+                tooltip: l10n.t('einoAttach'),
+                onPressed: busy ? null : _pickMedia,
+                icon: const Icon(Icons.add_rounded, size: 27),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  minLines: 1,
+                  maxLines: 6,
+                  textCapitalization: TextCapitalization.sentences,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) { if (!busy && hasText) _send(); },
+                  decoration: InputDecoration(
+                    hintText: l10n.t('einoHint'),
+                    border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 5, vertical: 12),
+                  ),
                 ),
               ),
-            ),
+              if (!hasText && !busy)
+                IconButton(
+                  tooltip: _recording ? l10n.t('einoStopRecording') : l10n.t('einoVoice'),
+                  onPressed: _toggleRecording,
+                  color: _recording ? cs.error : null,
+                  icon: Icon(_recording ? Icons.stop_circle_rounded : Icons.mic_none_rounded, size: 25),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 3, bottom: 2),
+                  child: IconButton.filled(
+                    tooltip: busy ? 'جاري التفكير' : l10n.t('send'),
+                    onPressed: busy || !hasText ? null : _send,
+                    style: IconButton.styleFrom(shape: const CircleBorder(), padding: const EdgeInsets.all(12)),
+                    icon: busy
+                        ? const SizedBox(width: 21, height: 21, child: CircularProgressIndicator(strokeWidth: 2.2))
+                        : const Icon(Icons.arrow_upward_rounded, size: 23),
+                  ),
+                ),
+            ],
           ),
-          IconButton(
-            tooltip: _recording
-                ? l10n.t('einoStopRecording')
-                : l10n.t('einoVoice'),
-            onPressed: _sending || _uploading ? null : _toggleRecording,
-            color: _recording ? cs.error : null,
-            icon: Icon(
-              _recording
-                  ? Icons.stop_circle_outlined
-                  : Icons.mic_none_rounded,
-            ),
-          ),
-          const SizedBox(width: 2),
-          IconButton.filled(
-            tooltip: l10n.t('send'),
-            onPressed: _sending || _uploading ? null : () => _send(),
-            icon: _sending
-                ? const SizedBox(
-                    width: 19,
-                    height: 19,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.arrow_upward_rounded),
-          ),
-        ],
-      ),
+        ),
+        if (_recording)
+          Padding(padding: const EdgeInsets.only(top: 5), child: Text('جارٍ الاستماع… اضغط الميكروفون لإنهاء التسجيل وتحويله إلى نص', style: TextStyle(fontSize: 12, color: cs.primary))),
+        if (_uploading)
+          Padding(padding: const EdgeInsets.only(top: 5), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 1.8)), const SizedBox(width: 8), Text('جارٍ تحويل الصوت إلى نص…', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant))])),
+      ],
     );
   }
-
 }
