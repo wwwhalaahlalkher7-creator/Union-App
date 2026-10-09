@@ -1,0 +1,271 @@
+/* ============================================================
+   TRINEX Admin — Smart Central Design Layer
+   مصدر مركزي لتناسق مكونات الواجهة المشتركة.
+   تُحمّل هذه الطبقة بعد تنسيقات الصفحات لتوحيد السلوك دون تغيير
+   منطق JavaScript أو معرّفات العناصر أو عقود API.
+   ============================================================ */
+
+:root {
+  --admin-space-1: 4px;
+  --admin-space-2: 8px;
+  --admin-space-3: 12px;
+  --admin-space-4: 16px;
+  --admin-space-5: 20px;
+  --admin-space-6: 24px;
+  --admin-banner-radius: 18px;
+  --admin-banner-padding: clamp(16px, 2.4vw, 26px);
+  --admin-banner-gap: clamp(12px, 2vw, 20px);
+  --admin-content-max: 1440px;
+  --admin-control-height: 44px;
+}
+
+/* شريط العنوان الذي يحقنه layout.js: مصدر واحد للتخطيط في كل الصفحات */
+.topbar {
+  min-height: var(--topbar-h, 68px);
+  gap: var(--admin-space-2);
+  padding-inline: clamp(12px, 2.2vw, 26px);
+}
+
+.topbar-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.topbar-actions {
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: var(--admin-space-1);
+}
+
+.topbar .icon-btn,
+.topbar-menu-btn {
+  min-width: 42px;
+  min-height: 42px;
+}
+
+/* مساحة موحدة لمحتوى جميع الصفحات */
+.page-content {
+  width: 100%;
+  max-width: calc(var(--admin-content-max) + 52px);
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.page-content > * {
+  min-width: 0;
+}
+
+.page-content > * + * {
+  margin-block-start: var(--admin-space-4);
+}
+
+/* المكونات التي تؤدي دور مقدمة/بنر الصفحة */
+.page-intro,
+.page-header,
+.section-header,
+.dashboard-hero {
+  min-width: 0;
+  border-radius: var(--admin-banner-radius);
+  gap: var(--admin-banner-gap);
+}
+
+.page-intro,
+.page-header,
+.section-header {
+  margin-block-end: var(--admin-space-4);
+}
+
+.page-intro h1,
+.page-intro h2,
+.page-header h1,
+.page-header h2,
+.section-header h1,
+.section-header h2,
+.dashboard-hero h1,
+.dashboard-hero h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.page-intro p,
+.page-header p,
+.section-header p,
+.dashboard-hero p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+
+/* البنر الغني في لوحة المعلومات ومراقبة Eino */
+.dashboard-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: var(--admin-banner-padding);
+  gap: var(--admin-banner-gap);
+}
+
+.dashboard-hero-copy,
+.dashboard-hero-actions {
+  min-width: 0;
+}
+
+.dashboard-hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: var(--admin-space-2);
+}
+
+.dashboard-hero-actions .btn {
+  min-height: var(--admin-control-height);
+  white-space: normal;
+}
+
+/* ترويسة البطاقة: محاذاة ثابتة ومنع تداخل العنوان والأزرار */
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: var(--admin-space-3);
+}
+
+.card-header > :first-child {
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.card-header h1,
+.card-header h2,
+.card-header h3,
+.card-header-hint {
+  overflow-wrap: anywhere;
+}
+
+.card-header > .btn,
+.card-header > .btn-group,
+.card-header > div > .btn {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+/* توحيد الحد الأدنى لعناصر التحكم دون فرض عرض موحد */
+.page-content .btn,
+.page-content .icon-btn,
+.page-content .form-control,
+.page-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.page-content select,
+.page-content textarea {
+  max-width: 100%;
+}
+
+.page-content .btn {
+  min-height: var(--admin-control-height);
+}
+
+.page-content .field,
+.page-content .toolbar,
+.page-content .tabs,
+.page-content .table-scroll {
+  min-width: 0;
+}
+
+/* البنر العلوي لمكتبة المواد يتبع نظام البنرات نفسه */
+.materials-select-card {
+  border-radius: var(--admin-banner-radius);
+}
+
+.materials-select-card > .card-header {
+  align-items: center;
+}
+
+/* تقليل اختلاف المسافات بين مقدمة الصفحة وأول عنصر محتوى */
+.page-content > .page-intro + *,
+.page-content > .page-header + *,
+.page-content > .section-header + *,
+.page-content > .dashboard-hero + * {
+  margin-block-start: 0;
+}
+
+/* نقاط الاستجابة مشتركة لكل الصفحات الإدارية */
+@media (max-width: 760px) {
+  .dashboard-hero {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .dashboard-hero-actions {
+    justify-content: stretch;
+  }
+
+  .dashboard-hero-actions .btn {
+    flex: 1 1 150px;
+  }
+
+  .card-header {
+    align-items: flex-start;
+  }
+
+  .card-header > .btn,
+  .card-header > .btn-group,
+  .card-header > div > .btn {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .page-content > * + * { margin-block-start: var(--admin-space-3); }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --admin-banner-radius: 15px;
+    --admin-banner-padding: 15px;
+    --admin-banner-gap: 10px;
+  }
+
+  .page-intro,
+  .page-header,
+  .section-header {
+    margin-block-end: var(--admin-space-3);
+  }
+
+  .dashboard-hero-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .dashboard-hero-actions .btn {
+    width: 100%;
+  }
+
+  .card-header > :first-child {
+    flex-basis: 100%;
+  }
+
+  .materials-select-card .card-header > div:last-child {
+    width: 100%;
+  }
+
+  .materials-select-card .card-header > div:last-child .btn {
+    flex: 1 1 140px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-hero,
+  .page-intro,
+  .page-header,
+  .section-header,
+  .card-header {
+    scroll-behavior: auto;
+  }
+}
