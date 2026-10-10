@@ -194,3 +194,7 @@ body.download-page #navMenu ul li a:active {
   text-decoration: none !important;
   border-bottom: 0 !important;
 }
+
+/* Keep the same 15px page gutters and 20px footer rhythm as other public pages. */
+.download-content { width: min(var(--content-w), calc(100% - 30px)); padding-bottom: 20px; }
+footer { margin-top: 20px !important; }

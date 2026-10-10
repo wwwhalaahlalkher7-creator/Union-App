@@ -798,3 +798,71 @@ header#header {
 @media (prefers-reduced-motion:reduce) {
   .ui-ambient { display:none; }
 }
+
+
+/* Public website spacing normalization (2026-10): consistent 15px side gutters
+   and a consistent ~20px breathing space before the footer. */
+:root { --public-page-gutter: 15px; --public-footer-gap: 20px; }
+.cards-container,
+.statistics-container,
+.hub-container,
+.notice-container,
+.content-container,
+.committees-grid,
+.courses-body,
+.section-wrap,
+.news-container,
+#news-container,
+#page-cards-container,
+.tabs-container {
+  width: min(var(--content-w), calc(100% - (var(--public-page-gutter) * 2))) !important;
+  max-width: var(--content-w);
+  margin-inline: auto !important;
+  box-sizing: border-box;
+}
+.cards-container,
+.statistics-container,
+.hub-container,
+.notice-container,
+.content-container,
+.committees-grid,
+.courses-body,
+.section-wrap,
+.news-container,
+#news-container,
+#page-cards-container,
+.tabs-container {
+  padding-inline: 0 !important;
+}
+.news-container,
+.content-container,
+.committees-grid,
+.cards-container,
+.statistics-container,
+.hub-container,
+.notice-container,
+.courses-body,
+.section-wrap,
+#news-container,
+#page-cards-container {
+  margin-bottom: var(--public-footer-gap) !important;
+}
+footer {
+  margin-top: var(--public-footer-gap) !important;
+}
+@media (max-width: 679px) {
+  .cards-container,
+  .statistics-container,
+  .hub-container,
+  .notice-container,
+  .content-container,
+  .committees-grid,
+  .courses-body,
+  .section-wrap,
+  .news-container,
+  #news-container,
+  #page-cards-container,
+  .tabs-container {
+    width: calc(100% - 30px) !important;
+  }
+}
