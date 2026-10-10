@@ -36,12 +36,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="Injazat-page.css?v=1">
+<link rel="stylesheet" href="Injazat-page.css?v=3">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="api-config.js?v=1"></script>
-    <link rel="stylesheet" href="ui-pro.css?v=4">
+    <link rel="stylesheet" href="ui-pro.css?v=5">
 </head>
 
 <body>
@@ -116,6 +116,8 @@
 </div>
 
 <!-- الفوتر الموحد -->
+<div class="content-details-overlay" id="achievementDetailsOverlay" role="dialog" aria-modal="true" aria-label="تفاصيل الإنجاز"><div class="content-details-dialog"><button type="button" class="content-details-close" id="achievementDetailsClose" aria-label="إغلاق"><i class="fas fa-xmark"></i></button><div id="achievementDetailsContent"></div></div></div>
+
 <footer>
     <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
     <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
@@ -196,7 +198,7 @@
     function resolveBadge(fields) {
         const category = (fields.Badge || "").toString().trim();
         const entry = BADGE_MAP[category] || DEFAULT_BADGE;
-        return { icon: entry.icon, text: entry.label };
+        return { icon: entry.icon, text: category || entry.label };
     }
 
     function safeAchievementImageUrl(value) {
@@ -393,12 +395,47 @@
             shareBtn.className = "heart-btn";
             shareBtn.setAttribute("aria-label", "مشاركة هذا الإنجاز");
             shareBtn.innerHTML = '<i class="fas fa-share-nodes"></i>';
-            shareBtn.addEventListener("click", () => shareAchievementLink(record.id, shareBtn));
+            shareBtn.addEventListener("click", (event) => { event.stopPropagation(); shareAchievementLink(record.id, shareBtn); });
             footer.appendChild(shareBtn);
         }
 
+        card.setAttribute("tabindex", "0");
+        card.setAttribute("role", "button");
+        card.setAttribute("aria-label", "عرض تفاصيل " + title);
+        card.addEventListener("click", (event) => {
+            if (event.target.closest("button, a")) return;
+            openAchievementDetails(card, title);
+        });
+        card.addEventListener("keydown", (event) => {
+            if (event.target !== card) return;
+            if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openAchievementDetails(card, title); }
+        });
         return card;
     }
+
+    function openAchievementDetails(card, title) {
+        const overlay = document.getElementById("achievementDetailsOverlay");
+        const content = document.getElementById("achievementDetailsContent");
+        if (!overlay || !content) return;
+        content.replaceChildren();
+        const clone = card.cloneNode(true);
+        clone.classList.add("details-content-expanded");
+        clone.removeAttribute("tabindex");
+        clone.removeAttribute("role");
+        clone.querySelectorAll("button").forEach(button => button.remove());
+        content.appendChild(clone);
+        overlay.classList.add("open");
+        overlay.setAttribute("aria-label", "تفاصيل " + title);
+        document.body.style.overflow = "hidden";
+    }
+    function closeAchievementDetails() {
+        const overlay = document.getElementById("achievementDetailsOverlay");
+        if (overlay) overlay.classList.remove("open");
+        document.body.style.overflow = "";
+    }
+    document.getElementById("achievementDetailsClose")?.addEventListener("click", closeAchievementDetails);
+    document.getElementById("achievementDetailsOverlay")?.addEventListener("click", event => { if (event.target.id === "achievementDetailsOverlay") closeAchievementDetails(); });
+    document.addEventListener("keydown", event => { if (event.key === "Escape") closeAchievementDetails(); });
 
     // ----------------------------------------------------
     // ✅ Phase 5 — رابط مباشر وقابل للمشاركة لإنجاز واحد (Injazat.html?id=RECORD_ID)

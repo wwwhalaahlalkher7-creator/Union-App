@@ -977,3 +977,62 @@
             clip: rect(0 0 0 0);
             white-space: nowrap;
         }
+
+
+/* توحيد المسافة الجانبية في صفحة المواد: 15px من حافة الهاتف */
+:root { --public-page-gutter: 15px; }
+.section-wrap,
+.courses-body,
+.tabs-container,
+#contentArea,
+#contentArea .tab-content {
+  width: min(var(--content-w, 1180px), calc(100% - 30px)) !important;
+  max-width: 1180px !important;
+  margin-inline: auto !important;
+  box-sizing: border-box;
+}
+.courses-body { padding-inline: 0 !important; }
+.tabs-container { padding-inline: 0 !important; }
+#contentArea { min-width: 0; padding-inline: 0 !important; }
+#contentArea .tab-content { padding-inline: 0 !important; }
+.semesters-grid, .files-grid { width: 100%; min-width: 0; }
+.search-scope-hint { padding-inline: 0 !important; }
+
+/* قارئ PDF: إطار أقرب إلى حافة الهاتف مع الحفاظ على مساحة مريحة للأزرار */
+@media (max-width: 679px) {
+  #pdfModal.modal-overlay {
+    padding: 3px !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+  }
+  #pdfModal .modal-box {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: calc(100dvh - 6px) !important;
+    height: calc(100dvh - 6px) !important;
+    margin: 0 !important;
+    border-radius: 10px !important;
+  }
+  #pdfModal .modal-header { padding: 10px 12px !important; gap: 8px !important; }
+  #pdfModal .modal-frame-wrap,
+  #pdfModal .modal-frame-wrap iframe { min-height: 0 !important; }
+  #pdfModal .modal-frame-wrap { flex: 1 1 auto; }
+  #pdfModal .modal-footer { padding: 8px 10px !important; gap: 8px !important; }
+  #pdfModal .modal-footer a,
+  #pdfModal .modal-footer button { min-width: 0; padding: 9px 8px; }
+}
+@media (max-width: 380px) {
+  #pdfModal.modal-overlay { padding: 1px !important; }
+  #pdfModal .modal-box {
+    max-height: calc(100dvh - 2px) !important;
+    height: calc(100dvh - 2px) !important;
+    border-radius: 7px !important;
+  }
+}
+/* التبويبات والمحتوى داخل حاوية المواد لا يضيفان هامشًا جانبيًا ثانيًا */
+.courses-body > .tabs-container,
+.courses-body > #contentArea,
+#contentArea > .tab-content {
+  width: 100% !important;
+  max-width: none !important;
+}

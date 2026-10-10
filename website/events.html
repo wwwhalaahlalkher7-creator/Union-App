@@ -35,12 +35,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="events-page.css?v=1">
+<link rel="stylesheet" href="events-page.css?v=3">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="api-config.js?v=1"></script>
-    <link rel="stylesheet" href="ui-pro.css?v=4">
+    <link rel="stylesheet" href="ui-pro.css?v=5">
 </head>
 
 <body>
@@ -85,6 +85,8 @@
     <span class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="الصورة التالية"><i class="fas fa-chevron-left"></i></span>
     <div class="lightbox-counter" id="lightboxCounter"></div>
 </div>
+
+<div class="content-details-overlay" id="eventDetailsOverlay" role="dialog" aria-modal="true" aria-label="تفاصيل الفعالية"><div class="content-details-dialog"><button type="button" class="content-details-close" id="eventDetailsClose" aria-label="إغلاق"><i class="fas fa-xmark"></i></button><div id="eventDetailsContent"></div></div></div>
 
 <footer>
     <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
@@ -236,14 +238,23 @@
         if (!startValid && !endValid) return null;
 
         if (startValid && now < start) {
-            return { state: "upcoming", icon: "fa-clock", label: "قادم" };
+            return { state: "upcoming", icon: "fa-clock", label: "قريبًا" };
         }
 
-        if (endValid && now > end) {
+        if (endValid && now >= end) {
             return { state: "ended", icon: "fa-circle-check", label: "انتهى" };
         }
 
-        return { state: "ongoing", icon: "fa-circle-play", label: "جارٍ" };
+        return { state: "ongoing", icon: "fa-circle-play", label: "جارٍ الآن" };
+    }
+
+    function formatEventDateTime(value) {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return String(value);
+        const datePart = date.toLocaleDateString("ar-EG", {year:"numeric", month:"long", day:"numeric"});
+        const hasTime = /T\d{2}:\d{2}/.test(String(value));
+        return hasTime ? `${datePart} — ${date.toLocaleTimeString("ar-EG", {hour:"2-digit", minute:"2-digit"})}` : datePart;
     }
 
     // ----------------------------------------------------
@@ -279,7 +290,10 @@
         card.className = "event-card";
 
         card.innerHTML = `
-            ${statusEntry ? `<div class="event-meta"><span class="event-status-badge is-${statusEntry.state}"><i class="fas ${statusEntry.icon}"></i> ${statusEntry.label}</span></div>` : ''}
+            <div class="event-meta">
+              ${statusEntry ? `<span class="event-status-badge is-${statusEntry.state}"><i class="fas ${statusEntry.icon}"></i> ${statusEntry.label}</span>` : ''}
+              ${fields.badge ? `<span class="event-category-badge"></span>` : ''}
+            </div>
             <h2 class="act-title"></h2>
             <div class="gallery-slot"></div>
             <div class="intro-text-container"></div>
@@ -288,11 +302,14 @@
                     <span class="act-publisher"><i class="far fa-user"></i></span>
                     ${location ? '<span class="act-location"><i class="fas fa-location-dot"></i></span>' : ''}
                     <span class="act-date"><i class="far fa-calendar"></i> ${dateString}</span>
+                    ${fields.endAt ? `<span class="act-end-date"><i class="fas fa-hourglass-end"></i> ينتهي: ${formatEventDateTime(fields.endAt)}</span>` : ''}
                 </div>
             </div>
         `;
 
         card.querySelector(".act-title").textContent = title;
+        const backendBadge = card.querySelector(".event-category-badge");
+        if (backendBadge) backendBadge.textContent = fields.badge;
         card.querySelector(".act-publisher").appendChild(document.createTextNode(" الناشر: " + publisher));
         if (location) {
             card.querySelector(".act-location").appendChild(document.createTextNode(" " + location));
@@ -316,8 +333,30 @@
             introBox.remove();
         }
 
+        card.setAttribute("tabindex", "0");
+        card.setAttribute("role", "button");
+        card.setAttribute("aria-label", "عرض تفاصيل " + title);
+        card.addEventListener("click", event => { if (!event.target.closest("button, a")) openEventDetails(card, title); });
+        card.addEventListener("keydown", event => { if (event.target !== card) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openEventDetails(card, title); } });
         return card;
     }
+
+    function openEventDetails(card, title) {
+        const overlay = document.getElementById("eventDetailsOverlay");
+        const content = document.getElementById("eventDetailsContent");
+        if (!overlay || !content) return;
+        content.replaceChildren();
+        const clone = card.cloneNode(true);
+        clone.classList.add("details-content-expanded");
+        clone.removeAttribute("tabindex"); clone.removeAttribute("role");
+        content.appendChild(clone);
+        overlay.setAttribute("aria-label", "تفاصيل " + title);
+        overlay.classList.add("open"); document.body.style.overflow = "hidden";
+    }
+    function closeEventDetails() { document.getElementById("eventDetailsOverlay")?.classList.remove("open"); document.body.style.overflow = ""; }
+    document.getElementById("eventDetailsClose")?.addEventListener("click", closeEventDetails);
+    document.getElementById("eventDetailsOverlay")?.addEventListener("click", event => { if (event.target.id === "eventDetailsOverlay") closeEventDetails(); });
+    document.addEventListener("keydown", event => { if (event.key === "Escape") closeEventDetails(); });
 
     // ----------------------------------------------------
     // جلب الفعاليات من TRINEX وعرضها في الصفحة — قائمة واحدة مرتبة

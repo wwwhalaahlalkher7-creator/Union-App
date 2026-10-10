@@ -657,3 +657,7 @@
             
             .page-header h1 { font-size: 2rem; }
         }
+
+/* اختصار النص في البطاقة العامة مع إبقاء النص الكامل في نافذة التفاصيل */
+.news-card h2 { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+.news-card .news-body > p { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }

@@ -452,3 +452,75 @@
         .page-header h1 { font-size: 2rem; }
         .event-card { padding: 25px; }
     }
+
+
+/* توحيد أبعاد صفحات الإنجازات والفعاليات مع صفحة الأخبار */
+.page-header,
+.page-title-section {
+  width: min(var(--content-w, 1180px), calc(100% - 30px)) !important;
+  max-width: 1180px !important;
+  margin-inline: auto !important;
+  padding: 142px 0 28px !important;
+  box-sizing: border-box;
+}
+.page-header h1,
+.page-title-section h1 {
+  font-size: clamp(1.9rem, 7vw, 3.4rem) !important;
+  line-height: 1.18 !important;
+}
+.content-container,
+#page-cards-container {
+  width: min(var(--content-w, 1180px), calc(100% - 30px)) !important;
+  max-width: 1180px !important;
+  margin-inline: auto !important;
+  padding-inline: 0 !important;
+  box-sizing: border-box;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 14px !important;
+}
+.achievement-card, .event-card {
+  min-width: 0;
+  padding: 24px !important;
+  border-radius: 18px !important;
+}
+@media (min-width: 680px) {
+  .content-container, #page-cards-container {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+@media (min-width: 920px) {
+  .content-container, #page-cards-container {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+@media (max-width: 679px) {
+  .page-header, .page-title-section {
+    width: calc(100% - 30px) !important;
+    padding-top: 142px !important;
+    padding-bottom: 24px !important;
+  }
+  .achievement-card, .event-card { padding: 18px !important; }
+}
+/* الحاوية الديناميكية تتبع شبكة البطاقات المتجاوبة */
+#page-cards-container { display: grid !important; grid-template-columns: 1fr !important; }
+@media (min-width: 680px) { #page-cards-container { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+@media (min-width: 920px) { #page-cards-container { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+
+
+/* بطاقات عامة: نص مختصر، والتفاصيل كاملة داخل نافذة مستقلة */
+.content-details-overlay { position:fixed; inset:0; z-index:3000; display:none; align-items:flex-start; justify-content:center; overflow-y:auto; padding:22px 14px; background:rgba(2,6,15,.82); backdrop-filter:blur(7px); }
+.content-details-overlay.open { display:flex; }
+.content-details-dialog { position:relative; width:min(900px,100%); margin:auto; }
+.content-details-close { position:sticky; top:8px; z-index:5; float:left; width:42px; height:42px; border:1px solid rgba(255,255,255,.15); border-radius:50%; background:#111827; color:#fff; cursor:pointer; }
+.content-details-dialog .achievement-card, .content-details-dialog .event-card { cursor:default; margin:0; max-width:100%; }
+.details-content-expanded .intro-text-container { max-height:none !important; overflow:visible !important; -webkit-line-clamp:unset !important; mask-image:none !important; }
+.details-content-expanded .intro-text-container p { display:block !important; overflow:visible !important; max-height:none !important; -webkit-line-clamp:unset !important; }
+.event-category-badge { display:inline-flex; align-items:center; padding:5px 12px; border-radius:30px; font-size:.75rem; font-weight:700; color:#d9c2ff; background:rgba(167,139,250,.13); border:1px solid rgba(167,139,250,.25); }
+.event-meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.act-end-date { display:inline-flex; align-items:center; gap:6px; color:var(--text-muted); font-size:.88rem; }
+@media (max-width:600px) { .content-details-overlay { padding:8px; } .content-details-dialog { width:100%; } .content-details-close { top:4px; } }
+
+.event-card .intro-text-container { max-height: 8.4em; overflow:hidden; position:relative; mask-image:linear-gradient(to bottom, #000 72%, transparent 100%); cursor:pointer; }
+.event-card h2 { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+.details-content-expanded h2 { display:block !important; -webkit-line-clamp:unset !important; max-height:none !important; overflow:visible !important; }

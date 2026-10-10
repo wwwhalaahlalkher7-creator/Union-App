@@ -34,7 +34,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="news-page.css?v=1">
+    <link rel="stylesheet" href="news-page.css?v=2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -207,7 +207,7 @@
             const data = await response.json();
             const cloudNews = Array.isArray(data.data) ? data.data.map(item => ({
                 id:item.id, title:item.title||"", content:item.body||"", image:item.imageUrl||"",
-                category:item.category||"", publisher:item.publisher||"أمانة الإعلام", date:item.publishAt||item.createdAt||""
+                category:item.category||"", badge:item.badge||"", publisher:item.publisher||"أمانة الإعلام", date:item.publishAt||item.createdAt||""
             })) : [];
             const localNews = [];
             allNewsData = cloudNews.concat(localNews);
@@ -271,7 +271,7 @@
                 <div class="news-meta">
                     <span class="news-tag ${catDetails.badgeClass}">
                         <i class="fas ${catDetails.icon}"></i>
-                        ${catDetails.label}
+                        ${escapeHtml(item.badge || catDetails.label)}
                     </span>
                     <span class="news-date">
                         <i class="far fa-calendar"></i>
@@ -440,6 +440,10 @@
     // ----------------------------------------------------
     // ✅ Phase 4 — تفاصيل الخبر ضمن صفحة واحدة (Modal) مع رابط قابل للمشاركة عبر ?id=
     // ----------------------------------------------------
+    function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+    }
+
     function safeNewsImageUrl(value) {
         try {
             const url = new URL(String(value || ""));
@@ -481,7 +485,7 @@
                 ${imageSection}
                 <div class="news-modal-body">
                     <div class="news-meta">
-                        <span class="news-tag ${catDetails.badgeClass}"><i class="fas ${catDetails.icon}"></i> ${catDetails.label}</span>
+                        <span class="news-tag ${catDetails.badgeClass}"><i class="fas ${catDetails.icon}"></i> ${escapeHtml(item.badge || catDetails.label)}</span>
                         <span class="news-date"><i class="far fa-calendar"></i></span>
                     </div>
                     <h2 id="newsModalTitle"></h2>
