@@ -53,7 +53,9 @@ class PushNotificationService {
     try {
       final settings = await FirebaseMessaging.instance.getNotificationSettings();
       if (settings.authorizationStatus != AuthorizationStatus.authorized &&
-          settings.authorizationStatus != AuthorizationStatus.provisional) return;
+          settings.authorizationStatus != AuthorizationStatus.provisional) {
+        return;
+      }
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null || token.isEmpty) return;
       await AppDependencies.instance.apiClient.postJson('/api/v1/student/notifications/device', body: {

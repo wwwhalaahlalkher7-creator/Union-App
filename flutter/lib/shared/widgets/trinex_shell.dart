@@ -103,7 +103,7 @@ class _TrinexShellState extends State<TrinexShell>
         bottom: false,
         child: Column(
           children: [
-            const _TopHeader(),
+            _TopHeader(unreadNotifications: _unreadNotifications),
             Expanded(
               child: Stack(
                 children: [
@@ -157,7 +157,9 @@ class _TrinexShellState extends State<TrinexShell>
 }
 
 class _TopHeader extends StatelessWidget {
-  const _TopHeader();
+  const _TopHeader({required this.unreadNotifications});
+
+  final int unreadNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -234,7 +236,7 @@ class _TopHeader extends StatelessWidget {
                   icon: Icons.notifications_none_rounded,
                   size: button,
                   tooltip: l10n.t('notifications'),
-                  badgeCount: _unreadNotifications,
+                  badgeCount: unreadNotifications,
                   onTap: () => context.push('/notifications'),
                 ),
                 const SizedBox(width: 4),
