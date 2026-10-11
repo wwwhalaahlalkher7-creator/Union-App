@@ -13,8 +13,8 @@ const INTERACTION_RULES = { comment: { limit: 10, minutes: 10 }, reply: { limit:
 const ALLOWED_REACTIONS = new Set(['like','helpful','love','celebrate']);
 const CONTENT_TYPE_ALIASES = Object.freeze({
   news: 'news',
-  event: 'event',
-  events: 'event',
+  activity: 'activity',
+  activities: 'activity',
   announcement: 'announcement',
   announcements: 'announcement',
   achievement: 'achievement',
@@ -28,7 +28,7 @@ export function canonicalContentType(value) {
 export async function contentIsCommentable(ctx, type, id) {
   type = canonicalContentType(type);
   if (!ALLOWED_CONTENT_TYPES.has(type) || !id) return false;
-  const table = type === 'event' ? 'events' : type === 'announcement' ? 'announcements' : type === 'achievement' ? 'achievements' : 'news';
+  const table = type === 'activity' ? 'events' : type === 'announcement' ? 'announcements' : type === 'achievement' ? 'achievements' : 'news';
   const dateColumn = table === 'events' ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
   const expiry = ['news', 'announcements'].includes(table) ? ' AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)' : '';
   const row = await queryOne(ctx.env, `SELECT id FROM ${table} WHERE id=? AND status='published' AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)${expiry} LIMIT 1`, id);

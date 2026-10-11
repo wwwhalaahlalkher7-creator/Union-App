@@ -209,7 +209,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(comment.studentName, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
+                          GestureDetector(onTap: comment.studentId.isEmpty ? null : () => context.push('/student/profile/${Uri.encodeComponent(comment.studentId)}?name=${Uri.encodeQueryComponent(comment.studentName)}'), child: Row(mainAxisSize: MainAxisSize.min, children: [CircleAvatar(radius: 10, backgroundColor: cs.primaryContainer, child: Icon(Icons.person_rounded, size: 12, color: cs.onPrimaryContainer)), const SizedBox(width: 5), Flexible(child: Text(comment.studentName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: cs.primary, decoration: TextDecoration.underline)))])),
                           const SizedBox(height: 4),
                           Text(comment.body, style: const TextStyle(fontSize: 11.5, height: 1.5)),
                           Row(
@@ -236,7 +236,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
                                         padding: const EdgeInsets.all(9),
                                         decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
                                         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                                          Text(reply.studentName, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
+                                          GestureDetector(onTap: reply.studentId.isEmpty ? null : () => context.push('/student/profile/${Uri.encodeComponent(reply.studentId)}?name=${Uri.encodeQueryComponent(reply.studentName)}'), child: Row(mainAxisSize: MainAxisSize.min, children: [CircleAvatar(radius: 9, backgroundColor: cs.primaryContainer, child: Icon(Icons.person_rounded, size: 11, color: cs.onPrimaryContainer)), const SizedBox(width: 5), Flexible(child: Text(reply.studentName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: cs.primary, decoration: TextDecoration.underline)))])),
                                           const SizedBox(height: 3),
                                           Text(reply.body, style: const TextStyle(fontSize: 10.5, height: 1.45)),
                                         ]),

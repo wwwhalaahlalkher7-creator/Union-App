@@ -96,7 +96,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     }
     if (item == null) {
       return Scaffold(
-        appBar: AppBar(title: Text(widget.type == 'news' ? l10n.t('news') : widget.type == 'achievement' ? l10n.t('achievements') : l10n.t('events'))),
+        appBar: AppBar(title: Text(widget.type == 'news' ? l10n.t('news') : widget.type == 'achievement' ? l10n.t('achievements') : l10n.t('activities'))),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -119,9 +119,9 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         ? l10n.t('news')
         : widget.type == 'achievement'
             ? l10n.t('achievements')
-            : l10n.t('events');
+            : l10n.t('activities');
 
-    final mediaTab = widget.type == 'achievement' ? 1 : widget.type == 'event' ? 2 : 0;
+    final mediaTab = widget.type == 'achievement' ? 1 : (widget.type == 'activity' ? 2 : 0);
 
     return Scaffold(
       appBar: AppBar(
@@ -135,7 +135,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         leading: IconButton(
           onPressed: () {
             // Return to the already-open MediaScreen instead of replacing it.
-            // This preserves the exact tab (news/achievements/events) the
+            // This preserves the exact tab (news/achievements/activities) the
             // student came from. The fallback keeps direct/deep links safe.
             if (context.canPop()) {
               context.pop();
@@ -152,7 +152,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
           if (images.isNotEmpty)
             _Gallery(images: images)
           else
-            _Fallback(label: label, icon: widget.type == 'news' ? Icons.article_rounded : widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.event_available_rounded),
+            _Fallback(label: label, icon: widget.type == 'news' ? Icons.article_rounded : widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.workspaces_outline_rounded),
           Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
@@ -160,7 +160,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
               children: [
                 Text(item.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, height: 1.35)),
                 const SizedBox(height: 7),
-                if (widget.type == 'event') ...[
+                if (widget.type == 'activity') ...[
                   if (item.eventAt != null) Text('${l10n.t('eventStart')}: ${_date(item.eventAt)}', style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
                   const SizedBox(height: 4),
                   Text('${l10n.t('eventEnd')}: ${item.endAt != null ? _date(item.endAt) : l10n.t('eventEndNotSet')}', style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),

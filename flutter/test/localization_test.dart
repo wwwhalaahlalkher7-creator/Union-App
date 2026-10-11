@@ -11,6 +11,9 @@ void main() {
       expect(l10n.t('schedule'), isNotEmpty);
       expect(l10n.t('settings'), isNotEmpty);
       expect(l10n.t('materialSearch'), isNotEmpty);
+      expect(l10n.t('chatOnlineSpace'), isNotEmpty);
+      expect(l10n.t('chatSafetyNotice'), isNotEmpty);
+      expect(l10n.t('chatReportTitle'), isNotEmpty);
     }
   });
 }

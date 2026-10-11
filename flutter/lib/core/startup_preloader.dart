@@ -10,7 +10,7 @@ class StartupPreloader {
   Future<void> warmPublicCache() async {
     const paths = <String>[
       '/api/v1/public/news',
-      '/api/v1/public/events',
+      '/api/v1/public/activities',
     ];
     await Future.wait(
       paths.map(

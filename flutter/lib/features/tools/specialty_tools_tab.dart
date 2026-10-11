@@ -6,39 +6,119 @@ class _SpecialtyToolsTab extends StatelessWidget {
   Future<void> _openTool(BuildContext context, String title, String description) async {
     final first = TextEditingController();
     final second = TextEditingController();
+    final third = TextEditingController();
     String result = '';
+    String fromUnit = 'm';
+    String toUnit = 'cm';
+    final needsThird = title == 'حجم الخرسانة';
+    final unitOptions = switch (title) {
+      'تحويل الإجهاد' => const <String>['Pa', 'kPa', 'MPa', 'psi'],
+      'تحويل الوحدات' => const <String>['mm', 'cm', 'm', 'km', 'in', 'ft'],
+      'تحويل وحدات التيار' => const <String>['mA', 'A', 'kA'],
+      'حاسبة البتات والبايتات' => const <String>['bit', 'B', 'KB', 'MB', 'GB'],
+      _ => const <String>['m', 'cm', 'mm', 'km'],
+    };
+    if (!unitOptions.contains(fromUnit)) {
+      fromUnit = unitOptions.first;
+    }
+    if (!unitOptions.contains(toUnit) || fromUnit == toUnit) {
+      toUnit = unitOptions.length > 1 ? unitOptions[1] : unitOptions.first;
+    }
+
+    String inputLabel(int index) => switch (title) {
+      'قانون أوم' || 'قانون أوم للإلكترونيات' || 'القدرة الكهربائية' => index == 0 ? 'الجهد (V)' : 'التيار (A)',
+      'مقاومات التوالي والتوازي' => index == 0 ? 'المقاومة الأولى (Ω)' : 'المقاومة الثانية (Ω)',
+      'حجم الخرسانة' => ['الطول (م)', 'العرض (م)', 'الارتفاع (م)'][index],
+      'مساحة ومحيط المقاطع' || 'مساحة الغرف' => index == 0 ? 'الطول (م)' : 'العرض (م)',
+      'حاسبة الميل' => index == 0 ? 'الارتفاع' : 'المسافة الأفقية',
+      'مقياس الرسم' => index == 0 ? 'الطول على الرسم' : 'مقام المقياس (مثل 100 في 1:100)',
+      'نسبة الأبعاد' => index == 0 ? 'العرض' : 'الارتفاع',
+      'تحويل الإجهاد' || 'تحويل الوحدات' || 'تحويل وحدات التيار' || 'حاسبة البتات والبايتات' => 'القيمة',
+      _ => index == 0 ? 'القيمة الأولى' : 'القيمة الثانية',
+    };
+
+    final usesUnitPicker = title == 'تحويل الإجهاد' || title == 'تحويل الوحدات' || title == 'تحويل وحدات التيار' || title == 'حاسبة البتات والبايتات';
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text(title),
-          content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(description),
             const SizedBox(height: 12),
-            TextField(controller: first, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: const InputDecoration(labelText: 'القيمة الأولى')),
-            const SizedBox(height: 8),
-            if (!title.contains('الأنظمة العددية')) TextField(controller: second, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: const InputDecoration(labelText: 'القيمة الثانية')),
-            if (result.isNotEmpty) ...[const SizedBox(height: 14), SelectableText(result, style: const TextStyle(fontWeight: FontWeight.w800))],
+            TextField(controller: first, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: inputLabel(0))),
+            if (!title.contains('الأنظمة العددية')) ...[
+              const SizedBox(height: 8),
+              if (!usesUnitPicker) TextField(controller: second, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: inputLabel(1))),
+              if (needsThird) ...[
+                const SizedBox(height: 8),
+                TextField(controller: third, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: inputLabel(2))),
+              ],
+              if (usesUnitPicker) ...[
+                DropdownButtonFormField<String>(value: fromUnit, decoration: const InputDecoration(labelText: 'من الوحدة'), items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(), onChanged: (v) { if (v != null) { setDialogState(() { fromUnit = v; if (toUnit == fromUnit) { toUnit = unitOptions.firstWhere((u) => u != fromUnit, orElse: () => fromUnit); } }); } }),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(value: toUnit, decoration: const InputDecoration(labelText: 'إلى الوحدة'), items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(), onChanged: (v) { if (v != null) { setDialogState(() => toUnit = v); } }),
+              ],
+            ],
+            if (result.isNotEmpty) ...[const SizedBox(height: 14), SelectableText(result, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.5))],
           ])),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق')),
             FilledButton(onPressed: () {
-              final a = double.tryParse(first.text.trim());
-              final b = double.tryParse(second.text.trim());
+              final a = double.tryParse(first.text.trim().replaceAll(',', '.'));
+              final b = double.tryParse(second.text.trim().replaceAll(',', '.'));
+              final c = double.tryParse(third.text.trim().replaceAll(',', '.'));
+              String output;
               if (title.contains('الأنظمة العددية')) {
                 final n = int.tryParse(first.text.trim());
-                setDialogState(() => result = n == null ? 'أدخل عددًا صحيحًا صالحًا.' : '$n (عشري) = ${n.toRadixString(2)} (ثنائي)\n${n.toRadixString(16).toUpperCase()} (سداسي عشر)');
-                return;
+                output = n == null ? 'أدخل عددًا صحيحًا صالحًا.' : '$n (عشري) = ${n.toRadixString(2)} (ثنائي)\n${n.toRadixString(16).toUpperCase()} (سداسي عشر)';
+              } else if (a == null || !a.isFinite) {
+                output = 'أدخل قيمة رقمية صحيحة.';
+              } else if (usesUnitPicker) {
+                if (title == 'تحويل الإجهاد') {
+                  output = '${EngineeringCalculations.convertStress(a, fromUnit, toUnit).toStringAsPrecision(7)} $toUnit';
+                } else if (title == 'حاسبة البتات والبايتات') {
+                  output = '${EngineeringCalculations.convertDataSize(a, fromUnit, toUnit).toStringAsPrecision(7)} $toUnit (على أساس 1000)';
+                } else if (title == 'تحويل وحدات التيار') {
+                  output = '${EngineeringCalculations.convertCurrent(a, fromUnit, toUnit).toStringAsPrecision(7)} $toUnit';
+                } else {
+                  output = '${EngineeringCalculations.convertLength(a, fromUnit, toUnit).toStringAsPrecision(7)} $toUnit';
+                }
+              } else if (b == null || !b.isFinite) {
+                output = 'أدخل قيمة ثانية صحيحة.';
+              } else if (title == 'قانون أوم' || title == 'قانون أوم للإلكترونيات') {
+                output = b == 0 ? 'التيار لا يمكن أن يكون صفرًا.' : 'المقاومة R = ${EngineeringCalculations.resistanceFromVoltageCurrent(a, b).toStringAsPrecision(7)} Ω';
+              } else if (title == 'القدرة الكهربائية') {
+                output = 'القدرة P = ${EngineeringCalculations.electricalPower(a, b).toStringAsPrecision(7)} W';
+              } else if (title == 'مقاومات التوالي والتوازي') {
+                if (a < 0 || b < 0) { output = 'قيم المقاومة لا يمكن أن تكون سالبة.'; }
+                else { final sum = EngineeringCalculations.seriesResistance(a, b); output = 'التوالي: ${sum.toStringAsPrecision(7)} Ω\nالتوازي: ${sum == 0 ? 'غير معرّف' : EngineeringCalculations.parallelResistance(a, b).toStringAsPrecision(7)} Ω'; }
+              } else if (title == 'حجم الخرسانة') {
+                if (c == null || !c.isFinite || a < 0 || b < 0 || c < 0) {
+                  output = 'أدخل ثلاثة أبعاد موجبة أو صفرًا.';
+                } else {
+                  output = 'الحجم = ${EngineeringCalculations.concreteVolume(a, b, c).toStringAsPrecision(7)} م³';
+                }
+              } else if (title == 'مساحة ومحيط المقاطع' || title == 'مساحة الغرف') {
+                if (a < 0 || b < 0) {
+                  output = 'الأبعاد لا يمكن أن تكون سالبة.';
+                } else {
+                  final shape = EngineeringCalculations.rectangle(a, b);
+                  output = 'المساحة = ${shape.area.toStringAsPrecision(7)} م²\nالمحيط = ${shape.perimeter.toStringAsPrecision(7)} م';
+                }
+              } else if (title == 'حاسبة الميل') {
+                output = b == 0 ? 'المسافة الأفقية لا يمكن أن تكون صفرًا.' : 'الميل = ${EngineeringCalculations.slopePercent(a, b).toStringAsPrecision(6)}%';
+              } else if (title == 'مقياس الرسم') {
+                if (b <= 0) {
+                  output = 'مقام المقياس يجب أن يكون أكبر من صفر.';
+                } else {
+                  output = 'الطول الحقيقي = ${EngineeringCalculations.scaledLength(a, b).toStringAsPrecision(7)} (بنفس وحدة الرسم)';
+                }
+              } else if (title == 'نسبة الأبعاد') {
+                output = b == 0 ? 'الارتفاع لا يمكن أن يكون صفرًا.' : 'نسبة العرض إلى الارتفاع = ${EngineeringCalculations.aspectRatio(a, b).toStringAsPrecision(6)} : 1';
+              } else {
+                output = 'الناتج = ${(a * b).toStringAsPrecision(7)}';
               }
-              if (a == null || b == null) { setDialogState(() => result = 'أدخل قيمتين رقميتين صحيحتين.'); return; }
-              String output;
-              if (title.contains('قانون أوم')) output = b == 0 ? 'التيار لا يمكن أن يكون صفرًا.' : 'المقاومة R = ${(a / b).toStringAsFixed(4)} Ω';
-              else if (title == 'القدرة الكهربائية') output = 'القدرة P = ${(a * b).toStringAsFixed(4)} W';
-              else if (title == 'حاسبة الميل') output = b == 0 ? 'المسافة الأفقية لا يمكن أن تكون صفرًا.' : 'الميل = ${(a / b * 100).toStringAsFixed(2)}%';
-              else if (title == 'مقاومات التوالي والتوازي') output = 'التوالي: ${(a + b).toStringAsFixed(4)} Ω\nالتوازي: ${(a + b) == 0 ? 'غير معرّف' : (a * b / (a + b)).toStringAsFixed(4)} Ω';
-              else if (title == 'مقياس الرسم') output = 'الطول الحقيقي = ${(a * b).toStringAsFixed(4)} (بنفس وحدة القياس).';
-              else if (title == 'حجم الخرسانة') output = 'الحجم = ${(a * b).toStringAsFixed(4)} م³ (مساحة المقطع × الارتفاع).';
-              else output = 'الناتج = ${(a * b).toStringAsFixed(4)}';
               setDialogState(() => result = output);
             }, child: const Text('احسب')),
           ],
@@ -47,18 +127,29 @@ class _SpecialtyToolsTab extends StatelessWidget {
     );
     first.dispose();
     second.dispose();
+    third.dispose();
   }
 
 
   Future<String> _department() async {
     final deps = AppDependencies.instance;
-    if (!await deps.authStorage.isLoggedIn) return 'general';
+    if (!await deps.authStorage.isLoggedIn) {
+      return 'general';
+    }
     final profile = await deps.student.profile();
     final value = '${profile.departmentName ?? ''} ${profile.departmentId}'.toLowerCase();
-    if (value.contains('civil') || value.contains('مدني') || value.contains('مدنية')) return 'civil';
-    if (value.contains('elect') || value.contains('كهرب') || value.contains('الكترون') || value.contains('إلكترون')) return 'electrical';
-    if (value.contains('architect') || value.contains('عمارة') || value.contains('معمار')) return 'architecture';
-    if (value.contains('computer') || value.contains('حاسوب') || value.contains('برمج')) return 'computing';
+    if (value.contains('civil') || value.contains('مدني') || value.contains('مدنية')) {
+      return 'civil';
+    }
+    if (value.contains('elect') || value.contains('كهرب') || value.contains('الكترون') || value.contains('إلكترون')) {
+      return 'electrical';
+    }
+    if (value.contains('architect') || value.contains('عمارة') || value.contains('معمار')) {
+      return 'architecture';
+    }
+    if (value.contains('computer') || value.contains('حاسوب') || value.contains('برمج')) {
+      return 'computing';
+    }
     return 'general';
   }
 
@@ -71,27 +162,27 @@ class _SpecialtyToolsTab extends StatelessWidget {
         final dept = snapshot.data ?? 'general';
         final items = switch (dept) {
           'electrical' => <(String, String, IconData)>[
-            ('قانون أوم', 'احسب الجهد أو التيار أو المقاومة باستخدام V = I × R.', Icons.bolt_rounded),
+            ('قانون أوم', 'أدخل الجهد V والتيار I لحساب المقاومة R = V ÷ I.', Icons.bolt_rounded),
             ('القدرة الكهربائية', 'احسب القدرة من P = V × I.', Icons.electric_meter_rounded),
             ('مقاومات التوالي والتوازي', 'راجع القيم المكافئة للمقاومات في الدوائر.', Icons.memory_rounded),
-            ('تحويل الوحدات الكهربائية', 'تحويلات التيار والجهد والقدرة والمقاومة.', Icons.swap_horiz_rounded),
+            ('تحويل وحدات التيار', 'تحويل mA و A و kA مع الحفاظ على وحدة القياس نفسها.', Icons.swap_horiz_rounded),
           ],
           'civil' => <(String, String, IconData)>[
             ('حجم الخرسانة', 'حساب حجم البلاطة أو الكمرة أو القاعدة من الأبعاد.', Icons.view_in_ar_rounded),
             ('تحويل الإجهاد', 'تحويل Pa و kPa و MPa و psi.', Icons.compress_rounded),
-            ('مساحة ومحيط المقاطع', 'حسابات أولية للمستطيل والدائرة والمثلث.', Icons.square_foot_rounded),
+            ('مساحة ومحيط المقاطع', 'حساب المساحة والمحيط لمقطع مستطيل من الطول والعرض.', Icons.square_foot_rounded),
             ('حاسبة الميل', 'حساب الميل كنسبة مئوية من الارتفاع والمسافة الأفقية.', Icons.trending_up_rounded),
           ],
           'architecture' => <(String, String, IconData)>[
-            ('مقياس الرسم', 'تحويل القياس على المخطط إلى قياس حقيقي والعكس.', Icons.architecture_rounded),
-            ('مساحة الغرف', 'حساب المساحة والمحيط للأشكال الأساسية.', Icons.crop_square_rounded),
+            ('مقياس الرسم', 'احسب الطول الحقيقي بضرب طول الرسم في مقام المقياس، مثل 1:100.', Icons.architecture_rounded),
+            ('مساحة الغرف', 'حساب مساحة ومحيط غرفة مستطيلة من الطول والعرض.', Icons.crop_square_rounded),
             ('تحويل الوحدات', 'تحويل mm و cm و m و ft و inch.', Icons.straighten_rounded),
             ('نسبة الأبعاد', 'مقارنة أبعاد المخطط مع الأبعاد الفعلية.', Icons.aspect_ratio_rounded),
           ],
           'computing' => <(String, String, IconData)>[
             ('تحويل الأنظمة العددية', 'تحويل الأعداد بين الثنائي والعشري والسداسي عشر.', Icons.numbers_rounded),
             ('حاسبة البتات والبايتات', 'تحويل bit و byte و KB و MB و GB.', Icons.memory_rounded),
-            ('قانون أوم للإلكترونيات', 'حسابات سريعة للجهد والتيار والمقاومة.', Icons.electrical_services_rounded),
+            ('قانون أوم للإلكترونيات', 'أدخل الجهد V والتيار I لحساب المقاومة R = V ÷ I.', Icons.electrical_services_rounded),
             ('تحويل الوحدات', 'أدوات عامة للقياسات الهندسية.', Icons.swap_horiz_rounded),
           ],
           _ => <(String, String, IconData)>[

@@ -10,7 +10,7 @@ checks = {
     'news image URL validation': ('website/news.html', 'function safeNewsImageUrl(value)'),
     'news card image assignment after validation': ('website/news.html', 'if (imageUrl) card.querySelector(".news-image-wrap img").src = imageUrl;'),
     'news modal image assignment after validation': ('website/news.html', 'if (imageUrl) modalBody.querySelector(".news-modal-image-wrap img").src = imageUrl;'),
-    'event gallery URL validation': ('website/events.html', 'function safeEventImageUrl(value)'),
+    'event gallery URL validation': ('website/activities.html', 'function safeActivityImageUrl(value)'),
     'achievement gallery URL validation': ('website/Injazat.html', 'function safeAchievementImageUrl(value)'),
     'course links URL validation': ('website/courses.html', 'function safeCourseUrl(value)'),
     'course invalid link rejection': ('website/courses.html', 'رابط الملف غير صالح أو غير آمن'),

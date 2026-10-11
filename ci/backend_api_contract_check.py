@@ -10,8 +10,8 @@ flutter = '\n'.join(p.read_text() for p in (root / 'flutter/lib').rglob('*.dart'
 
 required_routes = [
     ('GET', '/health'), ('GET', '/version'), ('GET', '/app/update'),
-    ('GET', '/public/news'), ('GET', '/public/events'), ('GET', '/public/announcements'),
-    ('GET', '/public/achievements'),
+    ('GET', '/public/news'), ('GET', '/public/activities'), ('GET', '/public/announcements'),
+    ('GET', '/public/achievements'), ('GET', '/public/students/:id'),
     ('GET', '/public/settings'), ('GET', '/public/materials'),
     ('POST', '/auth/login'), ('POST', '/auth/register'), ('POST', '/auth/refresh'),
     ('POST', '/auth/logout'), ('GET', '/auth/me'),
@@ -20,6 +20,8 @@ required_routes = [
     ('GET', '/semesters'), ('GET', '/departments'), ('GET', '/subjects'),
     ('GET', '/materials'), ('GET', '/schedule'), ('GET', '/progress'), ('GET', '/xp'), ('GET', '/badges'),
     ('POST', '/materials/:id/progress'),
+    ('GET', '/chat/messages'), ('POST', '/chat/messages'),
+    ('DELETE', '/chat/messages/:id'), ('POST', '/chat/messages/:id/report'),
     ('GET', '/eino/capabilities'), ('GET', '/eino/models'), ('GET', '/eino/memory'),
     ('POST', '/eino/memory'), ('POST', '/eino/chat'), ('POST', '/eino/vision'),
     ('POST', '/eino/ocr'), ('POST', '/eino/stt'), ('POST', '/eino/tts'),
@@ -31,6 +33,8 @@ checks = {
     'GET /version': "path === '/version' && request.method === 'GET'",
     'GET /app/update': "path === '/app/update' && request.method === 'GET'",
     'GET /auth/register': "path === '/auth/register' && request.method === 'POST'",
+    'GET /chat/messages': "path === '/chat/messages' && request.method === 'GET'",
+    'POST /chat/messages': "path === '/chat/messages' && request.method === 'POST'",
 }
 failures=[]
 for method, route in required_routes:
@@ -42,9 +46,18 @@ for method, route in required_routes:
         resource=route.rsplit('/',1)[-1]
         if f"path === '/public/{resource}'" not in backend:
             failures.append(f'Missing router: {method} {route}')
+    elif route == '/public/students/:id':
+        if "/^\\/public\\/students\\/[^/]+$/.test(path)" not in backend:
+            failures.append('Missing router: GET /public/students/:id')
     elif route == '/materials/:id/progress':
         if "/^\\/materials\\/[^/]+\\/progress$/.test(path)" not in backend:
             failures.append('Missing router: POST /materials/:id/progress')
+    elif route == '/chat/messages/:id/report':
+        if "/^\\/chat\\/messages\\/[^/]+\\/report$/.test(path)" not in backend:
+            failures.append('Missing router: POST /chat/messages/:id/report')
+    elif route == '/chat/messages/:id':
+        if "/^\\/chat\\/messages\\/[^/]+$/.test(path)" not in backend:
+            failures.append('Missing router: DELETE /chat/messages/:id')
     elif route.startswith('/eino/'):
         resource=route.rsplit('/',1)[-1]
         if f"path === '/eino/{resource}'" not in backend:
@@ -74,14 +87,33 @@ for path in sorted(flutter_paths):
         documented=True
     elif normalized.startswith('/api/v1/public/'):
         resource=normalized[len('/api/v1/public/'):].split('/')[0]
-        documented=resource in {'news','events','announcements','achievements','settings','materials'}
-        if normalized.count('/') >= 4 and resource in {'news','events','achievements'}:
+        documented=resource in {'news','activities','announcements','achievements','settings','materials','students'}
+        if normalized.count('/') >= 4 and resource in {'news','activities','achievements'}:
             documented = True
     else:
         docpath=normalized[len('/api/v1'):]
         documented=docpath in contract or docpath.split('/')[0] in contract
     if not documented:
         failures.append(f'Flutter path not documented: {path}')
+
+# General chat contract: authentication, bounded payloads, reporting and moderation.
+chat_backend=(root/'backend/src/chat.js').read_text()
+chat_migration=(root/'backend/migrations/0035_public_chat.sql').read_text()
+chat_screen=(root/'flutter/lib/features/chat/general_chat_screen.dart').read_text()
+admin_moderation=(root/'website/admin/moderation.html').read_text()
+for marker, source, label in [
+    ('studentAuth(ctx)', chat_backend, 'student-only authorization'),
+    ('MAX_BODY = 1000', chat_backend, 'message length bound'),
+    ('CHAT_RATE_LIMITED', chat_backend, 'send rate limit'),
+    ('public_chat_reports', chat_backend, 'report workflow'),
+    ('moderation.read', (root/'backend/src/admin.js').read_text(), 'staff moderation read permission'),
+    ('moderation.write', (root/'backend/src/admin.js').read_text(), 'staff moderation write permission'),
+    ('CHECK (status IN', chat_migration, 'message moderation states'),
+    ('chatReportsList', admin_moderation, 'admin report queue'),
+    ('Timer.periodic(const Duration(seconds: 5)', chat_screen, 'periodic message refresh'),
+]:
+    if marker not in source:
+        failures.append(f'General chat missing {label}')
 
 # Explicitly protect the timeout contract.
 api_client=(root/'flutter/lib/core/network/api_client.dart').read_text()

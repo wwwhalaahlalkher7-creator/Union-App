@@ -22,7 +22,7 @@ assert.equal(hasAdminPermission('unknown_role', 'content.read'), false, 'Unknown
 // Route-to-permission matrix: reads and mutations must not be downgraded to public access.
 const routes = [
   ['/admin/news', 'GET', 'content.read'], ['/admin/news', 'POST', 'content.write'],
-  ['/admin/events/123', 'DELETE', 'content.write'],
+  ['/admin/activities/123', 'DELETE', 'content.write'],
   ['/admin/students', 'GET', 'academic.read'], ['/admin/students/123', 'PATCH', 'academic.write'],
   ['/admin/materials', 'GET', 'academic.read'], ['/admin/materials/123', 'DELETE', 'academic.write'],
   ['/admin/moderation/comments', 'GET', 'moderation.read'], ['/admin/moderation/comments/123', 'PATCH', 'moderation.write'],
@@ -34,7 +34,6 @@ const routes = [
   ['/admin/security/eino-monitor', 'GET', 'superadmin.read'],
   ['/admin/security/eino-usage', 'GET', 'dashboard.read'],
   ['/admin/drive/sync-status', 'GET', 'academic.read'], ['/admin/drive/sync', 'POST', 'academic.write'],
-  ['/admin/learning-events', 'GET', 'notifications.read'], ['/admin/learning-events', 'POST', 'notifications.write'],
   ['/admin/dashboard/overview', 'GET', 'dashboard.read'],
 ];
 for (const [path, method, permission] of routes) {
@@ -46,7 +45,6 @@ for (const [path, method, permission] of routes) {
 const admin = await readFile(new URL('../backend/src/admin.js', import.meta.url), 'utf8');
 const drive = await readFile(new URL('../backend/src/drive.js', import.meta.url), 'utf8');
 const media = await readFile(new URL('../backend/src/media.js', import.meta.url), 'utf8');
-const learning = await readFile(new URL('../backend/src/learning_events.js', import.meta.url), 'utf8');
 const index = await readFile(new URL('../backend/src/index.js', import.meta.url), 'utf8');
 for (const [label, source, fn, guard] of [
   ['admin auth events', admin, 'adminAuthEvents', 'adminRouteAuthOnly'],
@@ -56,7 +54,6 @@ for (const [label, source, fn, guard] of [
   ['Eino monitor dashboard', admin, 'adminEinoMonitor', 'requireAdminPermission'],
   ['Drive sync', drive, 'adminDriveSync', 'adminDriveAuth'],
   ['media upload', media, 'adminMediaUpload', 'requireAdminPermission'],
-  ['learning-event admin', learning, 'adminLearningEvents', 'requireAdminPermission'],
 ]) {
   const start = source.indexOf(`function ${fn}(`);
   assert.notEqual(start, -1, `Missing direct admin handler: ${fn}`);

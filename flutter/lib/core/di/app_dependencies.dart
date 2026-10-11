@@ -1,6 +1,7 @@
 import '../../data/repositories/badges_repository.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../data/repositories/eino_repository.dart';
+import '../../data/repositories/general_chat_repository.dart';
 import '../../data/repositories/interactions_repository.dart';
 import '../../data/repositories/materials_repository.dart';
 import '../../data/repositories/notifications_repository.dart';
@@ -36,6 +37,7 @@ final class AppDependencies {
   late final XpRepository xp;
   late final BadgesRepository badges;
   late final EinoRepository eino;
+  late final GeneralChatRepository generalChat;
 
   bool _initialized = false;
 
@@ -56,6 +58,7 @@ final class AppDependencies {
     xp = XpRepository(apiClient);
     badges = BadgesRepository(apiClient);
     eino = EinoRepository(apiClient);
+    generalChat = GeneralChatRepository(apiClient);
     _initialized = true;
   }
 

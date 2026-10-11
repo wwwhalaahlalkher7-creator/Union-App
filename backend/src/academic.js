@@ -256,7 +256,7 @@ export async function badges(ctx) {
     }
   };
 
-  const [xpTotal, progressEvents, completedMaterials, completedSubjects, learningEvents, comments, reactions, replies] = await Promise.all([
+  const [xpTotal, progressEvents, completedMaterials, completedSubjects, comments, reactions, replies] = await Promise.all([
     metric('SELECT COALESCE(SUM(xp),0) FROM xp_events WHERE student_id=?'),
     metric('SELECT COUNT(*) FROM material_progress_events WHERE student_id=?'),
     metric('SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100'),
@@ -264,7 +264,6 @@ export async function badges(ctx) {
       FROM material_progress mp
       JOIN materials m ON m.id=mp.material_id
       WHERE mp.student_id=? AND mp.progress_percent>=100`),
-    metric(`SELECT COUNT(*) FROM xp_events WHERE student_id=? AND event_type='learning_event_complete'`),
     metric(`SELECT COUNT(*) FROM comments WHERE student_id=? AND status='visible'`),
     metric('SELECT COUNT(*) FROM reactions WHERE student_id=?'),
     metric(`SELECT COUNT(*) FROM comment_replies WHERE student_id=? AND status='visible'`),
@@ -276,7 +275,6 @@ export async function badges(ctx) {
     progress_events: progressEvents,
     completed_materials: completedMaterials,
     completed_subjects: completedSubjects,
-    learning_events: learningEvents,
     comments,
     reactions,
     replies,
@@ -292,7 +290,7 @@ export async function badges(ctx) {
     .filter((badge) => badge.earned);
 
   const categories = badgeCategoryRows(values);
-  if (categories.length !== 9) {
+  if (categories.length !== 8) {
     console.error(`[${ctx.requestId}] badge category catalogue is incomplete: ${categories.length}/9`);
     return error('BADGE_CATALOG_INCOMPLETE', 'كتالوج الشارات غير مكتمل.', 500, ctx.requestId, ctx.cors);
   }
@@ -462,11 +460,10 @@ export async function evaluateBadges(ctx, studentId) {
       (SELECT COUNT(*) FROM material_progress_events WHERE student_id=?) AS progress_events,
       (SELECT COUNT(*) FROM material_progress WHERE student_id=? AND progress_percent>=100) AS completed_materials,
       (SELECT COUNT(DISTINCT m.subject_id) FROM material_progress mp JOIN materials m ON m.id=mp.material_id WHERE mp.student_id=? AND mp.progress_percent>=100 AND m.subject_id IS NOT NULL) AS completed_subjects,
-      (SELECT COUNT(*) FROM xp_events WHERE student_id=? AND event_type='learning_event_complete') AS learning_events,
       (SELECT COUNT(*) FROM comments WHERE student_id=? AND status='visible') AS comments,
       (SELECT COUNT(*) FROM reactions WHERE student_id=?) AS reactions,
       (SELECT COUNT(*) FROM comment_replies WHERE student_id=? AND status='visible') AS replies
-  `, studentId, studentId, studentId, studentId, studentId, studentId, studentId, studentId, studentId);
+  `, studentId, studentId, studentId, studentId, studentId, studentId, studentId, studentId);
 
   const xpTotal = Number(valuesRow?.xp_total || 0);
   const values = {
@@ -475,7 +472,6 @@ export async function evaluateBadges(ctx, studentId) {
     progress_events: Number(valuesRow?.progress_events || 0),
     completed_materials: Number(valuesRow?.completed_materials || 0),
     completed_subjects: Number(valuesRow?.completed_subjects || 0),
-    learning_events: Number(valuesRow?.learning_events || 0),
     comments: Number(valuesRow?.comments || 0),
     reactions: Number(valuesRow?.reactions || 0),
     replies: Number(valuesRow?.replies || 0),

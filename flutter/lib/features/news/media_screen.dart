@@ -55,7 +55,7 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
     return switch (index) {
       0 => _repo.news(forceRefresh: forceRefresh),
       1 => _repo.achievements(forceRefresh: forceRefresh),
-      _ => _repo.events(forceRefresh: forceRefresh),
+      _ => _repo.activities(forceRefresh: forceRefresh),
     };
   }
 
@@ -103,14 +103,14 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
   String _type() => switch (_index) {
     0 => 'news',
     1 => 'achievement',
-    _ => 'event',
+    _ => 'activity',
   };
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final labels = [l10n.t('news'), l10n.t('achievements'), l10n.t('events')];
-    final icons = [Icons.article_outlined, Icons.emoji_events_outlined, Icons.event_outlined];
+    final labels = [l10n.t('news'), l10n.t('achievements'), l10n.t('activities')];
+    final icons = [Icons.article_outlined, Icons.emoji_events_outlined, Icons.workspaces_outline_rounded];
     final loading = _loadingTabs.contains(_index);
     final failed = _failedTabs.contains(_index);
     final items = _items[_index] ?? const <ContentItem>[];

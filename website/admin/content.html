@@ -181,7 +181,7 @@ body[data-page="news"] #pageContent > * {
 
   function renderTabs() {
     const tabsEl = document.getElementById("typeTabs");
-    const contentTypes = ['news', 'achievements', 'events'];
+    const contentTypes = ['news', 'activities', 'achievements'];
     tabsEl.innerHTML = contentTypes.map(key => {
       const schema = Adapter.CONTENT_TYPES[key];
       return `<button type="button" class="tab-btn ${key === currentType ? "is-active" : ""}" data-type="${key}">${schema.labelPlural}</button>`;

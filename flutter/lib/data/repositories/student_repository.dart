@@ -12,6 +12,12 @@ class StudentRepository {
     return StudentProfile.fromJson(d);
   }
 
+  Future<Map<String, dynamic>> publicProfile(String studentId) async {
+    final safeId = Uri.encodeComponent(studentId);
+    final j = await _client.getJson('/api/v1/public/students/$safeId', cacheTtl: const Duration(minutes: 2));
+    return RepositoryParser.map(j);
+  }
+
   Future<Map<String, dynamic>> stats() async {
     final j = await _client.getJson('/api/v1/student/stats');
     return j['data'] is Map ? Map<String, dynamic>.from(j['data']) : const {};

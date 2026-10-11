@@ -86,7 +86,7 @@
     }
 
     /* بطاقة الفعالية */
-    .event-card {
+    .activity-card {
         background-color: var(--bg-surface);
         border: 1px solid rgba(255, 145, 0, 0.08);
         border-radius: 24px;
@@ -97,12 +97,12 @@
         transition: var(--transition-smooth);
     }
 
-    .event-card:hover {
+    .activity-card:hover {
         border-color: rgba(255, 145, 0, 0.25);
         box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 145, 0, 0.05);
     }
 
-    .event-card::before {
+    .activity-card::before {
         content: "";
         position: absolute;
         top: 0;
@@ -112,7 +112,7 @@
         background: linear-gradient(to bottom, var(--primary), var(--accent));
     }
 
-    .event-card h2 {
+    .activity-card h2 {
         font-size: 1.6rem;
         font-weight: 800;
         color: #fff;
@@ -301,7 +301,7 @@
     /* ==========================================================
        تذييل بطاقة الفعالية (الناشر / المكان / التاريخ / زر الإعجاب)
        ========================================================== */
-    .event-footer {
+    .activity-footer {
         margin-top: 30px;
         padding-top: 18px;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -314,15 +314,15 @@
         color: var(--text-muted);
     }
 
-    .event-footer .meta-group {
+    .activity-footer .meta-group {
         display: flex;
         flex-wrap: wrap;
         gap: 14px;
     }
 
-    .event-footer .event-publisher,
-    .event-footer .event-location,
-    .event-footer .event-date {
+    .activity-footer .event-publisher,
+    .activity-footer .event-location,
+    .activity-footer .event-date {
         display: flex;
         align-items: center;
         gap: 6px;
@@ -335,10 +335,10 @@
        صفحة الأخبار (.news-tag): توضع في صف علوي قبل العنوان بدل صف
        أسفله، بنفس الحشو ومقاس الخط، بدل الشارة الأكبر التي كانت تلي
        العنوان مباشرة. */
-    .event-meta {
+    .activity-meta {
         margin-bottom: 18px;
     }
-    .event-status-badge {
+    .activity-status-badge {
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -348,15 +348,15 @@
         font-weight: 700;
         width: fit-content;
     }
-    .event-status-badge.is-upcoming {
+    .activity-status-badge.is-upcoming {
         background: rgba(46, 128, 199, 0.15);
         color: #6ab6f5;
     }
-    .event-status-badge.is-ongoing {
+    .activity-status-badge.is-ongoing {
         background: rgba(46, 199, 110, 0.15);
         color: #4ad991;
     }
-    .event-status-badge.is-ended {
+    .activity-status-badge.is-ended {
         background: rgba(199, 90, 46, 0.15);
         color: #ff8a5c;
     }
@@ -450,7 +450,7 @@
         nav ul li a::after { display: none; }
 
         .page-header h1 { font-size: 2rem; }
-        .event-card { padding: 25px; }
+        .activity-card { padding: 25px; }
     }
 
 
@@ -479,7 +479,7 @@
   grid-template-columns: 1fr !important;
   gap: 14px !important;
 }
-.achievement-card, .event-card {
+.achievement-card, .activity-card {
   min-width: 0;
   padding: 24px !important;
   border-radius: 18px !important;
@@ -500,7 +500,7 @@
     padding-top: 142px !important;
     padding-bottom: 24px !important;
   }
-  .achievement-card, .event-card { padding: 18px !important; }
+  .achievement-card, .activity-card { padding: 18px !important; }
 }
 /* الحاوية الديناميكية تتبع شبكة البطاقات المتجاوبة */
 #page-cards-container { display: grid !important; grid-template-columns: 1fr !important; }
@@ -513,14 +513,14 @@
 .content-details-overlay.open { display:flex; }
 .content-details-dialog { position:relative; width:min(900px,100%); margin:auto; }
 .content-details-close { position:sticky; top:8px; z-index:5; float:left; width:42px; height:42px; border:1px solid rgba(255,255,255,.15); border-radius:50%; background:#111827; color:#fff; cursor:pointer; }
-.content-details-dialog .achievement-card, .content-details-dialog .event-card { cursor:default; margin:0; max-width:100%; }
+.content-details-dialog .achievement-card, .content-details-dialog .activity-card { cursor:default; margin:0; max-width:100%; }
 .details-content-expanded .intro-text-container { max-height:none !important; overflow:visible !important; -webkit-line-clamp:unset !important; mask-image:none !important; }
 .details-content-expanded .intro-text-container p { display:block !important; overflow:visible !important; max-height:none !important; -webkit-line-clamp:unset !important; }
-.event-category-badge { display:inline-flex; align-items:center; padding:5px 12px; border-radius:30px; font-size:.75rem; font-weight:700; color:#d9c2ff; background:rgba(167,139,250,.13); border:1px solid rgba(167,139,250,.25); }
-.event-meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.activity-category-badge { display:inline-flex; align-items:center; padding:5px 12px; border-radius:30px; font-size:.75rem; font-weight:700; color:#d9c2ff; background:rgba(167,139,250,.13); border:1px solid rgba(167,139,250,.25); }
+.activity-meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 .act-end-date { display:inline-flex; align-items:center; gap:6px; color:var(--text-muted); font-size:.88rem; }
 @media (max-width:600px) { .content-details-overlay { padding:8px; } .content-details-dialog { width:100%; } .content-details-close { top:4px; } }
 
-.event-card .intro-text-container { max-height: 8.4em; overflow:hidden; position:relative; mask-image:linear-gradient(to bottom, #000 72%, transparent 100%); cursor:pointer; }
-.event-card h2 { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+.activity-card .intro-text-container { max-height: 8.4em; overflow:hidden; position:relative; mask-image:linear-gradient(to bottom, #000 72%, transparent 100%); cursor:pointer; }
+.activity-card h2 { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
 .details-content-expanded h2 { display:block !important; -webkit-line-clamp:unset !important; max-height:none !important; overflow:visible !important; }

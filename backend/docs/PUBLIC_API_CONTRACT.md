@@ -15,16 +15,16 @@ Base:
 ### Public content
 
 - `GET /public/news`
-- `GET /public/events`
+- `GET /public/activities`
 - `GET /public/announcements`
-- - `GET /public/news/:id`
-- `GET /public/events/:id`
+- `GET /public/news/:id`
+- `GET /public/activities/:id`
 - `GET /public/achievements/:id`
-- - `GET /public/achievements`
+- `GET /public/achievements`
 - `GET /public/settings`
 - `GET /public/materials`
 
-Public content routes `/news`, `/events`, `/announcements`, `/achievements` are the canonical routes.
+Public content routes `/news`, `/activities`, `/announcements`, `/achievements` are the canonical routes. The activities route is backed by the existing content table for deployment compatibility.
 
 ## Authentication endpoints
 
@@ -41,6 +41,7 @@ Public content routes `/news`, `/events`, `/announcements`, `/achievements` are 
 
 - `GET /student/me`
 - `GET /student/profile`
+- `GET /public/students/:id` (public profile; exposes name, department, and semester only)
 - `GET /student/stats`
 - `GET /student/notifications`
 - `POST /student/notifications/read`
@@ -56,6 +57,19 @@ Public content routes `/news`, `/events`, `/announcements`, `/achievements` are 
 - `GET /xp`
 - `GET /badges`
 - `POST /materials/:id/progress`
+
+## General student chat
+
+The public chat feature is implemented in the Flutter app and moderated through the existing staff moderation page in the website admin panel.
+
+- `GET /chat/messages?limit=50` — authenticated students only; returns the latest visible messages and public author fields.
+- `POST /chat/messages` — authenticated students only; creates a plain-text message (maximum 1,000 characters, throttled to five messages per 15 seconds).
+- `DELETE /chat/messages/:id` — soft-deletes the authenticated student's own message.
+- `POST /chat/messages/:id/report` — reports another student's message for moderation. One report per reporter/message.
+- `GET /admin/moderation/chat-reports?status=open` — staff with `moderation.read` permission.
+- `PATCH /admin/moderation/chat-reports/:id` — staff with `moderation.write` permission; resolves a report and may change the message status to visible, hidden, or deleted.
+
+The Flutter client refreshes messages periodically (polling); this release does not claim WebSocket/push-based realtime delivery. Only active student sessions can read or write chat messages. Email, university number, and authentication data are never returned in chat message payloads.
 
 ## Interaction endpoints
 
@@ -140,9 +154,9 @@ The Flutter client allows longer network timeouts for these operations than ordi
 
 The interaction API accepts only:
 
-`news`, `event`, `announcement`, `achievement`.
+`news`, `activity`, `announcement`, `achievement`.
 
-The public detail API uses the plural route name `events`, while interaction routes use the singular content type `event`.
+The public detail API uses the plural route name `activities`, while interaction routes use the canonical content type `activity`.
 
 ## Response envelopes
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/utils/engineering_calculations.dart';
 import '../../core/di/app_dependencies.dart';
 
 part 'unit_converter_tab.dart';

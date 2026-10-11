@@ -2,6 +2,7 @@ class CommentItem {
   const CommentItem({
     required this.id,
     required this.studentName,
+    this.studentId = '',
     required this.body,
     required this.createdAt,
     this.reactionCount = 0,
@@ -11,6 +12,7 @@ class CommentItem {
 
   final String id;
   final String studentName;
+  final String studentId;
   final String body;
   final String createdAt;
   final int reactionCount;
@@ -20,6 +22,7 @@ class CommentItem {
   factory CommentItem.fromJson(Map<String, dynamic> j) => CommentItem(
         id: '${j['id'] ?? ''}',
         studentName: '${j['full_name'] ?? 'Student'}',
+        studentId: '${j['student_id'] ?? j['studentId'] ?? ''}',
         body: '${j['body'] ?? ''}',
         createdAt: '${j['created_at'] ?? ''}',
         reactionCount: int.tryParse('${j['reaction_count'] ?? 0}') ?? 0,
@@ -30,6 +33,7 @@ class CommentItem {
   CommentItem copyWith({int? reactionCount, bool? liked, int? replyCount}) => CommentItem(
         id: id,
         studentName: studentName,
+        studentId: studentId,
         body: body,
         createdAt: createdAt,
         reactionCount: reactionCount ?? this.reactionCount,

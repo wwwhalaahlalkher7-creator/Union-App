@@ -63,7 +63,7 @@ GoRouter buildRouter({
       GoRoute(path: '/media/detail', builder: (_, state) {
         final type = state.uri.queryParameters['type']?.trim() ?? '';
         final id = state.uri.queryParameters['id']?.trim() ?? '';
-        if ((type == 'news' || type == 'achievement' || type == 'event') && id.isNotEmpty) {
+        if ((type == 'news' || type == 'achievement' || type == 'activity') && id.isNotEmpty) {
           return ContentDetailScreen(id: id, type: type);
         }
         return const MediaScreen();
@@ -75,7 +75,7 @@ GoRouter buildRouter({
     GoRoute(path: '/recent', builder: (_, _) => const RecentScreen()),
     GoRoute(path: '/xp', builder: (_, _) => const StudentAccessGate(child: XpScreen())),
     GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
-    GoRoute(path: '/general-chat', builder: (_, _) => const GeneralChatScreen()),
+    GoRoute(path: '/general-chat', builder: (_, _) => const StudentAccessGate(child: GeneralChatScreen())),
     GoRoute(path: '/eino', builder: (_, state) => EinoScreen(source: state.uri.queryParameters['from'] ?? 'home')),
     GoRoute(path: '/edit-profile', builder: (_, _) => const StudentAccountScreen()),
     GoRoute(path: '/account-settings', builder: (_, _) => const StudentAccountScreen()),

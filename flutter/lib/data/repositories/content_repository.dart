@@ -10,8 +10,8 @@ class ContentRepository {
   Future<List<ContentItem>> news({bool forceRefresh = false}) =>
       _list('/api/v1/public/news', forceRefresh: forceRefresh);
 
-  Future<List<ContentItem>> events({bool forceRefresh = false}) =>
-      _list('/api/v1/public/events', forceRefresh: forceRefresh);
+  Future<List<ContentItem>> activities({bool forceRefresh = false}) =>
+      _list('/api/v1/public/activities', forceRefresh: forceRefresh);
 
   Future<List<ContentItem>> achievements({bool forceRefresh = false}) =>
       _list('/api/v1/public/achievements', forceRefresh: forceRefresh);
@@ -26,7 +26,7 @@ class ContentRepository {
   }
 
   String _publicRoute(String type) => switch (type) {
-        'event' => 'events',
+        'activity' => 'activities',
         'achievement' => 'achievements',
         _ => type,
       };

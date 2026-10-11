@@ -57,7 +57,7 @@ class _MediaCardState extends State<MediaCard> {
     final cs = Theme.of(context).colorScheme; final image = widget.item.images.isNotEmpty ? widget.item.images.first : widget.item.imageUrl;
     return AppCard(padding: EdgeInsets.zero, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Stack(children: [
-        _MediaImage(url: image, label: widget.label, icon: widget.type == 'news' ? Icons.article_rounded : (widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.event_available_rounded)),
+        _MediaImage(url: image, label: widget.label, icon: widget.type == 'news' ? Icons.article_rounded : (widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.workspaces_outline_rounded)),
         PositionedDirectional(top: 10, start: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(8)), child: Text((widget.type == 'achievement' && widget.item.badge?.trim().isNotEmpty == true) ? widget.item.badge! : (widget.item.category?.trim().isNotEmpty == true ? widget.item.category! : widget.label), style: TextStyle(color: cs.onPrimaryContainer, fontSize: 9, fontWeight: FontWeight.w800)))),
       ]),
       Padding(padding: const EdgeInsets.fromLTRB(13, 11, 13, 9), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -71,7 +71,7 @@ class _MediaCardState extends State<MediaCard> {
                 const SizedBox(height: 5),
                 Text(widget.item.summary?.trim().isNotEmpty == true ? widget.item.summary! : widget.item.body!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.6, color: cs.onSurfaceVariant)),
               ],
-              if (widget.type == 'event' && (widget.item.location?.trim().isNotEmpty == true || widget.item.eventAt != null || widget.item.endAt != null)) ...[
+              if (widget.type == 'activity' && (widget.item.location?.trim().isNotEmpty == true || widget.item.eventAt != null || widget.item.endAt != null)) ...[
                 const SizedBox(height: 7),
                 Wrap(
                   alignment: WrapAlignment.end,
@@ -92,7 +92,7 @@ class _MediaCardState extends State<MediaCard> {
           ),
         ),
         const SizedBox(height: 9),
-        Row(children: [if (widget.type != 'event') Text(_date(widget.item.eventAt ?? widget.item.createdAt), style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)), if (widget.type == 'event') const SizedBox.shrink(), const Spacer(), IconButton(visualDensity: VisualDensity.compact, onPressed: _busy ? null : _like, icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 18, color: _liked ? cs.primary : cs.onSurfaceVariant)), Text('$_likeCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)), const SizedBox(width: 4), IconButton(visualDensity: VisualDensity.compact, onPressed: () => _openComments(context), icon: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: cs.onSurfaceVariant)), Text('$_commentCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant))])
+        Row(children: [if (widget.type != 'activity') Text(_date(widget.item.eventAt ?? widget.item.createdAt), style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)), const Spacer(), IconButton(visualDensity: VisualDensity.compact, onPressed: _busy ? null : _like, icon: Icon(_liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 18, color: _liked ? cs.primary : cs.onSurfaceVariant)), Text('$_likeCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant)), const SizedBox(width: 4), IconButton(visualDensity: VisualDensity.compact, onPressed: () => _openComments(context), icon: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: cs.onSurfaceVariant)), Text('$_commentCount', style: TextStyle(fontSize: 9.5, color: cs.onSurfaceVariant))])
       ]))
     ]));
   }

@@ -1,6 +1,7 @@
 import { databaseErrorResponse, error } from './core.js';
-import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings } from './public.js';
+import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings, publicStudentProfile } from './public.js';
 import { mediaGet, adminMediaUpload } from './media.js';
+import { publicChatMessages, createPublicChatMessage, deleteOwnPublicChatMessage, reportPublicChatMessage } from './chat.js';
 import {
   login, registerStudent, studentChangePassword, forgotStudentPassword, resetStudentPassword, staffLogin, staffBootstrap, staffMe, staffChangePassword,
   refresh, logout, authMe,
@@ -19,10 +20,9 @@ import {
 import {
   adminNotifications, adminNotificationSend,
   adminAuthEvents, adminModerationComments, adminModerationComment, adminModerationReplies, adminModerationReply, adminDeleteReply, adminDashboardOverview,
-  adminEinoUsage, adminEinoMonitor, adminRoute,
+  adminEinoUsage, adminEinoMonitor, adminChatReports, adminChatReportUpdate, adminRoute,
 } from './admin.js';
 import { adminDriveSync, adminDriveSyncStatus } from './drive.js';
-import { learningEvents, learningEvent, completeLearningEvent, adminLearningEvents } from './learning_events.js';
 import {
   eino, einoCapabilities, einoModels, einoMemoryList, einoMemoryCreate, einoMemoryDelete,
   einoConversationCreate, einoConversationList, einoConversationMessages, einoConversationMessageAppend, einoConversationDelete,
@@ -60,29 +60,34 @@ export default {
 
       if (request.method === 'GET' && path === '/health') return health(ctx);
       if (request.method === 'GET' && path === '/version') return publicVersion(ctx);
+
+      if (path === '/chat/messages' && request.method === 'GET') return publicChatMessages(ctx);
+      if (path === '/chat/messages' && request.method === 'POST') return createPublicChatMessage(ctx);
+      if (/^\/chat\/messages\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteOwnPublicChatMessage(ctx, path.split('/')[3]);
+      if (/^\/chat\/messages\/[^/]+\/report$/.test(path) && request.method === 'POST') return reportPublicChatMessage(ctx, path.split('/')[3]);
       if (request.method === 'GET' && path === '/app/update') return appUpdate(ctx);
 
       if (request.method === 'GET' && (
         path === '/' || path === '/news' || path === '/announcements' ||
-        path === '/events' || path === '/achievements'
+        path === '/activities' || path === '/achievements'
       )) {
         const actionMap = {
           '/news': 'news',
           '/announcements': 'announcements',
-          '/events': 'events',
+          '/activities': 'activities',
           '/achievements': 'achievements',
         };
         const action = actionMap[path] || String(url.searchParams.get('action') || '').trim().toLowerCase();
-        if (['news', 'announcements', 'events', 'achievements'].includes(action)) {
-          return publicList(ctx, action);
-        }
+        if (action === 'activities') return publicList(ctx, 'events');
+        if (['news', 'announcements', 'achievements'].includes(action)) return publicList(ctx, action);
       }
 
       if (request.method === 'GET' && path === '/public/news') return publicList(ctx, 'news');
       if (request.method === 'GET' && path === '/public/announcements') return publicList(ctx, 'announcements');
-      if (request.method === 'GET' && path === '/public/events') return publicList(ctx, 'events');
+      if (request.method === 'GET' && path === '/public/activities') return publicList(ctx, 'events');
       if (request.method === 'GET' && path === '/public/achievements') return publicList(ctx, 'achievements');
-      if (request.method === 'GET' && /^\/public\/(news|events|achievements)\/[^/]+$/.test(path)) return publicContentDetail(ctx);
+      if (request.method === 'GET' && /^\/public\/(news|activities|achievements)\/[^/]+$/.test(path)) return publicContentDetail(ctx);
+      if (request.method === 'GET' && /^\/public\/students\/[^/]+$/.test(path)) return publicStudentProfile(ctx, decodeURIComponent(path.split('/')[3]));
       if (request.method === 'GET' && path === '/public/settings') return publicSettings(ctx);
       if (request.method === 'GET' && path === '/public/materials') return publicMaterials(ctx);
       if (request.method === 'GET' && /^\/media\//.test(path)) return mediaGet(ctx);
@@ -108,9 +113,6 @@ export default {
       if (path === '/student/notifications/read' && request.method === 'POST') return studentNotificationRead(ctx);
       if (path === '/student/notifications/device' && request.method === 'POST') return registerNotificationDevice(ctx);
       if (path === '/student/notifications/device' && request.method === 'DELETE') return unregisterNotificationDevice(ctx);
-      if (path === '/learning-events' && request.method === 'GET') return learningEvents(ctx);
-      if (/^\/learning-events\/[^/]+$/.test(path) && request.method === 'GET') return learningEvent(ctx, path.split('/')[2]);
-      if (/^\/learning-events\/[^/]+\/complete$/.test(path) && request.method === 'POST') return completeLearningEvent(ctx, path.split('/')[2]);
 
       if (path === '/semesters' && request.method === 'GET') return semesters(ctx);
       if (path === '/departments' && request.method === 'GET') return departments(ctx);
@@ -142,10 +144,9 @@ export default {
       if (path === '/admin/media' && request.method === 'POST') return adminMediaUpload(ctx);
       if (path === '/admin/notifications' && request.method === 'GET') return adminNotifications(ctx);
       if (path === '/admin/notifications/send' && request.method === 'POST') return adminNotificationSend(ctx, null);
-      if (path === '/admin/learning-events' && request.method === 'GET') return adminLearningEvents(ctx);
-      if (path === '/admin/learning-events' && request.method === 'POST') return adminLearningEvents(ctx);
-      if (/^\/admin\/learning-events\/[^/]+$/.test(path)) return adminLearningEvents(ctx, path.split('/')[3]);
       if (path === '/admin/security/auth-events' && request.method === 'GET') return adminAuthEvents(ctx);
+      if (path === '/admin/moderation/chat-reports' && request.method === 'GET') return adminChatReports(ctx);
+      if (/^\/admin\/moderation\/chat-reports\/[^/]+$/.test(path) && request.method === 'PATCH') return adminChatReportUpdate(ctx, path.split('/')[4]);
       if (path === '/admin/moderation/comments' && request.method === 'GET') return adminModerationComments(ctx);
       if (/^\/admin\/moderation\/comments\/[^/]+$/.test(path) && request.method === 'PATCH') return adminModerationComment(ctx, path.split('/')[4]);
       if (path === '/admin/moderation/replies' && request.method === 'GET') return adminModerationReplies(ctx);

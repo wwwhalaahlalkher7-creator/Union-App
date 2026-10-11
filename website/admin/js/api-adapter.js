@@ -63,7 +63,7 @@ window.Adapter = (() => {
   function rowContent(type,r){
     const x={id:r.id,createdTime:r.created_at,fields:{Status:r.status||'draft'}};
     if(type==='news')Object.assign(x.fields,{Title:r.title||'',Content:r.body||'',Category:r.category||'إعلان هام',Publisher:r.publisher||'أمانة الإعلام',Date:r.publish_at||'',Image:r.images_json?parseJsonArray(r.images_json).map(url=>({url:String(url)})):(r.image_url?[{url:r.image_url}]:[]),Views:0,Hearts:0});
-    if(type==='events')Object.assign(x.fields,{Title:r.title||'',Content:r.body||'',Category:r.category||'',Location:r.location||'',Publisher:r.publisher||'أمانة الإعلام',Date:r.event_at||'',EndDate:r.end_at||'',Image:r.images_json?parseJsonArray(r.images_json).map(url=>({url:String(url)})):(r.image_url?[{url:r.image_url}]:[]),Views:0,Hearts:0});
+    if(type==='activities')Object.assign(x.fields,{Title:r.title||'',Content:r.body||'',Category:r.category||'',Location:r.location||'',Publisher:r.publisher||'أمانة الإعلام',Date:r.event_at||'',EndDate:r.end_at||'',Image:r.images_json?parseJsonArray(r.images_json).map(url=>({url:String(url)})):(r.image_url?[{url:r.image_url}]:[]),Views:0,Hearts:0});
     if(type==='announcements')Object.assign(x.fields,{Title:r.title||'',Content:r.body||'',Type:r.type||'general',DepartmentId:r.target_department_id||'',SemesterId:r.target_semester_id||'',Date:r.publish_at||'',ExpiresAt:r.expires_at||''});
     if(type==='achievements')Object.assign(x.fields,{Title:r.title||'',Intro:r.intro||r.description||'',HighlightsTitle:r.highlights_title||'أبرز المحاور',Highlights:parseJsonArray(r.highlights).join('\n'),Badge:r.badge||'',Publisher:r.publisher||'أمانة الإعلام',PublishDate:r.achieved_at||'',Image:parseJsonArray(r.images_json).map(url=>({url:String(url)})),Views:0,Hearts:0});
     return x;
@@ -72,19 +72,16 @@ window.Adapter = (() => {
     const status=['draft','published'].includes(String(f.Status||''))?String(f.Status):'published';
     const o={title:f.Title||'',body:f.Content||f.Intro||'',description:f.Intro||'',status};
     if(type==='news')Object.assign(o,{publish_at:f.Date||null,category:f.Category||null,publisher:f.Publisher||null,...(f.Image !== undefined ? {image_url:Array.isArray(f.Image)?(f.Image[0]?.url||f.Image[0]||null):(f.Image||null),images_json:Array.isArray(f.Image)?JSON.stringify(f.Image.map(x=>x?.url||x).filter(Boolean)):null} : {})});
-    if(type==='events')Object.assign(o,{category:f.Category||null,event_at:f.Date||null,end_at:f.EndDate||null,location:f.Location||null,publisher:f.Publisher||null,...(f.Image !== undefined ? {image_url:Array.isArray(f.Image)?(f.Image[0]?.url||f.Image[0]||null):(f.Image||null),images_json:Array.isArray(f.Image)?JSON.stringify(f.Image.map(x=>x?.url||x).filter(Boolean)):null} : {})});
+    if(type==='activities')Object.assign(o,{category:f.Category||null,event_at:f.Date||null,end_at:f.EndDate||null,location:f.Location||null,publisher:f.Publisher||null,...(f.Image !== undefined ? {image_url:Array.isArray(f.Image)?(f.Image[0]?.url||f.Image[0]||null):(f.Image||null),images_json:Array.isArray(f.Image)?JSON.stringify(f.Image.map(x=>x?.url||x).filter(Boolean)):null} : {})});
     if(type==='announcements')Object.assign(o,{type:f.Type||'general',target_department_id:f.DepartmentId||null,target_semester_id:f.SemesterId||null,publish_at:f.Date||null,expires_at:f.ExpiresAt||null});
     if(type==='achievements')Object.assign(o,{achieved_at:f.PublishDate||null,intro:f.Intro||null,highlights_title:f.HighlightsTitle||null,highlights:f.Highlights?JSON.stringify(String(f.Highlights).split(/\r?\n/).map(x=>x.trim()).filter(Boolean)):null,badge:f.Badge||null,publisher:f.Publisher||null,images_json:Array.isArray(f.Image)?JSON.stringify(f.Image.map(x=>x?.url||x).filter(Boolean)):null});
     return o;
   }
-  async function listContent(type){const rows=await req('/admin/'+type+'?limit=100');return rows.map(r=>rowContent(type,r));}
-  async function createContent(type,fields){const prepared=await prepareContentFields(fields);return req('/admin/'+type,{method:'POST',body:JSON.stringify(contentPayload(type,prepared))});}
-  async function updateContent(type,id,fields){const prepared=await prepareContentFields(fields);return req('/admin/'+type+'/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(contentPayload(type,prepared))});}
-  async function deleteContent(type,id){return req('/admin/'+type+'/'+encodeURIComponent(id),{method:'DELETE'});} async function sendNotification(announcementId){return req('/admin/notifications/send',{method:'POST',body:JSON.stringify({announcementId})});} async function listNotifications(){return req('/admin/notifications?limit=100');}
-  async function listLearningEvents(){return req('/admin/learning-events?limit=100');}
-  async function createLearningEvent(fields){return req('/admin/learning-events',{method:'POST',body:JSON.stringify(fields)});}
-  async function updateLearningEvent(id,fields){return req('/admin/learning-events/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(fields)});}
-  async function deleteLearningEvent(id){return req('/admin/learning-events/'+encodeURIComponent(id),{method:'DELETE'});}
+  const contentApiType=type=>type==='activities'?'activities':type;
+  async function listContent(type){const rows=await req('/admin/'+contentApiType(type)+'?limit=100');return rows.map(r=>rowContent(type,r));}
+  async function createContent(type,fields){const prepared=await prepareContentFields(fields);return req('/admin/'+contentApiType(type),{method:'POST',body:JSON.stringify(contentPayload(type,prepared))});}
+  async function updateContent(type,id,fields){const prepared=await prepareContentFields(fields);return req('/admin/'+contentApiType(type)+'/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(contentPayload(type,prepared))});}
+  async function deleteContent(type,id){return req('/admin/'+contentApiType(type)+'/'+encodeURIComponent(id),{method:'DELETE'});} async function sendNotification(announcementId){return req('/admin/notifications/send',{method:'POST',body:JSON.stringify({announcementId})});} async function listNotifications(){return req('/admin/notifications?limit=100');}
   const asArray = value => Array.isArray(value) ? value : (Array.isArray(value?.items) ? value.items : (Array.isArray(value?.rows) ? value.rows : (Array.isArray(value?.data) ? value.data : [])));
   async function listStudentsAdmin(filters={}){
     const q=new URLSearchParams({limit:'100'});if(filters.q)q.set('q',filters.q);if(filters.department)q.set('department',filters.department);if(filters.semester)q.set('semester',filters.semester);
@@ -136,7 +133,7 @@ window.Adapter = (() => {
   // content editor before image fields could be uploaded to R2).
   const schemas = {
     news: {
-      label: 'خبر', labelPlural: 'الأخبار',
+      label: 'خبر', labelPlural: 'الأخبار', dateField: 'Date',
       fields: [
         {key:'Title', label:'العنوان', type:'text', required:true},
         {key:'Content', label:'المحتوى', type:'textarea', required:true},
@@ -146,17 +143,17 @@ window.Adapter = (() => {
         {key:'Image', label:'صورة الخبر', type:'image'}
       ]
     },
-    events: {
-      label: 'فعالية', labelPlural: 'الفعاليات',
+    activities: {
+      label: 'نشاط', labelPlural: 'الأنشطة', dateField: 'Date',
       fields: [
         {key:'Title', label:'العنوان', type:'text', required:true},
         {key:'Content', label:'المحتوى', type:'textarea', required:true},
         {key:'Category', label:'التصنيف', type:'text'},
         {key:'Location', label:'المكان', type:'text'},
         {key:'Publisher', label:'الناشر', type:'text'},
-        {key:'Date', label:'تاريخ الفعالية', type:'date'},
+        {key:'Date', label:'تاريخ النشاط', type:'date'},
         {key:'EndDate', label:'تاريخ الانتهاء', type:'date'},
-        {key:'Image', label:'صورة الفعالية', type:'image'}
+        {key:'Image', label:'صورة النشاط', type:'image'}
       ]
     },
     announcements: {
@@ -172,7 +169,7 @@ window.Adapter = (() => {
       ]
     },
     achievements: {
-      label: 'إنجاز', labelPlural: 'الإنجازات',
+      label: 'إنجاز', labelPlural: 'الإنجازات', dateField: 'PublishDate',
       fields: [
         {key:'Title', label:'العنوان', type:'text', required:true},
         {key:'Intro', label:'المقدمة', type:'textarea'},
@@ -193,6 +190,7 @@ window.Adapter = (() => {
   async function createUser(f){return req('/admin/staff',{method:'POST',body:JSON.stringify({userId:f.Username, email:f.Email||null, displayName:f.Names,roleId:roleId(f.Role),password:f.Password})});}
   async function updateUser(id,f){return req('/admin/staff/'+id,{method:'PATCH',body:JSON.stringify({userId:f.Username, email:f.Email===undefined?undefined:(f.Email||null),displayName:f.Names,roleId:roleId(f.Role),active:f.Active,password:f.Password||undefined})});}
   async function toggleUserActive(id){const users=await listUsers(),u=users.find(x=>x.id===id);return updateUser(id,{Names:u.fields.Names,Username:u.fields.Username,Role:u.fields.RoleId||u.fields.Role,Active:!u.fields.Active});} async function deleteUser(id){return req('/admin/staff/'+id,{method:'DELETE'});}
+  async function listChatReports(status='open'){return req('/admin/moderation/chat-reports?status='+encodeURIComponent(status)+'&limit=100');} async function updateChatReport(id,status,messageStatus){return req('/admin/moderation/chat-reports/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status,messageStatus})});}
   async function listModerationComments(status='visible'){return req('/admin/moderation/comments?status='+encodeURIComponent(status)+'&limit=100');}
   async function moderateComment(id,status){return req('/admin/moderation/comments/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status})});} async function listModerationReplies(status='visible'){return req('/admin/moderation/replies?status='+encodeURIComponent(status)+'&limit=100');} async function moderateReply(id,status){return req('/admin/moderation/replies/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status})});} async function deleteReplyAdmin(id){return req('/admin/moderation/replies/'+encodeURIComponent(id),{method:'DELETE'});} async function deleteCommentAdmin(id){return req('/admin/comments/'+encodeURIComponent(id),{method:'DELETE'});}
   async function listAuditLog(){return (await req('/admin/audit-logs')).map(r=>({id:r.id,fields:{Timestamp:r.created_at,User:r.actor_name||r.actor_id||'',Role:r.role_name||'',Action:r.action,Details:r.resource_type+(r.resource_id?': '+r.resource_id:'')}}));}
@@ -202,5 +200,5 @@ window.Adapter = (() => {
   async function logoutSession(t){try{await request('/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+t}});}catch{/* تسجيل الخروج المحلي يستمر حتى عند تعذر الشبكة */}}
   async function getOverviewStats(){return req('/admin/dashboard/overview');}
   async function getEinoUsage(hours=24){return req('/admin/security/eino-usage?hours='+encodeURIComponent(Math.min(168,Math.max(1,Number(hours)||24))));} async function getEinoMonitor(hours=24,limit=100){return req('/admin/security/eino-monitor?hours='+encodeURIComponent(Math.min(168,Math.max(1,Number(hours)||24)))+'&limit='+encodeURIComponent(Math.min(200,Math.max(1,Number(limit)||100))));} async function getRecentNews(l){return (await listContent('news')).slice(0,l||5).map(r=>({id:r.id,title:r.fields.Title,date:r.fields.Date,views:0}));} async function getSystemHealth(){try{await req('/health');return [{name:'Association API',configured:true,lastSuccess:new Date().toISOString()}];}catch{return [{name:'Association API',configured:true,lastSuccess:null}];}}
-  return {CONTENT_TYPES:schemas,getPublicSettings,getContentSchema:t=>schemas[t],listContent,createContent,updateContent,deleteContent,listStudentsAdmin,createStudentAdmin,updateStudentAdmin,deleteStudentAdmin,toggleStudentAdmin,listScheduleAdmin,createScheduleEntry,updateScheduleEntry,deleteScheduleEntry,toggleScheduleEntry,listMaterialsAdmin,syncDriveMaterials,createMaterialFolder,renameMaterialItem,deleteMaterialItem,deleteSubject,uploadMaterialPdf,getSiteSettings,updateSiteSettings,listUsers,createUser,updateUser,toggleUserActive,deleteUser,listAuditLog,listFailedLoginAttempts,listModerationComments,moderateComment,deleteCommentAdmin,listModerationReplies,moderateReply,deleteReplyAdmin,changePassword,login,logoutSession,getOverviewStats,getEinoUsage,getEinoMonitor,getRecentNews,getSystemHealth,sendNotification,listNotifications,listLearningEvents,createLearningEvent,updateLearningEvent,deleteLearningEvent,ROLE_BADGE};
+  return {CONTENT_TYPES:schemas,getPublicSettings,getContentSchema:t=>schemas[t],listContent,createContent,updateContent,deleteContent,listStudentsAdmin,createStudentAdmin,updateStudentAdmin,deleteStudentAdmin,toggleStudentAdmin,listScheduleAdmin,createScheduleEntry,updateScheduleEntry,deleteScheduleEntry,toggleScheduleEntry,listMaterialsAdmin,syncDriveMaterials,createMaterialFolder,renameMaterialItem,deleteMaterialItem,deleteSubject,uploadMaterialPdf,getSiteSettings,updateSiteSettings,listUsers,createUser,updateUser,toggleUserActive,deleteUser,listAuditLog,listFailedLoginAttempts,listModerationComments,moderateComment,deleteCommentAdmin,listChatReports,updateChatReport,listModerationReplies,moderateReply,deleteReplyAdmin,changePassword,login,logoutSession,getOverviewStats,getEinoUsage,getEinoMonitor,getRecentNews,getSystemHealth,sendNotification,listNotifications,ROLE_BADGE};
 })();

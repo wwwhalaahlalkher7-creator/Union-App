@@ -16,6 +16,42 @@ import { ADMIN_ROLE_IDS, ADMIN_FIELDS, CONTENT_STATUS_VALUES, CONTENT_TABLES, CO
 import { hasAdminPermission, requireAdminPermission } from './admin/permissions.js';
 export { requireAdminPermission } from './admin/permissions.js';
 
+export async function adminChatReports(ctx) {
+  const a = await requireAdminPermission(ctx, 'moderation.read'); if (a.response) return a.response;
+  const status = String(ctx.url.searchParams.get('status') || 'open');
+  if (!['open','reviewed','dismissed'].includes(status)) return error('STATUS_INVALID','حالة البلاغ غير صالحة.',400,ctx.requestId,ctx.cors);
+  const limit = clampInt(ctx.url.searchParams.get('limit'),50,1,100);
+  const rows = await queryAll(ctx.env, `SELECT r.id, r.message_id AS messageId, r.reason, r.details, r.status,
+    r.created_at AS createdAt, r.reviewed_at AS reviewedAt,
+    m.body AS messageBody, m.status AS messageStatus, author.full_name AS authorName,
+    reporter.full_name AS reporterName
+    FROM public_chat_reports r
+    JOIN public_chat_messages m ON m.id=r.message_id
+    JOIN students author ON author.id=m.student_id
+    JOIN students reporter ON reporter.id=r.reporter_student_id
+    WHERE r.status=? ORDER BY r.created_at DESC LIMIT ?`, status, limit);
+  return ok(ctx, rows, {count:rows.length, status});
+}
+
+export async function adminChatReportUpdate(ctx, id) {
+  const a = await requireAdminPermission(ctx, 'moderation.write'); if (a.response) return a.response;
+  const body = await parseJson(ctx.request);
+  const status = String(body?.status || '').trim();
+  const messageStatus = body?.messageStatus == null ? null : String(body.messageStatus).trim();
+  if (!['reviewed','dismissed'].includes(status)) return error('STATUS_INVALID','حالة البلاغ غير صالحة.',400,ctx.requestId,ctx.cors);
+  if (messageStatus != null && !['visible','hidden','deleted'].includes(messageStatus)) return error('CHAT_MESSAGE_STATUS_INVALID','حالة الرسالة غير صالحة.',400,ctx.requestId,ctx.cors);
+  const report = await queryOne(ctx.env, 'SELECT id, message_id FROM public_chat_reports WHERE id=?', id);
+  if (!report) return error('CHAT_REPORT_NOT_FOUND','البلاغ غير موجود.',404,ctx.requestId,ctx.cors);
+  await ctx.env.DB.prepare('UPDATE public_chat_reports SET status=?, reviewed_at=CURRENT_TIMESTAMP, reviewed_by=? WHERE id=?')
+    .bind(status, a.session.staff_user_id, id).run();
+  if (messageStatus != null) {
+    await ctx.env.DB.prepare('UPDATE public_chat_messages SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .bind(messageStatus, report.message_id).run();
+  }
+  await writeAudit(ctx, a.session.staff_user_id, 'chat_report_review', 'public_chat_report', id, {status, messageStatus});
+  return ok(ctx, {id, status, messageStatus});
+}
+
 export async function adminModerationComments(ctx) { const a=await requireAdminPermission(ctx, 'moderation.read'); if(a.response) return a.response; const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,"SELECT c.*,s.full_name,s.student_number, (SELECT COUNT(*) FROM comment_replies cr WHERE cr.comment_id=c.id AND cr.status='visible') AS reply_count FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?",status,limit); return ok(ctx,rows,{count:rows.length}); }
 
 export async function adminModerationComment(ctx,id) { const a=await requireAdminPermission(ctx, 'moderation.write'); if(a.response) return a.response; const body=await parseJson(ctx.request); const status=String(body?.status||'').trim(); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const r=await ctx.env.DB.prepare('UPDATE comments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run(); if(!r.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,a.session.staff_user_id,'status_update','comment',id,{status}); return ok(ctx,{id,status}); }
@@ -100,7 +136,6 @@ export function adminPermission(path, method) {
   if (path.includes('/settings')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
   if (path.includes('/audit-logs')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
   if (path.includes('/drive')) return method === 'GET' ? 'academic.read' : 'academic.write';
-  if (path.includes('/learning-events')) return method === 'GET' ? 'notifications.read' : 'notifications.write';
   if (path.includes('/notifications') || path.includes('/announcements')) return method === 'GET' ? 'notifications.read' : 'notifications.write';
   if (path.includes('/students') || path.includes('/subjects') || path.includes('/materials') || path.includes('/schedule')) return method === 'GET' ? 'academic.read' : 'academic.write';
   if (path.includes('/comments') || path.includes('/moderation')) return method === 'GET' ? 'moderation.read' : 'moderation.write';
@@ -108,7 +143,7 @@ export function adminPermission(path, method) {
 }
 
 export function adminResourceTable(resource) {
-  const map = { news:'news', announcements:'announcements', events:'events', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', comments:'comments' };
+  const map = { news:'news', announcements:'announcements', activities:'events', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', comments:'comments' };
   return map[resource] || null;
 }
 

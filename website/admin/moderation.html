@@ -20,15 +20,6 @@
   </section>
 
 
-  <section class="card" id="learningEventsCard" style="margin-top:18px">
-    <div class="card-header">
-      <div><h3>الأحداث</h3><span class="card-header-hint">أنشئ حدثًا بمكافأة XP وتصميم مختلف؛ عند النشر يُنشأ إشعار تلقائيًا للطلاب المستهدفين.</span></div>
-      <button type="button" class="btn btn-primary requires-edit" id="addLearningEventBtn"><i class="fa-solid fa-plus"></i> إضافة حدث</button>
-    </div>
-    <div class="table-scroll"><table class="data-table"><thead><tr><th>اسم الحدث</th><th>التصميم</th><th>XP</th><th>الحالة</th><th>الإكمالات</th><th></th></tr></thead><tbody id="learningEventsBody"></tbody></table></div>
-  </section>
-
-
   <section class="card" id="commentsCard" style="margin-top:18px">
     <div class="card-header"><div><h3>الإشراف على التعليقات</h3><span class="card-header-hint">استعرض التعليقات المرئية والمخفية والمحذوفة، وأعد إظهار ما تم إخفاؤه عند الحاجة.</span></div><button type="button" class="btn btn-secondary" id="moderationRefreshBtn"><i class="fa-solid fa-rotate"></i> تحديث</button></div>
     <div class="segmented-control" style="display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 14px">
@@ -37,6 +28,16 @@
       <button type="button" class="btn btn-secondary moderation-filter" data-status="deleted">محذوفة</button>
     </div>
     <div id="list"><div class="empty-state">جارٍ التحميل...</div></div>
+  </section>
+
+  <section class="card" id="chatReportsCard" style="margin-top:18px">
+    <div class="card-header"><div><h3>بلاغات المحادثة العامة</h3><span class="card-header-hint">راجع بلاغات الطلاب، وأخفِ الرسالة أو احذفها عند الحاجة.</span></div><button type="button" class="btn btn-secondary" id="chatReportsRefreshBtn"><i class="fa-solid fa-rotate"></i> تحديث</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 14px">
+      <button type="button" class="btn btn-secondary chat-report-filter is-active" data-status="open">مفتوحة</button>
+      <button type="button" class="btn btn-secondary chat-report-filter" data-status="reviewed">تمت مراجعتها</button>
+      <button type="button" class="btn btn-secondary chat-report-filter" data-status="dismissed">مرفوضة</button>
+    </div>
+    <div id="chatReportsList"><div class="empty-state">جارٍ التحميل...</div></div>
   </section>
 
   <section class="card" id="repliesCard" style="margin-top:18px">
@@ -52,23 +53,24 @@
 <script src="js/api-adapter.js?v=3.2.0"></script><script src="js/utils.js"></script><script src="js/feedback.js"></script><script src="js/modal.js"></script><script src="js/layout.js"></script>
 <script>
 let notificationRows=[];
-let learningEventRows=[];
 let moderationStatus='visible';
 let moderationReplyStatus='visible';
+let chatReportStatus='open';
 const notificationSchema = Adapter.getContentSchema('announcements');
 
 document.addEventListener('shell:ready',()=>{
   document.getElementById('pageContent').appendChild(document.getElementById('pageTemplate').content.cloneNode(true));
   document.getElementById('moderationRefreshBtn').addEventListener('click', loadModeration);
   document.getElementById('repliesRefreshBtn').addEventListener('click', loadModerationReplies);
+  document.getElementById('chatReportsRefreshBtn').addEventListener('click', loadChatReports);
+  document.querySelectorAll('.chat-report-filter').forEach(btn=>btn.addEventListener('click',()=>{chatReportStatus=btn.dataset.status||'open';document.querySelectorAll('.chat-report-filter').forEach(x=>x.classList.toggle('is-active',x===btn));loadChatReports();}));
   document.querySelectorAll('.reply-filter').forEach(btn=>btn.addEventListener('click',()=>{moderationReplyStatus=btn.dataset.status||'visible';document.querySelectorAll('.reply-filter').forEach(x=>x.classList.toggle('is-active',x===btn));loadModerationReplies();}));
   document.querySelectorAll('.moderation-filter').forEach(btn=>btn.addEventListener('click',()=>{moderationStatus=btn.dataset.status||'visible';document.querySelectorAll('.moderation-filter').forEach(x=>x.classList.toggle('is-active',x===btn));loadModeration();}));
   document.getElementById('addNotificationBtn').addEventListener('click', () => openNotificationForm(null));
-  document.getElementById('addLearningEventBtn').addEventListener('click', () => openLearningEventForm(null));
   loadNotifications();
   loadModeration();
   loadModerationReplies();
-  loadLearningEvents();
+  loadChatReports();
 });
 
 function notificationFieldHtml(f, record){
@@ -123,43 +125,6 @@ document.addEventListener('click',async ev=>{
   }
 });
 
-function openLearningEventForm(id){
-  const record=id?learningEventRows.find(r=>r.id===id):null;
-  const f=record?.fields||{};
-  const bodyHtml=`<form id="learningEventForm" novalidate>
-    <div class="field"><label>اسم الحدث</label><input name="title" required value="${Utils.escapeHtml(f.title||'')}"></div>
-    <div class="field"><label>الوصف</label><textarea name="description">${Utils.escapeHtml(f.description||'')}</textarea></div>
-    <div class="field"><label>تصميم الحدث</label><select name="design"><option value="standard" ${f.design==='standard'?'selected':''}>قياسي</option><option value="challenge" ${f.design==='challenge'?'selected':''}>تحدي</option><option value="checklist" ${f.design==='checklist'?'selected':''}>قائمة مهام</option></select></div>
-    <div class="field"><label>XP</label><input name="xp_reward" type="number" min="0" max="100" step="1" required value="${f.xp_reward??25}"></div>
-    <div class="field"><label>مهام القائمة (اختياري، كل سطر مهمة)</label><textarea name="tasks">${Utils.escapeHtml(Array.isArray(f.tasks)?f.tasks.join('\n'):'')}</textarea></div>
-    <div class="field"><label>القسم المستهدف (اختياري)</label><input name="target_department_id" value="${Utils.escapeHtml(f.target_department_id||'')}"></div>
-    <div class="field"><label>الفصل المستهدف (اختياري)</label><input name="target_semester_id" value="${Utils.escapeHtml(f.target_semester_id||'')}"></div>
-    <div class="field"><label>النشر</label><select name="status"><option value="draft" ${f.status!=='published'?'selected':''}>مسودة</option><option value="published" ${f.status==='published'?'selected':''}>منشور</option></select></div>
-  </form>`;
-  Modal.open({title:record?'تعديل حدث':'إضافة حدث',bodyHtml,buttons:[
-    {label:'إلغاء',className:'btn-secondary',onClick:()=>Modal.close()},
-    {label:record?'حفظ التعديلات':'حفظ الحدث',className:'btn-primary',onClick:btn=>saveLearningEvent(record,btn)}
-  ]});
-}
-async function saveLearningEvent(record,btn){
-  const form=document.getElementById('learningEventForm'); if(!form||!form.reportValidity())return;
-  const tasks=String(form.elements.tasks?.value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-  const fields={title:form.elements.title.value.trim(),description:form.elements.description.value.trim(),design:form.elements.design.value,xp_reward:Number(form.elements.xp_reward.value||0),target_department_id:form.elements.target_department_id.value.trim()||null,target_semester_id:form.elements.target_semester_id.value.trim()||null,status:form.elements.status.value,config_json:{tasks}};
-  try{await Feedback.busy(btn,()=>record?Adapter.updateLearningEvent(record.id,fields):Adapter.createLearningEvent(fields),{busyLabel:'جارٍ الحفظ...',successMessage:record?'تم حفظ الحدث':'تم إنشاء الحدث',errorPrefix:'تعذّر حفظ الحدث'});Modal.close();await loadLearningEvents();}catch(e){}
-}
-async function loadLearningEvents(){
-  const body=document.getElementById('learningEventsBody'); if(!body)return;
-  await Feedback.loadIntoTable(body,6,()=>Adapter.listLearningEvents(),rows=>{
-    learningEventRows=rows.map(r=>({id:r.id,fields:{title:r.title||'',description:r.description||'',design:r.design||'standard',xp_reward:Number(r.xp_reward||0),status:r.status||'draft',completions:Number(r.completions||0),target_department_id:r.target_department_id||'',target_semester_id:r.target_semester_id||'',tasks:Array.isArray(r.config)?r.config:((r.config&&Array.isArray(r.config.tasks))?r.config.tasks:[])}}));
-    body.innerHTML=learningEventRows.length?learningEventRows.map(r=>`<tr><td>${Utils.escapeHtml(r.fields.title)}</td><td>${r.fields.design==='challenge'?'تحدي':r.fields.design==='checklist'?'قائمة مهام':'قياسي'}</td><td>${Utils.formatNumber(r.fields.xp_reward)}</td><td><span class="badge ${r.fields.status==='published'?'badge-success':'badge-warning'}">${r.fields.status==='published'?'منشور':'مسودة'}</span></td><td>${Utils.formatNumber(r.fields.completions)}</td><td><div class="row-actions requires-edit"><button class="icon-btn" type="button" data-event-action="edit" data-id="${Utils.escapeHtml(r.id)}" title="تعديل"><i class="fa-solid fa-pen"></i></button><button class="icon-btn is-danger" type="button" data-event-action="delete" data-id="${Utils.escapeHtml(r.id)}" title="حذف"><i class="fa-solid fa-trash"></i></button></div></td></tr>`).join(''):'<tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-wand-magic-sparkles"></i>لا توجد أحداث بعد.</div></td></tr>';
-  },{errorPrefix:'تعذّر تحميل الأحداث'});
-}
-document.addEventListener('click',async ev=>{
-  const btn=ev.target.closest('button[data-event-action]');if(!btn)return;
-  const id=btn.dataset.id,action=btn.dataset.eventAction;
-  if(action==='edit')return openLearningEventForm(id);
-  if(action==='delete'){const ok=await Modal.confirmDialog('سيتم حذف الحدث وإشعاره المرتبط نهائيًا. هل أنت متأكد؟','حذف نهائي');if(!ok)return;try{await Feedback.busy(btn,()=>Adapter.deleteLearningEvent(id),{busyLabel:'جارٍ الحذف...',successMessage:'تم حذف الحدث',errorPrefix:'تعذّر حذف الحدث'});await loadLearningEvents();}catch(e){}}
-});
 
 async function loadModeration(){
   const el=document.getElementById('list');
@@ -167,6 +132,30 @@ async function loadModeration(){
     el.innerHTML=rows.length?rows.map(r=>{const hidden=moderationStatus==='hidden';const deleted=moderationStatus==='deleted';return `<article class="list-row moderation-row"><div class="moderation-copy"><strong>${Utils.escapeHtml(r.full_name||'طالب')}</strong><div class="field-hint">${Utils.escapeHtml(r.content_type||'')} · ${Utils.formatDate(r.created_at)} · ${Number(r.reply_count||0)} ردود</div><p>${Utils.escapeHtml(r.body||'')}</p></div><div class="row-actions moderation-actions">${hidden?'<button type="button" class="btn btn-secondary" data-comment-action="moderate" data-id="'+Utils.escapeHtml(String(r.id))+'" data-status="visible">إعادة إظهار</button>':''}${!deleted&&!hidden?'<button type="button" class="btn btn-secondary" data-comment-action="moderate" data-id="'+Utils.escapeHtml(String(r.id))+'" data-status="hidden">إخفاء</button>':''}${!deleted?'<button type="button" class="btn btn-danger" data-comment-action="delete" data-id="'+Utils.escapeHtml(String(r.id))+'">حذف نهائي</button>':''}</div></article>`}).join(''):'<div class="empty-state"><i class="fa-solid fa-circle-check"></i>لا توجد تعليقات في هذه الحالة.</div>';
   },{errorPrefix:'تعذّر تحميل التعليقات'});
 }
+
+async function loadChatReports(){
+  const el=document.getElementById('chatReportsList'); if(!el)return;
+  await Feedback.loadInto(el,()=>Adapter.listChatReports(chatReportStatus),rows=>{
+    const reasonLabels={spam:'رسالة مزعجة أو تكرار',harassment:'إساءة أو مضايقة',inappropriate:'محتوى غير مناسب',other:'سبب آخر'};
+    el.innerHTML=rows.length?rows.map(r=>{
+      const safeId=Utils.escapeHtml(String(r.id||''));
+      const status=chatReportStatus;
+      const statusButtons=status==='open'
+        ? `<button type="button" class="btn btn-secondary" data-chat-report-action="hide" data-id="${safeId}">إخفاء الرسالة</button><button type="button" class="btn btn-danger" data-chat-report-action="delete" data-id="${safeId}">حذف الرسالة</button><button type="button" class="btn btn-secondary" data-chat-report-action="dismiss" data-id="${safeId}">رفض البلاغ</button>`
+        : `${r.messageStatus!=='visible'?`<button type="button" class="btn btn-secondary" data-chat-report-action="restore" data-id="${safeId}">إعادة إظهار الرسالة</button>`:''}`;
+      return `<article class="list-row moderation-row"><div class="moderation-copy"><strong>${Utils.escapeHtml(r.authorName||'طالب')}</strong><div class="field-hint">المبلّغ: ${Utils.escapeHtml(r.reporterName||'طالب')} · ${Utils.escapeHtml(reasonLabels[r.reason]||r.reason||'')} · ${Utils.formatDate(r.createdAt||'')}</div><p>${Utils.escapeHtml(r.messageBody||'')}</p>${r.details?`<small class="field-hint">تفاصيل البلاغ: ${Utils.escapeHtml(r.details)}</small>`:''}<div class="field-hint">حالة الرسالة: ${Utils.escapeHtml(r.messageStatus||'visible')}</div></div><div class="row-actions moderation-actions">${statusButtons}</div></article>`;
+    }).join(''):'<div class="empty-state"><i class="fa-solid fa-circle-check"></i>لا توجد بلاغات في هذه الحالة.</div>';
+  },{errorPrefix:'تعذّر تحميل بلاغات المحادثة'});
+}
+
+document.addEventListener('click',async ev=>{
+  const btn=ev.target.closest('button[data-chat-report-action]'); if(!btn)return;
+  const action=btn.dataset.chatReportAction,id=btn.dataset.id;
+  const choices={hide:{status:'reviewed',messageStatus:'hidden',label:'إخفاء الرسالة'},delete:{status:'reviewed',messageStatus:'deleted',label:'حذف الرسالة'},dismiss:{status:'dismissed',messageStatus:null,label:'رفض البلاغ'},restore:{status:'reviewed',messageStatus:'visible',label:'إعادة إظهار الرسالة'}};
+  const choice=choices[action]; if(!choice)return;
+  if(action==='delete') {const ok=await Modal.confirmDialog('ستُحذف الرسالة من العرض العام مع الاحتفاظ بسجل الإشراف. هل تريد المتابعة؟','حذف رسالة المحادثة');if(!ok)return;}
+  try{await Feedback.busy(btn,()=>Adapter.updateChatReport(id,choice.status,choice.messageStatus),{busyLabel:'جارٍ التنفيذ...',successMessage:'تم تحديث البلاغ',errorPrefix:'تعذّر تحديث البلاغ'});await loadChatReports();}catch(e){}
+});
 
 async function loadModerationReplies(){
   const el=document.getElementById('repliesList');
