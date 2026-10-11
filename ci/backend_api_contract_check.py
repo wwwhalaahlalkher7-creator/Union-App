@@ -99,6 +99,7 @@ for path in sorted(flutter_paths):
 # General chat contract: authentication, bounded payloads, reporting and moderation.
 chat_backend=(root/'backend/src/chat.js').read_text()
 chat_migration=(root/'backend/migrations/0035_public_chat.sql').read_text()
+chat_reply_migration=(root/'backend/migrations/0036_public_chat_replies.sql').read_text()
 chat_screen=(root/'flutter/lib/features/chat/general_chat_screen.dart').read_text()
 admin_moderation=(root/'website/admin/moderation.html').read_text()
 for marker, source, label in [
@@ -106,6 +107,8 @@ for marker, source, label in [
     ('MAX_BODY = 1000', chat_backend, 'message length bound'),
     ('CHAT_RATE_LIMITED', chat_backend, 'send rate limit'),
     ('public_chat_reports', chat_backend, 'report workflow'),
+    ('replyToMessageId', chat_backend, 'reply target validation'),
+    ('reply_to_message_id', chat_reply_migration, 'reply relation migration'),
     ('moderation.read', (root/'backend/src/admin.js').read_text(), 'staff moderation read permission'),
     ('moderation.write', (root/'backend/src/admin.js').read_text(), 'staff moderation write permission'),
     ('CHECK (status IN', chat_migration, 'message moderation states'),

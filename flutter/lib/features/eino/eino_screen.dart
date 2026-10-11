@@ -914,7 +914,7 @@ class _EinoScreenState extends State<EinoScreen> {
     }
 
     return GestureDetector(
-      onLongPress: () => _showMessageMenu(m),
+      onLongPress: m.user ? () => _showMessageMenu(m) : null,
       child: Align(
       alignment: m.user
           ? AlignmentDirectional.centerEnd
@@ -928,8 +928,11 @@ class _EinoScreenState extends State<EinoScreen> {
         decoration: m.user
             ? BoxDecoration(
                 color: cs.primary,
-                borderRadius: BorderRadius.circular(18).copyWith(
-                  bottomRight: const Radius.circular(5),
+                borderRadius: const BorderRadiusDirectional.only(
+                  topStart: Radius.circular(18),
+                  topEnd: Radius.circular(18),
+                  bottomStart: Radius.circular(18),
+                  bottomEnd: Radius.circular(5),
                 ),
               )
             : const BoxDecoration(),
@@ -964,6 +967,14 @@ class _EinoScreenState extends State<EinoScreen> {
                           ],
                         ),
                       ),
+                      if (!m.user && !m.isError && m.text.trim().isNotEmpty)
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          padding: EdgeInsets.zero,
+                          onPressed: () => _showMessageMenu(m),
+                          icon: const Icon(Icons.more_horiz_rounded, size: 18),
+                        ),
                     ],
                   ),
                   if (m.sourceTitle != null && m.sourceTitle!.trim().isNotEmpty)

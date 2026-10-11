@@ -5,11 +5,15 @@ const MAX_BODY = 1000;
 const MESSAGE_SELECT = `SELECT m.id, m.student_id AS studentId, s.full_name AS fullName,
   s.department_id AS departmentId, d.name_ar AS departmentName,
   s.current_semester_id AS semesterId, se.name_ar AS semesterName,
-  m.body, m.created_at AS createdAt, m.updated_at AS updatedAt
+  m.body, m.created_at AS createdAt, m.updated_at AS updatedAt,
+  m.reply_to_message_id AS replyToMessageId,
+  rm.body AS replyToBody, rs.full_name AS replyToFullName, rm.student_id AS replyToStudentId
   FROM public_chat_messages m
   JOIN students s ON s.id=m.student_id
   LEFT JOIN departments d ON d.id=s.department_id
-  LEFT JOIN semesters se ON se.id=s.current_semester_id`;
+  LEFT JOIN semesters se ON se.id=s.current_semester_id
+  LEFT JOIN public_chat_messages rm ON rm.id=m.reply_to_message_id AND rm.status='visible'
+  LEFT JOIN students rs ON rs.id=rm.student_id`;
 
 export async function publicChatMessages(ctx) {
   const auth = await studentAuth(ctx);
@@ -33,9 +37,16 @@ export async function createPublicChatMessage(ctx) {
   if (auth.response) return auth.response;
   const body = await parseJson(ctx.request);
   const message = String(body?.body ?? '').replace(/\r\n?/g, '\n').trim();
+  const replyToMessageId = String(body?.replyToMessageId ?? '').trim();
   if (!message) return error('CHAT_MESSAGE_EMPTY', 'اكتب رسالة أولًا.', 400, ctx.requestId, ctx.cors);
   if (message.length > MAX_BODY) return error('CHAT_MESSAGE_TOO_LONG', 'الرسالة أطول من الحد المسموح.', 400, ctx.requestId, ctx.cors);
   if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(message)) return error('CHAT_MESSAGE_INVALID', 'الرسالة تحتوي على أحرف غير مدعومة.', 400, ctx.requestId, ctx.cors);
+
+  if (replyToMessageId) {
+    if (replyToMessageId.length > 128) return error('CHAT_REPLY_TARGET_INVALID', 'الرسالة المراد الرد عليها غير صالحة.', 400, ctx.requestId, ctx.cors);
+    const target = await queryOne(ctx.env, "SELECT id FROM public_chat_messages WHERE id=? AND status='visible'", replyToMessageId);
+    if (!target) return error('CHAT_REPLY_TARGET_NOT_FOUND', 'الرسالة المراد الرد عليها لم تعد متاحة.', 404, ctx.requestId, ctx.cors);
+  }
 
   // Lightweight per-student throttle. Five messages in 15 seconds is enough for
   // conversation while reducing accidental spam and automated flooding.
@@ -44,8 +55,8 @@ export async function createPublicChatMessage(ctx) {
   if (Number(recent?.count || 0) >= 5) return error('CHAT_RATE_LIMITED', 'تمهل قليلًا قبل إرسال رسائل أخرى.', 429, ctx.requestId, ctx.cors);
 
   const id = crypto.randomUUID();
-  await ctx.env.DB.prepare('INSERT INTO public_chat_messages (id, student_id, body) VALUES (?, ?, ?)')
-    .bind(id, auth.session.student_id, message).run();
+  await ctx.env.DB.prepare('INSERT INTO public_chat_messages (id, student_id, body, reply_to_message_id) VALUES (?, ?, ?, ?)')
+    .bind(id, auth.session.student_id, message, replyToMessageId || null).run();
   const row = await queryOne(ctx.env, `${MESSAGE_SELECT} WHERE m.id=? AND m.status='visible'`, id);
   return ok(ctx, row, null, 201);
 }

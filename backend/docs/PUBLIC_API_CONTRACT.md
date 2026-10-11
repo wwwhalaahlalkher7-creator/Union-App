@@ -63,7 +63,8 @@ Public content routes `/news`, `/activities`, `/announcements`, `/achievements` 
 The public chat feature is implemented in the Flutter app and moderated through the existing staff moderation page in the website admin panel.
 
 - `GET /chat/messages?limit=50` — authenticated students only; returns the latest visible messages and public author fields.
-- `POST /chat/messages` — authenticated students only; creates a plain-text message (maximum 1,000 characters, throttled to five messages per 15 seconds).
+- `POST /chat/messages` — authenticated students only; creates a plain-text message (maximum 1,000 characters, throttled to five messages per 15 seconds). Optional `replyToMessageId` links the message to an existing visible message.
+- `GET /chat/messages` also returns `replyToMessageId`, `replyToBody`, `replyToFullName`, and `replyToStudentId` when a message quotes another message. Existing top-level messages remain compatible.
 - `DELETE /chat/messages/:id` — soft-deletes the authenticated student's own message.
 - `POST /chat/messages/:id/report` — reports another student's message for moderation. One report per reporter/message.
 - `GET /admin/moderation/chat-reports?status=open` — staff with `moderation.read` permission.

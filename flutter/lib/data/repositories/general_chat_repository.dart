@@ -10,8 +10,11 @@ class GeneralChatRepository {
     return RepositoryParser.maps(response);
   }
 
-  Future<Map<String, dynamic>> send(String body) async {
-    final response = await _client.postJson('/api/v1/chat/messages', body: {'body': body});
+  Future<Map<String, dynamic>> send(String body, {String? replyToMessageId}) async {
+    final response = await _client.postJson('/api/v1/chat/messages', body: {
+      'body': body,
+      if (replyToMessageId != null && replyToMessageId.trim().isNotEmpty) 'replyToMessageId': replyToMessageId.trim(),
+    });
     return RepositoryParser.map(response);
   }
 

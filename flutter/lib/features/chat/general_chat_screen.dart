@@ -23,12 +23,14 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   final List<Map<String, dynamic>> _messages = [];
+  final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
   Timer? _pollTimer;
   String? _studentId;
   bool _loading = true;
   bool _sending = false;
   bool _refreshing = false;
   String? _loadError;
+  Map<String, dynamic>? _replyingTo;
 
   @override
   void initState() {
@@ -96,10 +98,12 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
     final l10n = AppLocalizations.of(context);
     setState(() => _sending = true);
     try {
-      final message = await _repository.send(text);
+      final target = _replyingTo;
+      final message = await _repository.send(text, replyToMessageId: target == null ? null : '${target['id']}');
       if (!mounted) return;
       _composer.clear();
       setState(() {
+        _replyingTo = null;
         if (!_messages.any((m) => m['id'] == message['id'])) _messages.add(message);
         _loadError = null;
       });
@@ -126,6 +130,7 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const Icon(Icons.reply_rounded), title: Text(l10n.t('reply')), onTap: () => Navigator.pop(sheetContext, 'reply')),
           ListTile(leading: const Icon(Icons.content_copy_rounded), title: Text(l10n.t('copy')), onTap: () => Navigator.pop(sheetContext, 'copy')),
           if (mine) ListTile(leading: const Icon(Icons.delete_outline_rounded), title: Text(l10n.t('delete')), iconColor: Theme.of(sheetContext).colorScheme.error, textColor: Theme.of(sheetContext).colorScheme.error, onTap: () => Navigator.pop(sheetContext, 'delete')),
           if (!mine) ListTile(leading: const Icon(Icons.flag_outlined), title: Text(l10n.t('chatReport')), onTap: () => Navigator.pop(sheetContext, 'report')),
@@ -134,12 +139,23 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
       ),
     );
     if (!mounted || action == null) return;
+    if (action == 'reply') { _startReply(message); return; }
     if (action == 'delete') { await _deleteMessage(message); return; }
     if (action == 'report') { await _reportMessage(message); return; }
     if (action == 'copy') {
       await Clipboard.setData(ClipboardData(text: '${message['body'] ?? ''}'));
       if (mounted) _showSnack(l10n.t('copied'));
     }
+  }
+
+  void _startReply(Map<String, dynamic> message) {
+    if ('${message['id'] ?? ''}'.isEmpty) return;
+    setState(() => _replyingTo = Map<String, dynamic>.from(message));
+    _focusNode.requestFocus();
+  }
+
+  void _cancelReply() {
+    setState(() => _replyingTo = null);
   }
 
   Future<void> _deleteMessage(Map<String, dynamic> message) async {
@@ -195,9 +211,19 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
   }
 
   void _openStudent(Map<String, dynamic> message) {
-    final id = '${message['studentId'] ?? ''}'.trim();
+    final id = '${message['studentId'] ?? message['student_id'] ?? ''}'.trim();
     if (id.isEmpty) return;
-    context.push('/student/profile/${Uri.encodeComponent(id)}?name=${Uri.encodeQueryComponent('${message['fullName'] ?? ''}')}&department=${Uri.encodeQueryComponent('${message['departmentName'] ?? ''}')}&semester=${Uri.encodeQueryComponent('${message['semesterName'] ?? ''}')}');
+    context.push('/student/profile/${Uri.encodeComponent(id)}?name=${Uri.encodeQueryComponent('${message['fullName'] ?? message['full_name'] ?? ''}')}&department=${Uri.encodeQueryComponent('${message['departmentName'] ?? message['department_name'] ?? ''}')}&semester=${Uri.encodeQueryComponent('${message['semesterName'] ?? message['semester_name'] ?? ''}')}');
+  }
+
+  void _jumpToMessage(String id) {
+    final key = _messageKeys[id];
+    final target = key?.currentContext;
+    if (target != null) {
+      Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 260), curve: Curves.easeOut, alignment: .35);
+    } else {
+      _showSnack(AppLocalizations.of(context).t('messageUnavailable'));
+    }
   }
 
   void _scrollToBottom({bool jump = false}) {
@@ -258,7 +284,9 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
             decoration: BoxDecoration(color: scheme.surface, border: Border(top: BorderSide(color: scheme.outlineVariant.withValues(alpha: .6)))),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (_replyingTo != null) _buildReplyComposerPreview(context, _replyingTo!),
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Expanded(
                 child: TextField(
                   controller: _composer,
@@ -292,6 +320,7 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
                 ),
               ),
             ]),
+            ]),
           ),
         ),
       ]),
@@ -322,11 +351,10 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
     }
     return RefreshIndicator(
       onRefresh: () => _refreshMessages(),
-      child: ListView.builder(
+      child: ListView(
         controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-        itemCount: _messages.length,
-        itemBuilder: (context, index) => _messageBubble(context, _messages[index]),
+        children: _messages.map((message) => _messageBubble(context, message)).toList(),
       ),
     );
   }
@@ -335,9 +363,13 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     final mine = '${message['studentId'] ?? ''}' == _studentId;
-    final name = '${message['fullName'] ?? l10n.t('studentFallback')}'.trim();
+    final name = '${message['fullName'] ?? message['full_name'] ?? l10n.t('studentFallback')}'.trim();
     final time = _formatTime('${message['createdAt'] ?? ''}');
-    return Padding(
+    final messageId = '${message['id'] ?? ''}';
+    final messageKey = _messageKeys.putIfAbsent(messageId, () => GlobalKey());
+    return KeyedSubtree(
+      key: messageKey,
+      child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start, children: [
         if (!mine) ...[
@@ -350,27 +382,38 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
         ],
         Flexible(
           child: GestureDetector(
-          onLongPress: () => _showMessageMenu(message, mine: mine),
-          child: Container(
+            onHorizontalDragEnd: (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity.abs() < 220) return;
+              final rtl = Directionality.of(context) == TextDirection.rtl;
+              final inward = mine ? (rtl ? velocity > 0 : velocity < 0) : (rtl ? velocity < 0 : velocity > 0);
+              if (inward) _startReply(message);
+            },
+            child: Container(
             constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .78),
             padding: const EdgeInsets.fromLTRB(12, 8, 8, 7),
             decoration: BoxDecoration(
               color: mine ? scheme.primaryContainer : scheme.surfaceContainerHighest.withValues(alpha: .72),
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(16), topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(mine ? 16 : 4), bottomRight: Radius.circular(mine ? 4 : 16),
+              borderRadius: BorderRadiusDirectional.only(
+                topStart: const Radius.circular(16), topEnd: const Radius.circular(16),
+                bottomStart: Radius.circular(mine ? 16 : 4), bottomEnd: Radius.circular(mine ? 4 : 16),
               ),
               border: Border.all(color: (mine ? scheme.primary : scheme.outlineVariant).withValues(alpha: .22)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if ('${message['replyToMessageId'] ?? ''}'.isNotEmpty) _buildQuotedMessagePreview(context, message),
               Row(mainAxisSize: MainAxisSize.min, children: [
-                Flexible(child: InkWell(onTap: () => _openStudent(message), child: Text(mine ? l10n.t('chatYou') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: mine ? scheme.onPrimaryContainer : scheme.primary, fontWeight: FontWeight.w800, fontSize: 12)))),
+                Flexible(child: InkWell(onTap: () => _openStudent(message), borderRadius: BorderRadius.circular(4), child: Text(name.isEmpty ? l10n.t('studentFallback') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: mine ? scheme.onPrimaryContainer : scheme.primary, fontWeight: FontWeight.w800, fontSize: 12, decoration: TextDecoration.underline)))),
                 const SizedBox(width: 8),
                 Text(time, style: TextStyle(color: mine ? scheme.onPrimaryContainer.withValues(alpha: .7) : scheme.onSurfaceVariant, fontSize: 10)),
               ]),
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: 6, top: 2),
-                child: Text('${message['body'] ?? ''}', style: TextStyle(color: mine ? scheme.onPrimaryContainer : scheme.onSurface, fontSize: 14, height: 1.35)),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onLongPress: () => _showMessageMenu(message, mine: mine),
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 6, top: 2),
+                  child: Text('${message['body'] ?? ''}', style: TextStyle(color: mine ? scheme.onPrimaryContainer : scheme.onSurface, fontSize: 14, height: 1.35)),
+                ),
               ),
             ]),
           ),
@@ -378,6 +421,50 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
         ),
         if (mine) const SizedBox(width: 4),
       ]),
+      ),
+    );
+  }
+
+  Widget _buildReplyComposerPreview(BuildContext context, Map<String, dynamic> target) {
+    final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final name = '${target['fullName'] ?? target['full_name'] ?? l10n.t('studentFallback')}';
+    final body = '${target['body'] ?? ''}';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsetsDirectional.only(start: 10, end: 4, top: 7, bottom: 7),
+      decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: .6), borderRadius: BorderRadius.circular(12), border: BorderDirectional(start: BorderSide(color: scheme.primary, width: 3))),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${l10n.t('replyingTo')} $name', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: scheme.primary)),
+          const SizedBox(height: 2),
+          Text(body, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+        ])),
+        IconButton(tooltip: l10n.t('cancel'), visualDensity: VisualDensity.compact, onPressed: _cancelReply, icon: const Icon(Icons.close_rounded, size: 18)),
+      ]),
+    );
+  }
+
+  Widget _buildQuotedMessagePreview(BuildContext context, Map<String, dynamic> message) {
+    final scheme = Theme.of(context).colorScheme;
+    final name = '${message['replyToFullName'] ?? ''}'.trim();
+    final body = '${message['replyToBody'] ?? ''}'.trim();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsetsDirectional.only(start: 8, end: 6, top: 5, bottom: 5),
+      decoration: BoxDecoration(color: scheme.surface.withValues(alpha: .55), borderRadius: BorderRadius.circular(8), border: BorderDirectional(start: BorderSide(color: scheme.primary, width: 3))),
+      child: InkWell(
+        onTap: () {
+          final targetId = '${message['replyToMessageId'] ?? ''}';
+          if (targetId.isNotEmpty) _jumpToMessage(targetId);
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(name.isEmpty ? AppLocalizations.of(context).t('messageUnavailable') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: scheme.primary)),
+        Text(body.isEmpty ? AppLocalizations.of(context).t('messageUnavailable') : body, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+        ]),
+      ),
     );
   }
 

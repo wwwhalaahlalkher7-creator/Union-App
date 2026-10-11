@@ -13,7 +13,10 @@ class ContentCommentsSheet extends StatefulWidget {
 class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   Future<List<CommentItem>>? _future;
   final _controller = TextEditingController();
+  final _composerFocus = FocusNode();
   bool _sending = false;
+  String? _studentId;
+  CommentItem? _replyingTo;
   int _commentCount = 0;
   final Map<String, List<CommentItem>> _replies = <String, List<CommentItem>>{};
   final Set<String> _expandedReplies = <String>{};
@@ -23,6 +26,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   void initState() {
     super.initState();
     _commentCount = widget.item.commentCount;
+    AppDependencies.instance.student.profile().then((profile) { if (mounted) setState(() => _studentId = profile.id); }, onError: (_) {});
     _load();
   }
 
@@ -43,15 +47,38 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
+    final target = _replyingTo;
     try {
+      if (target == null) {
         await AppDependencies.instance.interactions.addComment(widget.type, widget.item.id, text);
+      } else {
+        await AppDependencies.instance.interactions.addReply(target.id, text);
+      }
       _controller.clear();
       if (mounted) {
-        setState(() => _commentCount += 1);
+        setState(() {
+          _commentCount += target == null ? 1 : 0;
+          _replyingTo = null;
+        });
         widget.onCommentCountChanged?.call(_commentCount);
-        ActionFeedback.show(context, type: ActionFeedbackType.comment);
+        ActionFeedback.show(context, type: target == null ? ActionFeedbackType.comment : ActionFeedbackType.reply);
       }
-      _load();
+      if (target == null) {
+        _load();
+      } else {
+        _replies.remove(target.id);
+        _expandedReplies.add(target.id);
+        _loadingReplies.add(target.id);
+        try {
+          final rows = await AppDependencies.instance.interactions.replies(target.id);
+          if (mounted) setState(() => _replies[target.id] = rows);
+        } catch (e) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'))));
+        } finally {
+          if (mounted) setState(() => _loadingReplies.remove(target.id));
+          _load();
+        }
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'commentFailed'))));
     } finally {
@@ -116,7 +143,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(leading: const Icon(Icons.content_copy_rounded), title: Text(l10n.t('copy')), onTap: () => Navigator.pop(sheetContext, 'copy')),
-        if (!isReply) ListTile(leading: const Icon(Icons.reply_rounded), title: Text(l10n.t('reply')), onTap: () => Navigator.pop(sheetContext, 'reply')),
+        if (_studentId != null && comment.studentId == _studentId) ListTile(leading: const Icon(Icons.delete_outline_rounded), title: Text(l10n.t('delete')), iconColor: Theme.of(sheetContext).colorScheme.error, textColor: Theme.of(sheetContext).colorScheme.error, onTap: () => Navigator.pop(sheetContext, 'delete')),
         const SizedBox(height: 8),
       ])),
     );
@@ -124,51 +151,69 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
     if (action == 'copy') {
       await Clipboard.setData(ClipboardData(text: comment.body));
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('copied'))));
-    } else if (action == 'reply' && !isReply) {
-      await _reply(comment);
+    } else if (action == 'delete') {
+      await _deleteOwnCommentOrReply(comment, isReply: isReply);
+    }
+  }
+
+  Future<void> _deleteOwnCommentOrReply(CommentItem item, {required bool isReply}) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.t('chatDeleteTitle')),
+        content: Text(l10n.t('chatDeleteConfirm')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(l10n.t('delete'))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      if (isReply) {
+        await AppDependencies.instance.interactions.deleteReply(item.id);
+        for (final entry in _replies.entries.toList()) {
+          _replies[entry.key] = entry.value.where((reply) => reply.id != item.id).toList();
+        }
+      } else {
+        await AppDependencies.instance.interactions.deleteComment(item.id);
+        if (mounted) {
+          setState(() {
+            _future = _future?.then((items) => items.where((comment) => comment.id != item.id).toList());
+            _commentCount = _commentCount > 0 ? _commentCount - 1 : 0;
+          });
+          widget.onCommentCountChanged?.call(_commentCount);
+          _replies.remove(item.id);
+          _expandedReplies.remove(item.id);
+        }
+      }
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('chatMessageDeleted'))));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'))));
     }
   }
 
   Future<void> _reply(CommentItem comment) async {
-    final controller = TextEditingController();
-    final l10n = AppLocalizations.of(context);
-    final value = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.t('reply')),
-        content: TextField(controller: controller, maxLines: 4, decoration: InputDecoration(hintText: l10n.t('writeReply'))),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.t('cancel'))),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: Text(l10n.t('publish'))),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (value == null || value.isEmpty) return;
-    try {
-      await AppDependencies.instance.interactions.addReply(comment.id, value);
-      if (mounted) {
-        _replies.remove(comment.id);
-        _expandedReplies.add(comment.id);
-        _loadingReplies.add(comment.id);
-        ActionFeedback.show(context, type: ActionFeedbackType.reply);
-      }
-      _load();
-      try {
-        final rows = await AppDependencies.instance.interactions.replies(comment.id);
-        if (mounted) setState(() => _replies[comment.id] = rows);
-      } finally {
-        if (mounted) setState(() => _loadingReplies.remove(comment.id));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'commentFailed'))));
+    setState(() => _replyingTo = comment);
+    if (!_expandedReplies.contains(comment.id)) {
+      await _toggleReplies(comment);
     }
+    _composerFocus.requestFocus();
+  }
+
+  void _cancelReply() {
+    setState(() => _replyingTo = null);
   }
 
 
   @override
   void dispose() {
     _controller.dispose();
+    _composerFocus.dispose();
     super.dispose();
   }
 
@@ -282,13 +327,26 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
-                child: Row(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  if (_replyingTo != null) Container(
+                    width: double.infinity, margin: const EdgeInsets.only(bottom: 7), padding: const EdgeInsetsDirectional.only(start: 10, end: 4, top: 7, bottom: 7),
+                    decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .6), borderRadius: BorderRadius.circular(10), border: BorderDirectional(start: BorderSide(color: cs.primary, width: 3))),
+                    child: Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('${l10n.t('replyingTo')} ${_replyingTo!.studentName}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: cs.primary)),
+                        Text(_replyingTo!.body, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+                      ])),
+                      IconButton(tooltip: l10n.t('cancel'), visualDensity: VisualDensity.compact, onPressed: _cancelReply, icon: const Icon(Icons.close_rounded, size: 18)),
+                    ]),
+                  ),
+                  Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Expanded(child: TextField(controller: _controller, maxLines: 3, minLines: 1, decoration: InputDecoration(hintText: l10n.t('writeComment'), isDense: true))),
+                    Expanded(child: TextField(controller: _controller, focusNode: _composerFocus, maxLines: 3, minLines: 1, decoration: InputDecoration(hintText: l10n.t('writeComment'), isDense: true))),
                     IconButton(onPressed: _sending ? null : _send, icon: Icon(Icons.send_rounded, color: cs.primary)),
                   ],
-                ),
+                  ),
+                ]),
               ),
             ),
           ],

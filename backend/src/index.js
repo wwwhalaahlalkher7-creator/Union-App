@@ -15,7 +15,7 @@ import {
   progress, xp, badges, materialProgress,
 } from './academic.js';
 import {
-  comments, createComment, replies, createReply, reaction, removeReaction, commentReaction, removeCommentReaction, deleteComment,
+  comments, createComment, replies, createReply, reaction, removeReaction, commentReaction, removeCommentReaction, deleteComment, deleteOwnReply,
 } from './interactions.js';
 import {
   adminNotifications, adminNotificationSend,
@@ -138,6 +138,7 @@ export default {
       if (/^\/comments\/[^/]+\/reactions$/.test(path) && request.method === 'POST') return commentReaction(ctx);
       if (/^\/comments\/[^/]+\/reactions$/.test(path) && request.method === 'DELETE') return removeCommentReaction(ctx);
       if (/^\/comments\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteComment(ctx, path.split('/')[2]);
+      if (/^\/replies\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteOwnReply(ctx, path.split('/')[2]);
 
       if (path === '/admin/drive/sync' && request.method === 'POST') return adminDriveSync(ctx);
       if (path === '/admin/drive/sync-status' && request.method === 'GET') return adminDriveSyncStatus(ctx);
