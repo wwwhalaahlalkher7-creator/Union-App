@@ -152,7 +152,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
           if (images.isNotEmpty)
             _Gallery(images: images)
           else
-            _Fallback(label: label, icon: widget.type == 'news' ? Icons.article_rounded : widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.workspaces_outline_rounded),
+            _Fallback(label: label, icon: widget.type == 'news' ? Icons.article_rounded : widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.groups_rounded),
           Padding(
             padding: const EdgeInsets.all(14),
             child: Column(

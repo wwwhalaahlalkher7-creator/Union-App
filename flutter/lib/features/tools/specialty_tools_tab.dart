@@ -55,9 +55,9 @@ class _SpecialtyToolsTab extends StatelessWidget {
                 TextField(controller: third, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: inputLabel(2))),
               ],
               if (usesUnitPicker) ...[
-                DropdownButtonFormField<String>(value: fromUnit, decoration: const InputDecoration(labelText: 'من الوحدة'), items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(), onChanged: (v) { if (v != null) { setDialogState(() { fromUnit = v; if (toUnit == fromUnit) { toUnit = unitOptions.firstWhere((u) => u != fromUnit, orElse: () => fromUnit); } }); } }),
+                DropdownButtonFormField<String>(initialValue: fromUnit, decoration: const InputDecoration(labelText: 'من الوحدة'), items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(), onChanged: (v) { if (v != null) { setDialogState(() { fromUnit = v; if (toUnit == fromUnit) { toUnit = unitOptions.firstWhere((u) => u != fromUnit, orElse: () => fromUnit); } }); } }),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String>(value: toUnit, decoration: const InputDecoration(labelText: 'إلى الوحدة'), items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(), onChanged: (v) { if (v != null) { setDialogState(() => toUnit = v); } }),
+                DropdownButtonFormField<String>(initialValue: toUnit, decoration: const InputDecoration(labelText: 'إلى الوحدة'), items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(), onChanged: (v) { if (v != null) { setDialogState(() => toUnit = v); } }),
               ],
             ],
             if (result.isNotEmpty) ...[const SizedBox(height: 14), SelectableText(result, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.5))],

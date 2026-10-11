@@ -110,7 +110,7 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final labels = [l10n.t('news'), l10n.t('achievements'), l10n.t('activities')];
-    final icons = [Icons.article_outlined, Icons.emoji_events_outlined, Icons.workspaces_outline_rounded];
+    final icons = [Icons.article_outlined, Icons.emoji_events_outlined, Icons.groups_rounded];
     final loading = _loadingTabs.contains(_index);
     final failed = _failedTabs.contains(_index);
     final items = _items[_index] ?? const <ContentItem>[];

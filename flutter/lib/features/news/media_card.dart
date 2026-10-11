@@ -57,7 +57,7 @@ class _MediaCardState extends State<MediaCard> {
     final cs = Theme.of(context).colorScheme; final image = widget.item.images.isNotEmpty ? widget.item.images.first : widget.item.imageUrl;
     return AppCard(padding: EdgeInsets.zero, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Stack(children: [
-        _MediaImage(url: image, label: widget.label, icon: widget.type == 'news' ? Icons.article_rounded : (widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.workspaces_outline_rounded)),
+        _MediaImage(url: image, label: widget.label, icon: widget.type == 'news' ? Icons.article_rounded : (widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.groups_rounded)),
         PositionedDirectional(top: 10, start: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(8)), child: Text((widget.type == 'achievement' && widget.item.badge?.trim().isNotEmpty == true) ? widget.item.badge! : (widget.item.category?.trim().isNotEmpty == true ? widget.item.category! : widget.label), style: TextStyle(color: cs.onPrimaryContainer, fontSize: 9, fontWeight: FontWeight.w800)))),
       ]),
       Padding(padding: const EdgeInsets.fromLTRB(13, 11, 13, 9), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
