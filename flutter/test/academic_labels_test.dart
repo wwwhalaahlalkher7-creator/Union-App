@@ -2,20 +2,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:leo_association/shared/utils/academic_labels.dart';
 
 void main() {
-  test('academic id formatter keeps only digits and one internal hyphen', () {
+  test('academic id formatter normalizes input to the required ten digits', () {
     const formatter = AcademicIdInputFormatter();
     final result = formatter.formatEditUpdate(
       const TextEditingValue(text: ''),
-      const TextEditingValue(text: '20a--21-0045'),
+      const TextEditingValue(text: '24a--12-34567899'),
     );
-    expect(result.text, '20-210045');
+    expect(result.text, '24-12345678');
   });
 
-  test('academic id validation accepts the legacy digits-only form', () {
-    expect(isValidAcademicId('20210045'), isTrue);
-    expect(isValidAcademicId('20-210045'), isTrue);
-    expect(isValidAcademicId('20/210045'), isFalse);
-    expect(isValidAcademicId('20-21-0045'), isFalse);
+  test('academic id validation requires two digits, a hyphen, and eight digits', () {
+    expect(isValidAcademicId('24-12345678'), isTrue);
+    expect(isValidAcademicId('2412345678'), isFalse);
+    expect(isValidAcademicId('24-1234567'), isFalse);
+    expect(isValidAcademicId('24/12345678'), isFalse);
+    expect(isValidAcademicId('24-12-345678'), isFalse);
   });
 
   test('department labels follow the selected language', () {

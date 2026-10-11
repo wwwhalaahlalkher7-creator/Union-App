@@ -101,6 +101,7 @@ class _StudentScreenState extends State<StudentScreen> {
             ),
             children: [
               AppCard(
+                onTap: () => context.push('/student/profile/${Uri.encodeComponent(profile.id)}?name=${Uri.encodeComponent(profile.name)}&department=${Uri.encodeComponent(profile.departmentName ?? '')}&semester=${Uri.encodeComponent(profile.semesterName ?? '')}'),
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [

@@ -2,7 +2,6 @@ import '../../data/repositories/badges_repository.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../data/repositories/eino_repository.dart';
 import '../../data/repositories/interactions_repository.dart';
-import '../../data/repositories/learning_events_repository.dart';
 import '../../data/repositories/materials_repository.dart';
 import '../../data/repositories/notifications_repository.dart';
 import '../../data/repositories/progress_repository.dart';
@@ -32,7 +31,6 @@ final class AppDependencies {
   late final MaterialsRepository materials;
   late final ProgressRepository progress;
   late final InteractionsRepository interactions;
-  late final LearningEventsRepository learningEvents;
   late final NotificationsRepository notifications;
   late final ScheduleRepository schedule;
   late final XpRepository xp;
@@ -53,7 +51,6 @@ final class AppDependencies {
     materials = MaterialsRepository(apiClient);
     progress = ProgressRepository(apiClient);
     interactions = InteractionsRepository(apiClient);
-    learningEvents = LearningEventsRepository(apiClient);
     notifications = NotificationsRepository(apiClient);
     schedule = ScheduleRepository(apiClient);
     xp = XpRepository(apiClient);

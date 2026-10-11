@@ -23,6 +23,10 @@ class AppTheme {
       surfaceContainerHigh: AppColors.elevated,
       outline: AppColors.border,
       outlineVariant: AppColors.border.withValues(alpha: .72),
+      error: const Color(0xFFFFB4AB),
+      onError: const Color(0xFF690005),
+      errorContainer: const Color(0xFF5F1F2B),
+      onErrorContainer: const Color(0xFFFFDAD6),
     );
     return _base(scheme, Brightness.dark);
   }
@@ -42,6 +46,10 @@ class AppTheme {
       onSurface: AppColors.lightText,
       outline: AppColors.lightBorder,
       outlineVariant: AppColors.lightBorder,
+      error: const Color(0xFFBA1A1A),
+      onError: Colors.white,
+      errorContainer: const Color(0xFFFFDAD6),
+      onErrorContainer: const Color(0xFF410002),
     );
     return _base(scheme, Brightness.light);
   }
@@ -186,10 +194,15 @@ class AppTheme {
         ),
       ),
       snackBarTheme: SnackBarThemeData(
+        backgroundColor: scheme.inverseSurface,
+        actionTextColor: scheme.inversePrimary,
         behavior: SnackBarBehavior.floating,
         elevation: 4,
         insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        contentTextStyle: text.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+        contentTextStyle: text.bodyMedium?.copyWith(
+          color: scheme.onInverseSurface,
+          fontWeight: FontWeight.w600,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(DesignTokens.radius16),
         ),

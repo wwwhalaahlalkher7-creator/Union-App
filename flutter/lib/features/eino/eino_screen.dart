@@ -940,7 +940,7 @@ class _EinoScreenState extends State<EinoScreen> {
                             ],
                             EinoMathText(
                               m.text,
-                              style: const TextStyle(height: 1.55),
+                              style: TextStyle(color: cs.onSurface, height: 1.55),
                             ),
                           ],
                         ),

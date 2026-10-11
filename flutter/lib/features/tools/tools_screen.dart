@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../core/di/app_dependencies.dart';
 
 part 'unit_converter_tab.dart';
 part 'gpa_calculator_tab.dart';
 part 'resistor_calculator_tab.dart';
 part 'engineering_references_tab.dart';
+part 'specialty_tools_tab.dart';
 
 class ToolsScreen extends StatefulWidget {
   const ToolsScreen({super.key});
@@ -16,7 +18,7 @@ class ToolsScreen extends StatefulWidget {
 }
 
 class _ToolsScreenState extends State<ToolsScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabController = TabController(length: 4, vsync: this);
+  late final TabController _tabController = TabController(length: 5, vsync: this);
 
   @override
   void dispose() {
@@ -40,6 +42,7 @@ class _ToolsScreenState extends State<ToolsScreen> with SingleTickerProviderStat
             Tab(icon: const Icon(Icons.calculate_rounded), text: l10n.t('gpaCalculator')),
             Tab(icon: const Icon(Icons.palette_outlined), text: l10n.t('resistorCalculator')),
             Tab(icon: const Icon(Icons.menu_book_rounded), text: l10n.t('engineeringReferences')),
+            Tab(icon: const Icon(Icons.school_outlined), text: l10n.t('specialtyTools')),
           ],
         ),
       ),
@@ -50,6 +53,7 @@ class _ToolsScreenState extends State<ToolsScreen> with SingleTickerProviderStat
           _GpaCalculatorTab(),
           _ResistorCalculatorTab(),
           _EngineeringReferencesTab(),
+          _SpecialtyToolsTab(),
         ],
       ),
     );

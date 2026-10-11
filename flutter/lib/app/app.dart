@@ -171,7 +171,10 @@ class _TrinexAppState extends State<TrinexApp> {
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       routerConfig: _router,
-      builder: (context, child) => OfflineBanner(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+        child: OfflineBanner(child: child ?? const SizedBox.shrink()),
+      ),
     );
   }
 }

@@ -13,12 +13,13 @@ import '../features/materials/materials_screen.dart';
 import '../features/news/media_screen.dart';
 import '../features/news/content_detail_screen.dart';
 import '../features/notifications/notifications_screen.dart';
-import '../features/learning_events/learning_events_screen.dart';
+import '../features/chat/general_chat_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/recent/recent_screen.dart';
 import '../features/schedule/schedule_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/student/student_screen.dart';
+import '../features/student/student_public_profile_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/tools/tools_screen.dart';
 import '../features/xp/xp_screen.dart';
@@ -45,6 +46,12 @@ GoRouter buildRouter({
     ShellRoute(builder: (context, state, child) => TrinexShell(location: state.uri.path, child: child), routes: [
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/student', builder: (_, _) => const StudentScreen()),
+      GoRoute(path: '/student/profile/:id', builder: (_, state) => StudentPublicProfileScreen(
+        studentId: state.pathParameters['id'] ?? '',
+        name: state.uri.queryParameters['name'] ?? '',
+        department: state.uri.queryParameters['department'] ?? '',
+        semester: state.uri.queryParameters['semester'] ?? '',
+      )),
       GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
       GoRoute(path: '/materials', builder: (_, _) => const MaterialsScreen()),
       GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),
@@ -68,8 +75,7 @@ GoRouter buildRouter({
     GoRoute(path: '/recent', builder: (_, _) => const RecentScreen()),
     GoRoute(path: '/xp', builder: (_, _) => const StudentAccessGate(child: XpScreen())),
     GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
-    GoRoute(path: '/learning-events', builder: (_, _) => const StudentAccessGate(child: LearningEventsScreen())),
-    GoRoute(path: '/learning-events/:id', builder: (_, state) => StudentAccessGate(child: LearningEventRouteScreen(eventId: state.pathParameters['id'] ?? ''))),
+    GoRoute(path: '/general-chat', builder: (_, _) => const GeneralChatScreen()),
     GoRoute(path: '/eino', builder: (_, state) => EinoScreen(source: state.uri.queryParameters['from'] ?? 'home')),
     GoRoute(path: '/edit-profile', builder: (_, _) => const StudentAccountScreen()),
     GoRoute(path: '/account-settings', builder: (_, _) => const StudentAccountScreen()),
