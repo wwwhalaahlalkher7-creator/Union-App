@@ -211,9 +211,15 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
   }
 
   void _openStudent(Map<String, dynamic> message) {
-    final id = '${message['studentId'] ?? message['student_id'] ?? ''}'.trim();
-    if (id.isEmpty) return;
-    context.push('/student/profile/${Uri.encodeComponent(id)}?name=${Uri.encodeQueryComponent('${message['fullName'] ?? message['full_name'] ?? ''}')}&department=${Uri.encodeQueryComponent('${message['departmentName'] ?? message['department_name'] ?? ''}')}&semester=${Uri.encodeQueryComponent('${message['semesterName'] ?? message['semester_name'] ?? ''}')}');
+    final id = '${message['studentId'] ?? message['student_id'] ?? message['authorStudentId'] ?? message['author_student_id'] ?? message['userId'] ?? message['user_id'] ?? ''}'.trim();
+    if (id.isEmpty) {
+      _showSnack(AppLocalizations.of(context).t('studentProfileUnavailable'));
+      return;
+    }
+    final name = '${message['fullName'] ?? message['full_name'] ?? message['studentName'] ?? message['student_name'] ?? ''}'.trim();
+    final department = '${message['departmentName'] ?? message['department_name'] ?? ''}'.trim();
+    final semester = '${message['semesterName'] ?? message['semester_name'] ?? ''}'.trim();
+    context.push('/student/profile/${Uri.encodeComponent(id)}?name=${Uri.encodeQueryComponent(name)}&department=${Uri.encodeQueryComponent(department)}&semester=${Uri.encodeQueryComponent(semester)}');
   }
 
   void _jumpToMessage(String id) {
@@ -362,7 +368,8 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
   Widget _messageBubble(BuildContext context, Map<String, dynamic> message) {
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
-    final mine = '${message['studentId'] ?? ''}' == _studentId;
+    final senderId = '${message['studentId'] ?? message['student_id'] ?? ''}';
+    final mine = senderId.isNotEmpty && senderId == _studentId;
     final name = '${message['fullName'] ?? message['full_name'] ?? l10n.t('studentFallback')}'.trim();
     final time = _formatTime('${message['createdAt'] ?? ''}');
     final messageId = '${message['id'] ?? ''}';
@@ -381,14 +388,10 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
           const SizedBox(width: 7),
         ],
         Flexible(
-          child: GestureDetector(
-            onHorizontalDragEnd: (details) {
-              final velocity = details.primaryVelocity ?? 0;
-              if (velocity.abs() < 220) return;
-              final rtl = Directionality.of(context) == TextDirection.rtl;
-              final inward = mine ? (rtl ? velocity > 0 : velocity < 0) : (rtl ? velocity < 0 : velocity > 0);
-              if (inward) _startReply(message);
-            },
+          child: _SwipeToReplyBubble(
+            mine: mine,
+            rtl: Directionality.of(context) == TextDirection.rtl,
+            onReply: () => _startReply(message),
             child: Container(
             constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .78),
             padding: const EdgeInsets.fromLTRB(12, 8, 8, 7),
@@ -402,11 +405,18 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if ('${message['replyToMessageId'] ?? ''}'.isNotEmpty) _buildQuotedMessagePreview(context, message),
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                Flexible(child: InkWell(onTap: () => _openStudent(message), borderRadius: BorderRadius.circular(4), child: Text(name.isEmpty ? l10n.t('studentFallback') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: mine ? scheme.onPrimaryContainer : scheme.primary, fontWeight: FontWeight.w800, fontSize: 12, decoration: TextDecoration.underline)))),
-                const SizedBox(width: 8),
-                Text(time, style: TextStyle(color: mine ? scheme.onPrimaryContainer.withValues(alpha: .7) : scheme.onSurfaceVariant, fontSize: 10)),
-              ]),
+              InkWell(
+                onTap: () => _openStudent(message),
+                borderRadius: BorderRadius.circular(5),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Flexible(child: Text(name.isEmpty ? l10n.t('studentFallback') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: mine ? scheme.onPrimaryContainer : scheme.primary, fontWeight: FontWeight.w800, fontSize: 12))),
+                    const SizedBox(width: 8),
+                    Text(time, style: TextStyle(color: mine ? scheme.onPrimaryContainer.withValues(alpha: .7) : scheme.onSurfaceVariant, fontSize: 10)),
+                  ]),
+                ),
+              ),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onLongPress: () => _showMessageMenu(message, mine: mine),
@@ -477,5 +487,100 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+}
+
+
+/// A chat-native swipe-to-reply interaction. Flutter's horizontal drag
+/// recognizer wins only when horizontal movement dominates vertical movement,
+/// so ordinary vertical list scrolling remains the natural gesture.
+class _SwipeToReplyBubble extends StatefulWidget {
+  const _SwipeToReplyBubble({
+    required this.mine,
+    required this.rtl,
+    required this.onReply,
+    required this.child,
+  });
+
+  final bool mine;
+  final bool rtl;
+  final VoidCallback onReply;
+  final Widget child;
+
+  @override
+  State<_SwipeToReplyBubble> createState() => _SwipeToReplyBubbleState();
+}
+
+class _SwipeToReplyBubbleState extends State<_SwipeToReplyBubble> {
+  static const double _replyThreshold = 48;
+  static const double _maxDrag = 64;
+  double _distance = 0;
+  bool _dragging = false;
+
+  // Move toward the center of the conversation regardless of locale.
+  // The bubble is aligned to Row's start/end, which is direction-aware.
+  double get _inwardSign => widget.mine
+      ? (widget.rtl ? 1 : -1)
+      : (widget.rtl ? -1 : 1);
+
+  void _finishDrag({required bool allowReply}) {
+    final shouldReply = allowReply && _distance >= _replyThreshold;
+    setState(() {
+      _dragging = false;
+      _distance = 0;
+    });
+    if (shouldReply) widget.onReply();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (_) => setState(() {
+        _dragging = true;
+        _distance = 0;
+      }),
+      onHorizontalDragUpdate: (details) {
+        final towardCenter = details.delta.dx * _inwardSign;
+        setState(() {
+          _distance = (_distance + towardCenter).clamp(0.0, _maxDrag).toDouble();
+        });
+      },
+      onHorizontalDragEnd: (_) => _finishDrag(allowReply: true),
+      onHorizontalDragCancel: () => _finishDrag(allowReply: false),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(end: _dragging ? _distance : 0),
+        duration: _dragging ? Duration.zero : const Duration(milliseconds: 190),
+        curve: Curves.easeOutCubic,
+        builder: (context, animatedDistance, child) => Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: Align(
+                alignment: widget.mine
+                    ? AlignmentDirectional.centerEnd
+                    : AlignmentDirectional.centerStart,
+                child: Opacity(
+                  opacity: (animatedDistance / _replyThreshold).clamp(0.0, 1.0).toDouble(),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    child: Icon(
+                      Icons.reply_rounded,
+                      size: 19,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Transform.translate(
+              offset: Offset(_inwardSign * animatedDistance, 0),
+              child: child,
+            ),
+          ],
+        ),
+        child: widget.child,
+      ),
+    );
   }
 }
