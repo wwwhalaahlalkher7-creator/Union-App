@@ -108,6 +108,27 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
     }
   }
 
+
+  Future<void> _showCommentMenu(CommentItem comment, {required bool isReply}) async {
+    final l10n = AppLocalizations.of(context);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.content_copy_rounded), title: Text(l10n.t('copy')), onTap: () => Navigator.pop(sheetContext, 'copy')),
+        if (!isReply) ListTile(leading: const Icon(Icons.reply_rounded), title: Text(l10n.t('reply')), onTap: () => Navigator.pop(sheetContext, 'reply')),
+        const SizedBox(height: 8),
+      ])),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'copy') {
+      await Clipboard.setData(ClipboardData(text: comment.body));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('copied'))));
+    } else if (action == 'reply' && !isReply) {
+      await _reply(comment);
+    }
+  }
+
   Future<void> _reply(CommentItem comment) async {
     final controller = TextEditingController();
     final l10n = AppLocalizations.of(context);
@@ -211,7 +232,11 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
                         children: [
                           GestureDetector(onTap: comment.studentId.isEmpty ? null : () => context.push('/student/profile/${Uri.encodeComponent(comment.studentId)}?name=${Uri.encodeQueryComponent(comment.studentName)}'), child: Row(mainAxisSize: MainAxisSize.min, children: [CircleAvatar(radius: 10, backgroundColor: cs.primaryContainer, child: Icon(Icons.person_rounded, size: 12, color: cs.onPrimaryContainer)), const SizedBox(width: 5), Flexible(child: Text(comment.studentName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: cs.primary, decoration: TextDecoration.underline)))])),
                           const SizedBox(height: 4),
-                          Text(comment.body, style: const TextStyle(fontSize: 11.5, height: 1.5)),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onLongPress: () => _showCommentMenu(comment, isReply: false),
+                            child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(comment.body, style: const TextStyle(fontSize: 11.5, height: 1.5))),
+                          ),
                           Row(
                             children: [
                               IconButton(visualDensity: VisualDensity.compact, onPressed: () => _react(comment), icon: Icon(comment.liked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined, size: 16, color: comment.liked ? cs.primary : cs.onSurfaceVariant)),
@@ -238,7 +263,11 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
                                         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                                           GestureDetector(onTap: reply.studentId.isEmpty ? null : () => context.push('/student/profile/${Uri.encodeComponent(reply.studentId)}?name=${Uri.encodeQueryComponent(reply.studentName)}'), child: Row(mainAxisSize: MainAxisSize.min, children: [CircleAvatar(radius: 9, backgroundColor: cs.primaryContainer, child: Icon(Icons.person_rounded, size: 11, color: cs.onPrimaryContainer)), const SizedBox(width: 5), Flexible(child: Text(reply.studentName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: cs.primary, decoration: TextDecoration.underline)))])),
                                           const SizedBox(height: 3),
-                                          Text(reply.body, style: const TextStyle(fontSize: 10.5, height: 1.45)),
+                                          GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onLongPress: () => _showCommentMenu(reply, isReply: true),
+                                            child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(reply.body, style: const TextStyle(fontSize: 10.5, height: 1.45))),
+                                          ),
                                         ]),
                                       )).toList()),
                           ),

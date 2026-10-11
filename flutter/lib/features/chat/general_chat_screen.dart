@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/di/app_dependencies.dart';
@@ -114,6 +115,30 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
       _showSnack(message);
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+
+  Future<void> _showMessageMenu(Map<String, dynamic> message, {required bool mine}) async {
+    final l10n = AppLocalizations.of(context);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const Icon(Icons.content_copy_rounded), title: Text(l10n.t('copy')), onTap: () => Navigator.pop(sheetContext, 'copy')),
+          if (mine) ListTile(leading: const Icon(Icons.delete_outline_rounded), title: Text(l10n.t('delete')), iconColor: Theme.of(sheetContext).colorScheme.error, textColor: Theme.of(sheetContext).colorScheme.error, onTap: () => Navigator.pop(sheetContext, 'delete')),
+          if (!mine) ListTile(leading: const Icon(Icons.flag_outlined), title: Text(l10n.t('chatReport')), onTap: () => Navigator.pop(sheetContext, 'report')),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'delete') { await _deleteMessage(message); return; }
+    if (action == 'report') { await _reportMessage(message); return; }
+    if (action == 'copy') {
+      await Clipboard.setData(ClipboardData(text: '${message['body'] ?? ''}'));
+      if (mounted) _showSnack(l10n.t('copied'));
     }
   }
 
@@ -324,6 +349,8 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
           const SizedBox(width: 7),
         ],
         Flexible(
+          child: GestureDetector(
+          onLongPress: () => _showMessageMenu(message, mine: mine),
           child: Container(
             constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .78),
             padding: const EdgeInsets.fromLTRB(12, 8, 8, 7),
@@ -340,23 +367,13 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
                 Flexible(child: InkWell(onTap: () => _openStudent(message), child: Text(mine ? l10n.t('chatYou') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: mine ? scheme.onPrimaryContainer : scheme.primary, fontWeight: FontWeight.w800, fontSize: 12)))),
                 const SizedBox(width: 8),
                 Text(time, style: TextStyle(color: mine ? scheme.onPrimaryContainer.withValues(alpha: .7) : scheme.onSurfaceVariant, fontSize: 10)),
-                PopupMenuButton<String>(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 44, minHeight: 36),
-                  iconSize: 17,
-                  tooltip: l10n.t('chatMessageOptions'),
-                  onSelected: (value) => value == 'delete' ? _deleteMessage(message) : _reportMessage(message),
-                  itemBuilder: (_) => [
-                    if (mine) PopupMenuItem(value: 'delete', child: Text(l10n.t('delete'))),
-                    if (!mine) PopupMenuItem(value: 'report', child: Text(l10n.t('chatReport'))),
-                  ],
-                ),
               ]),
               Padding(
                 padding: const EdgeInsetsDirectional.only(end: 6, top: 2),
-                child: SelectableText('${message['body'] ?? ''}', style: TextStyle(color: mine ? scheme.onPrimaryContainer : scheme.onSurface, fontSize: 14, height: 1.35)),
+                child: Text('${message['body'] ?? ''}', style: TextStyle(color: mine ? scheme.onPrimaryContainer : scheme.onSurface, fontSize: 14, height: 1.35)),
               ),
             ]),
+          ),
           ),
         ),
         if (mine) const SizedBox(width: 4),

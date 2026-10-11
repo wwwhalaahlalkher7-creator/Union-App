@@ -446,6 +446,23 @@ class _EinoScreenState extends State<EinoScreen> {
     if (mounted) setState(() => _recording = true);
   }
 
+
+  Future<void> _showMessageMenu(EinoMessage message) async {
+    final l10n = AppLocalizations.of(context);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.content_copy_rounded), title: Text(l10n.t('copy')), onTap: () => Navigator.pop(sheetContext, 'copy')),
+        if (!message.user && !message.isError && message.text.trim().isNotEmpty) ListTile(leading: const Icon(Icons.volume_up_outlined), title: Text(l10n.t('einoListen')), onTap: () => Navigator.pop(sheetContext, 'listen')),
+        const SizedBox(height: 8),
+      ])),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'copy') await _copyMessage(message);
+    if (action == 'listen') await _speak(message);
+  }
+
   Future<void> _copyMessage(EinoMessage message) async {
     if (message.text.trim().isEmpty) return;
     await Clipboard.setData(ClipboardData(text: einoPlainText(message.text)));
@@ -896,7 +913,9 @@ class _EinoScreenState extends State<EinoScreen> {
       );
     }
 
-    return Align(
+    return GestureDetector(
+      onLongPress: () => _showMessageMenu(m),
+      child: Align(
       alignment: m.user
           ? AlignmentDirectional.centerEnd
           : AlignmentDirectional.centerStart,
@@ -967,23 +986,9 @@ class _EinoScreenState extends State<EinoScreen> {
                         ),
                       ),
                   const SizedBox(height: 5),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      IconButton(
-                        tooltip: AppLocalizations.of(context).t('copy'),
-                        onPressed: () => _copyMessage(m),
-                        icon: const Icon(Icons.copy_outlined, size: 18),
-                      ),
-                      IconButton(
-                        onPressed: () => _speak(m),
-                        tooltip: AppLocalizations.of(context).t('einoListen'),
-                        icon: const Icon(Icons.volume_up_outlined, size: 19),
-                      ),
-                    ],
-                  ),
                 ],
               ),
+      ),
       ),
     );
   }
