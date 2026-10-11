@@ -72,6 +72,19 @@ export async function studentNotificationRead(ctx) {
   return ok(ctx, {updated: Number(result.meta?.changes || 0)});
 }
 
+export async function deleteStudentNotification(ctx, notificationId) {
+  const a = await studentAuth(ctx); if (a.response) return a.response;
+  const id = String(notificationId || '').trim();
+  if (!id) return error('NOTIFICATION_ID_REQUIRED', 'معرّف الإشعار مطلوب.', 400, ctx.requestId, ctx.cors);
+  const target = await queryOne(ctx.env, 'SELECT id FROM notification_targets WHERE id=? AND student_id=?', id, a.session.student_id);
+  if (!target) return ok(ctx, { deleted: false });
+  await ctx.env.DB.batch([
+    ctx.env.DB.prepare('DELETE FROM notification_dispatch_queue WHERE notification_target_id=?').bind(id),
+    ctx.env.DB.prepare('DELETE FROM notification_targets WHERE id=? AND student_id=?').bind(id, a.session.student_id),
+  ]);
+  return ok(ctx, { deleted: true });
+}
+
 export async function registerNotificationDevice(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
   const body = await parseJson(ctx.request);
@@ -80,6 +93,7 @@ export async function registerNotificationDevice(ctx) {
   const appVersion = String(body?.appVersion || '').trim().slice(0, 64) || null;
   if (!tokenValue || tokenValue.length > 4096) return error('DEVICE_TOKEN_INVALID', 'رمز الجهاز غير صالح.', 400, ctx.requestId, ctx.cors);
   if (!['android','ios','web'].includes(platform)) return error('DEVICE_PLATFORM_INVALID', 'منصة الجهاز غير مدعومة.', 400, ctx.requestId, ctx.cors);
+  await ctx.env.DB.prepare('UPDATE notification_devices SET active=0, updated_at=CURRENT_TIMESTAMP WHERE token=? AND student_id<>?').bind(tokenValue, a.session.student_id).run();
   const existing = await queryOne(ctx.env, 'SELECT id FROM notification_devices WHERE student_id = ? AND token = ?', a.session.student_id, tokenValue);
   const id = existing?.id || crypto.randomUUID();
   await ctx.env.DB.prepare(`INSERT INTO notification_devices (id, student_id, platform, token, app_version, active, last_seen_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(student_id, token) DO UPDATE SET platform=excluded.platform, app_version=excluded.app_version, active=1, last_seen_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP`).bind(id, a.session.student_id, platform, tokenValue, appVersion).run();

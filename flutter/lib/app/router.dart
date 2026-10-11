@@ -46,12 +46,6 @@ GoRouter buildRouter({
     ShellRoute(builder: (context, state, child) => TrinexShell(location: state.uri.path, child: child), routes: [
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/student', builder: (_, _) => const StudentScreen()),
-      GoRoute(path: '/student/profile/:id', builder: (_, state) => StudentPublicProfileScreen(
-        studentId: state.pathParameters['id'] ?? '',
-        name: state.uri.queryParameters['name'] ?? '',
-        department: state.uri.queryParameters['department'] ?? '',
-        semester: state.uri.queryParameters['semester'] ?? '',
-      )),
       GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
       GoRoute(path: '/materials', builder: (_, _) => const MaterialsScreen()),
       GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),
@@ -69,6 +63,15 @@ GoRouter buildRouter({
         return const MediaScreen();
       }),
     ]),
+    // Keep the public profile on the root navigator, like general chat.
+    // This avoids crossing ShellRoute navigator boundaries when opening a
+    // student's profile from chat and preserves the pushed route on screen.
+    GoRoute(path: '/student/profile/:id', builder: (_, state) => StudentPublicProfileScreen(
+      studentId: state.pathParameters['id'] ?? '',
+      name: state.uri.queryParameters['name'] ?? '',
+      department: state.uri.queryParameters['department'] ?? '',
+      semester: state.uri.queryParameters['semester'] ?? '',
+    )),
     GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
     GoRoute(path: '/market', builder: (_, _) => const MarketScreen()),
     GoRoute(path: '/favorites', builder: (_, _) => const FavoritesScreen()),

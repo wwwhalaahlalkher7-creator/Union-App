@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
@@ -20,7 +21,6 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   NotificationsRepository? _repository;
   Future<List<NotificationItem>>? _future;
-  int _filter = 0;
 
   @override
   void initState() {
@@ -31,7 +31,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _init() async {
     try {
       _repository = AppDependencies.instance.notifications;
-      setState(() => _future = _repository!.list());
+      final future = _repository!.list();
+      setState(() => _future = future);
+      unawaited(_markAllReadOnEntry(future));
     } catch (error, stackTrace) {
       if (mounted) {
         setState(() => _future = Future.error(error, stackTrace));
@@ -49,12 +51,37 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await future;
   }
 
-  Future<void> _markRead(NotificationItem item) async {
-    if (item.isRead) return;
+  Future<void> _markAllReadOnEntry(Future<List<NotificationItem>> future) async {
     final repo = _repository;
     if (repo == null) return;
     try {
-      await repo.markRead([item.id]);
+      final items = await future;
+      final unread = items.where((item) => !item.isRead).map((item) => item.id).toList(growable: false);
+      if (unread.isEmpty) return;
+      await repo.markRead(unread);
+      if (mounted) setState(() => _future = repo.list());
+    } catch (_) {
+      // The list itself displays any load failure; read-state update can be retried on refresh.
+    }
+  }
+
+  Future<void> _deleteNotification(NotificationItem item) async {
+    final repo = _repository;
+    if (repo == null) return;
+    final action = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListTile(
+          leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+          title: const Text('حذف'),
+          onTap: () => Navigator.of(sheetContext).pop(true),
+        ),
+      ),
+    );
+    if (action != true) return;
+    try {
+      await repo.delete(item.id);
       if (mounted) setState(() => _future = repo.list());
     } catch (error) {
       if (!mounted) return;
@@ -91,7 +118,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           }
 
           final all = snapshot.data ?? const <NotificationItem>[];
-          final items = _filter == 1 ? all.where((item) => !item.isRead).toList() : all;
+          final items = all;
           return RefreshIndicator(
             onRefresh: _reload,
             child: ListView(
@@ -100,32 +127,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               children: [
                 _UnreadSummary(items: all),
                 const SizedBox(height: 14),
-                SegmentedButton<int>(
-                  segments: [
-                    ButtonSegment(value: 0, label: Text(l10n.t('allNotifications')), icon: const Icon(Icons.notifications_none_rounded)),
-                    ButtonSegment(value: 1, label: Text(l10n.t('unreadNotifications')), icon: const Icon(Icons.mark_email_unread_outlined)),
-                  ],
-                  selected: {_filter},
-                  onSelectionChanged: (value) => setState(() => _filter = value.first),
-                ),
-                const SizedBox(height: 14),
                 if (items.isEmpty)
                   AppCard(
                     child: Column(
                       children: [
                         Icon(Icons.notifications_off_outlined, size: 40, color: Theme.of(context).colorScheme.primary),
                         const SizedBox(height: 10),
-                        Text(l10n.t(_filter == 1 ? 'noUnreadNotifications' : 'noData'), textAlign: TextAlign.center),
+                        Text(l10n.t('noData'), textAlign: TextAlign.center),
                       ],
                     ),
                   )
                 else
                   for (final item in items) ...[
-                    _NotificationCard(item: item, onTap: () async {
-                      await _markRead(item);
-                      if (!context.mounted) return;
-
-                    }),
+                    GestureDetector(
+                      onLongPress: () => _deleteNotification(item),
+                      child: _NotificationCard(item: item),
+                    ),
                     const SizedBox(height: 10),
                   ],
               ],
@@ -174,15 +191,13 @@ class _UnreadSummary extends StatelessWidget {
 }
 
 class _NotificationCard extends StatelessWidget {
-  const _NotificationCard({required this.item, required this.onTap});
+  const _NotificationCard({required this.item});
   final NotificationItem item;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return AppCard(
-      onTap: onTap,
       padding: const EdgeInsets.all(13.8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,12 +206,12 @@ class _NotificationCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: item.isRead ? cs.surfaceContainerHighest : cs.primaryContainer,
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12.6),
             ),
             child: Icon(
               item.isRead ? Icons.notifications_none_rounded : Icons.notifications_active_rounded,
-              color: item.isRead ? cs.onSurfaceVariant : cs.onPrimaryContainer,
+              color: cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(width: 12),
@@ -206,9 +221,7 @@ class _NotificationCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(child: Text(item.title, style: TextStyle(fontWeight: item.isRead ? FontWeight.w700 : FontWeight.w900))),
-                    if (!item.isRead)
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle)),
+                    Expanded(child: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700))),
                   ],
                 ),
                 const SizedBox(height: 6),

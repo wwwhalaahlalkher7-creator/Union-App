@@ -1,3 +1,4 @@
+import { processNotificationQueue } from './notifications.js';
 import { databaseErrorResponse, error } from './core.js';
 import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings, publicStudentProfile } from './public.js';
 import { mediaGet, adminMediaUpload } from './media.js';
@@ -8,7 +9,7 @@ import {
 } from './auth.js';
 import {
   studentMe, updateStudentSemester, studentStats, studentNotifications, studentNotificationRead,
-  registerNotificationDevice, unregisterNotificationDevice,
+  registerNotificationDevice, unregisterNotificationDevice, deleteStudentNotification,
 } from './student.js';
 import {
   semesters, departments, subjects, materials, materialFile, materialById, schedule,
@@ -30,6 +31,9 @@ import {
 } from './eino.js';
 
 export default {
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(processNotificationQueue(env));
+  },
   async fetch(request, env) {
     const requestId = crypto.randomUUID();
     const requestOrigin = request.headers.get('Origin') || '';
@@ -113,6 +117,7 @@ export default {
       if (path === '/student/notifications/read' && request.method === 'POST') return studentNotificationRead(ctx);
       if (path === '/student/notifications/device' && request.method === 'POST') return registerNotificationDevice(ctx);
       if (path === '/student/notifications/device' && request.method === 'DELETE') return unregisterNotificationDevice(ctx);
+      if (/^\/student\/notifications\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteStudentNotification(ctx, decodeURIComponent(path.split('/')[3]));
 
       if (path === '/semesters' && request.method === 'GET') return semesters(ctx);
       if (path === '/departments' && request.method === 'GET') return departments(ctx);

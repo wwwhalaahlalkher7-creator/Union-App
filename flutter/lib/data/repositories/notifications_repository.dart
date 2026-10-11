@@ -13,6 +13,10 @@ class NotificationsRepository {
         .toList(growable: false);
   }
 
+  Future<void> delete(String id) async {
+    await _client.deleteJson('/api/v1/student/notifications/${Uri.encodeComponent(id)}');
+  }
+
   Future<void> markRead(Iterable<String> ids) async {
     final list = ids.where((id) => id.isNotEmpty).toList(growable: false);
     if (list.isEmpty) return;

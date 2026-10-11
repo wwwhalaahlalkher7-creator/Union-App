@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import '../../core/di/app_dependencies.dart';
 import '../../features/eino/eino_face.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/utils/academic_labels.dart';
+import '../../core/notifications/push_notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -69,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       await storage.saveSession(Map<String, dynamic>.from(data));
+      unawaited(PushNotificationService.instance.registerCurrentDevice());
 
       final prefs = AppPreferences();
       await prefs.init();

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../features/eino/eino_face.dart';
+import '../../core/di/app_dependencies.dart';
+import '../../data/models/notification_item.dart';
 
 class TrinexShell extends StatefulWidget {
   const TrinexShell({
@@ -27,6 +29,7 @@ class _TrinexShellState extends State<TrinexShell>
   )..repeat();
 
   bool _einoVisible = false;
+  int _unreadNotifications = 0;
 
   bool get _readingMode => widget.location == '/media/detail';
 
@@ -37,11 +40,16 @@ class _TrinexShellState extends State<TrinexShell>
     super.initState();
     _einoVisible = !_readingMode && !_hideFloatingEino;
     FocusManager.instance.addListener(_handleFocusChange);
+    _refreshUnreadNotifications();
   }
 
   @override
   void didUpdateWidget(covariant TrinexShell oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if ((oldWidget.location.startsWith('/notifications') && !widget.location.startsWith('/notifications')) ||
+        (oldWidget.location.startsWith('/login') && widget.location.startsWith('/home'))) {
+      _refreshUnreadNotifications();
+    }
     if (oldWidget.location != widget.location && _readingMode) {
       _einoVisible = false;
     } else if (oldWidget.location != widget.location && !_readingMode) {
@@ -58,6 +66,17 @@ class _TrinexShellState extends State<TrinexShell>
       setState(() => _einoVisible = false);
     } else if (!isEditing && !_einoVisible && !_readingMode && !_hideFloatingEino) {
       setState(() => _einoVisible = true);
+    }
+  }
+
+  Future<void> _refreshUnreadNotifications() async {
+    try {
+      final items = await AppDependencies.instance.notifications.list();
+      if (!mounted) return;
+      setState(() => _unreadNotifications = items.where((NotificationItem item) => !item.isRead).length);
+    } catch (_) {
+      // Signed-out visitors see no badge; failures do not trigger repeated requests.
+      if (mounted) setState(() => _unreadNotifications = 0);
     }
   }
 
@@ -215,6 +234,7 @@ class _TopHeader extends StatelessWidget {
                   icon: Icons.notifications_none_rounded,
                   size: button,
                   tooltip: l10n.t('notifications'),
+                  badgeCount: _unreadNotifications,
                   onTap: () => context.push('/notifications'),
                 ),
                 const SizedBox(width: 4),
@@ -290,12 +310,14 @@ class _HeaderIcon extends StatelessWidget {
     required this.tooltip,
     this.onTap,
     this.size = 48,
+    this.badgeCount = 0,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onTap;
   final double size;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -309,11 +331,21 @@ class _HeaderIcon extends StatelessWidget {
           child: SizedBox(
             width: size,
             height: size,
-            child: Icon(
-              icon,
-              color: context.colors.onSurface,
-              size: 23,
-            ),
+            child: Stack(clipBehavior: Clip.none, children: [
+              Center(child: Icon(icon, color: context.colors.onSurface, size: 23)),
+              if (badgeCount > 0)
+                Positioned(
+                  top: 3,
+                  left: 2,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                    child: Text(badgeCount > 99 ? '99+' : '$badgeCount', textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+                  ),
+                ),
+            ]),
           ),
         ),
       ),

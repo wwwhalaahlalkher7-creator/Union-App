@@ -4,6 +4,11 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Firebase Android config is optional in source archives; enabled when google-services.json is supplied.
+if (file("google-services.json").exists()) {
+    apply plugin: "com.google.gms.google-services"
+}
+
 // Production signing is supplied at build time through android/key.properties
 // and is intentionally never committed to the repository.
 import java.util.Properties

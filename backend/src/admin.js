@@ -621,6 +621,7 @@ export async function adminNotificationSend(ctx, actorId) {
 
   const targetWhere = [
     's.active=1',
+    's.auth_secret_hash IS NOT NULL',
     '(? IS NULL OR s.department_id=?)',
     '(? IS NULL OR s.current_semester_id=?)',
   ].join(' AND ');

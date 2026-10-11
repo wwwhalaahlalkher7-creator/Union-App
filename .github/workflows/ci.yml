@@ -291,6 +291,7 @@ jobs:
           FREE_AI_BASE_URL: ${{ secrets.FREE_AI_BASE_URL }}
           EINO_EMBEDDING_API_KEY: ${{ secrets.EINO_EMBEDDING_API_KEY }}
           STAFF_BOOTSTRAP_TOKEN: ${{ secrets.STAFF_BOOTSTRAP_TOKEN }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
@@ -311,7 +312,8 @@ jobs:
             EINO_EMBEDDING_API_KEY \
             GOOGLE_APPS_SCRIPT_DRIVE_TOKEN \
             GOOGLE_APPS_SCRIPT_GMAIL_TOKEN \
-            STAFF_BOOTSTRAP_TOKEN; do
+            STAFF_BOOTSTRAP_TOKEN \
+            FCM_SERVICE_ACCOUNT_JSON; do
             value="${!pair:-}"
             if [ -n "$value" ]; then
               printf '%s' "$value" | npx wrangler secret put "$pair"

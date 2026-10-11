@@ -12,6 +12,7 @@ import '../core/storage/app_preferences.dart';
 import '../core/update/update_service.dart';
 import '../core/update/update_info.dart';
 import '../core/startup_preloader.dart';
+import '../core/notifications/push_notification_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'router.dart';
 import '../shared/widgets/offline_banner.dart';
@@ -66,6 +67,8 @@ class _TrinexAppState extends State<TrinexApp> {
       AppDependencies.instance.initialize(),
     ]);
     unawaited(StartupPreloader(AppDependencies.instance.apiClient).warmPublicCache());
+    // FCM permission is requested at first launch; absent Firebase config never blocks app startup.
+    unawaited(PushNotificationService.instance.initializeAtFirstLaunch());
   }
 
   Future<void> _loadPreferences() async {
