@@ -24,9 +24,10 @@ export default {
     const url = new URL(request.url);
     let path = url.pathname;
 
-    // Keep /admin as the public URL for the existing dashboard source.
-    // The deployment workflow places website/admin under dist/admin/.
-    if (path === '/admin') path = '/admin/';
+    // Administrative controls are provided only by the native TRINEX-Admin Flutter app.
+    if (path === '/admin' || path.startsWith('/admin/')) {
+      return new Response('Not Found', { status: 404, headers: SECURITY_HEADERS });
+    }
     if (path.endsWith('/')) path += 'index.html';
 
     const assetUrl = new URL(request.url);

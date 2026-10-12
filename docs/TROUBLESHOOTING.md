@@ -57,7 +57,7 @@ npm run migrate:local
 - صحة `user_id` وكلمة المرور.
 - صلاحية session.
 - أن المتصفح يستخدم `/admin/` الصحيح.
-- أن API base URL في `website/admin/config.js` صحيح.
+- إدارة النظام تتم عبر تطبيق Flutter `TRINEX-Admin`؛ لا يوجد `website/admin/config.js`. راجع إعداد `TRINEX_API_BASE_URL` في تطبيق الإدارة.
 
 ## 6. الموقع لا يعرض المحتوى
 
