@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/errors/error_message.dart';
@@ -63,6 +64,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (_) {
       // The list itself displays any load failure; read-state update can be retried on refresh.
     }
+  }
+
+
+  void _openNotification(NotificationItem item) {
+    if (item.contentType == 'achievement' && (item.contentId?.isNotEmpty ?? false)) {
+      context.push('/media/detail?type=achievement&id=${Uri.encodeComponent(item.contentId!)}');
+      return;
+    }
+    if (item.contentType == 'schedule' || item.category == 'schedule') {
+      context.push('/schedule');
+      return;
+    }
+    if (item.contentType == 'material' || item.category == 'material') {
+      context.push('/materials');
+      return;
+    }
+    if (item.contentType == 'news' && (item.contentId?.isNotEmpty ?? false)) {
+      context.push('/media/detail?type=news&id=${Uri.encodeComponent(item.contentId!)}');
+      return;
+    }
+    if (item.contentType == 'activity' && (item.contentId?.isNotEmpty ?? false)) {
+      context.push('/media/detail?type=activity&id=${Uri.encodeComponent(item.contentId!)}');
+      return;
+    }
+    showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
+      title: Text(item.title), content: SingleChildScrollView(child: Text(item.body)),
+      actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('إغلاق'))],
+    ));
   }
 
   Future<void> _deleteNotification(NotificationItem item) async {
@@ -140,6 +169,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 else
                   for (final item in items) ...[
                     GestureDetector(
+                      onTap: () => _openNotification(item),
                       onLongPress: () => _deleteNotification(item),
                       child: _NotificationCard(item: item),
                     ),
@@ -210,8 +240,8 @@ class _NotificationCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12.6),
             ),
             child: Icon(
-              item.isRead ? Icons.notifications_none_rounded : Icons.notifications_active_rounded,
-              color: cs.onSurfaceVariant,
+              item.category == 'schedule' ? Icons.calendar_month_rounded : item.category == 'material' ? Icons.menu_book_rounded : item.category == 'achievement' ? Icons.emoji_events_rounded : (item.isRead ? Icons.notifications_none_rounded : Icons.campaign_rounded),
+              color: item.category == 'schedule' ? const Color(0xFF3978D4) : item.category == 'material' ? const Color(0xFF7257C7) : item.category == 'achievement' ? const Color(0xFF21865B) : cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(width: 12),

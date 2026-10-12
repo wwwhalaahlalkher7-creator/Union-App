@@ -15,10 +15,13 @@ class PushNotificationService {
   static final PushNotificationService instance = PushNotificationService._();
   final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  final StreamController<void> _notificationArrived =
+      StreamController<void>.broadcast();
+  Stream<void> get notificationArrived => _notificationArrived.stream;
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-    'association_notifications', 'إشعارات الرابطة',
+    'association_notifications_v2', 'إشعارات الرابطة',
     description: 'إشعارات الأخبار والتنبيهات الجامعية',
-    importance: Importance.high,
+    importance: Importance.max,
   );
 
   Future<void> initializeAtFirstLaunch() async {
@@ -70,13 +73,14 @@ class PushNotificationService {
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     final notification = message.notification;
     if (notification == null) return;
+    _notificationArrived.add(null);
     await _local.show(
       message.hashCode,
       notification.title ?? 'إشعار جديد',
       notification.body ?? '',
       NotificationDetails(android: AndroidNotificationDetails(
         _channel.id, _channel.name, channelDescription: _channel.description,
-        importance: Importance.high, priority: Priority.high, icon: '@mipmap/ic_launcher',
+        importance: Importance.max, priority: Priority.max, icon: '@mipmap/ic_launcher',
       )),
       payload: message.data['announcementId']?.toString(),
     );

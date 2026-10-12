@@ -46,7 +46,7 @@ export async function studentStats(ctx) {
 export async function studentNotifications(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
   const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
-  const rows = await queryAll(ctx.env, `SELECT nt.id, nt.announcement_id, nt.delivered_at, nt.read_at, a.title, a.body, a.type, a.publish_at, a.expires_at
+  const rows = await queryAll(ctx.env, `SELECT nt.id, nt.announcement_id, nt.delivered_at, nt.read_at, a.title, a.body, a.type, a.notification_category, a.content_type, a.content_id, a.publish_at, a.expires_at
     FROM notification_targets nt
     JOIN announcements a ON a.id = nt.announcement_id
     WHERE nt.student_id = ? AND a.status = 'published'

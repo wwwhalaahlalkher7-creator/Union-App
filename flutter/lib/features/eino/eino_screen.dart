@@ -1,14 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:llama_flutter_android/llama_flutter_android.dart';
 import 'package:record/record.dart';
 
 import '../../core/localization/app_localizations.dart';
@@ -16,7 +14,6 @@ import '../../core/errors/error_message.dart';
 import '../../data/repositories/eino_repository.dart';
 import '../../core/di/app_dependencies.dart';
 import 'eino_face.dart';
-import 'services/eino_local_model_service.dart';
 import 'eino_widgets.dart';
 
 class EinoScreen extends StatefulWidget {
@@ -32,9 +29,6 @@ class _EinoScreenState extends State<EinoScreen> {
   final _scroll = ScrollController();
   final _recorder = AudioRecorder();
   final _player = AudioPlayer();
-  final _localStore = EinoLocalModelStore();
-  final _localEngine = EinoLocalEngine();
-  EinoLocalModel? _loadedLocalModel;
   late EinoRepository _repository;
   bool _ready = false;
   bool _sending = false;
@@ -100,7 +94,6 @@ class _EinoScreenState extends State<EinoScreen> {
     _scroll.dispose();
     _recorder.dispose();
     _player.dispose();
-    _localEngine.dispose();
     super.dispose();
   }
 
@@ -199,23 +192,13 @@ class _EinoScreenState extends State<EinoScreen> {
           await _loadHistory();
         }
       } catch (onlineError) {
-        final local = _loadedLocalModel;
-        if (local != null && _localEngine.isLoaded) {
-          try {
-            final chunks = <String>[];
-            await for (final chunk in _localEngine.generateChat(
-              systemPrompt: 'أنت Eino، مساعد TRINEX المحلي. أجب بالعربية بوضوح، ولا تدّعِ الوصول إلى بيانات الإنترنت أو بيانات التطبيق ما لم تُعطَ لك في السياق.\n$contextPayload',
-              prompt: prompt,
-            )) {
-              chunks.add(chunk);
-            }
-            final answer = chunks.join().trim();
-            if (mounted) setState(() => _messages.add(EinoMessage(false, answer.isEmpty ? ErrorMessage.from(context, onlineError, fallbackKey: 'einoGenericError') : answer)));
-          } catch (localError) {
-            if (mounted) setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, localError, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
-          }
-        } else if (mounted) {
-          setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, onlineError, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
+        if (mounted) {
+          setState(() => _messages.add(EinoMessage(
+            false,
+            ErrorMessage.from(context, onlineError, fallbackKey: 'einoGenericError'),
+            isError: true,
+            retryPrompt: prompt,
+          )));
         }
       }
     } catch (e) {
@@ -554,166 +537,6 @@ class _EinoScreenState extends State<EinoScreen> {
     }
   }
 
-  Future<void> _showModelManager() async {
-    if (!_ready) return;
-    final l10n = AppLocalizations.of(context);
-    List<EinoLocalModel> models;
-    try {
-      models = await _repository.models();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
-      return;
-    }
-    if (!mounted) return;
-    final store = EinoLocalModelStore();
-    final downloader = EinoLocalModelDownloader(store);
-    final installed = <String>{...(await store.installedIds())};
-    GpuInfo? hardware;
-    if (!kIsWeb && Platform.isAndroid) {
-      try { hardware = await _localEngine.detectHardware(); } catch (_) {}
-    }
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        final cs = Theme.of(sheetContext).colorScheme;
-        return StatefulBuilder(builder: (context, setSheetState) {
-          Future<void> handleModel(EinoLocalModel model) async {
-            final messenger = ScaffoldMessenger.of(context);
-            final url = model.downloadUrl;
-            if (url == null || url.trim().isEmpty) {
-              messenger.showSnackBar(SnackBar(content: Text(l10n.t('einoModelSourcePending'))));
-              return;
-            }
-            if (hardware != null && hardware.freeRamBytes > 0 && hardware.freeRamBytes < model.recommendedRamGb * 1024 * 1024 * 1024) {
-              messenger.showSnackBar(SnackBar(content: Text(l10n.t('einoModelRamWarning'))));
-              return;
-            }
-            try {
-              if (installed.contains(model.id)) {
-                final valid = await _localStore.verifyIntegrity(model);
-                if (!valid) {
-                  await _localStore.remove(model);
-                  installed.remove(model.id);
-                  setSheetState(() {});
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(content: Text(l10n.t('einoModelIntegrityFailed'))),
-                  );
-                  return;
-                }
-                final file = await _localStore.fileFor(model);
-                await _localEngine.load(model, file);
-                _loadedLocalModel = model;
-                if (!mounted) return;
-                setState(() {});
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text(l10n.t('einoModelLoaded'))),
-                );
-                return;
-              }
-              final progressNotifier = ValueNotifier<double>(0);
-              final dialogFuture = showDialog<void>(
-                context: context,
-                barrierDismissible: false,
-                builder: (dialogContext) => AlertDialog(
-                  title: Text(l10n.t('einoModelDownloading')),
-                  content: ValueListenableBuilder<double>(
-                    valueListenable: progressNotifier,
-                    builder: (context, progress, child) => Column(mainAxisSize: MainAxisSize.min, children: [
-                      LinearProgressIndicator(value: progress == 0 ? null : progress),
-                      const SizedBox(height: 12),
-                      Text('${(progress * 100).toStringAsFixed(0)}%'),
-                    ]),
-                  ),
-                ),
-              );
-              try {
-                final file = await downloader.download(model, url: url, sha256: model.sha256, onProgress: (value) {
-                  progressNotifier.value = value.progress.clamp(0, 1);
-                });
-                if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-                await dialogFuture;
-                progressNotifier.dispose();
-                installed.add(model.id);
-                setSheetState(() {});
-                await _localEngine.load(model, file);
-                _loadedLocalModel = model;
-                if (mounted) setState(() {});
-                if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(l10n.t('einoModelLoaded'))));
-              } catch (e) {
-                if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-                await dialogFuture.catchError((_) {});
-                progressNotifier.dispose();
-                if (mounted) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(content: Text(ErrorMessage.from(this.context, e, fallbackKey: 'einoGenericError'))),
-                  );
-                }
-              }
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text(ErrorMessage.from(this.context, e, fallbackKey: 'einoGenericError'))),
-                );
-              }
-            }
-          }
-
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(14.72, 3.68, 14.72, 18.4),
-              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(l10n.t('einoModelsTitle'), style: const TextStyle(fontSize: 20.2, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text(l10n.t('einoModelsSubtitle'), style: TextStyle(color: cs.onSurfaceVariant)),
-                const SizedBox(height: 12),
-                Container(padding: const EdgeInsets.all(11.04), decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .7), borderRadius: BorderRadius.circular(14.4)), child: Row(children: [
-                  Icon(Icons.offline_bolt_rounded, color: cs.primary), const SizedBox(width: 10),
-                  Expanded(child: Text(hardware == null ? l10n.t('einoModelAndroidOnly') : '${l10n.t('einoModelHardwareReady')} • ${hardware.gpuName}')),
-                ])),
-                const SizedBox(height: 12),
-                Flexible(child: ListView.separated(shrinkWrap: true, itemCount: models.length, separatorBuilder: (context, index) => const SizedBox(height: 8), itemBuilder: (_, index) {
-                  final model = models[index];
-                  final isInstalled = installed.contains(model.id);
-                  return Container(padding: const EdgeInsets.all(11.04), decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant.withValues(alpha: .5)), borderRadius: BorderRadius.circular(16.2)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [const CircleAvatar(child: Icon(Icons.memory_rounded)), const SizedBox(width: 10), Expanded(child: Text(model.name, style: const TextStyle(fontWeight: FontWeight.w800))), Text(model.quantization, style: TextStyle(fontSize: 10.1, color: cs.onSurfaceVariant))]),
-                    const SizedBox(height: 8),
-                    Text('${model.approximateSizeGb.toStringAsFixed(1)} GB  •  ${l10n.t('einoRam')} ${model.recommendedRamGb} GB  •  ${model.format}'),
-                    const SizedBox(height: 6), Text(model.capabilities.join(' • '), style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
-                    const SizedBox(height: 10),
-                    SizedBox(width: double.infinity, child: FilledButton.tonalIcon(onPressed: () => handleModel(model), icon: Icon(isInstalled ? Icons.play_arrow_rounded : Icons.download_outlined), label: Text(isInstalled ? l10n.t('einoModelUse') : l10n.t('einoModelDownload')))),
-                    if (_loadedLocalModel?.id == model.id) ...[
-                      const SizedBox(height: 6),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          try {
-                            final result = await _localEngine.benchmark();
-                            if (!mounted) return;
-                            final text = l10n.t('einoModelBenchmarkResult')
-                                .replaceAll('{speed}', result.tokensPerSecond.toStringAsFixed(1))
-                                .replaceAll('{first}', result.firstTokenMs.toString());
-                            ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(text)));
-                          } catch (e) {
-                            if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(this.context, e, fallbackKey: 'einoGenericError'))));
-                          }
-                        },
-                        icon: const Icon(Icons.speed_rounded),
-                        label: Text(l10n.t('einoModelBenchmark')),
-                      ),
-                    ],
-                  ]));
-                })),
-              ]),
-            ),
-          );
-        });
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -771,12 +594,6 @@ class _EinoScreenState extends State<EinoScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            ListTile(
-              leading: const Icon(Icons.offline_bolt_rounded),
-              title: Text(l10n.t('einoModelsTitle')),
-              subtitle: Text(l10n.t('einoModelDownload')),
-              onTap: () { Navigator.of(context).pop(); _showModelManager(); },
-            ),
             const Divider(height: 1),
             const SizedBox(height: 6),
             if (_history.isEmpty)

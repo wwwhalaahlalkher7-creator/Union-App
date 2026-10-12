@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -5,6 +7,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../features/eino/eino_face.dart';
 import '../../core/di/app_dependencies.dart';
+import '../../core/notifications/push_notification_service.dart';
 import '../../data/models/notification_item.dart';
 
 class TrinexShell extends StatefulWidget {
@@ -22,7 +25,7 @@ class TrinexShell extends StatefulWidget {
 }
 
 class _TrinexShellState extends State<TrinexShell>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 3),
@@ -30,6 +33,7 @@ class _TrinexShellState extends State<TrinexShell>
 
   bool _einoVisible = false;
   int _unreadNotifications = 0;
+  StreamSubscription<void>? _notificationSubscription;
 
   bool get _readingMode => widget.location == '/media/detail';
 
@@ -38,6 +42,8 @@ class _TrinexShellState extends State<TrinexShell>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _notificationSubscription = PushNotificationService.instance.notificationArrived.listen(_handleNotificationArrived);
     _einoVisible = !_readingMode && !_hideFloatingEino;
     FocusManager.instance.addListener(_handleFocusChange);
     _refreshUnreadNotifications();
@@ -69,6 +75,18 @@ class _TrinexShellState extends State<TrinexShell>
     }
   }
 
+  void _handleNotificationArrived() {
+    if (!mounted) return;
+    setState(() => _unreadNotifications += 1);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshUnreadNotifications();
+    }
+  }
+
   Future<void> _refreshUnreadNotifications() async {
     try {
       final items = await AppDependencies.instance.notifications.list();
@@ -82,6 +100,8 @@ class _TrinexShellState extends State<TrinexShell>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _notificationSubscription?.cancel();
     FocusManager.instance.removeListener(_handleFocusChange);
     _pulse.dispose();
     super.dispose();
@@ -334,7 +354,7 @@ class _HeaderIcon extends StatelessWidget {
             width: size,
             height: size,
             child: Stack(clipBehavior: Clip.none, children: [
-              Center(child: Icon(icon, color: context.colors.onSurface, size: 23)),
+              Center(child: Icon(icon, color: context.colors.onSurface, size: 29)),
               if (badgeCount > 0)
                 Positioned(
                   top: 3,

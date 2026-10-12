@@ -166,13 +166,6 @@ class EinoRepository {
   }
 
 
-  Future<List<EinoLocalModel>> models() async {
-    final json = await _client.getJson('/api/v1/eino/models');
-    final data = json['data'];
-    final values = data is Map && data['models'] is List ? data['models'] as List : const [];
-    return values.whereType<Map>().map((value) => EinoLocalModel.fromJson(Map<String, dynamic>.from(value))).toList(growable: false);
-  }
-
   Future<List<EinoMemory>> memories({int limit = 30}) async {
     final json = await _client.getJson('/api/v1/eino/memory', query: {'limit': '$limit'});
     final data = json['data'];
@@ -337,53 +330,4 @@ class EinoMemory {
         createdAt: json['createdAt']?.toString(),
         updatedAt: json['updatedAt']?.toString(),
       );
-}
-
-
-class EinoLocalModel {
-  const EinoLocalModel({
-    required this.id,
-    required this.name,
-    required this.format,
-    required this.quantization,
-    required this.approximateSizeGb,
-    required this.recommendedRamGb,
-    required this.architecture,
-    required this.capabilities,
-    required this.status,
-    this.downloadUrl,
-    this.sha256,
-    this.source,
-    this.license,
-  });
-
-  final String id;
-  final String name;
-  final String format;
-  final String quantization;
-  final double approximateSizeGb;
-  final int recommendedRamGb;
-  final List<String> architecture;
-  final List<String> capabilities;
-  final String status;
-  final String? downloadUrl;
-  final String? sha256;
-  final String? source;
-  final String? license;
-
-  factory EinoLocalModel.fromJson(Map<String, dynamic> json) => EinoLocalModel(
-    id: json['id']?.toString() ?? '',
-    name: json['name']?.toString() ?? '',
-    format: json['format']?.toString() ?? 'GGUF',
-    quantization: json['quantization']?.toString() ?? '',
-    approximateSizeGb: (json['approximateSizeGb'] as num?)?.toDouble() ?? 0,
-    recommendedRamGb: (json['recommendedRamGb'] as num?)?.toInt() ?? 0,
-    architecture: (json['architecture'] is List) ? (json['architecture'] as List).map((v) => v.toString()).toList(growable: false) : const [],
-    capabilities: (json['capabilities'] is List) ? (json['capabilities'] as List).map((v) => v.toString()).toList(growable: false) : const [],
-    status: json['status']?.toString() ?? 'catalog',
-    downloadUrl: json['downloadUrl']?.toString(),
-    sha256: json['sha256']?.toString(),
-    source: json['source']?.toString(),
-    license: json['license']?.toString(),
-  );
 }

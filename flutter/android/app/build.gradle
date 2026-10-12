@@ -61,8 +61,7 @@ android {
 
     defaultConfig {
         applicationId = "com.leoassociation.app"
-        // llama_flutter_android requires Android API 26+.
-        minSdk = Math.max(flutter.minSdkVersion, 26)
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

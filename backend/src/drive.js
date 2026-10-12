@@ -9,6 +9,7 @@ import {
 } from './core.js';
 import { staffAuth } from './auth.js';
 import { materials, subjects } from './academic.js';
+import { createOrRefreshContentNotificationDraft } from './notification_drafts.js';
 export async function adminDriveAuth(ctx) {
   const a = await staffAuth(ctx);
   if (a.response) return a.response;
@@ -186,6 +187,8 @@ export async function adminDriveSync(ctx) {
         activeDriveIds.push(file.id);
         const materialId = `drive-material-${file.id}`;
         const link = file.link || `https://drive.google.com/file/d/${file.id}/view`;
+        const priorMaterial = await queryOne(ctx.env, 'SELECT id, subject_id, title, drive_modified_at, active FROM materials WHERE id=?', materialId);
+        const shouldDraftNotification = !priorMaterial || Number(priorMaterial.active) !== 1 || priorMaterial.subject_id !== subjectId || priorMaterial.title !== String(file.name || '') || (priorMaterial.drive_modified_at || null) !== (file.modified || null);
         await ctx.env.DB.prepare(`INSERT INTO materials
           (id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,last_synced_at)
           VALUES (?,?,?,?,?,?,?,?,1,0,?,?,?,?,'drive',CURRENT_TIMESTAMP)
@@ -194,6 +197,10 @@ export async function adminDriveSync(ctx) {
           drive_parent_id=excluded.drive_parent_id,drive_modified_at=excluded.drive_modified_at,
           drive_web_view_url=excluded.drive_web_view_url,pinned=excluded.pinned,source='drive',last_synced_at=CURRENT_TIMESTAMP`)
           .bind(materialId, subjectId, file.name, file.description || null, file.id, link, 'application/pdf', Number(file.size || 0), file.id, file.modified || null, file.previewLink || link, file.pinned ? 1 : 0).run();
+        if (shouldDraftNotification) {
+          const materialRow = await queryOne(ctx.env, 'SELECT * FROM materials WHERE id=?', materialId);
+          await createOrRefreshContentNotificationDraft(ctx, 'materials', materialRow, a.session.staff_user_id);
+        }
         upserted++;
       }
     }

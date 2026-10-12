@@ -11,6 +11,7 @@ import {
 import { recordAuthEvent } from './auth.js';
 import { deleteOwnedMediaUrls, extractMediaUrlsFromRow, markOwnedMediaAttached } from './media.js';
 import { deleteDriveFilesViaAppsScript } from './drive.js';
+import { createOrRefreshContentNotificationDraft } from './notification_drafts.js';
 
 import { ADMIN_ROLE_IDS, ADMIN_FIELDS, CONTENT_STATUS_VALUES, CONTENT_TABLES, CONTENT_UPDATED_BY_TABLES, ADMIN_SELECT_COLUMNS } from './admin/config.js';
 import { hasAdminPermission, requireAdminPermission } from './admin/permissions.js';
@@ -283,7 +284,9 @@ export async function adminCrud(ctx, table, id, actorId) {
     await ctx.env.DB.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${marks})`).bind(...vals.map(sqlValue)).run();
     if (CONTENT_TABLES.has(table)) await markOwnedMediaAttached(ctx, extractMediaUrlsFromRow(ctx, fields));
     await writeAudit(ctx, actorId, 'create', table, id, { fields: Object.keys(fields) });
-    return ok(ctx, await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id), null, 201);
+    const createdRow = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
+    const notificationDraftId = await createOrRefreshContentNotificationDraft(ctx, table, createdRow, actorId);
+    return ok(ctx, { ...createdRow, notification_draft_id: notificationDraftId }, null, 201);
   }
   if (!id) return error('ADMIN_ID_REQUIRED','معرّف السجل مطلوب.',400,ctx.requestId,ctx.cors);
   if (ctx.request.method === 'PATCH') {
@@ -304,6 +307,12 @@ export async function adminCrud(ctx, table, id, actorId) {
     const existing = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
     if (!existing) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
     const oldMediaUrls = CONTENT_TABLES.has(table) ? extractMediaUrlsFromRow(ctx, existing) : [];
+    const notificationRelevantFields = {
+      schedules: ['semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer'],
+      materials: ['subject_id','title','description','drive_file_id','drive_url','mime_type','size_bytes'],
+      achievements: ['title','description','intro','highlights','highlights_title','badge','publisher','achieved_at','images_json','image_url'],
+    }[table] || [];
+    const shouldCreateNotificationDraft = notificationRelevantFields.some(key => Object.prototype.hasOwnProperty.call(fields, key) && String(fields[key] ?? '') !== String(existing[key] ?? ''));
     const academicError = await validateAcademicReferences(ctx, table, fields, existing);
     if (academicError) return academicError;
     if (CONTENT_UPDATED_BY_TABLES.has(table)) { fields.updated_by = actorId; fields.updated_at = new Date().toISOString(); }
@@ -321,7 +330,8 @@ export async function adminCrud(ctx, table, id, actorId) {
       if (removed.length) await deleteOwnedMediaUrls(ctx, removed);
     }
     await writeAudit(ctx, actorId, 'update', table, id, { fields: Object.keys(fields) });
-    return ok(ctx, updatedRow);
+    const notificationDraftId = shouldCreateNotificationDraft ? await createOrRefreshContentNotificationDraft(ctx, table, updatedRow, actorId) : null;
+    return ok(ctx, { ...updatedRow, notification_draft_id: notificationDraftId });
   }
   if (ctx.request.method === 'DELETE') {
     const existing = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
@@ -600,7 +610,7 @@ export async function adminStaff(ctx, id, actorId) {
 export async function adminNotifications(ctx) {
   const a = await adminRouteAuthOnly(ctx, 'notifications.read'); if (a.response) return a.response;
   const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
-  const rows = await queryAll(ctx.env, `SELECT a.id, a.title, a.type, a.status, a.publish_at, a.expires_at, COUNT(nt.id) AS targets, SUM(CASE WHEN nt.read_at IS NOT NULL THEN 1 ELSE 0 END) AS reads FROM announcements a LEFT JOIN notification_targets nt ON nt.announcement_id=a.id GROUP BY a.id ORDER BY COALESCE(a.publish_at,a.created_at) DESC LIMIT ?`, limit);
+  const rows = await queryAll(ctx.env, `SELECT a.id, a.title, a.body, a.type, a.notification_category, a.content_type, a.content_id, a.target_department_id, a.target_semester_id, a.status, a.publish_at, a.expires_at, COUNT(nt.id) AS targets, SUM(CASE WHEN nt.read_at IS NOT NULL THEN 1 ELSE 0 END) AS reads FROM announcements a LEFT JOIN notification_targets nt ON nt.announcement_id=a.id GROUP BY a.id ORDER BY COALESCE(a.publish_at,a.created_at) DESC LIMIT ?`, limit);
   return ok(ctx, rows);
 }
 

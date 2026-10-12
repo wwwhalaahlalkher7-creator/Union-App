@@ -84,7 +84,7 @@ function notificationFieldHtml(f, record){
 
 function openNotificationForm(id){
   const record=id?notificationRows.find(r=>r.id===id):null;
-  const bodyHtml=`<form id="notificationForm" novalidate>${notificationSchema.fields.map(f=>notificationFieldHtml(f,record)).join('')}</form>`;
+  const bodyHtml=record?.fields.ContentCategory ? `<form id="notificationForm" novalidate><div class="field"><label>عنوان الإشعار</label><input name="Title" required value="${Utils.escapeHtml(record.fields.Title||'')}"></div><div class="field"><label>نص الإشعار</label><textarea name="Content" required rows="5">${Utils.escapeHtml(record.fields.Content||'')}</textarea></div><div class="field-hint">الهوية ثابتة: ${Utils.escapeHtml(record.fields.ContentCategoryLabel)} · الجمهور والوجهة محددان تلقائيًا ولا يمكن تغييرهما من هذه النافذة.</div></form>` : `<form id="notificationForm" novalidate>${notificationSchema.fields.map(f=>notificationFieldHtml(f,record)).join('')}</form>`;
   Modal.open({title:record?'تعديل إشعار':'إضافة إشعار',bodyHtml,buttons:[
     {label:'إلغاء',className:'btn-secondary',onClick:()=>Modal.close()},
     {label:record?'حفظ التعديلات':'حفظ الإشعار',className:'btn-primary',onClick:btn=>saveNotification(record,btn)}
@@ -95,9 +95,10 @@ async function saveNotification(record,btn){
   const form=document.getElementById('notificationForm');
   if(!form||!form.reportValidity()) return;
   const fields={};
-  notificationSchema.fields.forEach(f=>{const el=form.elements[f.key]; if(el) fields[f.key]=el.value;});
+  if(record?.fields.ContentCategory){fields.title=form.elements.Title.value.trim();fields.body=form.elements.Content.value.trim();if(!fields.title||!fields.body){form.reportValidity();return;}}
+  else notificationSchema.fields.forEach(f=>{const el=form.elements[f.key]; if(el) fields[f.key]=el.value;});
   try{
-    await Feedback.busy(btn,()=>record?Adapter.updateContent('announcements',record.id,fields):Adapter.createContent('announcements',fields),{busyLabel:'جارٍ الحفظ...',successMessage:record?'تم حفظ الإشعار':'تم إنشاء الإشعار',errorPrefix:'تعذّر حفظ الإشعار'});
+    await Feedback.busy(btn,()=>record?(record.fields.ContentCategory?Adapter.updateNotificationDraft(record.id,fields):Adapter.updateContent('announcements',record.id,fields)):Adapter.createContent('announcements',fields),{busyLabel:'جارٍ الحفظ...',successMessage:record?'تم حفظ الإشعار':'تم إنشاء الإشعار',errorPrefix:'تعذّر حفظ الإشعار'});
     Modal.close(); await loadNotifications();
   }catch(e){}
 }
@@ -105,8 +106,8 @@ async function saveNotification(record,btn){
 async function loadNotifications(){
   const body=document.getElementById('notificationsBody'); if(!body)return;
   await Feedback.loadIntoTable(body,6,()=>Adapter.listNotifications(),rows=>{
-    notificationRows=rows.map(r=>({id:r.id,fields:{Title:r.title||'',Type:r.type||'general',Status:r.status||'draft',Date:r.publish_at||'',Targets:r.targets||0,Reads:r.reads||0}}));
-    body.innerHTML=notificationRows.length?notificationRows.map(r=>{const published=r.fields.Status==='published';return `<tr><td>${Utils.escapeHtml(r.fields.Title)}</td><td><span class="badge ${r.fields.Type==='urgent'?'badge-danger':'badge-info'}">${r.fields.Type==='urgent'?'عاجل':'عام'}</span></td><td><span class="badge ${published?'badge-success':'badge-warning'}">${published?'منشور':'مسودة'}</span></td><td>${r.fields.Date?Utils.formatDate(r.fields.Date):'—'}</td><td>${Utils.formatNumber(r.fields.Targets)}</td><td>${Utils.formatNumber(r.fields.Reads)}</td><td><div class="row-actions requires-edit"><button class="icon-btn" type="button" data-notify-action="edit" data-id="${Utils.escapeHtml(r.id)}" title="تعديل"><i class="fa-solid fa-pen"></i></button><button class="icon-btn" type="button" data-notify-action="send" data-id="${Utils.escapeHtml(r.id)}" ${published?'':'disabled'} title="${published?'إرسال':'يجب نشر الإشعار أولًا'}"><i class="fa-solid fa-paper-plane"></i></button><button class="icon-btn is-danger" type="button" data-notify-action="delete" data-id="${Utils.escapeHtml(r.id)}" title="حذف"><i class="fa-solid fa-trash"></i></button></div></td></tr>`}).join(''):'<tr><td colspan="7"><div class="empty-state"><i class="fa-solid fa-bell-slash"></i>لا توجد إشعارات بعد.</div></td></tr>';
+    notificationRows=rows.map(r=>({id:r.id,fields:{Title:r.title||'',Content:r.body||'',Type:r.type||'general',Status:r.status||'draft',Date:r.publish_at||'',Targets:r.targets||0,Reads:r.reads||0,ContentCategory:['schedule','material','achievement'].includes(r.notification_category)?r.notification_category:'',ContentCategoryLabel:({schedule:'جدول دراسي',material:'مادة دراسية',achievement:'إنجاز'})[r.notification_category]||'',ContentType:r.content_type||'',ContentId:r.content_id||''}}));
+    body.innerHTML=notificationRows.length?notificationRows.map(r=>{const published=r.fields.Status==='published';const linked=!!r.fields.ContentCategory;return `<tr><td>${Utils.escapeHtml(r.fields.Title)}${linked?`<div class="field-hint">مسودة تلقائية · ${Utils.escapeHtml(r.fields.ContentCategoryLabel)}</div>`:''}</td><td><span class="badge ${r.fields.Type==='urgent'?'badge-danger':linked?'badge-info':'badge-secondary'}">${linked?Utils.escapeHtml(r.fields.ContentCategoryLabel):r.fields.Type==='urgent'?'عاجل':'عام'}</span></td><td><span class="badge ${published?'badge-success':'badge-warning'}">${published?'معتمد / منشور':'بانتظار المراجعة'}</span></td><td>${r.fields.Date?Utils.formatDate(r.fields.Date):'—'}</td><td>${Utils.formatNumber(r.fields.Targets)}</td><td>${Utils.formatNumber(r.fields.Reads)}</td><td><div class="row-actions requires-edit"><button class="icon-btn" type="button" data-notify-action="edit" data-id="${Utils.escapeHtml(r.id)}" title="تعديل النص"><i class="fa-solid fa-pen"></i></button><button class="icon-btn" type="button" data-notify-action="approve" data-id="${Utils.escapeHtml(r.id)}" ${published?'disabled':''} title="${published?'تم الاعتماد':'اعتماد ونشر الإشعار'}"><i class="fa-solid fa-check"></i></button><button class="icon-btn" type="button" data-notify-action="send" data-id="${Utils.escapeHtml(r.id)}" ${published?'':'disabled'} title="${published?'إرسال':'اعتمد الإشعار أولًا'}"><i class="fa-solid fa-paper-plane"></i></button><button class="icon-btn is-danger" type="button" data-notify-action="delete" data-id="${Utils.escapeHtml(r.id)}" title="حذف"><i class="fa-solid fa-trash"></i></button></div></td></tr>`}).join(''):'<tr><td colspan="7"><div class="empty-state"><i class="fa-solid fa-bell-slash"></i>لا توجد إشعارات بعد.</div></td></tr>';
   },{errorPrefix:'تعذّر تحميل الإشعارات'});
 }
 
@@ -114,6 +115,11 @@ document.addEventListener('click',async ev=>{
   const btn=ev.target.closest('button[data-notify-action]'); if(!btn)return;
   const id=btn.dataset.id, action=btn.dataset.notifyAction, record=notificationRows.find(r=>r.id===id);
   if(action==='edit') return openNotificationForm(id);
+  if(action==='approve'){
+    if(!record || record.fields.Status==='published')return;
+    const confirmed=await Modal.confirmDialog('سيتم اعتماد الإشعار ونشره ليصبح جاهزًا للإرسال إلى الجمهور المحدد تلقائيًا. هل راجعت العنوان والنص؟','اعتماد الإشعار');if(!confirmed)return;
+    try{await Feedback.busy(btn,()=>Adapter.approveNotificationDraft(id),{busyLabel:'جارٍ الاعتماد...',successMessage:'تم اعتماد الإشعار ونشره',errorPrefix:'تعذّر اعتماد الإشعار'});await loadNotifications();}catch(e){}
+  }
   if(action==='send'){
     if(!record || record.fields.Status!=='published'){return;}
     const ok=await Modal.confirmDialog('سيتم تجهيز هذا الإشعار للتسليم إلى الطلاب المستهدفين. هل تريد المتابعة؟','إرسال الإشعار'); if(!ok)return;
