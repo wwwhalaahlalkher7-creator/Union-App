@@ -43,7 +43,7 @@ class _TrinexShellState extends State<TrinexShell>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _notificationSubscription = PushNotificationService.instance.notificationArrived.listen(_handleNotificationArrived);
+    _notificationSubscription = PushNotificationService.instance.notificationArrived.listen((_) => _handleNotificationArrived());
     _einoVisible = !_readingMode && !_hideFloatingEino;
     FocusManager.instance.addListener(_handleFocusChange);
     _refreshUnreadNotifications();
