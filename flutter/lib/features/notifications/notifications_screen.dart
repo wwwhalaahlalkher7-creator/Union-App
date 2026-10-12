@@ -241,7 +241,7 @@ class _NotificationCard extends StatelessWidget {
             ),
             child: Icon(
               item.category == 'schedule' ? Icons.calendar_month_rounded : item.category == 'material' ? Icons.menu_book_rounded : item.category == 'achievement' ? Icons.emoji_events_rounded : (item.isRead ? Icons.notifications_none_rounded : Icons.campaign_rounded),
-              color: item.category == 'schedule' ? const Color(0xFF3978D4) : item.category == 'material' ? const Color(0xFF7257C7) : item.category == 'achievement' ? const Color(0xFF21865B) : cs.onSurfaceVariant,
+              color: item.category == 'schedule' ? cs.primary : item.category == 'material' ? cs.tertiary : item.category == 'achievement' ? cs.secondary : cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(width: 12),
