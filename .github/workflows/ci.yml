@@ -368,17 +368,6 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-      - name: Remove legacy web admin from hosting
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
-        with:
-          server: ftpupload.net
-          username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
-          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
-          local-dir: ./ci/empty-admin/
-          server-dir: /ush-eng.great-site.net/htdocs/admin/
-          dangerous-clean-slate: true
-
       - name: Deploy website on main
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
