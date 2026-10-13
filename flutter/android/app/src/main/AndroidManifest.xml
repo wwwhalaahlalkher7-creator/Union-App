@@ -28,6 +28,9 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="association_notifications_v2" />
         <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notification" />
+        <meta-data
           android:name="flutterEmbedding"
           android:value="2" />
     </application>

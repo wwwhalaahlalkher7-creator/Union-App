@@ -4,17 +4,19 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../di/app_dependencies.dart';
 
 /// FCM bootstrap. Firebase config is supplied by Firebase Console.
 /// Missing config is handled safely so the app still runs during setup.
-class PushNotificationService {
+class PushNotificationService with WidgetsBindingObserver {
   PushNotificationService._();
   static final PushNotificationService instance = PushNotificationService._();
   final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  bool _lifecycleObserverRegistered = false;
   final StreamController<void> _notificationArrived =
       StreamController<void>.broadcast();
   Stream<void> get notificationArrived => _notificationArrived.stream;
@@ -26,6 +28,10 @@ class PushNotificationService {
 
   Future<void> initializeAtFirstLaunch() async {
     if (_initialized || kIsWeb || !Platform.isAndroid) return;
+    if (!_lifecycleObserverRegistered) {
+      WidgetsBinding.instance.addObserver(this);
+      _lifecycleObserverRegistered = true;
+    }
     try {
       if (Firebase.apps.isEmpty) await Firebase.initializeApp();
       const init = InitializationSettings(
@@ -45,9 +51,28 @@ class PushNotificationService {
       messaging.onTokenRefresh.listen((_) => registerCurrentDevice());
       final initial = await messaging.getInitialMessage();
       if (initial != null) _handleOpenedMessage(initial);
+      // Remove notifications owned by this app when it is launched. This only
+      // clears the Android notification tray; it does not delete app history.
+      await _clearAppNotifications();
       await registerCurrentDevice();
     } catch (e) {
       debugPrint('FCM is not configured yet: $e');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _initialized) {
+      // Also clear app notifications when returning from the background.
+      unawaited(_clearAppNotifications());
+    }
+  }
+
+  Future<void> _clearAppNotifications() async {
+    try {
+      await _local.cancelAll();
+    } catch (e) {
+      debugPrint('Unable to clear app notifications: $e');
     }
   }
 
@@ -80,7 +105,7 @@ class PushNotificationService {
       notification.body ?? '',
       NotificationDetails(android: AndroidNotificationDetails(
         _channel.id, _channel.name, channelDescription: _channel.description,
-        importance: Importance.max, priority: Priority.max, icon: '@mipmap/ic_launcher',
+        importance: Importance.max, priority: Priority.max, icon: 'ic_stat_notification',
       )),
       payload: message.data['announcementId']?.toString(),
     );
