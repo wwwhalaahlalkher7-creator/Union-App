@@ -1,4 +1,5 @@
-import { processNotificationQueue, processScheduledAnnouncements } from './notifications.js';
+import { processNotificationQueue } from './notifications.js';
+export { TrinexScheduler } from './scheduler.js';
 import { adminUsageAnalytics, recordUsageEvent } from './analytics.js';
 import { databaseErrorResponse, error } from './core.js';
 import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings, publicStudentProfile } from './public.js';
@@ -106,29 +107,19 @@ async function persistResourceUsage(env, metrics, request, route, statusCode, du
 }
 
 export default {
-  async scheduled(_event, env, ctx) {
-    // Keep scheduled publication, notification materialization and dispatch in
-    // sequence so a newly due announcement is queued before queue processing.
-    ctx.waitUntil((async () => {
-      await Promise.all([
-        env.DB.prepare("UPDATE news SET status='published', updated_at=CURRENT_TIMESTAMP WHERE status='draft' AND publish_at IS NOT NULL AND datetime(publish_at) <= CURRENT_TIMESTAMP").run(),
-        env.DB.prepare("UPDATE achievements SET status='published', updated_at=CURRENT_TIMESTAMP WHERE status='draft' AND achieved_at IS NOT NULL AND datetime(achieved_at) <= CURRENT_TIMESTAMP").run(),
-        // Future announcements are saved as drafts by the admin UI. Publish them
-        // automatically when due, but never revive an announcement whose expiry
-        // has already passed. The notification materializer runs after this block.
-        env.DB.prepare("UPDATE announcements SET status='published', updated_at=CURRENT_TIMESTAMP WHERE status='draft' AND publish_at IS NOT NULL AND datetime(publish_at) <= CURRENT_TIMESTAMP AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)").run(),
-      ]);
-      await processScheduledAnnouncements(env);
-      await processNotificationQueue(env);
-    })().catch((e) => console.error('Scheduled publication or notification processing failed', e)));
-    // Retain aggregate-ready telemetry for 90 days; purge old raw event rows daily.
-    const now = new Date();
-    if (now.getUTCHours() === 3 && now.getUTCMinutes() === 0) {
-      ctx.waitUntil(Promise.all([
-        env.DB.prepare("DELETE FROM usage_events WHERE created_at < datetime('now','-90 days')").run(),
-        env.DB.prepare("DELETE FROM usage_sessions WHERE last_seen_at < datetime('now','-90 days')").run(),
-        env.DB.prepare("DELETE FROM resource_usage_events WHERE created_at < datetime('now','-90 days')").run(),
-      ]).catch((e) => console.error('Usage analytics retention cleanup failed', e)));
+  async scheduled(event, env, ctx) {
+    // The only remaining Cron is the low-frequency retention cleanup and a
+    // daily recovery signal for alarms that predate deployment/config changes.
+    if (event.cron !== '0 3 * * *') return;
+    ctx.waitUntil(Promise.all([
+      env.DB.prepare("DELETE FROM usage_events WHERE created_at < datetime('now','-90 days')").run(),
+      env.DB.prepare("DELETE FROM usage_sessions WHERE last_seen_at < datetime('now','-90 days')").run(),
+      env.DB.prepare("DELETE FROM resource_usage_events WHERE created_at < datetime('now','-90 days')").run(),
+    ]).catch((e) => console.error('Usage analytics retention cleanup failed', e)));
+    if (env.SCHEDULER) {
+      const scheduler = env.SCHEDULER.get(env.SCHEDULER.idFromName('main'));
+      ctx.waitUntil(scheduler.fetch('https://scheduler/reschedule', { method: 'POST' })
+        .catch((e) => console.error('Daily scheduler recovery failed', e)));
     }
   },
   async fetch(request, env, executionCtx) {
@@ -294,6 +285,17 @@ export default {
       })();
       const logUsage = () => persistResourceUsage(originalEnv, metrics, request, route, response.status, Date.now() - startedAt);
       if (executionCtx?.waitUntil) executionCtx.waitUntil(logUsage()); else await logUsage();
+
+      // Recompute the next alarm only after successful writes that can create,
+      // edit, or remove scheduled content and notification work.
+      const schedulerRelevantWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)
+        && /^\/admin\/(news|achievements|announcements|notifications)(\/|$)/.test(path)
+        && response.status < 400;
+      if (schedulerRelevantWrite && originalEnv.SCHEDULER && executionCtx?.waitUntil) {
+        const scheduler = originalEnv.SCHEDULER.get(originalEnv.SCHEDULER.idFromName('main'));
+        executionCtx.waitUntil(scheduler.fetch('https://scheduler/reschedule', { method: 'POST' })
+          .catch((e) => console.error('Scheduler reschedule after admin write failed', e)));
+      }
       return response;
     } catch (e) {
       console.error(`[${requestId}]`, e);

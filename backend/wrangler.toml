@@ -73,4 +73,13 @@ binding = "MEDIA_BUCKET"
 bucket_name = "trinex-media"
 
 [triggers]
-crons = ["* * * * *"]
+crons = ["0 3 * * *"]
+
+# Event-driven publication/notification scheduler. Alarms run only when work is due.
+[[durable_objects.bindings]]
+name = "SCHEDULER"
+class_name = "TrinexScheduler"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TrinexScheduler"]
