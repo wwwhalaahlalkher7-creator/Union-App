@@ -85,6 +85,19 @@ export async function adminDeleteReply(ctx,id) {
   return ok(ctx,{deleted:true,id,mode:'hard_delete'});
 }
 
+
+export async function adminSetStudentModerator(ctx, id) {
+  const a = await requireAdminPermission(ctx, 'academic.write');
+  if (a.response) return a.response;
+  const body = await parseJson(ctx.request);
+  if (typeof body?.isModerator !== 'boolean') return error('STUDENT_MODERATOR_VALUE_INVALID', 'قيمة منصب مشرف الطالب غير صالحة.', 400, ctx.requestId, ctx.cors);
+  const result = await ctx.env.DB.prepare('UPDATE students SET is_moderator=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND active=1')
+    .bind(body.isModerator ? 1 : 0, id).run();
+  if (!result.meta?.changes) return error('STUDENT_NOT_FOUND_OR_INACTIVE', 'الطالب غير موجود أو حسابه موقوف.', 404, ctx.requestId, ctx.cors);
+  await writeAudit(ctx, a.session.staff_user_id, body.isModerator ? 'grant_student_moderator' : 'revoke_student_moderator', 'students', id, { isModerator: body.isModerator });
+  return ok(ctx, { id, isModerator: body.isModerator });
+}
+
 export async function adminDashboardOverview(ctx) {
   const a = await adminRouteAuthOnly(ctx, 'dashboard.read');
   if (a.response) return a.response;

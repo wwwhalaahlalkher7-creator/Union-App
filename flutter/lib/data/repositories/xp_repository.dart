@@ -8,7 +8,7 @@ class XpRepository {
 
   Future<XpSnapshot> getXp() async {
     try {
-      final json = await _client.getJson('/api/v1/xp', cacheTtl: const Duration(minutes: 10));
+      final json = await _client.getJson('/api/v1/xp', forceRefresh: true);
       final data = json['data'];
       if (data is! Map) {
         throw const ApiException('Invalid XP response.', code: 'INVALID_RESPONSE', kind: ApiErrorKind.response);
@@ -22,7 +22,7 @@ class XpRepository {
       try {
         final json = await _client.getJson(
           '/api/v1/student/stats',
-          cacheTtl: const Duration(minutes: 10),
+          forceRefresh: true,
         );
         final raw = json['data'];
         final stats = raw is Map

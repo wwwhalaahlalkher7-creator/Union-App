@@ -121,8 +121,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await AppDependencies.instance.apiClient.postJson('/api/v1/auth/logout');
         } catch (_) {}
       }
-      // Remove this student's scoped API/offline cache before clearing identity.
-      await AppDependencies.instance.apiClient.clearCurrentStudentCache();
       await storage.clear();
       if (mounted) context.go('/login');
     } finally {

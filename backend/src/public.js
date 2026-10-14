@@ -126,8 +126,7 @@ export function serializePublicContent(table, row) {
 }
 
 export async function publicList(ctx, table) {
-  const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 50);
-  const offset = clampInt(ctx.url.searchParams.get('offset'), 0, 0, 100000);
+  const limit = clampInt(ctx.url.searchParams.get('limit'), 20);
   const dateColumn = ['events'].includes(table) ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
   const order = `${dateColumn} DESC`;
   const expiryClause = ['news', 'announcements'].includes(table)
@@ -163,11 +162,11 @@ export async function publicList(ctx, table) {
      WHERE status = 'published'
        AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)
        ${expiryClause}
-     ORDER BY ${order} LIMIT ? OFFSET ?`;
+     ORDER BY ${order} LIMIT ?`;
 
   const params = [type, type];
   if (studentId) params.push(type, studentId);
-  params.push(limit, offset);
+  params.push(limit);
 
   const rows = await queryAll(ctx.env, sql, ...params);
 
@@ -207,15 +206,14 @@ export async function publicList(ctx, table) {
     };
   });
 
-  return ok(ctx, data, { source: 'd1', count: data.length, limit, offset, hasMore: data.length === limit });
+  return ok(ctx, data, { source: 'd1', count: data.length, limit });
 }
 
 export async function publicMaterials(ctx) {
   const departmentId = String(ctx.url.searchParams.get('departmentId') || '').trim() || null;
   const semesterId = String(ctx.url.searchParams.get('semesterId') || '').trim() || null;
   const subjectId = String(ctx.url.searchParams.get('subjectId') || '').trim() || null;
-  const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 50);
-  const offset = clampInt(ctx.url.searchParams.get('offset'), 0, 0, 100000);
+  const limit = clampInt(ctx.url.searchParams.get('limit'), 1000, 1, 1000);
 
   const rows = await queryAll(ctx.env, `
     SELECT
@@ -244,11 +242,11 @@ export async function publicMaterials(ctx) {
       m.pinned DESC, m.sort_order,
       COALESCE(m.drive_modified_at, m.updated_at, m.created_at) DESC,
       m.title
-    LIMIT ? OFFSET ?`,
+    LIMIT ?`,
     departmentId, departmentId,
     semesterId, semesterId,
     subjectId, subjectId,
-    limit, offset
+    limit
   );
 
   const departments = [];
@@ -327,8 +325,6 @@ export async function publicMaterials(ctx) {
     source: 'd1',
     count: rows.length,
     limit,
-    offset,
-    hasMore: rows.length === limit,
     departmentId,
     semesterId,
     subjectId,
@@ -340,20 +336,4 @@ export async function publicSettings(ctx) {
   const data = {};
   for (const row of rows) { try { data[row.key.replace(/^public\./, '')] = JSON.parse(row.value_json); } catch { data[row.key.replace(/^public\./, '')] = row.value_json; } }
   return ok(ctx, data);
-}
-
-
-// Lightweight homepage counters avoid loading up to 50 full content records
-// (and their comment/reaction subqueries) just to animate two numbers.
-export async function publicCounters(ctx) {
-  const [news, activities, achievements] = await Promise.all([
-    queryOne(ctx.env, `SELECT COUNT(*) AS total FROM news WHERE status='published' AND (publish_at IS NULL OR publish_at <= CURRENT_TIMESTAMP) AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`),
-    queryOne(ctx.env, `SELECT COUNT(*) AS total FROM events WHERE status='published' AND (event_at IS NULL OR event_at <= CURRENT_TIMESTAMP)`),
-    queryOne(ctx.env, `SELECT COUNT(*) AS total FROM achievements WHERE status='published' AND (achieved_at IS NULL OR achieved_at <= CURRENT_TIMESTAMP)`),
-  ]);
-  return json(ctx, { success: true, data: {
-    news: Math.max(0, Number(news?.total || 0)),
-    activities: Math.max(0, Number(activities?.total || 0)),
-    achievements: Math.max(0, Number(achievements?.total || 0)),
-  } }, 200, { 'cache-control': 'public, max-age=300, s-maxage=900, stale-while-revalidate=3600' });
 }

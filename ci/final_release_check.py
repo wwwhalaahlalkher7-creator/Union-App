@@ -81,7 +81,9 @@ if "mode:'hard_delete'" not in backend_source:
 
 # Active operational source must not contain retired provider/ad architecture.
 legacy_tokens = ('ad-manager', 'airtable')
-for base in (ROOT / 'flutter/lib', ROOT / 'website/admin', ROOT / 'backend/src'):
+if (ROOT / 'website/admin').exists():
+    errors.append('Legacy web admin must be removed; use TRINEX-Admin Flutter app')
+for base in (ROOT / 'flutter/lib', ROOT / 'backend/src'):
     for path in base.rglob('*'):
         if path.suffix not in {'.dart', '.js', '.ts', '.html', '.css'}:
             continue

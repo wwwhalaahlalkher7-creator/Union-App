@@ -107,7 +107,7 @@ class BadgesRepository {
   }
 
   Future<BadgeSnapshot> getBadges() async {
-    final json = await _client.getJson('/api/v1/badges', cacheTtl: const Duration(hours: 24));
+    final json = await _client.getJson('/api/v1/badges');
     return BadgeSnapshot.fromJson(RepositoryParser.map(json));
   }
 }

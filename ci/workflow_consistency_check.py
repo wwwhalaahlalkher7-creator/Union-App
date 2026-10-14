@@ -54,8 +54,21 @@ if 'releases/latest/download/TRINEX.apk' not in (ROOT / 'website/download.html')
 if 'downloads/release.json' in (ROOT / 'website/download.html').read_text(encoding='utf-8'):
     raise SystemExit('Download page must not depend on website-side release.json')
 
-if 'dangerous-clean-slate: true' in ci + release:
-    raise SystemExit('Production website deployment must not use dangerous-clean-slate: true')
+# The only permitted clean-slate operation is narrowly scoped to deleting the retired
+# remote /admin directory. Never allow it for the public website root or app release.
+cleanup_start = ci.find('      - name: Remove legacy web admin from hosting')
+cleanup_end = ci.find('      - name: Deploy website on main', cleanup_start)
+cleanup_block = ci[cleanup_start:cleanup_end] if cleanup_start >= 0 and cleanup_end >= 0 else ''
+if 'dangerous-clean-slate: true' in release:
+    raise SystemExit('Production app release must not use dangerous-clean-slate: true')
+if 'dangerous-clean-slate: true' in ci and not (
+    'local-dir: ./ci/empty-admin/' in cleanup_block and
+    'server-dir: /ush-eng.great-site.net/htdocs/admin/' in cleanup_block and
+    'dangerous-clean-slate: true' in cleanup_block
+):
+    raise SystemExit('Clean-slate is only allowed for the retired /htdocs/admin/ directory')
+if 'dangerous-clean-slate: true' in ci.replace(cleanup_block, ''):
+    raise SystemExit('Public website deployment must not use dangerous-clean-slate: true')
 
 core = (ROOT / 'backend/src/core.js').read_text(encoding='utf-8')
 media = (ROOT / 'backend/src/media.js').read_text(encoding='utf-8')

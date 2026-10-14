@@ -17,7 +17,7 @@ class GeneralChatScreen extends StatefulWidget {
   State<GeneralChatScreen> createState() => _GeneralChatScreenState();
 }
 
-class _GeneralChatScreenState extends State<GeneralChatScreen> with WidgetsBindingObserver {
+class _GeneralChatScreenState extends State<GeneralChatScreen> {
   final GeneralChatRepository _repository = AppDependencies.instance.generalChat;
   final TextEditingController _composer = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -26,6 +26,7 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> with WidgetsBindi
   final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
   Timer? _pollTimer;
   String? _studentId;
+  bool _isModerator = false;
   bool _loading = true;
   bool _sending = false;
   bool _refreshing = false;
@@ -35,25 +36,8 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> with WidgetsBindi
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _initialLoad();
-    _startPolling();
-  }
-
-  void _startPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _refreshMessages(silent: true));
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _startPolling();
-      _refreshMessages(silent: true);
-    } else {
-      _pollTimer?.cancel();
-      _pollTimer = null;
-    }
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _refreshMessages(silent: true));
   }
 
   Future<void> _initialLoad() async {
@@ -61,6 +45,7 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> with WidgetsBindi
     try {
       final StudentProfile profile = await AppDependencies.instance.student.profile();
       _studentId = profile.id;
+      _isModerator = profile.isModerator;
       final messages = await _repository.messages();
       if (!mounted) return;
       setState(() {
@@ -149,7 +134,7 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> with WidgetsBindi
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(leading: const Icon(Icons.reply_rounded), title: Text(l10n.t('reply')), onTap: () => Navigator.pop(sheetContext, 'reply')),
           ListTile(leading: const Icon(Icons.content_copy_rounded), title: Text(l10n.t('copy')), onTap: () => Navigator.pop(sheetContext, 'copy')),
-          if (mine) ListTile(leading: const Icon(Icons.delete_outline_rounded), title: Text(l10n.t('delete')), iconColor: Theme.of(sheetContext).colorScheme.error, textColor: Theme.of(sheetContext).colorScheme.error, onTap: () => Navigator.pop(sheetContext, 'delete')),
+          if (mine || _isModerator) ListTile(leading: const Icon(Icons.delete_outline_rounded), title: Text(mine ? l10n.t('delete') : 'حذف الرسالة (إشراف)'), iconColor: Theme.of(sheetContext).colorScheme.error, textColor: Theme.of(sheetContext).colorScheme.error, onTap: () => Navigator.pop(sheetContext, 'delete')),
           if (!mine) ListTile(leading: const Icon(Icons.flag_outlined), title: Text(l10n.t('chatReport')), onTap: () => Navigator.pop(sheetContext, 'report')),
           const SizedBox(height: 8),
         ]),
@@ -271,7 +256,6 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> with WidgetsBindi
   @override
   void dispose() {
     _pollTimer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
     _composer.dispose();
     _scrollController.dispose();
     _focusNode.dispose();

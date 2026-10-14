@@ -9,7 +9,6 @@ const expected = {
   super_admin: ['dashboard.read', 'content.read', 'content.write', 'academic.read', 'academic.write', 'moderation.read', 'moderation.write', 'notifications.read', 'notifications.write', 'superadmin.read', 'superadmin.write'],
   content_manager: ['dashboard.read', 'content.read', 'content.write'],
   academic_manager: ['dashboard.read', 'academic.read', 'academic.write'],
-  moderator: ['dashboard.read', 'moderation.read', 'moderation.write', 'notifications.read', 'notifications.write'],
 };
 assert.deepEqual(Object.keys(ADMIN_ROLE_PERMISSIONS).sort(), Object.keys(expected).sort(), 'Unexpected admin role added/removed; review its permission scope');
 for (const [role, permissions] of Object.entries(expected)) {
@@ -18,12 +17,13 @@ for (const [role, permissions] of Object.entries(expected)) {
   }
 }
 assert.equal(hasAdminPermission('unknown_role', 'content.read'), false, 'Unknown roles must deny by default');
+assert.equal(hasAdminPermission('moderator', 'moderation.read'), false, 'Legacy staff moderator role must be disabled');
 
 // Route-to-permission matrix: reads and mutations must not be downgraded to public access.
 const routes = [
   ['/admin/news', 'GET', 'content.read'], ['/admin/news', 'POST', 'content.write'],
   ['/admin/activities/123', 'DELETE', 'content.write'],
-  ['/admin/students', 'GET', 'academic.read'], ['/admin/students/123', 'PATCH', 'academic.write'],
+  ['/admin/students', 'GET', 'academic.read'], ['/admin/students/123', 'PATCH', 'academic.write'], ['/admin/students/123/moderator', 'PATCH', 'academic.write'],
   ['/admin/materials', 'GET', 'academic.read'], ['/admin/materials/123', 'DELETE', 'academic.write'],
   ['/admin/moderation/comments', 'GET', 'moderation.read'], ['/admin/moderation/comments/123', 'PATCH', 'moderation.write'],
   ['/admin/notifications', 'GET', 'notifications.read'], ['/admin/notifications/send', 'POST', 'notifications.write'],
@@ -54,6 +54,7 @@ for (const [label, source, fn, guard] of [
   ['Eino monitor dashboard', admin, 'adminEinoMonitor', 'requireAdminPermission'],
   ['Drive sync', drive, 'adminDriveSync', 'adminDriveAuth'],
   ['media upload', media, 'adminMediaUpload', 'requireAdminPermission'],
+  ['student moderator grant', admin, 'adminSetStudentModerator', 'requireAdminPermission'],
 ]) {
   const start = source.indexOf(`function ${fn}(`);
   assert.notEqual(start, -1, `Missing direct admin handler: ${fn}`);

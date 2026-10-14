@@ -7,7 +7,7 @@ class StudentRepository {
   final ApiClient _client;
 
   Future<StudentProfile> profile() async {
-    final j = await _client.getJson('/api/v1/student/profile', cacheTtl: const Duration(minutes: 15));
+    final j = await _client.getJson('/api/v1/student/profile');
     final d = RepositoryParser.map(j);
     return StudentProfile.fromJson(d);
   }
@@ -19,17 +19,17 @@ class StudentRepository {
   }
 
   Future<Map<String, dynamic>> stats() async {
-    final j = await _client.getJson('/api/v1/student/stats', cacheTtl: const Duration(minutes: 10));
+    final j = await _client.getJson('/api/v1/student/stats');
     return j['data'] is Map ? Map<String, dynamic>.from(j['data']) : const {};
   }
 
   Future<List<Map<String, dynamic>>> departments() async {
-    final j = await _client.getJson('/api/v1/departments', cacheTtl: const Duration(days: 7));
+    final j = await _client.getJson('/api/v1/departments');
     return RepositoryParser.maps(j);
   }
 
   Future<List<Map<String, dynamic>>> semesters() async {
-    final j = await _client.getJson('/api/v1/semesters', cacheTtl: const Duration(days: 7));
+    final j = await _client.getJson('/api/v1/semesters');
     return RepositoryParser.maps(j);
   }
 

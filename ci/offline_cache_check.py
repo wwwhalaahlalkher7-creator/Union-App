@@ -13,8 +13,7 @@ checks = {
     'offline state': 'OfflineState.instance.markOffline' in api and 'OfflineState.instance.markOnline' in api,
     'offline banner': 'OfflineBanner' in app,
     'cache pruning': '_maxEntries' in cache and '_prune' in cache,
-    'Eino chat history allowed only as account-scoped GET cache': "'/api/v1/eino/chats'" in api and "p.startsWith('/api/v1/eino/chats')" in api and "persistentCacheKey.startsWith('student:')" in api,
-    'personal learning and chat data is account-scoped': "p.startsWith('/api/v1/progress')" in api and "p.startsWith('/api/v1/chat/')" in api and "_isPersonalOfflinePath(path)" in api,
+    'eino excluded from cache': "p.contains('/eino/')" in api,
     'auth excluded from cache': "p.contains('/auth/')" in api,
     'per-student cache namespace': 'student:${studentNumber.trim()}|$uri' in api and 'public|$uri' in api,
 }

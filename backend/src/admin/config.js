@@ -3,7 +3,6 @@ export const ADMIN_ROLE_PERMISSIONS = Object.freeze({
   super_admin: ['*'],
   content_manager: ['content.read', 'content.write', 'dashboard.read'],
   academic_manager: ['academic.read', 'academic.write', 'dashboard.read'],
-  moderator: ['moderation.read', 'moderation.write', 'notifications.read', 'notifications.write', 'dashboard.read'],
 });
 export const ADMIN_ROLE_IDS = new Set(Object.keys(ADMIN_ROLE_PERMISSIONS));
 
@@ -32,6 +31,6 @@ export const ADMIN_SELECT_COLUMNS = {
   subjects: 'id,semester_id,department_id,code,name_ar,name_en,active,sort_order',
   materials: 'id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,created_at,updated_at',
   schedules: 'id,semester_id,department_id,subject_id,day_of_week,start_time,end_time,room,lecturer,active,created_by,updated_by,updated_at',
-  students: 'id,student_number,full_name,email,department_id,current_semester_id,active,CASE WHEN auth_secret_hash IS NULL THEN 0 ELSE 1 END AS registered,created_at,updated_at',
+  students: 'id,student_number,full_name,email,department_id,current_semester_id,active,is_moderator,CASE WHEN auth_secret_hash IS NULL THEN 0 ELSE 1 END AS registered,created_at,updated_at',
   comments: 'id,student_id,content_type,content_id,body,status,created_at,updated_at',
 };

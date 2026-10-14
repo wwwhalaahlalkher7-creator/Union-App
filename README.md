@@ -1,6 +1,6 @@
 # TRINEX — منصة رابطة كلية الهندسة والعمارة
 
-منصة متعددة الواجهات تتكوّن من تطبيق Android بـ Flutter، وواجهة ويب عامة، ولوحة تحكم إدارية، وواجهة API موحّدة على Cloudflare Workers مع D1.
+منصة تتكوّن من تطبيق Flutter للطلاب، وموقع ويب عام، وتطبيق إدارة مستقل TRINEX-Admin، وواجهة API موحّدة على Cloudflare Workers مع D1.
 
 > **هدف هذا الملف:** يكون نقطة البداية الوحيدة لأي مطوّر أو مسؤول صيانة جديد. تفاصيل التنفيذ التاريخية لم تعد تُحفظ كـ README لكل مرحلة؛ Git history يحتفظ بالتاريخ، بينما مجلد `docs/` يصف الحالة التشغيلية الحالية فقط.
 
@@ -10,13 +10,13 @@
 TRINEX
 ├── flutter/                 تطبيق Android (Flutter)
 ├── backend/                 API + D1 + Eino gateway + Drive/Gmail adapters
-├── website/                 الموقع العام + لوحة الإدارة
+├── website/                 الموقع العام فقط
 ├── ci/                      فحوصات العقود والأمان والإصدار
 ├── docs/                    الوثائق التشغيلية الحالية
 └── .github/workflows/       CI/CD
 ```
 
-## Source of Truth
+## قرار الإدارة الموحد\n\nإدارة النظام بالكامل عبر تطبيق Flutter الأصلي `TRINEX-Admin` فقط. مجلد تطبيق Flutter المستقل `TRINEX-Admin` محذوف، ومسار `/admin` يعيد 404، وبناء الموقع لا ينشر أي واجهة إدارة. الموقع العام وAPI وتدفق نشرهما مستقلون عن تطبيق الإدارة.\n\n## Source of Truth
 
 | المجال | المصدر |
 |---|---|
@@ -26,7 +26,7 @@ TRINEX
 | مخطط D1 والتغييرات | `backend/migrations/` |
 | إعداد Worker | `backend/wrangler.toml` |
 | الموقع العام | `website/` |
-| لوحة الإدارة | `website/admin/` |
+| لوحة الإدارة | تطبيق Flutter المستقل `TRINEX-Admin/` |
 | فحوصات الجودة | `ci/` |
 | أسرار الإنتاج | GitHub Actions / Cloudflare Secrets فقط |
 
@@ -37,7 +37,7 @@ Android Flutter ─┐
                  ├──> TRINEX API (Cloudflare Worker) ──> D1
 Public Website ──┤                                  ├──> TRINEX Drive (Google Apps Script) → Google Drive
                  ├──> TRINEX Gmail (Google Apps Script) → Gmail
-Dashboard ──────┘                                  └──> Free.ai → Eino models
+TRINEX-Admin ───┘                                  └──> Free.ai → Eino models
 ```
 
 المسار العام للتطبيق والموقع هو **TRINEX API**. Google Apps Script مقسوم إلى خدمتين مستقلتين: **TRINEX Drive** للمواد الدراسية و**TRINEX Gmail** للبريد. Worker هو الوسيط الوحيد بين التطبيق/الموقع والخدمتين.
@@ -129,3 +129,7 @@ Eino uses the configured online assistant service. The Android-local GGUF/llama.
 Model download sources are intentionally not hardcoded. Configure a trusted catalog through `EINO_MODEL_CATALOG_JSON` in the Worker environment; each model entry may provide `downloadUrl` and `sha256`. Until those values are configured, the app will not download an unverified model.
 
 The local runtime requires Android API 26+ and ARM64 models are the initial catalog target.
+
+## Usage analytics (phase 1)
+
+The anonymous usage analytics implementation is documented in `docs/USAGE_ANALYTICS.md`. It adds `POST /api/v1/usage/events`, the super-admin-only aggregate report `GET /api/v1/admin/analytics/overview?days=7`, D1 migration `0039_usage_analytics.sql`, website page-view instrumentation, and native-app screen-view instrumentation. Apply the D1 migration and deploy the Worker before expecting real metrics in TRINEX-Admin. The analytics layer does not record account IDs, IP addresses, user agents, search terms, message bodies, file contents, or URL query strings.

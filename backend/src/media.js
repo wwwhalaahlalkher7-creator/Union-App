@@ -63,7 +63,7 @@ export async function cleanupUnattachedMedia(ctx) {
   if (!rows.length) return;
   const deleted = [];
   for (const row of rows) {
-    try { await ctx.env.MEDIA_BUCKET.delete(row.object_key); deleted.push(row); } catch (_) {}
+    try { await ctx.env.MEDIA_BUCKET.delete(row.object_key); if (ctx.metrics) ctx.metrics.r2Operations += 1; deleted.push(row); } catch (_) {}
   }
   if (!deleted.length) return;
   try {
@@ -119,9 +119,10 @@ export async function adminMediaUpload(ctx) {
     for (const item of prepared) {
       const key = `media/${month}/${crypto.randomUUID()}.${item.ext}`;
       await ctx.env.MEDIA_BUCKET.put(key, item.bytes, {
-        httpMetadata: { contentType: item.type, cacheControl: 'public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400, immutable' },
+        httpMetadata: { contentType: item.type, cacheControl: 'public, max-age=86400, s-maxage=86400, immutable' },
         customMetadata: { sha256: item.sha, originalName: String(item.file.name || '').slice(0, 200) },
       });
+      if (ctx.metrics) { ctx.metrics.r2Operations += 1; ctx.metrics.r2WrittenBytes += item.bytes.byteLength; }
       stored.push({ key, sizeBytes: item.bytes.byteLength });
       await ctx.env.DB.prepare(`INSERT INTO media_assets (id, object_key, content_type, size_bytes, sha256, original_name, created_by) VALUES (?,?,?,?,?,?,?)`)
         .bind(crypto.randomUUID(), key, item.type, item.bytes.byteLength, item.sha, String(item.file.name || '').slice(0, 200), a.session.staff_user_id).run();
@@ -130,7 +131,7 @@ export async function adminMediaUpload(ctx) {
   } catch (e) {
     const deleted = [];
     for (const entry of stored) {
-      try { await ctx.env.MEDIA_BUCKET.delete(entry.key); deleted.push(entry); } catch (_) {}
+      try { await ctx.env.MEDIA_BUCKET.delete(entry.key); if (ctx.metrics) ctx.metrics.r2Operations += 1; deleted.push(entry); } catch (_) {}
     }
     const deletedKeys = new Set(deleted.map(x => x.key));
     const insertedDeletedKeys = insertedKeys.filter(key => deletedKeys.has(key));
@@ -160,11 +161,12 @@ export async function mediaGet(ctx) {
   try { key = rawKey.split('/').map(decodeURIComponent).join('/'); } catch (_) { return error('MEDIA_KEY_INVALID', 'معرّف الوسيط غير صالح.', 400, ctx.requestId, ctx.cors); }
   if (!key || key.includes('..') || !key.startsWith('media/')) return error('MEDIA_KEY_INVALID', 'معرّف الوسيط غير صالح.', 400, ctx.requestId, ctx.cors);
   const object = await ctx.env.MEDIA_BUCKET.get(key);
+  if (ctx.metrics) { ctx.metrics.r2Operations += 1; if (object) ctx.metrics.r2ReadBytes += Math.max(0, Number(object.size || 0)); }
   if (!object) return error('MEDIA_NOT_FOUND', 'الوسيط غير موجود.', 404, ctx.requestId, ctx.cors);
   const h = new Headers();
   object.writeHttpMetadata(h);
   h.set('etag', object.httpEtag);
-  h.set('cache-control', h.get('cache-control') || 'public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400, immutable');
+  h.set('cache-control', h.get('cache-control') || 'public, max-age=86400, s-maxage=86400, immutable');
   h.set('x-content-type-options', 'nosniff');
   h.set('content-security-policy', "default-src 'none'; frame-ancestors 'none'; object-src 'none'");
   return new Response(object.body, { status: 200, headers: h });
@@ -177,7 +179,7 @@ export async function deleteOwnedMediaUrls(ctx, urls) {
   const rows = await queryAll(ctx.env, `SELECT object_key,size_bytes FROM media_assets WHERE object_key IN (${keys.map(() => '?').join(',')})`, ...keys);
   const deletedKeys = [];
   for (const key of keys) {
-    try { await ctx.env.MEDIA_BUCKET.delete(key); deletedKeys.push(key); } catch (_) {}
+    try { await ctx.env.MEDIA_BUCKET.delete(key); if (ctx.metrics) ctx.metrics.r2Operations += 1; deletedKeys.push(key); } catch (_) {}
   }
   const deletedRows = rows.filter(r => deletedKeys.includes(r.object_key));
   if (deletedRows.length) {

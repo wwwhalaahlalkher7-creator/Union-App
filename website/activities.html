@@ -363,64 +363,18 @@
     // زمنياً (الأحدث أولاً)، مع إظهار حالة النشاط اعتماداً على
     // computeActivityStatus أعلاه.
     // ----------------------------------------------------
-    async function fetchCachedPublicList(url, cacheKey, ttlMs) {
-        let cached = null;
-        try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch (_) {}
-        if (cached && cached.data && Date.now() - cached.ts < ttlMs) return cached.data;
-
-        const refreshInBackground = () => fetch(url).then(async response => {
-            if (!response.ok) throw new Error('network_error');
-            const payload = await response.json();
-            try { localStorage.setItem(cacheKey, JSON.stringify({ data: payload, ts: Date.now() })); } catch (_) {}
-            return payload;
-        });
-
-        // Product policy: when stale data exists, render it now and refresh the
-        // stored copy in the background. Updated content is shown on next visit.
-        if (cached && cached.data) {
-            refreshInBackground().catch(() => {});
-            return cached.data;
-        }
-        return refreshInBackground();
-    }
-
-    let activitiesOffset = 0;
-    let activitiesHasMore = false;
-    let activitiesLoadingMore = false;
-    const ACTIVITIES_PAGE_SIZE = 50;
-
-    async function fetchEvents({ append = false } = {}) {
+    async function fetchEvents() {
         const container=document.getElementById("page-cards-container");
-        const offset = append ? activitiesOffset : 0;
-        if (!append) container.innerHTML=`<div class="loading-status"><i class="fas fa-circle-notch fa-spin"></i> جاري تحميل الأنشطة...</div>`;
-        try {
-            const d=await fetchCachedPublicList(PUBLIC_API_URL+`?limit=${ACTIVITIES_PAGE_SIZE}&offset=${offset}`, `union_activities_list_v2_${offset}`, 12 * 60 * 60 * 1000);
-            const records=Array.isArray(d.data)?d.data:[];
-            if(!append) container.innerHTML="";
-            if(!records.length && !append){container.innerHTML=`<div class="loading-status"><i class="fas fa-hourglass-start"></i> لا توجد أنشطة حالياً</div>`;return;}
-            records.forEach(x=>container.appendChild(buildEventCard(x)));
-            activitiesOffset = offset + records.length;
-            activitiesHasMore = d.meta?.hasMore === true || records.length === ACTIVITIES_PAGE_SIZE;
-            renderActivitiesMoreButton();
-        } catch(e){ console.error(e); if (!append) container.innerHTML=`<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الأنشطة، يرجى المحاولة لاحقاً.</div>`; }
-        finally { activitiesLoadingMore = false; }
+        container.innerHTML=`<div class="loading-status"><i class="fas fa-circle-notch fa-spin"></i> جاري تحميل الأنشطة...</div>`;
+        try { const r=await fetch(PUBLIC_API_URL+"?limit=50"); if(!r.ok) throw new Error(); const d=await r.json(); const records=Array.isArray(d.data)?d.data:[];
+            if(!records.length){container.innerHTML=`<div class="loading-status"><i class="fas fa-hourglass-start"></i> لا توجد أنشطة حالياً</div>`;return;}
+            container.innerHTML=""; records.forEach(x=>container.appendChild(buildEventCard(x)));
+        } catch(e){ console.error(e); container.innerHTML=`<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الأنشطة، يرجى المحاولة لاحقاً.</div>`; }
     }
-
-    function renderActivitiesMoreButton() {
-        document.getElementById("activitiesLoadMore")?.remove();
-        if (!activitiesHasMore) return;
-        const container = document.getElementById("page-cards-container");
-        const button = document.createElement("button");
-        button.id = "activitiesLoadMore"; button.type = "button"; button.className = "pill-btn";
-        button.style.cssText = "display:block;margin:12px auto;min-width:180px;";
-        button.textContent = activitiesLoadingMore ? "جارٍ تحميل المزيد..." : "تحميل المزيد";
-        button.disabled = activitiesLoadingMore;
-        button.addEventListener("click", async () => { if (activitiesLoadingMore) return; activitiesLoadingMore = true; renderActivitiesMoreButton(); await fetchEvents({append:true}); });
-        container.appendChild(button);
-    }
-    window.addEventListener("DOMContentLoaded", () => fetchEvents());
+    window.addEventListener("DOMContentLoaded", fetchEvents);
 </script>
 <script src="site-settings.js"></script>
     <script src="ui-pro.js?v=5"></script>
+  <script src="analytics.js" defer></script>
 </body>
 </html>

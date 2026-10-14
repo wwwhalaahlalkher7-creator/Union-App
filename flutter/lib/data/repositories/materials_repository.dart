@@ -7,7 +7,7 @@ class MaterialsRepository {
   final ApiClient _client;
 
   Future<List<Map<String, dynamic>>> semesters() async {
-    final json = await _client.getJson('/api/v1/semesters', cacheTtl: const Duration(days: 7));
+    final json = await _client.getJson('/api/v1/semesters');
     return RepositoryParser.maps(json);
   }
 
@@ -15,7 +15,6 @@ class MaterialsRepository {
     final json = await _client.getJson(
       '/api/v1/subjects',
       query: {'semesterId': semesterId},
-      cacheTtl: const Duration(days: 7),
     );
     return RepositoryParser.maps(json);
   }
@@ -29,7 +28,7 @@ class MaterialsRepository {
       query['subjectId'] = subjectId;
     }
 
-    final json = await _client.getJson('/api/v1/materials', query: query, cacheTtl: const Duration(days: 7));
+    final json = await _client.getJson('/api/v1/materials', query: query);
     return RepositoryParser.maps(json)
         .map(MaterialItem.fromJson)
         .toList(growable: false);

@@ -137,11 +137,22 @@ async function setCommentReaction(ctx, remove) {
   return ok(ctx, {reaction:value,liked:value==='like'});
 }
 
-export async function deleteComment(ctx,id) { const a=await studentAuth(ctx); if(a.response) return a.response; const result=await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=? AND status='visible'").bind(id,a.session.student_id).run(); if(!result.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود أو لا يمكنك حذفه.',404,ctx.requestId,ctx.cors); return ok(ctx,{deleted:true}); }
+export async function deleteComment(ctx,id) {
+  const a = await studentAuth(ctx); if (a.response) return a.response;
+  const isModerator = Number(a.session.student_is_moderator || 0) === 1;
+  const result = isModerator
+    ? await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='visible'").bind(id).run()
+    : await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=? AND status='visible'").bind(id,a.session.student_id).run();
+  if (!result.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود أو لا يمكنك حذفه.',404,ctx.requestId,ctx.cors);
+  return ok(ctx,{deleted:true, moderated: isModerator});
+}
 
 export async function deleteOwnReply(ctx, id) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
-  const result = await ctx.env.DB.prepare("UPDATE comment_replies SET status='deleted' WHERE id=? AND student_id=? AND status='visible'").bind(id, a.session.student_id).run();
+  const isModerator = Number(a.session.student_is_moderator || 0) === 1;
+  const result = isModerator
+    ? await ctx.env.DB.prepare("UPDATE comment_replies SET status='deleted' WHERE id=? AND status='visible'").bind(id).run()
+    : await ctx.env.DB.prepare("UPDATE comment_replies SET status='deleted' WHERE id=? AND student_id=? AND status='visible'").bind(id, a.session.student_id).run();
   if (!result.meta?.changes) return error('REPLY_NOT_FOUND', 'الرد غير موجود أو لا يمكنك حذفه.', 404, ctx.requestId, ctx.cors);
-  return ok(ctx, {id, deleted: true});
+  return ok(ctx, {id, deleted: true, moderated: isModerator});
 }

@@ -6,7 +6,7 @@ class GeneralChatRepository {
   final ApiClient _client;
 
   Future<List<Map<String, dynamic>>> messages({int limit = 50}) async {
-    final response = await _client.getJson('/api/v1/chat/messages', query: {'limit': '$limit'}, cacheTtl: const Duration(seconds: 8));
+    final response = await _client.getJson('/api/v1/chat/messages', query: {'limit': '$limit'}, forceRefresh: true);
     return RepositoryParser.maps(response);
   }
 

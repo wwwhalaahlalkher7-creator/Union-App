@@ -30,7 +30,7 @@ export async function studentAuth(ctx, required = true) {
   if (!a.session.student_id || a.session.staff_user_id) {
     return { response: error('STUDENT_AUTH_REQUIRED', 'جلسة طالب مطلوبة.', 403, ctx.requestId, ctx.cors) };
   }
-  const student = await queryOne(ctx.env, `SELECT id AS student_id, student_number, full_name, department_id, current_semester_id, active AS student_active FROM students WHERE id = ? LIMIT 1`, a.session.student_id);
+  const student = await queryOne(ctx.env, `SELECT id AS student_id, student_number, full_name, department_id, current_semester_id, active AS student_active, is_moderator AS student_is_moderator FROM students WHERE id = ? LIMIT 1`, a.session.student_id);
   if (!student || student.student_active !== 1) {
     return { response: error('STUDENT_AUTH_REQUIRED', 'حساب الطالب غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors) };
   }

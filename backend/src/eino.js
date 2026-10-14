@@ -103,7 +103,7 @@ async function retrieveEinoMaterial(ctx, session, query) {
   const semesterId = session.current_semester_id || null;
   const rows = await queryAll(ctx.env, `
     SELECT m.id, m.title, m.description, m.drive_file_id, m.drive_url, m.mime_type, m.size_bytes,
-           m.drive_modified_at, m.updated_at, m.created_at, m.pinned, m.sort_order,
+           m.drive_modified_at, m.pinned, m.sort_order,
            s.id AS subject_id, s.name_ar AS subject_name, s.name_en AS subject_name_en, s.code AS subject_code,
            s.semester_id
       FROM materials m
@@ -141,25 +141,8 @@ async function retrieveEinoMaterial(ctx, session, query) {
 async function fetchEinoMaterialFile(ctx, row, signal) {
   const fileId = String(row?.drive_file_id || '').trim();
   if (!fileId) throw Object.assign(new Error('Material has no Drive file id'), { status: 404 });
-  const expectedType = String(row.mime_type || '').toLowerCase();
-  const version = String(row.drive_modified_at || row.updated_at || row.created_at || 'unknown');
-  // Cache API is per Cloudflare data centre. Include both stable Drive file ID
-  // and its latest known modification version to avoid serving replaced files.
-  const cacheUrl = new URL(`/__internal-cache/eino-material/${encodeURIComponent(fileId)}/${encodeURIComponent(version)}`, ctx.url.origin);
-  const cacheRequest = new Request(cacheUrl.toString(), { method: 'GET' });
-  const edgeCache = globalThis.caches?.default;
-  if (edgeCache) {
-    try {
-      const hit = await edgeCache.match(cacheRequest);
-      if (hit) {
-        const cachedBytes = await hit.arrayBuffer();
-        if (cachedBytes.byteLength > 0 && cachedBytes.byteLength <= 20 * 1024 * 1024) {
-          return { bytes: cachedBytes, filename: hit.headers.get('x-material-filename') || String(row.title || 'material.pdf'), contentType: hit.headers.get('content-type') || expectedType || 'application/pdf' };
-        }
-      }
-    } catch (_) { /* Cache failure must never block a legitimate material request. */ }
-  }
   const url = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`;
+  const expectedType = String(row.mime_type || '').toLowerCase();
   const response = await fetch(url, {
     method: 'GET',
     headers: { accept: expectedType || 'application/octet-stream' },
@@ -168,7 +151,6 @@ async function fetchEinoMaterialFile(ctx, row, signal) {
   });
   if (!response.ok) throw Object.assign(new Error(`Material download failed (${response.status})`), { status: 502 });
   const responseType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  if (responseType === 'text/html') throw Object.assign(new Error('Drive returned a confirmation page instead of the material file'), { status: 502 });
   const bytes = await response.arrayBuffer();
   if (!bytes.byteLength) throw Object.assign(new Error('Material file is empty'), { status: 502 });
   if (bytes.byteLength > 20 * 1024 * 1024) throw Object.assign(new Error('Material file exceeds Eino file limit'), { status: 413 });
@@ -184,18 +166,7 @@ async function fetchEinoMaterialFile(ctx, row, signal) {
     'application/vnd.openxmlformats-officedocument.presentationml.presentation':'.pptx',
   }[expectedType] || '.pdf');
   const contentType = knownTypes.has(expectedType) ? expectedType : (knownTypes.has(responseType) ? responseType : 'application/pdf');
-  const filename = safeTitle.includes('.') ? safeTitle : safeTitle + extension;
-  if (edgeCache && knownTypes.has(contentType)) {
-    try {
-      const cachedResponse = new Response(bytes.slice(0), { headers: {
-        'content-type': contentType,
-        'cache-control': 'public, max-age=21600',
-        'x-material-filename': filename,
-      }});
-      await edgeCache.put(cacheRequest, cachedResponse);
-    } catch (_) { /* Best-effort caching: the fetched file remains usable if Cache API rejects it. */ }
-  }
-  return { bytes, filename, contentType };
+  return { bytes, filename: safeTitle.includes('.') ? safeTitle : safeTitle + extension, contentType };
 }
 
 async function retrieveEinoMaterialGrounding(ctx, session, query, signal) {

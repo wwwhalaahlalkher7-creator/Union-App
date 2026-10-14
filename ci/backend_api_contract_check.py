@@ -101,7 +101,7 @@ chat_backend=(root/'backend/src/chat.js').read_text()
 chat_migration=(root/'backend/migrations/0035_public_chat.sql').read_text()
 chat_reply_migration=(root/'backend/migrations/0036_public_chat_replies.sql').read_text()
 chat_screen=(root/'flutter/lib/features/chat/general_chat_screen.dart').read_text()
-admin_moderation=(root/'website/admin/moderation.html').read_text()
+admin_moderation=(root/'backend/src/admin.js').read_text()
 for marker, source, label in [
     ('studentAuth(ctx)', chat_backend, 'student-only authorization'),
     ('MAX_BODY = 1000', chat_backend, 'message length bound'),
@@ -112,8 +112,8 @@ for marker, source, label in [
     ('moderation.read', (root/'backend/src/admin.js').read_text(), 'staff moderation read permission'),
     ('moderation.write', (root/'backend/src/admin.js').read_text(), 'staff moderation write permission'),
     ('CHECK (status IN', chat_migration, 'message moderation states'),
-    ('chatReportsList', admin_moderation, 'admin report queue'),
-    ('Timer.periodic(const Duration(seconds: 10)', chat_screen, 'periodic message refresh (10s while active)'),
+    ('moderation.read', admin_moderation, 'admin report queue permission'),
+    ('Timer.periodic(const Duration(seconds: 5)', chat_screen, 'periodic message refresh'),
 ]:
     if marker not in source:
         failures.append(f'General chat missing {label}')

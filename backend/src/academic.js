@@ -217,12 +217,20 @@ export async function progress(ctx) {
 
 export async function xp(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
-  // Read-only endpoint: xp_events is canonical. Opening the XP screen must
-  // never write student_stats; aggregates are maintained by earning operations.
-  const cachedStats = await queryOne(ctx.env, 'SELECT xp_total, level FROM student_stats WHERE student_id = ?', a.session.student_id);
-  const aggregate = cachedStats ? null : await queryOne(ctx.env, 'SELECT COALESCE(SUM(xp), 0) AS xp_total FROM xp_events WHERE student_id = ?', a.session.student_id);
-  const total = Math.max(0, Number(cachedStats?.xp_total ?? aggregate?.xp_total ?? 0));
-  const level = Math.max(1, Number(cachedStats?.level || calculateLevel(total)));
+  // xp_events is the source of truth. student_stats is a cached aggregate and
+  // may be missing for older students or after a partial migration. Rebuild it
+  // on read so the XP screen cannot silently stay at zero.
+  const aggregate = await queryOne(ctx.env, 'SELECT COALESCE(SUM(xp), 0) AS xp_total FROM xp_events WHERE student_id = ?', a.session.student_id);
+  const total = Math.max(0, Number(aggregate?.xp_total || 0));
+  const level = calculateLevel(total);
+  await ctx.env.DB.prepare(`
+    INSERT INTO student_stats (student_id, xp_total, level)
+    VALUES (?, ?, ?)
+    ON CONFLICT(student_id) DO UPDATE SET
+      xp_total = excluded.xp_total,
+      level = excluded.level,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(a.session.student_id, total, level).run();
   const levelStartXp = XP_LEVEL_BASE * (level - 1);
   const levelXp = Math.max(0, total - levelStartXp);
   return ok(ctx, {
@@ -365,11 +373,10 @@ export async function materialProgress(ctx, materialId) {
     VALUES (?, ?, ?, ?, ?, ?)`)
     .bind(crypto.randomUUID(), a.session.student_id, materialId, eventType, nextPercent, boundedElapsed).run();
 
-  const meaningfulProgressChange = eventType === 'open' || nextPercent > previousPercent || nextPage > previousPage || (completed && !existing?.completed_at);
   const xpAwarded = nextPercent > previousPercent || nextPage > previousPage
     ? await awardProgressXp(ctx, a.session.student_id, materialId, previousPage, nextPage, completed, activeSeconds)
     : 0;
-  const newlyAwardedBadges = meaningfulProgressChange ? await evaluateBadges(ctx, a.session.student_id) : [];
+  const newlyAwardedBadges = await evaluateBadges(ctx, a.session.student_id);
   return ok(ctx, {
     materialId,
     progressPercent: nextPercent,

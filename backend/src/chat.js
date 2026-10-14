@@ -64,10 +64,12 @@ export async function createPublicChatMessage(ctx) {
 export async function deleteOwnPublicChatMessage(ctx, id) {
   const auth = await studentAuth(ctx);
   if (auth.response) return auth.response;
-  const result = await ctx.env.DB.prepare(`UPDATE public_chat_messages SET status='deleted', updated_at=CURRENT_TIMESTAMP
-    WHERE id=? AND student_id=? AND status='visible'`).bind(id, auth.session.student_id).run();
+  const isModerator = Number(auth.session.student_is_moderator || 0) === 1;
+  const result = isModerator
+    ? await ctx.env.DB.prepare(`UPDATE public_chat_messages SET status='deleted', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='visible'`).bind(id).run()
+    : await ctx.env.DB.prepare(`UPDATE public_chat_messages SET status='deleted', updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=? AND status='visible'`).bind(id, auth.session.student_id).run();
   if (!result.meta?.changes) return error('CHAT_MESSAGE_NOT_FOUND', 'الرسالة غير موجودة أو لا يمكنك حذفها.', 404, ctx.requestId, ctx.cors);
-  return ok(ctx, { id, deleted: true });
+  return ok(ctx, { id, deleted: true, moderated: isModerator });
 }
 
 export async function reportPublicChatMessage(ctx, id) {

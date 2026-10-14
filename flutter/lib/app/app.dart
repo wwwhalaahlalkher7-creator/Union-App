@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/app_version.dart';
+import '../core/analytics/usage_analytics.dart';
 import '../core/di/app_dependencies.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_theme.dart';
@@ -57,8 +58,16 @@ class _TrinexAppState extends State<TrinexApp> {
       locale: () => _locale,
       initialLocation: widget.initialLocationOverride ?? '/splash',
     );
+    _router.routeInformationProvider.addListener(_trackCurrentRoute);
 
     if (widget.enableStartupUpdateCheck) _checkForUpdate();
+  }
+
+  void _trackCurrentRoute() {
+    final path = _router.routeInformationProvider.value.uri.path;
+    unawaited(_preferencesFuture.then((_) async {
+      await UsageAnalytics.trackRoute(path);
+    }).catchError((_) {}));
   }
 
   Future<void> _bootstrap() async {
@@ -156,6 +165,7 @@ class _TrinexAppState extends State<TrinexApp> {
 
   @override
   void dispose() {
+    _router.routeInformationProvider.removeListener(_trackCurrentRoute);
     AppDependencies.instance.dispose();
     _router.dispose();
     super.dispose();

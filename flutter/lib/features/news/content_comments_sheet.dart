@@ -16,6 +16,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   final _composerFocus = FocusNode();
   bool _sending = false;
   String? _studentId;
+  bool _isModerator = false;
   CommentItem? _replyingTo;
   int _commentCount = 0;
   final Map<String, List<CommentItem>> _replies = <String, List<CommentItem>>{};
@@ -26,7 +27,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   void initState() {
     super.initState();
     _commentCount = widget.item.commentCount;
-    AppDependencies.instance.student.profile().then((profile) { if (mounted) setState(() => _studentId = profile.id); }, onError: (_) {});
+    AppDependencies.instance.student.profile().then((profile) { if (mounted) setState(() { _studentId = profile.id; _isModerator = profile.isModerator; }); }, onError: (_) {});
     _load();
   }
 
@@ -143,7 +144,7 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(leading: const Icon(Icons.content_copy_rounded), title: Text(l10n.t('copy')), onTap: () => Navigator.pop(sheetContext, 'copy')),
-        if (_studentId != null && comment.studentId == _studentId) ListTile(leading: const Icon(Icons.delete_outline_rounded), title: Text(l10n.t('delete')), iconColor: Theme.of(sheetContext).colorScheme.error, textColor: Theme.of(sheetContext).colorScheme.error, onTap: () => Navigator.pop(sheetContext, 'delete')),
+        if ((_studentId != null && comment.studentId == _studentId) || _isModerator) ListTile(leading: const Icon(Icons.delete_outline_rounded), title: Text(comment.studentId == _studentId ? l10n.t('delete') : 'حذف ${isReply ? 'الرد' : 'التعليق'} (إشراف)'), iconColor: Theme.of(sheetContext).colorScheme.error, textColor: Theme.of(sheetContext).colorScheme.error, onTap: () => Navigator.pop(sheetContext, 'delete')),
         const SizedBox(height: 8),
       ])),
     );

@@ -131,48 +131,48 @@
     }
   }
 
-  function renderRelease(release) {
-    const version = String(release.tag_name || '').replace(/^v/i, '').trim();
-    if (!version) throw new Error('The latest release has no version tag.');
-    versionEl.textContent = `الإصدار ${version}`;
-    const notes = String(release.body || '').trim();
-    notesEl.textContent = notes;
-    releaseCard.hidden = !notes;
-    const releaseDate = formatReleaseDate(release.published_at);
-    if (releaseDate) setMeta(dateEl, releaseDate);
-    const assets = Array.isArray(release.assets) ? release.assets : [];
-    const apk = assets.find(asset => asset.name === 'TRINEX.apk');
-    const zip = assets.find(asset => asset.name === 'TRINEX.zip');
-    if (apk) {
-      setMeta(sizeEl, `حجم التطبيق: ${formatBytes(apk.size)}`);
-      setDownloadButton(downloadButton, 'https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.apk');
-    } else setDownloadButton(downloadButton, '');
-    setDownloadButton(downloadZipButton, zip ? 'https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.zip' : '');
-  }
-
   async function loadLatestRelease() {
-    const cacheKey = 'union_latest_release_v1';
     try {
-      let cached = null;
-      try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch (_) {}
-      if (cached && cached.data && Date.now() - cached.ts < 60 * 60 * 1000) {
-        renderRelease(cached.data);
-        return;
-      }
       const response = await fetch(RELEASE_API, {
         headers: { Accept: 'application/vnd.github+json' },
-        cache: 'default'
+        cache: 'no-store'
       });
       if (!response.ok) throw new Error(`GitHub Releases: ${response.status}`);
+
       const release = await response.json();
-      try { localStorage.setItem(cacheKey, JSON.stringify({ data: release, ts: Date.now() })); } catch (_) {}
-      renderRelease(release);
+      const version = String(release.tag_name || '').replace(/^v/i, '').trim();
+      if (!version) throw new Error('The latest release has no version tag.');
+
+      versionEl.textContent = `الإصدار ${version}`;
+
+      const notes = String(release.body || '').trim();
+      notesEl.textContent = notes;
+      releaseCard.hidden = !notes;
+
+      const releaseDate = formatReleaseDate(release.published_at);
+      if (releaseDate) setMeta(dateEl, releaseDate);
+
+      const assets = Array.isArray(release.assets) ? release.assets : [];
+      const apk = assets.find(asset => asset.name === 'TRINEX.apk');
+      const zip = assets.find(asset => asset.name === 'TRINEX.zip');
+
+      if (apk) {
+        setMeta(sizeEl, `حجم التطبيق: ${formatBytes(apk.size)}`);
+        setDownloadButton(
+          downloadButton,
+          'https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.apk'
+        );
+      } else {
+        setDownloadButton(downloadButton, '');
+      }
+
+      setDownloadButton(
+        downloadZipButton,
+        zip
+          ? 'https://github.com/wwwhalaahlalkher7-creator/Union-App/releases/latest/download/TRINEX.zip'
+          : ''
+      );
     } catch (error) {
-      // Use an expired-but-valid cached release during temporary GitHub/API outages.
-      try {
-        const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-        if (cached && cached.data) { renderRelease(cached.data); return; }
-      } catch (_) {}
       versionEl.textContent = '';
       notesEl.textContent = '';
       releaseCard.hidden = true;
@@ -221,5 +221,6 @@
 </script>
 <script src="site-settings.js"></script>
 <script src="ui-pro.js?v=5"></script>
+  <script src="analytics.js" defer></script>
 </body>
 </html>

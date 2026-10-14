@@ -1,6 +1,7 @@
 import { processNotificationQueue } from './notifications.js';
+import { adminUsageAnalytics, recordUsageEvent } from './analytics.js';
 import { databaseErrorResponse, error } from './core.js';
-import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings, publicStudentProfile, publicCounters } from './public.js';
+import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings, publicStudentProfile } from './public.js';
 import { mediaGet, adminMediaUpload } from './media.js';
 import { publicChatMessages, createPublicChatMessage, deleteOwnPublicChatMessage, reportPublicChatMessage } from './chat.js';
 import {
@@ -21,7 +22,7 @@ import {
 import {
   adminNotifications, adminNotificationSend,
   adminAuthEvents, adminModerationComments, adminModerationComment, adminModerationReplies, adminModerationReply, adminDeleteReply, adminDashboardOverview,
-  adminEinoUsage, adminEinoMonitor, adminChatReports, adminChatReportUpdate, adminRoute,
+  adminEinoUsage, adminEinoMonitor, adminChatReports, adminChatReportUpdate, adminSetStudentModerator, adminRoute,
 } from './admin.js';
 import { adminDriveSync, adminDriveSyncStatus } from './drive.js';
 import {
@@ -30,11 +31,99 @@ import {
   einoVision, einoOcr, einoStt, einoTts, einoFileAnalysis, einoImage, einoLongSummary,
 } from './eino.js';
 
+
+function instrumentD1(database, metrics) {
+  const originals = new WeakMap();
+  const addMeta = (result) => {
+    const meta = result?.meta || {};
+    metrics.d1RowsRead += Math.max(0, Number(meta.rows_read || 0));
+    metrics.d1RowsWritten += Math.max(0, Number(meta.rows_written || 0));
+    return result;
+  };
+  const wrapStatement = (statement) => {
+    const proxy = new Proxy(statement, {
+    get(target, prop) {
+      const value = target[prop];
+      if (prop === 'bind' && typeof value === 'function') return (...args) => wrapStatement(value.apply(target, args));
+      if (['run', 'all', 'first', 'raw'].includes(String(prop)) && typeof value === 'function') {
+        return async (...args) => {
+          metrics.d1Operations += 1;
+          const result = await value.apply(target, args);
+          return addMeta(result);
+        };
+      }
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+    });
+    originals.set(proxy, statement);
+    return proxy;
+  };
+  return new Proxy(database, {
+    get(target, prop) {
+      const value = target[prop];
+      if (prop === 'prepare' && typeof value === 'function') return (...args) => wrapStatement(value.apply(target, args));
+      if (prop === 'batch' && typeof value === 'function') return async (statements) => {
+        metrics.d1Operations += Array.isArray(statements) ? statements.length : 1;
+        const unwrapped = Array.isArray(statements) ? statements.map((statement) => originals.get(statement) || statement) : statements;
+        const result = await value.apply(target, [unwrapped]);
+        if (Array.isArray(result)) result.forEach(addMeta);
+        return result;
+      };
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
+function normalizedRoute(path) {
+  const value = String(path || '/');
+  // Never persist object keys or long resource identifiers in telemetry.
+  if (value.startsWith('/media/')) return '/media/:key';
+  return value.split('/').map((part) => {
+    if (/^[0-9a-f]{8}-[0-9a-f-]{20,}$/i.test(part) || /^[0-9]{4,}$/.test(part) || part.length > 24) return ':id';
+    return part;
+  }).join('/').slice(0, 180) || '/';
+}
+
+async function persistResourceUsage(env, metrics, request, route, statusCode, durationMs) {
+  // Keep telemetry inexpensive on the free tier: sample 10% of ordinary requests,
+  // but record every request that touched R2 so R2 operations/bytes remain exact.
+  const sampleWeight = metrics.r2Operations > 0 ? 1 : (Math.random() < 0.1 ? 10 : 0);
+  if (!sampleWeight) return;
+  // The telemetry insert is a real D1 write, so include it in sampled D1 totals.
+  metrics.d1Operations += 1;
+  metrics.d1RowsWritten += 1;
+  try {
+    await env.DB.prepare(`INSERT INTO resource_usage_events
+      (id, route, method, status_code, duration_ms, d1_operations, d1_rows_read, d1_rows_written, r2_operations, r2_read_bytes, r2_written_bytes, sample_weight)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(crypto.randomUUID(), route, request.method, statusCode, durationMs,
+        metrics.d1Operations, metrics.d1RowsRead, metrics.d1RowsWritten,
+        metrics.r2Operations, metrics.r2ReadBytes, metrics.r2WrittenBytes, sampleWeight).run();
+  } catch (e) {
+    // Telemetry must never affect a user's request; schema migration may not be deployed yet.
+    console.warn('Resource telemetry write skipped', String(e?.message || e).slice(0, 160));
+  }
+}
+
 export default {
   async scheduled(_event, env, ctx) {
     ctx.waitUntil(processNotificationQueue(env));
+    // Retain aggregate-ready telemetry for 90 days; purge old raw event rows daily.
+    const now = new Date();
+    if (now.getUTCHours() === 3 && now.getUTCMinutes() === 0) {
+      ctx.waitUntil(Promise.all([
+        env.DB.prepare("DELETE FROM usage_events WHERE created_at < datetime('now','-90 days')").run(),
+        env.DB.prepare("DELETE FROM usage_sessions WHERE last_seen_at < datetime('now','-90 days')").run(),
+        env.DB.prepare("DELETE FROM resource_usage_events WHERE created_at < datetime('now','-90 days')").run(),
+      ]).catch((e) => console.error('Usage analytics retention cleanup failed', e)));
+    }
   },
-  async fetch(request, env) {
+  async fetch(request, env, executionCtx) {
+    const startedAt = Date.now();
+    const metrics = { d1Operations: 0, d1RowsRead: 0, d1RowsWritten: 0, r2Operations: 0, r2ReadBytes: 0, r2WrittenBytes: 0 };
+    const originalEnv = env;
+    let metricRoute = '/';
+    env = new Proxy(env, { get(target, prop) { return prop === 'DB' ? instrumentD1(target.DB, metrics) : target[prop]; } });
     const requestId = crypto.randomUUID();
     const requestOrigin = request.headers.get('Origin') || '';
     const allowedOrigins = String(env.ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
@@ -54,8 +143,10 @@ export default {
       if (!url.pathname.startsWith(base)) return error('NOT_FOUND', 'المسار غير موجود.', 404, requestId, cors);
 
       const path = url.pathname.slice(base.length) || '/';
-      const ctx = { request, env, url, path, requestId, cors };
-
+      const ctx = { request, env, url, path, requestId, cors, metrics };
+      const route = normalizedRoute(path);
+      metricRoute = route;
+      const response = await (async () => {
       // Reject unsupported verbs on administrative endpoints explicitly. OPTIONS is
       // handled above; admin handlers only support the methods declared by the API.
       if (path.startsWith('/admin/') && !['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
@@ -64,6 +155,7 @@ export default {
 
       if (request.method === 'GET' && path === '/health') return health(ctx);
       if (request.method === 'GET' && path === '/version') return publicVersion(ctx);
+      if (path === '/usage/events' && request.method === 'POST') return recordUsageEvent(ctx);
 
       if (path === '/chat/messages' && request.method === 'GET') return publicChatMessages(ctx);
       if (path === '/chat/messages' && request.method === 'POST') return createPublicChatMessage(ctx);
@@ -86,7 +178,6 @@ export default {
         if (['news', 'announcements', 'achievements'].includes(action)) return publicList(ctx, action);
       }
 
-      if (request.method === 'GET' && path === '/public/counters') return publicCounters(ctx);
       if (request.method === 'GET' && path === '/public/news') return publicList(ctx, 'news');
       if (request.method === 'GET' && path === '/public/announcements') return publicList(ctx, 'announcements');
       if (request.method === 'GET' && path === '/public/activities') return publicList(ctx, 'events');
@@ -152,6 +243,7 @@ export default {
       if (path === '/admin/notifications' && request.method === 'GET') return adminNotifications(ctx);
       if (path === '/admin/notifications/send' && request.method === 'POST') return adminNotificationSend(ctx, null);
       if (path === '/admin/security/auth-events' && request.method === 'GET') return adminAuthEvents(ctx);
+      if (/^\/admin\/students\/[^/]+\/moderator$/.test(path) && request.method === 'PATCH') return adminSetStudentModerator(ctx, path.split('/')[3]);
       if (path === '/admin/moderation/chat-reports' && request.method === 'GET') return adminChatReports(ctx);
       if (/^\/admin\/moderation\/chat-reports\/[^/]+$/.test(path) && request.method === 'PATCH') return adminChatReportUpdate(ctx, path.split('/')[4]);
       if (path === '/admin/moderation/comments' && request.method === 'GET') return adminModerationComments(ctx);
@@ -160,6 +252,7 @@ export default {
       if (/^\/admin\/moderation\/replies\/[^/]+$/.test(path) && request.method === 'PATCH') return adminModerationReply(ctx, path.split('/')[4]);
       if (/^\/admin\/moderation\/replies\/[^/]+$/.test(path) && request.method === 'DELETE') return adminDeleteReply(ctx, path.split('/')[4]);
       if (path === '/admin/dashboard/overview' && request.method === 'GET') return adminDashboardOverview(ctx);
+      if (path === '/admin/analytics/overview' && request.method === 'GET') return adminUsageAnalytics(ctx);
       if (path === '/admin/security/eino-usage' && request.method === 'GET') return adminEinoUsage(ctx);
       if (path === '/admin/security/eino-monitor' && request.method === 'GET') return adminEinoMonitor(ctx);
       if (path.startsWith('/admin/')) return adminRoute(ctx);
@@ -184,9 +277,16 @@ export default {
       if (path === '/eino/long-summary' && request.method === 'POST') return einoLongSummary(ctx);
 
       return error('NOT_FOUND', 'المسار غير موجود.', 404, requestId, cors);
+      })();
+      const logUsage = () => persistResourceUsage(originalEnv, metrics, request, route, response.status, Date.now() - startedAt);
+      if (executionCtx?.waitUntil) executionCtx.waitUntil(logUsage()); else await logUsage();
+      return response;
     } catch (e) {
       console.error(`[${requestId}]`, e);
-      return databaseErrorResponse(e, requestId, cors);
+      const response = databaseErrorResponse(e, requestId, cors);
+      const logUsage = () => persistResourceUsage(originalEnv, metrics, request, metricRoute, response.status, Date.now() - startedAt);
+      if (executionCtx?.waitUntil) executionCtx.waitUntil(logUsage()); else await logUsage();
+      return response;
     }
   },
 };

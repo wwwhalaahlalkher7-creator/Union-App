@@ -12,7 +12,6 @@ import '../../data/repositories/xp_repository.dart';
 import '../constants/app_constants.dart';
 import '../network/api_client.dart';
 import '../storage/auth_storage.dart';
-import '../network/offline_cache.dart';
 
 /// Application-wide dependency container.
 ///
@@ -44,8 +43,6 @@ final class AppDependencies {
 
   Future<void> initialize() async {
     if (_initialized) return;
-    // Remove student-specific payloads cached by earlier app versions.
-    await OfflineCache.instance.purgeSensitiveLegacyEntries();
     authStorage = await AuthStorage.create();
     apiClient = ApiClient(
       baseUrl: AppConstants.apiBaseUrl,

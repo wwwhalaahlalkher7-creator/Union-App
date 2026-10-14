@@ -191,8 +191,8 @@
             // عنوان واجهة TRINEX العامة للمواد الدراسية
             PUBLIC_MATERIALS_URL: window.PUBLIC_API_BASE + '/materials',
 
-            SESSION_CACHE_KEY: 'coursesData_v3',
-            CACHE_TTL_MS: 7 * 24 * 60 * 60 * 1000, // صلاحية فهرس المواد محلياً: أسبوع، مع تحديث يدوي عند الحاجة
+            SESSION_CACHE_KEY: 'coursesData_v2',
+            CACHE_TTL_MS: 20 * 60 * 1000, // مدة صلاحية النسخة المخزّنة محلياً قبل اعتبارها قديمة (٢٠ دقيقة)
             FAVORITES_KEY: 'coursesFavorites_v1',
             RECENT_OPENED_KEY: 'coursesRecentlyOpened_v1',
             LAST_VISIT_KEY: 'coursesLastVisit_v1',
@@ -210,10 +210,6 @@
             searchQuery: '',
             activeTabKey: null
         };
-        const MATERIALS_PAGE_SIZE = 50;
-        let materialsOffset = 0;
-        let materialsHasMore = false;
-        let materialsLoadingMore = false;
 
         const contentArea = document.getElementById('contentArea');
         const tabsContainer = document.getElementById('tabsContainer');
@@ -364,14 +360,14 @@
             } catch (e) { return null; }
         }
 
-        function writeLocalCache(data, offset = materialsOffset, hasMore = materialsHasMore) {
+        function writeLocalCache(data) {
             try {
-                localStorage.setItem(CONFIG.SESSION_CACHE_KEY, JSON.stringify({ data, ts: Date.now(), offset, hasMore }));
+                localStorage.setItem(CONFIG.SESSION_CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
             } catch (e) { /* تجاهل امتلاء التخزين */ }
         }
 
-        function fetchFromServer(forceRefresh, offset = 0, { background = false } = {}) {
-            const url = CONFIG.PUBLIC_MATERIALS_URL + `?limit=${MATERIALS_PAGE_SIZE}&offset=${offset}` + (forceRefresh ? '&nocache=1' : '');
+        function fetchFromServer(forceRefresh) {
+            const url = CONFIG.PUBLIC_MATERIALS_URL + '?limit=1000' + (forceRefresh ? '&nocache=1' : '');
             return fetch(url).then(res => {
                 if (!res.ok) throw new Error('تعذر الاتصال بخادم المواد (HTTP ' + res.status + ')');
                 return res.json();
@@ -395,27 +391,8 @@
                     });
                     sections.push(section);
                 });
-                const pageData={sections,files};
-                let data = pageData;
-                if (offset > 0 && state.index) {
-                    const mergedSections = state.index.sections.map(section => ({ ...section, semesters: section.semesters.map(sem => ({ ...sem })) }));
-                    pageData.sections.forEach(section => {
-                        let target = mergedSections.find(item => item.id === section.id);
-                        if (!target) { mergedSections.push(section); return; }
-                        section.semesters.forEach(semester => {
-                            const existing = target.semesters.find(item => item.id === semester.id);
-                            if (existing) existing.fileCount += semester.fileCount;
-                            else target.semesters.push(semester);
-                        });
-                    });
-                    const mergedFiles = state.index.files.slice();
-                    const knownIds = new Set(mergedFiles.map(file => String(file.id)));
-                    pageData.files.forEach(file => { if (!knownIds.has(String(file.id))) mergedFiles.push(file); });
-                    data = { sections: mergedSections, files: mergedFiles };
-                }
-                const hasMore = payload.meta?.hasMore === true || files.length === MATERIALS_PAGE_SIZE;
-                if (!background) { materialsOffset = offset + files.length; materialsHasMore = hasMore; }
-                writeLocalCache(data, offset + files.length, hasMore); return data;
+                const data={sections,files};
+                writeLocalCache(data); return data;
             });
         }
 
@@ -426,10 +403,8 @@
             if (cached) {
                 // إذا كانت النسخة المخزّنة قديمة، جدّدها بصمت في الخلفية (لن تؤثر على العرض الحالي)
                 // فتكون جاهزة وسريعة في الزيارة التالية دون انتظار المستخدم لها الآن
-                materialsOffset = Number(cached.offset ?? cached.data.files.length ?? 0);
-                materialsHasMore = cached.hasMore ?? (cached.data.files.length >= MATERIALS_PAGE_SIZE);
                 if (Date.now() - cached.ts > CONFIG.CACHE_TTL_MS) {
-                    fetchFromServer(false, 0, { background: true }).catch(() => { /* سيُعاد المحاولة في الزيارة القادمة */ });
+                    fetchFromServer(false).catch(() => { /* سيُعاد المحاولة في الزيارة القادمة */ });
                 }
                 return Promise.resolve(cached.data);
             }
@@ -573,11 +548,6 @@
             html += tabButtonHTML('util:favorites', 'fa-star', 'المفضلة', state.activeTabKey === 'util:favorites', favCount);
             html += tabButtonHTML('util:recent', 'fa-clock-rotate-left', 'آخر ما فتحته', state.activeTabKey === 'util:recent', recentCount);
             html += tabButtonHTML('util:mostused', 'fa-fire', 'الأكثر استخداماً', state.activeTabKey === 'util:mostused');
-            if (materialsHasMore) {
-                html += '<button type="button" class="pill-btn" style="margin:8px;white-space:nowrap;" data-action="load-more-materials" ' +
-                    (materialsLoadingMore ? 'disabled ' : '') + '>' +
-                    (materialsLoadingMore ? 'جارٍ تحميل المزيد...' : 'تحميل المزيد من المواد') + '</button>';
-            }
 
             tabsContainer.innerHTML = html;
         }
@@ -919,32 +889,6 @@
             contentArea.innerHTML = '<div class="tab-content active"><div class="files-grid">' + errorStateHTML(message) + '</div></div>';
         }
 
-        async function loadMoreMaterials() {
-            if (materialsLoadingMore || !materialsHasMore) return;
-            materialsLoadingMore = true;
-            renderTabs();
-            try {
-                state.index = await fetchFromServer(false, materialsOffset);
-                renderTabs();
-                checkNewFilesBanner();
-                const searchInput = document.getElementById('searchInput');
-                if (document.getElementById('coursesBody').classList.contains('search-active') && searchInput.value.trim()) {
-                    runSearch(searchInput.value);
-                } else {
-                    restoreCurrentView();
-                }
-            } catch (error) {
-                showToast(error.message || 'تعذر تحميل المزيد من المواد.', 'fa-triangle-exclamation');
-            } finally {
-                materialsLoadingMore = false;
-                renderTabs();
-                if (document.getElementById('coursesBody').classList.contains('search-active')) {
-                    const searchInput = document.getElementById('searchInput');
-                    if (searchInput.value.trim()) runSearch(searchInput.value);
-                } else restoreCurrentView();
-            }
-        }
-
         function loadData(forceRefresh) {
             showGlobalSkeleton();
             return fetchIndex(forceRefresh)
@@ -1021,9 +965,7 @@
             if (!actionEl) return;
             const action = actionEl.getAttribute('data-action');
 
-            if (action === 'load-more-materials') {
-                loadMoreMaterials();
-            } else if (action === 'open-semester') {
+            if (action === 'open-semester') {
                 goToSemester(actionEl.getAttribute('data-section-id'), actionEl.getAttribute('data-semester-id'));
             } else if (action === 'back-to-semesters') {
                 goToSection(state.currentSectionId);
@@ -1168,5 +1110,6 @@
 </script>
 <script src="site-settings.js"></script>
     <script src="ui-pro.js?v=5"></script>
+  <script src="analytics.js" defer></script>
 </body>
 </html>
