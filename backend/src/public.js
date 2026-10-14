@@ -94,12 +94,17 @@ export async function publicContentDetail(ctx) {
       ${myReactionSql}
     FROM ${table}
     WHERE id=? AND status='published'
-      AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)
+      AND (${table === 'events' ? '1=1' : `(${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)`})
       ${expiryClause}`,
     ...params,
   );
 
   if (!row) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح حاليًا.',404,ctx.requestId,ctx.cors);
+  if (table === 'events') {
+    const item = serializePublicContent(table, row);
+    item.statusLabel = row.event_at && new Date(row.event_at).getTime() > Date.now() ? 'قريباً' : 'منشور';
+    return ok(ctx, item, {source:'d1'});
+  }
   if (table === 'achievements') {
     return ok(ctx, {
       id: row.id, title: row.title, description: row.description || null,
@@ -160,7 +165,7 @@ export async function publicList(ctx, table) {
        ${myReactionSql}
      FROM ${table}
      WHERE status = 'published'
-       AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)
+       AND (${table === 'events' ? '1=1' : `(${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)`})
        ${expiryClause}
      ORDER BY ${order} LIMIT ?`;
 
@@ -172,7 +177,9 @@ export async function publicList(ctx, table) {
 
   const data = rows.map(row => {
     if (table === 'news' || table === 'events') {
-      return serializePublicContent(table, row);
+      const item = serializePublicContent(table, row);
+      if (table === 'events') item.statusLabel = row.event_at && new Date(row.event_at).getTime() > Date.now() ? 'قريباً' : 'منشور';
+      return item;
     }
     if (table === 'achievements') return {
       id: row.id,

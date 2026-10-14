@@ -71,6 +71,10 @@ class _MediaCardState extends State<MediaCard> {
                 const SizedBox(height: 5),
                 Text(widget.item.summary?.trim().isNotEmpty == true ? widget.item.summary! : widget.item.body!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.6, color: cs.onSurfaceVariant)),
               ],
+              if (widget.type == 'activity' && widget.item.eventAt != null && widget.item.eventAt?.isAfter(DateTime.now()) == true) ...[
+                const SizedBox(height: 4),
+                Align(alignment: AlignmentDirectional.centerStart, child: Chip(visualDensity: VisualDensity.compact, label: const Text('قريباً'), avatar: const Icon(Icons.event_available_outlined, size: 16))),
+              ],
               if (widget.type == 'activity' && (widget.item.location?.trim().isNotEmpty == true || widget.item.eventAt != null || widget.item.endAt != null)) ...[
                 const SizedBox(height: 7),
                 Wrap(

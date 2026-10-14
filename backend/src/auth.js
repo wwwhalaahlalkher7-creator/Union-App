@@ -443,6 +443,22 @@ export async function staffMe(ctx) {
   });
 }
 
+export async function staffUpdateMe(ctx) {
+  const a = await staffAuth(ctx); if (a.response) return a.response;
+  const body = await parseJson(ctx.request);
+  const displayName = String(body?.displayName ?? body?.display_name ?? '').trim();
+  const emailRaw = String(body?.email ?? '').trim();
+  const email = emailRaw ? normalizeEmail(emailRaw) : null;
+  if (!displayName || displayName.length > 120) return error('STAFF_PROFILE_NAME_INVALID', 'الاسم مطلوب وبحد أقصى 120 حرفًا.', 400, ctx.requestId, ctx.cors);
+  if (email && !isValidEmail(email)) return error('STAFF_PROFILE_EMAIL_INVALID', 'صيغة البريد الإلكتروني غير صالحة.', 400, ctx.requestId, ctx.cors);
+  if (email) {
+    const duplicate = await queryOne(ctx.env, 'SELECT id FROM staff_users WHERE lower(email)=? AND id<>? LIMIT 1', email, a.session.staff_user_id);
+    if (duplicate) return error('STAFF_PROFILE_EMAIL_IN_USE', 'البريد الإلكتروني مستخدم في حساب إداري آخر.', 409, ctx.requestId, ctx.cors);
+  }
+  await ctx.env.DB.prepare('UPDATE staff_users SET display_name=?, email=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(displayName, email, a.session.staff_user_id).run();
+  return ok(ctx, { updated: true, display_name: displayName, email });
+}
+
 export async function staffChangePassword(ctx) {
   const a = await staffAuth(ctx);
   if (a.response) return a.response;

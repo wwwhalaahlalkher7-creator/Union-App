@@ -1,11 +1,11 @@
-import { processNotificationQueue } from './notifications.js';
+import { processNotificationQueue, processScheduledAnnouncements } from './notifications.js';
 import { adminUsageAnalytics, recordUsageEvent } from './analytics.js';
 import { databaseErrorResponse, error } from './core.js';
 import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings, publicStudentProfile } from './public.js';
 import { mediaGet, adminMediaUpload } from './media.js';
 import { publicChatMessages, createPublicChatMessage, deleteOwnPublicChatMessage, reportPublicChatMessage } from './chat.js';
 import {
-  login, registerStudent, studentChangePassword, forgotStudentPassword, resetStudentPassword, staffLogin, staffBootstrap, staffMe, staffChangePassword,
+  login, registerStudent, studentChangePassword, forgotStudentPassword, resetStudentPassword, staffLogin, staffBootstrap, staffMe, staffUpdateMe, staffChangePassword,
   refresh, logout, authMe,
 } from './auth.js';
 import {
@@ -107,7 +107,20 @@ async function persistResourceUsage(env, metrics, request, route, statusCode, du
 
 export default {
   async scheduled(_event, env, ctx) {
-    ctx.waitUntil(processNotificationQueue(env));
+    // Keep scheduled publication, notification materialization and dispatch in
+    // sequence so a newly due announcement is queued before queue processing.
+    ctx.waitUntil((async () => {
+      await Promise.all([
+        env.DB.prepare("UPDATE news SET status='published', updated_at=CURRENT_TIMESTAMP WHERE status='draft' AND publish_at IS NOT NULL AND datetime(publish_at) <= CURRENT_TIMESTAMP").run(),
+        env.DB.prepare("UPDATE achievements SET status='published', updated_at=CURRENT_TIMESTAMP WHERE status='draft' AND achieved_at IS NOT NULL AND datetime(achieved_at) <= CURRENT_TIMESTAMP").run(),
+        // Future announcements are saved as drafts by the admin UI. Publish them
+        // automatically when due, but never revive an announcement whose expiry
+        // has already passed. The notification materializer runs after this block.
+        env.DB.prepare("UPDATE announcements SET status='published', updated_at=CURRENT_TIMESTAMP WHERE status='draft' AND publish_at IS NOT NULL AND datetime(publish_at) <= CURRENT_TIMESTAMP AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)").run(),
+      ]);
+      await processScheduledAnnouncements(env);
+      await processNotificationQueue(env);
+    })().catch((e) => console.error('Scheduled publication or notification processing failed', e)));
     // Retain aggregate-ready telemetry for 90 days; purge old raw event rows daily.
     const now = new Date();
     if (now.getUTCHours() === 3 && now.getUTCMinutes() === 0) {
@@ -196,6 +209,7 @@ export default {
       if (path === '/auth/staff/login' && request.method === 'POST') return staffLogin(ctx);
       if (path === '/auth/staff/bootstrap' && request.method === 'POST') return staffBootstrap(ctx);
       if (path === '/auth/staff/me' && request.method === 'GET') return staffMe(ctx);
+      if (path === '/auth/staff/me' && request.method === 'PATCH') return staffUpdateMe(ctx);
       if (path === '/auth/staff/change-password' && request.method === 'POST') return staffChangePassword(ctx);
       if (path === '/auth/refresh' && request.method === 'POST') return refresh(ctx);
       if (path === '/auth/logout' && request.method === 'POST') return logout(ctx);

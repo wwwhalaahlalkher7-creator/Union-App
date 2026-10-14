@@ -637,10 +637,16 @@ export async function adminNotificationSend(ctx, actorId) {
   if (!announcementId) return error('ANNOUNCEMENT_REQUIRED', 'معرّف الإعلان مطلوب.', 400, ctx.requestId, ctx.cors);
 
   const announcement = await queryOne(ctx.env,
-    'SELECT id, status, target_department_id, target_semester_id FROM announcements WHERE id=?',
+    'SELECT id, status, publish_at, expires_at, target_department_id, target_semester_id FROM announcements WHERE id=?',
     announcementId);
   if (!announcement) return error('ANNOUNCEMENT_NOT_FOUND', 'الإعلان غير موجود.', 404, ctx.requestId, ctx.cors);
   if (announcement.status !== 'published') return error('ANNOUNCEMENT_NOT_PUBLISHED', 'يجب نشر الإعلان قبل إرساله.', 400, ctx.requestId, ctx.cors);
+  if (announcement.publish_at && new Date(announcement.publish_at).getTime() > Date.now()) {
+    return error('ANNOUNCEMENT_SCHEDULED', 'هذا الإعلان مجدول للمستقبل؛ سيُجهّز للإرسال تلقائيًا عند حلول موعده.', 409, ctx.requestId, ctx.cors);
+  }
+  if (announcement.expires_at && new Date(announcement.expires_at).getTime() <= Date.now()) {
+    return error('ANNOUNCEMENT_EXPIRED', 'انتهت صلاحية هذا الإعلان ولا يمكن إرساله.', 409, ctx.requestId, ctx.cors);
+  }
 
   const targetWhere = [
     's.active=1',

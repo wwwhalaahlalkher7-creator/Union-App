@@ -1,3 +1,13 @@
+
+/**
+ * Public scheduled hook. Keep scheduled and on-demand queue processing on the
+ * same idempotent materialization path so target creation, schedule-run audit,
+ * expiry checks, and queue creation cannot drift apart.
+ */
+export async function processScheduledAnnouncements(env) {
+  await materializeDueAnnouncements(env);
+}
+
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 let cachedAccessToken = null;
 let cachedAccessTokenExpiry = 0;
