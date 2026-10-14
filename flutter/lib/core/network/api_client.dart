@@ -49,6 +49,13 @@ class ApiClient {
     _coalescedGetRequests = 0;
     _offlineFallbackHits = 0;
   }
+
+  /// Resets process-local caches for deterministic unit tests.
+  static void resetCachesForTesting() {
+    _publicCache.clear();
+    _inFlightGets.clear();
+    resetCacheMetrics();
+  }
   ApiClient({required this.baseUrl, http.Client? client, this.authStorage}) : _client = client ?? http.Client();
   final String baseUrl;
   final http.Client _client;
@@ -104,9 +111,13 @@ class ApiClient {
       '/api/v1/materials',
       '/api/v1/schedule',
     };
-    if (publicLists.contains(p)) return true;
+    if (publicLists.contains(p)) {
+      return true;
+    }
     if (RegExp(r'^/api/v1/public/(news|activities|achievements)/[^/]+$').hasMatch(p) ||
-        RegExp(r'^/api/v1/materials/[^/]+$').hasMatch(p)) return true;
+        RegExp(r'^/api/v1/materials/[^/]+$').hasMatch(p)) {
+      return true;
+    }
 
     // Personal offline data is allowed only for signed-in student scopes. The
     // persistent key includes student identity and logout removes that prefix.
@@ -264,7 +275,9 @@ class ApiClient {
       final headers = <String, String>{'Accept': 'application/json'};
       final token = await authStorage?.accessToken;
       if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
-      if (body != null) { headers['Content-Type'] = 'application/json'; }
+      if (body != null) {
+      headers['Content-Type'] = 'application/json';
+    }
       final timeout = _requestTimeout(path);
       if (method == 'GET') _networkGetRequests++;
       final response = await _transport.send(
