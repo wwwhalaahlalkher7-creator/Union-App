@@ -290,14 +290,27 @@
     };
 
     const PUBLIC_API_BASE = window.PUBLIC_API_BASE;
-    async function fetchPublicCount(path) {
-        try { const r=await fetch(PUBLIC_API_BASE+path+"?limit=50"); if(!r.ok) throw new Error(); const d=await r.json(); return Array.isArray(d.data)?d.data.length:null; } catch(e) { return null; }
+    async function fetchPublicCounters() {
+        const key = 'union_public_counters_v1';
+        try {
+            const cached = JSON.parse(localStorage.getItem(key) || 'null');
+            if (cached && cached.data && Date.now() - cached.ts < 15 * 60 * 1000) return cached.data;
+        } catch (_) {}
+        try {
+            const r = await fetch(PUBLIC_API_BASE + '/counters');
+            if (!r.ok) throw new Error('Counters unavailable');
+            const payload = await r.json();
+            if (!payload || payload.success !== true || !payload.data) throw new Error('Invalid counters');
+            try { localStorage.setItem(key, JSON.stringify({ data: payload.data, ts: Date.now() })); } catch (_) {}
+            return payload.data;
+        } catch (_) { return null; }
     }
     document.addEventListener("DOMContentLoaded", async () => {
         const newsCounter=document.getElementById('news-counter'); const activityCounter=document.getElementById('activities-counter');
-        const [newsCount,activityCount]=await Promise.all([fetchPublicCount('/news'),fetchPublicCount('/activities')]);
-        if(newsCount!==null) newsCounter.setAttribute('data-target',newsCount); runCounterAnimation(newsCounter);
-        if(activityCount!==null) activityCounter.setAttribute('data-target',activityCount); runCounterAnimation(activityCounter);
+        const counts=await fetchPublicCounters();
+        if(counts && Number.isFinite(Number(counts.news))) newsCounter.setAttribute('data-target',Number(counts.news));
+        if(counts && Number.isFinite(Number(counts.activities))) activityCounter.setAttribute('data-target',Number(counts.activities));
+        runCounterAnimation(newsCounter); runCounterAnimation(activityCounter);
     });
 </script>
 <script src="site-settings.js"></script>

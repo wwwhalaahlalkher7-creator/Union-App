@@ -164,6 +164,10 @@
     // ✅ Phase 1 — حالة البحث/الفلترة/الترتيب (Client-side بالكامل، بدون أي Request إضافي)
     // ----------------------------------------------------
     let allNewsData = [];      // كل الأخبار المحمّلة فعليًا (من fetchNews)
+    let newsOffset = 0;
+    let newsHasMore = false;
+    let newsLoadingMore = false;
+    const PUBLIC_PAGE_SIZE = 50;
     let activeCategory = "all";
     let activeSort = "newest";
 
@@ -199,24 +203,60 @@
         };
     }
 
-    async function fetchNews() {
+    async function fetchCachedPublicList(url, cacheKey, ttlMs) {
+        let cached = null;
+        try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch (_) {}
+        if (cached && cached.data && Date.now() - cached.ts < ttlMs) return cached.data;
+
+        const refreshInBackground = () => fetch(url).then(async response => {
+            if (!response.ok) throw new Error('network_error');
+            const payload = await response.json();
+            try { localStorage.setItem(cacheKey, JSON.stringify({ data: payload, ts: Date.now() })); } catch (_) {}
+            return payload;
+        });
+
+        // Product policy: when stale data exists, render it now and refresh the
+        // stored copy in the background. Updated content is shown on next visit.
+        if (cached && cached.data) {
+            refreshInBackground().catch(() => {});
+            return cached.data;
+        }
+        return refreshInBackground();
+    }
+
+    async function fetchNews({ append = false } = {}) {
         const container = document.getElementById("news-container");
+        const offset = append ? newsOffset : 0;
         try {
-            const response = await fetch(PUBLIC_API_URL + "?limit=50");
-            if (!response.ok) throw new Error("network_error");
-            const data = await response.json();
+            const data = await fetchCachedPublicList(PUBLIC_API_URL + `?limit=${PUBLIC_PAGE_SIZE}&offset=${offset}`, `union_news_list_v2_${offset}`, 12 * 60 * 60 * 1000);
             const cloudNews = Array.isArray(data.data) ? data.data.map(item => ({
                 id:item.id, title:item.title||"", content:item.body||"", image:item.imageUrl||"",
                 category:item.category||"", badge:item.badge||"", publisher:item.publisher||"أمانة الإعلام", date:item.publishAt||item.createdAt||""
             })) : [];
-            const localNews = [];
-            allNewsData = cloudNews.concat(localNews);
-            buildNewsCategoryChips(allNewsData);
+            if (append) {
+                const known = new Set(allNewsData.map(item => String(item.id)));
+                allNewsData.push(...cloudNews.filter(item => !known.has(String(item.id))));
+            } else {
+                allNewsData = cloudNews;
+                newsOffset = 0;
+            }
+            newsOffset = offset + cloudNews.length;
+            newsHasMore = data.meta?.hasMore === true || cloudNews.length === PUBLIC_PAGE_SIZE;
+            buildNewsCategoryChips(allNewsData, append);
             applyFiltersAndRender();
         } catch (error) {
             console.error(error);
-            container.innerHTML = `<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الأخبار، يرجى المحاولة لاحقاً.</div>`;
+            if (!append) container.innerHTML = `<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الأخبار، يرجى المحاولة لاحقاً.</div>`;
+        } finally {
+            newsLoadingMore = false;
         }
+    }
+
+    async function loadMoreNews() {
+        if (newsLoadingMore || !newsHasMore) return;
+        newsLoadingMore = true;
+        applyFiltersAndRender();
+        await fetchNews({ append: true });
     }
 
     function renderNewsList(allNews) {
@@ -239,6 +279,14 @@
                 <p>لا توجد أخبار مطابقة لبحثك.</p>
                 <p>جرّب تغيير كلمة البحث أو الفلتر.</p>
             </div>`;
+            if (newsHasMore) {
+                const more = document.createElement("button");
+                more.type = "button"; more.className = "pill-btn";
+                more.style.cssText = "display:block;margin:18px auto 8px;min-width:180px;";
+                more.textContent = newsLoadingMore ? "جارٍ تحميل المزيد..." : "تحميل المزيد";
+                more.disabled = newsLoadingMore; more.addEventListener("click", loadMoreNews);
+                container.appendChild(more);
+            }
             return;
         }
 
@@ -310,12 +358,22 @@
                     });
                 }
             });
+        if (newsHasMore) {
+            const more = document.createElement("button");
+            more.type = "button";
+            more.className = "pill-btn";
+            more.style.cssText = "display:block;margin:18px auto 8px;min-width:180px;";
+            more.textContent = newsLoadingMore ? "جارٍ تحميل المزيد..." : "تحميل المزيد";
+            more.disabled = newsLoadingMore;
+            more.addEventListener("click", loadMoreNews);
+            container.appendChild(more);
+        }
     }
 
     // ----------------------------------------------------
     // بناء قائمة تصنيفات الأخبار وتحديث حالة زر الفلترة
     // ----------------------------------------------------
-    function buildNewsCategoryChips(records) {
+    function buildNewsCategoryChips(records, preserveSelection = false) {
         const chipsContainer = document.getElementById("newsCategoryChips");
         if (!chipsContainer) return;
 
@@ -327,19 +385,21 @@
             if (!seen.has(raw)) seen.set(raw, details.label);
         });
 
-        chipsContainer.innerHTML = '<button type="button" class="toolbar-dropdown-item active" data-category="all" role="option" aria-selected="true">الكل</button>';
+        const allSelected = !preserveSelection || activeCategory === "all";
+        chipsContainer.innerHTML = `<button type="button" class="toolbar-dropdown-item${allSelected ? ' active' : ''}" data-category="all" role="option" aria-selected="${allSelected ? 'true' : 'false'}">الكل</button>`;
         seen.forEach((label, key) => {
             const chip = document.createElement("button");
             chip.type = "button";
-            chip.className = "toolbar-dropdown-item";
+            const selected = preserveSelection && key === activeCategory;
+            chip.className = "toolbar-dropdown-item" + (selected ? " active" : "");
             chip.dataset.category = key;
             chip.setAttribute("role", "option");
-            chip.setAttribute("aria-selected", "false");
+            chip.setAttribute("aria-selected", selected ? "true" : "false");
             chip.textContent = label;
             chipsContainer.appendChild(chip);
         });
 
-        activeCategory = "all";
+        if (!preserveSelection) activeCategory = "all";
         updateNewsFilterIndicator();
 
         chipsContainer.querySelectorAll(".toolbar-dropdown-item").forEach(chip => {

@@ -31,7 +31,7 @@ export const EINO_WINDOW_LIMIT = 8;
 // unit; expensive multimodal/search/generation operations consume more.
 export const EINO_STUDENT_DAILY_LIMIT_DEFAULT = 50;
 export const EINO_GUEST_DAILY_LIMIT_DEFAULT = 10;
-export const EINO_GLOBAL_DAILY_LIMIT_DEFAULT = 1000;
+export const EINO_GLOBAL_DAILY_LIMIT_DEFAULT = 2000;
 
 // R2 safety budget: deliberately below Cloudflare's free-tier ceiling.
 // The Worker itself is also on the Free plan, so routing media reads through

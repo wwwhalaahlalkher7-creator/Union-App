@@ -20,7 +20,35 @@ class _CachedResponse {
 }
 
 class ApiClient {
+  // TTL cache is scoped by the persistent cache key (public or student-specific).
+  // This prevents one signed-in student's response from leaking to another.
   static final Map<String, _CachedResponse> _publicCache = <String, _CachedResponse>{};
+  // Share concurrent identical GETs so a cold cache cannot trigger duplicate HTTP requests.
+  static final Map<String, Future<Map<String, dynamic>>> _inFlightGets =
+      <String, Future<Map<String, dynamic>>>{};
+  static int _memoryCacheHits = 0;
+  static int _persistentCacheHits = 0;
+  static int _networkGetRequests = 0;
+  static int _coalescedGetRequests = 0;
+  static int _offlineFallbackHits = 0;
+
+  /// In-process counters for diagnostics and tests; they are not user data and
+  /// intentionally reset when the app process restarts.
+  static ApiCacheMetrics get cacheMetrics => ApiCacheMetrics(
+        memoryHits: _memoryCacheHits,
+        persistentHits: _persistentCacheHits,
+        networkGets: _networkGetRequests,
+        coalescedGets: _coalescedGetRequests,
+        offlineFallbackHits: _offlineFallbackHits,
+      );
+
+  static void resetCacheMetrics() {
+    _memoryCacheHits = 0;
+    _persistentCacheHits = 0;
+    _networkGetRequests = 0;
+    _coalescedGetRequests = 0;
+    _offlineFallbackHits = 0;
+  }
   ApiClient({required this.baseUrl, http.Client? client, this.authStorage}) : _client = client ?? http.Client();
   final String baseUrl;
   final http.Client _client;
@@ -35,22 +63,79 @@ class ApiClient {
 
   static const _offlineCacheMaxStale = Duration(days: 7);
 
+  Future<String> get cacheScope async {
+    final studentNumber = await authStorage?.studentNumber;
+    return (studentNumber == null || studentNumber.trim().isEmpty) ? 'public' : studentNumber.trim();
+  }
+
+  Future<void> invalidateCacheForPath(String path) async {
+    _publicCache.removeWhere((key, _) => key.contains(path));
+    _inFlightGets.removeWhere((key, _) => key.contains(path));
+    await OfflineCache.instance.removeMatching(path);
+  }
+
+  /// Clears entries scoped to the currently authenticated student before logout.
+  /// Static/public data is not shared with this scope, so other users are unaffected.
+  Future<void> clearCurrentStudentCache() async {
+    final number = (await authStorage?.studentNumber)?.trim();
+    if (number == null || number.isEmpty) return;
+    final scope = 'student:$number|';
+    _publicCache.removeWhere((key, _) => key.startsWith(scope));
+    _inFlightGets.removeWhere((key, _) => key.startsWith(scope));
+    await OfflineCache.instance.removePrefix(scope);
+  }
+
   bool _offlineCacheAllowed(String path) {
     final p = path.toLowerCase();
     if (!p.startsWith('/api/v1/')) return false;
     if (p.contains('/auth/')) return false;
-    if (p.contains('/eino/')) return false;
-    return p.startsWith('/api/v1/public/') ||
-        p.startsWith('/api/v1/departments') ||
-        p.startsWith('/api/v1/semesters') ||
-        p.startsWith('/api/v1/subjects') ||
-        p.startsWith('/api/v1/materials') ||
-        p.startsWith('/api/v1/schedule') ||
-        p.startsWith('/api/v1/student/stats') ||
-        p.startsWith('/api/v1/progress') ||
-        p.startsWith('/api/v1/xp');
+    // Public catalogue data can be cached under the public scope. Personal
+    // learning state and conversations are persisted only under a student scope.
+    const publicLists = <String>{
+      '/api/v1/public/news',
+      '/api/v1/public/announcements',
+      '/api/v1/public/activities',
+      '/api/v1/public/achievements',
+      '/api/v1/public/settings',
+      '/api/v1/public/materials',
+      '/api/v1/departments',
+      '/api/v1/semesters',
+      '/api/v1/subjects',
+      '/api/v1/materials',
+      '/api/v1/schedule',
+    };
+    if (publicLists.contains(p)) return true;
+    if (RegExp(r'^/api/v1/public/(news|activities|achievements)/[^/]+$').hasMatch(p) ||
+        RegExp(r'^/api/v1/materials/[^/]+$').hasMatch(p)) return true;
+
+    // Personal offline data is allowed only for signed-in student scopes. The
+    // persistent key includes student identity and logout removes that prefix.
+    const personalPrefixes = <String>{
+      '/api/v1/student/profile',
+      '/api/v1/student/stats',
+      '/api/v1/progress',
+      '/api/v1/xp',
+      '/api/v1/badges',
+      '/api/v1/schedule',
+      '/api/v1/chat/messages',
+      '/api/v1/eino/chats',
+      '/api/v1/eino/memory',
+    };
+    if (personalPrefixes.any((prefix) => p == prefix || p.startsWith('$prefix/'))) {
+      return true;
+    }
+    return false;
   }
 
+
+  bool _isPersonalOfflinePath(String path) {
+    final p = path.toLowerCase();
+    return p.startsWith('/api/v1/student/') ||
+        p.startsWith('/api/v1/progress') || p.startsWith('/api/v1/xp') ||
+        p.startsWith('/api/v1/badges') || p.startsWith('/api/v1/schedule') ||
+        p.startsWith('/api/v1/chat/') || p.startsWith('/api/v1/eino/chats') ||
+        p.startsWith('/api/v1/eino/memory');
+  }
 
   Future<Map<String, dynamic>> getJson(String path, {Map<String, String>? query, Duration? cacheTtl, bool forceRefresh = false}) async => _request('GET', path, query: query, cacheTtl: cacheTtl, forceRefresh: forceRefresh);
   Future<Map<String, dynamic>> postJson(String path, {Map<String, dynamic> body = const {}}) async => _request('POST', path, body: body);
@@ -108,21 +193,80 @@ class ApiClient {
     Duration? cacheTtl,
     bool forceRefresh = false,
   }) async {
+    if (method != 'GET') {
+      return _requestImpl(
+        method, path, query: query, body: body, retry: retry,
+        cacheTtl: cacheTtl, forceRefresh: forceRefresh,
+      );
+    }
+
+    final uri = _buildUri(path, query);
+    // Scope every GET (not only offline-cacheable paths) to the active student.
+    // This prevents a private response cached by one account being reused by another.
+    final scopedKey = await _persistentCacheKey(uri.toString());
+    final flightKey = '$scopedKey|ttl:${cacheTtl?.inMilliseconds ?? 0}|refresh:$forceRefresh';
+    final existing = _inFlightGets[flightKey];
+    if (existing != null) {
+      _coalescedGetRequests++;
+      return existing;
+    }
+
+    final request = _requestImpl(
+      method, path, query: query, body: body, retry: retry,
+      cacheTtl: cacheTtl, forceRefresh: forceRefresh,
+    );
+    _inFlightGets[flightKey] = request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_inFlightGets[flightKey], request)) {
+        _inFlightGets.remove(flightKey);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _requestImpl(
+    String method,
+    String path, {
+    Map<String, String>? query,
+    Map<String, dynamic>? body,
+    bool retry = true,
+    Duration? cacheTtl,
+    bool forceRefresh = false,
+  }) async {
     final uri = _buildUri(path, query);
     final cacheKey = uri.toString();
-    final persistentCacheKey = method == 'GET' && _offlineCacheAllowed(path)
+    final persistentCacheKey = method == 'GET'
         ? await _persistentCacheKey(cacheKey)
         : cacheKey;
-    final canCache = method == 'GET' && cacheTtl != null && authStorage == null;
-    // Network-first policy: the server is authoritative. Persistent cache is
-    // used only after a confirmed network failure, never as a silent substitute
-    // while the device is online.
+    final canCache = method == 'GET' && cacheTtl != null;
+
+    // Cache-first for explicitly cacheable GETs: fresh data is returned without
+    // a Worker request. Expired entries are refreshed from the server; on a
+    // network failure, the existing offline fallback may still serve stale data.
+    if (canCache && !forceRefresh) {
+      final memory = _publicCache[persistentCacheKey];
+      if (memory != null && DateTime.now().isBefore(memory.expiresAt)) {
+        _memoryCacheHits++;
+        return memory.value;
+      }
+      if (_offlineCacheAllowed(path)) {
+        final saved = await OfflineCache.instance.readEntry(persistentCacheKey, maxStale: _offlineCacheMaxStale);
+        if (saved != null && saved.age <= cacheTtl) {
+          _persistentCacheHits++;
+          final value = saved.value;
+          _publicCache[persistentCacheKey] = _CachedResponse(value, saved.savedAt.add(cacheTtl));
+          return value;
+        }
+      }
+    }
     try {
       final headers = <String, String>{'Accept': 'application/json'};
       final token = await authStorage?.accessToken;
       if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
       if (body != null) { headers['Content-Type'] = 'application/json'; }
       final timeout = _requestTimeout(path);
+      if (method == 'GET') _networkGetRequests++;
       final response = await _transport.send(
         method,
         uri,
@@ -133,7 +277,7 @@ class ApiClient {
       if (response.statusCode == 401 && retry && _canRefreshFor(path) && (await authStorage?.refreshToken)?.isNotEmpty == true) {
         final refreshed = await _sessionRefresher.refresh();
         if (refreshed) {
-          return await _request(method, path, query: query, body: body, retry: false, cacheTtl: cacheTtl, forceRefresh: forceRefresh);
+          return await _requestImpl(method, path, query: query, body: body, retry: false, cacheTtl: cacheTtl, forceRefresh: forceRefresh);
         }
       }
       // Receiving any HTTP response proves that the device can reach the
@@ -142,15 +286,18 @@ class ApiClient {
       OfflineState.instance.markOnline();
       final decoded = _decoder.decode(response);
       if (canCache) {
-        _publicCache[cacheKey] = _CachedResponse(decoded, DateTime.now().add(cacheTtl));
+        _publicCache[persistentCacheKey] = _CachedResponse(decoded, DateTime.now().add(cacheTtl));
       }
       if (method == 'GET' && _offlineCacheAllowed(path)) {
-        await OfflineCache.instance.write(persistentCacheKey, decoded);
+        final isPersonal = _isPersonalOfflinePath(path);
+        if (!isPersonal || persistentCacheKey.startsWith('student:')) {
+          await OfflineCache.instance.write(persistentCacheKey, decoded);
+        }
       }
       return decoded;
     } on ApiException { rethrow; }
       on TimeoutException catch (e) {
-        throw ApiException(ApiErrorMessages.timeout, cause: e, kind: ApiErrorKind.timeout, retryable: true);
+        return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException(ApiErrorMessages.timeout, cause: e, kind: ApiErrorKind.timeout, retryable: true));
       }
       on SocketException catch (e) {
         return _offlineFallbackOrThrow(persistentCacheKey, path, ApiException(ApiErrorMessages.offline, cause: e, kind: ApiErrorKind.offline, retryable: true));
@@ -168,9 +315,13 @@ class ApiClient {
 
   Future<Map<String, dynamic>> _offlineFallbackOrThrow(String cacheKey, String path, ApiException error) async {
     OfflineState.instance.markOffline();
-    if (_offlineCacheAllowed(path)) {
+    if (_offlineCacheAllowed(path) &&
+        (!_isPersonalOfflinePath(path) || cacheKey.startsWith('student:'))) {
       final cached = await OfflineCache.instance.read(cacheKey, maxStale: _offlineCacheMaxStale);
-      if (cached != null) return cached;
+      if (cached != null) {
+        _offlineFallbackHits++;
+        return cached;
+      }
     }
     throw error;
   }
@@ -220,4 +371,31 @@ class ApiClient {
     );
   }
   void dispose() => _transport.dispose();
+}
+
+
+class ApiCacheMetrics {
+  const ApiCacheMetrics({
+    required this.memoryHits,
+    required this.persistentHits,
+    required this.networkGets,
+    required this.coalescedGets,
+    required this.offlineFallbackHits,
+  });
+
+  final int memoryHits;
+  final int persistentHits;
+  final int networkGets;
+  final int coalescedGets;
+  final int offlineFallbackHits;
+
+  int get totalCacheHits => memoryHits + persistentHits + offlineFallbackHits;
+
+  Map<String, int> toMap() => {
+        'memoryHits': memoryHits,
+        'persistentHits': persistentHits,
+        'networkGets': networkGets,
+        'coalescedGets': coalescedGets,
+        'offlineFallbackHits': offlineFallbackHits,
+      };
 }

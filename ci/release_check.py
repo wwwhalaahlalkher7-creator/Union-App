@@ -4,7 +4,7 @@ import re, sqlite3, sys
 ROOT = Path(__file__).resolve().parents[1]
 FLUTTER = ROOT / 'flutter'
 BACKEND = ROOT / 'backend'
-WEBSITE_ADMIN = ROOT / 'website/admin'
+DASHBOARD = ROOT / 'website/admin'
 
 errors=[]
 
@@ -40,12 +40,9 @@ try:
 except Exception as e:
     errors.append(f'Migration smoke test failed: {e}')
 
-if WEBSITE_ADMIN.exists():
-    errors.append('Legacy web admin must be removed; use TRINEX-Admin Flutter app')
-
 # Source policy: no operational legacy providers / commercial ads.
 legacy_tokens=('ad-manager','commercial ads','airtable')
-for base in (FLUTTER/'lib', BACKEND/'src'):
+for base in (FLUTTER/'lib', DASHBOARD, BACKEND/'src'):
     for p in base.rglob('*'):
         if p.suffix not in {'.dart','.js','.ts','.html','.css'}: continue
         text=p.read_text(encoding='utf-8',errors='ignore').lower()

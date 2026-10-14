@@ -119,7 +119,7 @@ export async function adminMediaUpload(ctx) {
     for (const item of prepared) {
       const key = `media/${month}/${crypto.randomUUID()}.${item.ext}`;
       await ctx.env.MEDIA_BUCKET.put(key, item.bytes, {
-        httpMetadata: { contentType: item.type, cacheControl: 'public, max-age=86400, s-maxage=86400, immutable' },
+        httpMetadata: { contentType: item.type, cacheControl: 'public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400, immutable' },
         customMetadata: { sha256: item.sha, originalName: String(item.file.name || '').slice(0, 200) },
       });
       stored.push({ key, sizeBytes: item.bytes.byteLength });
@@ -164,7 +164,7 @@ export async function mediaGet(ctx) {
   const h = new Headers();
   object.writeHttpMetadata(h);
   h.set('etag', object.httpEtag);
-  h.set('cache-control', h.get('cache-control') || 'public, max-age=86400, s-maxage=86400, immutable');
+  h.set('cache-control', h.get('cache-control') || 'public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400, immutable');
   h.set('x-content-type-options', 'nosniff');
   h.set('content-security-policy', "default-src 'none'; frame-ancestors 'none'; object-src 'none'");
   return new Response(object.body, { status: 200, headers: h });

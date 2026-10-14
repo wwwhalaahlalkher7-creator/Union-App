@@ -27,7 +27,7 @@ class ScheduleRepository {
       query['semesterId'] = semesterId;
     }
 
-    final json = await _client.getJson('/api/v1/schedule', query: query);
+    final json = await _client.getJson('/api/v1/schedule', query: query, cacheTtl: const Duration(hours: 24));
     final data = RepositoryParser.map(json);
     final rawItems = data['items'];
     final items = rawItems is List
@@ -58,7 +58,7 @@ class ScheduleRepository {
   }
 
   Future<List<Map<String, dynamic>>> semesters() async {
-    final json = await _client.getJson('/api/v1/semesters');
+    final json = await _client.getJson('/api/v1/semesters', cacheTtl: const Duration(days: 7));
     return RepositoryParser.maps(json);
   }
 }

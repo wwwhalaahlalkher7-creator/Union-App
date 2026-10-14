@@ -466,16 +466,61 @@
     // ✅ Phase 2 — حالة البحث/الفلترة/الترتيب (Client-side بالكامل، نفس مبدأ صفحة الأخبار)
     // ----------------------------------------------------
     let allAchievementsData = [];
+    let achievementsOffset = 0;
+    let achievementsHasMore = false;
+    let achievementsLoadingMore = false;
+    const ACHIEVEMENTS_PAGE_SIZE = 50;
     let achActiveCategory = "all";
     let achActiveSort = "newest";
 
-    async function fetchAchievements() {
+    async function fetchCachedPublicList(url, cacheKey, ttlMs) {
+        let cached = null;
+        try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch (_) {}
+        if (cached && cached.data && Date.now() - cached.ts < ttlMs) return cached.data;
+
+        const refreshInBackground = () => fetch(url).then(async response => {
+            if (!response.ok) throw new Error('network_error');
+            const payload = await response.json();
+            try { localStorage.setItem(cacheKey, JSON.stringify({ data: payload, ts: Date.now() })); } catch (_) {}
+            return payload;
+        });
+
+        // Product policy: when stale data exists, render it now and refresh the
+        // stored copy in the background. Updated content is shown on next visit.
+        if (cached && cached.data) {
+            refreshInBackground().catch(() => {});
+            return cached.data;
+        }
+        return refreshInBackground();
+    }
+
+    async function fetchAchievements({ append = false } = {}) {
         const container=document.getElementById("page-cards-container");
-        container.innerHTML=`<div class="loading-status"><i class="fas fa-circle-notch fa-spin"></i> جاري تحميل الإنجازات...</div>`;
-        try { const r=await fetch(PUBLIC_API_URL+"?limit=50"); if(!r.ok) throw new Error(); const d=await r.json(); const records=Array.isArray(d.data)?d.data:[];
-            if(!records.length){container.innerHTML=`<div class="loading-status"><i class="far fa-folder-open"></i> لا توجد إنجازات منشورة حالياً</div>`;return;}
-            allAchievementsData=records; buildAchCategoryChips(records); applyAchFiltersAndRender();
-        } catch(e){ console.error(e); container.innerHTML=`<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الإنجازات، يرجى المحاولة لاحقاً.</div>`; }
+        const offset = append ? achievementsOffset : 0;
+        if (!append) container.innerHTML=`<div class="loading-status"><i class="fas fa-circle-notch fa-spin"></i> جاري تحميل الإنجازات...</div>`;
+        try {
+            const d=await fetchCachedPublicList(PUBLIC_API_URL+`?limit=${ACHIEVEMENTS_PAGE_SIZE}&offset=${offset}`, `union_achievements_list_v2_${offset}`, 24 * 60 * 60 * 1000);
+            const records=Array.isArray(d.data)?d.data:[];
+            if (!append && !records.length) { container.innerHTML=`<div class="loading-status"><i class="far fa-folder-open"></i> لا توجد إنجازات منشورة حالياً</div>`; return; }
+            if (append) {
+                const known = new Set(allAchievementsData.map(item => String(item.id)));
+                allAchievementsData.push(...records.filter(item => !known.has(String(item.id))));
+            } else {
+                allAchievementsData=records;
+                achievementsOffset = 0;
+            }
+            achievementsOffset = offset + records.length;
+            achievementsHasMore = d.meta?.hasMore === true || records.length === ACHIEVEMENTS_PAGE_SIZE;
+            buildAchCategoryChips(allAchievementsData); applyAchFiltersAndRender();
+        } catch(e){ console.error(e); if (!append) container.innerHTML=`<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الإنجازات، يرجى المحاولة لاحقاً.</div>`; }
+        finally { achievementsLoadingMore = false; }
+    }
+
+    function loadMoreAchievements() {
+        if (achievementsLoadingMore || !achievementsHasMore) return;
+        achievementsLoadingMore = true;
+        applyAchFiltersAndRender();
+        fetchAchievements({append:true});
     }
 
     function buildAchCategoryChips(records) {
@@ -489,20 +534,22 @@
         });
 
         if (chipsContainer.dataset.built === String(seen.size)) return;
-
-        chipsContainer.innerHTML = '<button type="button" class="toolbar-dropdown-item active" data-category="all" role="option" aria-selected="true">الكل</button>';
+        const previousCategory = achActiveCategory;
+        const allSelected = previousCategory === "all";
+        chipsContainer.innerHTML = `<button type="button" class="toolbar-dropdown-item${allSelected ? ' active' : ''}" data-category="all" role="option" aria-selected="${allSelected ? 'true' : 'false'}">الكل</button>`;
         seen.forEach((label, key) => {
             const chip = document.createElement("button");
             chip.type = "button";
-            chip.className = "toolbar-dropdown-item";
+            const selected = key === previousCategory;
+            chip.className = "toolbar-dropdown-item" + (selected ? " active" : "");
             chip.dataset.category = key;
             chip.setAttribute("role", "option");
-            chip.setAttribute("aria-selected", "false");
+            chip.setAttribute("aria-selected", selected ? "true" : "false");
             chip.textContent = label;
             chipsContainer.appendChild(chip);
         });
         chipsContainer.dataset.built = String(seen.size);
-        achActiveCategory = "all";
+        achActiveCategory = seen.has(previousCategory) || previousCategory === "all" ? previousCategory : "all";
         updateAchFilterIndicator();
 
         chipsContainer.querySelectorAll(".toolbar-dropdown-item").forEach(chip => {
@@ -651,6 +698,14 @@
                 <p>لا توجد إنجازات مطابقة لبحثك.</p>
                 <p>جرّب تغيير كلمة البحث أو الفلتر.</p>
             </div>`;
+            if (achievementsHasMore) {
+                const more = document.createElement("button");
+                more.type = "button"; more.className = "pill-btn";
+                more.style.cssText = "display:block;margin:18px auto 8px;min-width:180px;";
+                more.textContent = achievementsLoadingMore ? "جارٍ تحميل المزيد..." : "تحميل المزيد";
+                more.disabled = achievementsLoadingMore; more.addEventListener("click", loadMoreAchievements);
+                container.appendChild(more);
+            }
             return;
         }
 
@@ -658,6 +713,15 @@
         records.forEach(record => {
             container.appendChild(buildAchievementCard(record));
         });
+        if (achievementsHasMore) {
+            const more = document.createElement("button");
+            more.type = "button"; more.className = "pill-btn";
+            more.style.cssText = "display:block;margin:18px auto 8px;min-width:180px;";
+            more.textContent = achievementsLoadingMore ? "جارٍ تحميل المزيد..." : "تحميل المزيد";
+            more.disabled = achievementsLoadingMore;
+            more.addEventListener("click", loadMoreAchievements);
+            container.appendChild(more);
+        }
     }
 
     // ----------------------------------------------------

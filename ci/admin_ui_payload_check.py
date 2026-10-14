@@ -1,15 +1,20 @@
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-build = (root / 'build.js').read_text(encoding='utf-8')
-worker = (root / 'website/worker/index.js').read_text(encoding='utf-8')
+adapter = (root / "website/admin/js/api-adapter.js").read_text()
+content = (root / "website/admin/content.html").read_text()
+
 checks = {
-    'legacy web admin removed': not (root / 'website/admin').exists(),
-    'build does not publish web admin': "name === 'admin'" in build and 'no web admin included' in build,
-    'web admin route returns 404': "path === '/admin' || path.startsWith('/admin/')" in worker and 'status: 404' in worker,
-    'TRINEX-Admin migration documented': 'TRINEX-Admin' in (root / 'README.md').read_text(encoding='utf-8'),
+    "student create maps UI fields to API snake_case": "studentPayload(s)" in adapter and "student_number:studentNumber" in adapter and "department_id:departmentId" in adapter,
+    "schedule maps semester to semester_id": "semester_id:p.semester_id||p.semesterId||p.semester||''" in adapter,
+    "schedule maps department to department_id": "department_id:p.department_id||p.departmentId||p.department||''" in adapter,
+    "schedule maps day/time fields": "day_of_week:p.day_of_week??p.dayOfWeek" in adapter and "start_time:p.start_time||p.startTime||''" in adapter,
+    "notification options have Arabic labels": "{value:'general',label:'عام'}" in adapter and "{value:'urgent',label:'عاجل'}" in adapter,
+    "select renderer supports value/label options": "typeof opt === 'object' ? opt.value : opt" in content,
 }
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
-    raise SystemExit('TRINEX ADMIN MIGRATION CHECK FAILED: ' + ', '.join(failed))
-print('TRINEX ADMIN MIGRATION CHECK PASSED: web admin absent and build/route guard active')
+    print("ADMIN UI PAYLOAD CHECK FAILED")
+    for item in failed: print(" -", item)
+    raise SystemExit(1)
+print("ADMIN UI PAYLOAD CHECK PASSED")

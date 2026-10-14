@@ -18,25 +18,34 @@ class PdfMaterialViewerScreen extends StatefulWidget {
   State<PdfMaterialViewerScreen> createState() => _PdfMaterialViewerScreenState();
 }
 
-class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
+class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> with WidgetsBindingObserver {
   Timer? _progressTimer;
   File? _localPdf;
   int _currentPage = 1;
   int _pageCount = 0;
   int _displayedProgress = 0;
   bool _loadingFile = true;
+  bool _progressSyncing = false;
   Object? _loadError;
   final PdfViewerController _pdfController = PdfViewerController();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadPdfToDisk();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      unawaited(_sendPageProgress());
+    }
   }
 
   Future<void> _loadPdfToDisk() async {
     try {
-      final directory = await getTemporaryDirectory();
+      final directory = await getApplicationSupportDirectory();
       final safeId = widget.materialId.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
       final file = File('${directory.path}/trinex_material_$safeId.pdf');
 
@@ -78,18 +87,17 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
 
   void _startProgressTracking() {
     _progressTimer?.cancel();
-    // The first progress/XP update is intentionally delayed until about one
-    // minute of verified time in the material. After that, the current page is
-    // periodically reported so the backend can accumulate active time and
-    // award XP only for newly reached pages.
-    _progressTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    // Keep page changes local; batch progress once per minute and when the app
+    // is backgrounded. Local PDF/progress state survives ordinary app restarts.
+    _progressTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (!mounted || _pageCount <= 0) return;
       _sendPageProgress();
     });
   }
 
   Future<void> _sendPageProgress() async {
-    if (_pageCount <= 0 || _currentPage <= 0) return;
+    if (_pageCount <= 0 || _currentPage <= 0 || _progressSyncing) return;
+    _progressSyncing = true;
     try {
       final percent = (((_currentPage / _pageCount) * 100).round()).clamp(0, 100).toInt();
       if (mounted && percent > _displayedProgress) {
@@ -112,12 +120,16 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
       }
     } catch (_) {
       // Progress is auxiliary; a temporary network failure must never close the PDF.
+    } finally {
+      _progressSyncing = false;
     }
   }
 
   @override
   void dispose() {
     _progressTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_sendPageProgress());
     super.dispose();
   }
 
@@ -197,7 +209,13 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
                               _pageCount = count;
                             });
                           }
-                          _sendPageProgress();
+                          final percent = (((_currentPage / _pageCount) * 100).round()).clamp(0, 100).toInt();
+                          unawaited(AppDependencies.instance.progress.savePending(
+                            materialId: widget.materialId,
+                            progressPercent: percent,
+                            pageNumber: _currentPage,
+                            pageCount: _pageCount,
+                          ));
                         },
                         linkHandlerParams: PdfLinkHandlerParams(
                           onLinkTap: (_) {},

@@ -2,7 +2,7 @@
   "name": "trinex-portal",
   "version": "1.0.0",
   "private": true,
-  "description": "TRINEX public website builder; administration is handled by the native Flutter TRINEX-Admin app",
+  "description": "TRINEX public website and admin distribution builder",
   "type": "module",
   "scripts": {
     "build": "node build.js",

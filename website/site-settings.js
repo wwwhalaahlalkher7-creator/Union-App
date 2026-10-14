@@ -90,31 +90,44 @@
     else setThemeColor(DEFAULT_THEME_COLOR);
   } catch (e) { /* تجاهل */ }
 
-  fetch(SITE_SETTINGS_URL)
-    .then(function (res) { return res.json(); })
-    .then(function (data) {
-      if (!data || !data.success || !data.data) return;
-      const s = data.data;
+  const SETTINGS_CACHE_KEY = 'union_public_settings_v1';
+  const SETTINGS_CACHE_TTL_MS = 10 * 60 * 1000;
 
-      const serverColor = (s.SiteThemeColor || "").toLowerCase();
-      setThemeColor(serverColor === LEGACY_THEME_COLOR ? DEFAULT_THEME_COLOR : (s.SiteThemeColor || DEFAULT_THEME_COLOR));
-      setText("siteLogoName", s.SiteName);
-      setText("footerSiteName", s.SiteName);
-      setText("footerUniversity", s.University);
-      setText("heroTitle", s.HeroTitle);
-      setText("heroSubtitle", s.HeroSubtitle);
+  function applySettings(s) {
+    if (!s || typeof s !== 'object') return;
+    const serverColor = (s.SiteThemeColor || '').toLowerCase();
+    setThemeColor(serverColor === LEGACY_THEME_COLOR ? DEFAULT_THEME_COLOR : (s.SiteThemeColor || DEFAULT_THEME_COLOR));
+    setText('siteLogoName', s.SiteName);
+    setText('footerSiteName', s.SiteName);
+    setText('footerUniversity', s.University);
+    setText('heroTitle', s.HeroTitle);
+    setText('heroSubtitle', s.HeroSubtitle);
+    if (s.ContactEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s.ContactEmail))) setHref('contactEmailLink', 'mailto:' + s.ContactEmail, ["mailto:"]);
+    if (s.ContactPhone) {
+      const digits = s.ContactPhone.toString().replace(/[^0-9]/g, '');
+      if (digits) setHref('contactWhatsappLink', 'https://wa.me/' + digits, ['https:']);
+    }
+    setHref('contactFacebookLink', s.Facebook);
+    setHref('contactTwitterLink', s.Twitter);
+    setHref('contactInstagramLink', s.Instagram);
+    setHref('contactTelegramLink', s.Telegram);
+  }
 
-      if (s.ContactEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s.ContactEmail))) setHref("contactEmailLink", "mailto:" + s.ContactEmail, ["mailto:"]);
-      if (s.ContactPhone) {
-        const digits = s.ContactPhone.toString().replace(/[^0-9]/g, "");
-        if (digits) setHref("contactWhatsappLink", "https://wa.me/" + digits, ["https:"]);
-      }
-      setHref("contactFacebookLink", s.Facebook);
-      setHref("contactTwitterLink", s.Twitter);
-      setHref("contactInstagramLink", s.Instagram);
-      setHref("contactTelegramLink", s.Telegram);
-    })
-    .catch(function () {
-      /* تجاهل — الصفحة تبقى بنصوصها/روابطها الثابتة الحالية */
-    });
+  let cachedSettings = null;
+  try { cachedSettings = JSON.parse(localStorage.getItem(SETTINGS_CACHE_KEY) || 'null'); } catch (_) {}
+  if (cachedSettings && cachedSettings.data) applySettings(cachedSettings.data);
+
+  // Fresh local settings avoid one request on every page view. Expired settings
+  // refresh in the background; cached values remain visible during outages.
+  if (!cachedSettings || !cachedSettings.data || Date.now() - cachedSettings.ts >= SETTINGS_CACHE_TTL_MS) {
+    fetch(SITE_SETTINGS_URL)
+      .then(function (res) { if (!res.ok) throw new Error('Settings request failed'); return res.json(); })
+      .then(function (payload) {
+        if (!payload || !payload.success || !payload.data) return;
+        try { localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({ data: payload.data, ts: Date.now() })); } catch (_) {}
+        applySettings(payload.data);
+      })
+      .catch(function () { /* cached/default values remain in place */ });
+  }
+
 })();

@@ -33,14 +33,13 @@ export async function updateStudentSemester(ctx) {
 
 export async function studentStats(ctx) {
   const a = await studentAuth(ctx); if (a.response) return a.response;
+  const cachedStats = await queryOne(ctx.env, 'SELECT xp_total, level, updated_at FROM student_stats WHERE student_id=?', a.session.student_id);
+  if (cachedStats) return ok(ctx, { xp_total: Math.max(0, Number(cachedStats.xp_total || 0)), level: Math.max(1, Number(cachedStats.level || 1)), updated_at: cachedStats.updated_at || null });
+  // Legacy fallback is read-only: do not write merely because a stats screen opened.
   const aggregate = await queryOne(ctx.env, 'SELECT COALESCE(SUM(xp),0) AS xp_total FROM xp_events WHERE student_id=?', a.session.student_id);
   const xpTotal = Math.max(0, Number(aggregate?.xp_total || 0));
   const level = Math.floor(xpTotal / XP_LEVEL_BASE) + 1;
-  await ctx.env.DB.prepare(`
-    INSERT INTO student_stats (student_id, xp_total, level) VALUES (?, ?, ?)
-    ON CONFLICT(student_id) DO UPDATE SET xp_total=excluded.xp_total, level=excluded.level, updated_at=CURRENT_TIMESTAMP
-  `).bind(a.session.student_id, xpTotal, level).run();
-  return ok(ctx, { xp_total: xpTotal, level, updated_at: new Date().toISOString() });
+  return ok(ctx, { xp_total: xpTotal, level, updated_at: null });
 }
 
 export async function studentNotifications(ctx) {

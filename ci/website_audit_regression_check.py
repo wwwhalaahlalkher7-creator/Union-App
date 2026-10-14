@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression checks for URL validation and safe rendering in public website pages."""
+"""Regression checks for URL validation and safe rendering in public/admin pages."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +14,7 @@ checks = {
     'achievement gallery URL validation': ('website/Injazat.html', 'function safeAchievementImageUrl(value)'),
     'course links URL validation': ('website/courses.html', 'function safeCourseUrl(value)'),
     'course invalid link rejection': ('website/courses.html', 'رابط الملف غير صالح أو غير آمن'),
+    'admin upload filename treated as text': ('website/admin/settings.html', 'document.createTextNode(" " + file.name)'),
 }
 errors = []
 for label, (file, marker) in checks.items():
@@ -26,8 +27,9 @@ news = (ROOT / 'website/news.html').read_text(encoding='utf-8')
 for marker in ['src="${item.image}"', 'ناشر: ${item.publisher', '${dateString}']:
     if marker in news:
         errors.append(f'Unsafe dynamic HTML interpolation remains in news page: {marker}')
-if (ROOT / 'website/admin').exists():
-    errors.append('Legacy web admin directory must remain removed; use TRINEX-Admin Flutter app')
+settings = (ROOT / 'website/admin/settings.html').read_text(encoding='utf-8')
+if 'hint.innerHTML = `<i class="fa-solid fa-image"></i> ${file.name}`' in settings:
+    errors.append('Unsafe uploaded filename HTML interpolation remains')
 
 if errors:
     raise SystemExit('\n'.join(errors))

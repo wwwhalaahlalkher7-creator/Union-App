@@ -29,7 +29,10 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
   final Set<int> _loadingTabs = <int>{};
   final Set<int> _loadedTabs = <int>{};
   final Set<int> _failedTabs = <int>{};
+  final Set<int> _loadingMoreTabs = <int>{};
+  final Map<int, bool> _hasMoreTabs = <int, bool>{};
   final Map<int, String> _errors = <int, String>{};
+  static const int _pageSize = 50;
 
   @override
   void initState() {
@@ -51,11 +54,11 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
     _loadTab(_index);
   }
 
-  Future<List<ContentItem>> _fetch(int index, {bool forceRefresh = false}) {
+  Future<List<ContentItem>> _fetch(int index, {bool forceRefresh = false, int offset = 0}) {
     return switch (index) {
-      0 => _repo.news(forceRefresh: forceRefresh),
-      1 => _repo.achievements(forceRefresh: forceRefresh),
-      _ => _repo.activities(forceRefresh: forceRefresh),
+      0 => _repo.news(forceRefresh: forceRefresh, offset: offset, limit: _pageSize),
+      1 => _repo.achievements(forceRefresh: forceRefresh, offset: offset, limit: _pageSize),
+      _ => _repo.activities(forceRefresh: forceRefresh, offset: offset, limit: _pageSize),
     };
   }
 
@@ -71,10 +74,11 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
       });
     }
     try {
-      final items = await _fetch(index, forceRefresh: forceRefresh);
+      final items = await _fetch(index, forceRefresh: forceRefresh, offset: 0);
       if (!mounted) return;
       setState(() {
         _items[index] = items;
+        _hasMoreTabs[index] = items.length == _pageSize;
         _loadedTabs.add(index);
         _failedTabs.remove(index);
         _errors.remove(index);
@@ -87,6 +91,28 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
       });
     } finally {
       if (mounted) setState(() => _loadingTabs.remove(index));
+    }
+  }
+
+  Future<void> _loadMore() async {
+    final index = _index;
+    if (_loadingMoreTabs.contains(index) || _hasMoreTabs[index] != true) return;
+    final existing = _items[index] ?? const <ContentItem>[];
+    setState(() => _loadingMoreTabs.add(index));
+    try {
+      final next = await _fetch(index, offset: existing.length);
+      if (!mounted) return;
+      setState(() {
+        _items[index] = [...existing, ...next];
+        _hasMoreTabs[index] = next.length == _pageSize;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorMessage.from(context, error, fallbackKey: 'connectionFailed'))),
+      );
+    } finally {
+      if (mounted) setState(() => _loadingMoreTabs.remove(index));
     }
   }
 
@@ -190,6 +216,17 @@ class _MediaScreenState extends State<MediaScreen> with SingleTickerProviderStat
                                     type: _type(),
                                     label: labels[_index],
                                     onDetails: () => _openDetail(item),
+                                  ),
+                                ),
+                              if (_hasMoreTabs[_index] == true)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  child: OutlinedButton.icon(
+                                    onPressed: _loadingMoreTabs.contains(_index) ? null : _loadMore,
+                                    icon: _loadingMoreTabs.contains(_index)
+                                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                        : const Icon(Icons.expand_more_rounded),
+                                    label: Text(_loadingMoreTabs.contains(_index) ? 'جارٍ التحميل...' : 'تحميل المزيد'),
                                   ),
                                 ),
                             ],

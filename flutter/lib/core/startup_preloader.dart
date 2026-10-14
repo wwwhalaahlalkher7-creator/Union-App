@@ -11,14 +11,21 @@ class StartupPreloader {
     const paths = <String>[
       '/api/v1/public/news',
       '/api/v1/public/activities',
+      '/api/v1/public/achievements',
     ];
+    // Do not await these requests during startup. ApiClient coalesces identical
+    // GETs with screen requests, so a screen opening immediately after launch
+    // joins the same in-flight request rather than starting a duplicate.
     await Future.wait(
-      paths.map(
-        (path) => _client
-            .getJson(path, cacheTtl: const Duration(seconds: 45))
-            .timeout(const Duration(seconds: 3))
-            .catchError((_) => <String, dynamic>{}),
-      ),
+      paths.map((path) => _client
+          .getJson(
+            path,
+            query: const {'limit': '50', 'offset': '0'},
+            cacheTtl: path.endsWith('/achievements')
+                ? const Duration(hours: 24)
+                : const Duration(hours: 12),
+          )
+          .catchError((_) => <String, dynamic>{})),
     );
   }
 }

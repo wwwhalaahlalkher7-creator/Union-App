@@ -17,7 +17,7 @@ class GeneralChatScreen extends StatefulWidget {
   State<GeneralChatScreen> createState() => _GeneralChatScreenState();
 }
 
-class _GeneralChatScreenState extends State<GeneralChatScreen> {
+class _GeneralChatScreenState extends State<GeneralChatScreen> with WidgetsBindingObserver {
   final GeneralChatRepository _repository = AppDependencies.instance.generalChat;
   final TextEditingController _composer = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -35,8 +35,25 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initialLoad();
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _refreshMessages(silent: true));
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _refreshMessages(silent: true));
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startPolling();
+      _refreshMessages(silent: true);
+    } else {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+    }
   }
 
   Future<void> _initialLoad() async {
@@ -254,6 +271,7 @@ class _GeneralChatScreenState extends State<GeneralChatScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _composer.dispose();
     _scrollController.dispose();
     _focusNode.dispose();

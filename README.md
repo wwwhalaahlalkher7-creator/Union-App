@@ -1,6 +1,6 @@
 # TRINEX — منصة رابطة كلية الهندسة والعمارة
 
-منصة تتكوّن من تطبيق Flutter للطلاب، وموقع ويب عام، وتطبيق إدارة مستقل TRINEX-Admin، وواجهة API موحّدة على Cloudflare Workers مع D1.
+منصة متعددة الواجهات تتكوّن من تطبيق Android بـ Flutter، وواجهة ويب عامة، ولوحة تحكم إدارية، وواجهة API موحّدة على Cloudflare Workers مع D1.
 
 > **هدف هذا الملف:** يكون نقطة البداية الوحيدة لأي مطوّر أو مسؤول صيانة جديد. تفاصيل التنفيذ التاريخية لم تعد تُحفظ كـ README لكل مرحلة؛ Git history يحتفظ بالتاريخ، بينما مجلد `docs/` يصف الحالة التشغيلية الحالية فقط.
 
@@ -10,13 +10,13 @@
 TRINEX
 ├── flutter/                 تطبيق Android (Flutter)
 ├── backend/                 API + D1 + Eino gateway + Drive/Gmail adapters
-├── website/                 الموقع العام فقط
+├── website/                 الموقع العام + لوحة الإدارة
 ├── ci/                      فحوصات العقود والأمان والإصدار
 ├── docs/                    الوثائق التشغيلية الحالية
 └── .github/workflows/       CI/CD
 ```
 
-## قرار الإدارة الموحد\n\nإدارة النظام بالكامل عبر تطبيق Flutter الأصلي `TRINEX-Admin` فقط. مجلد تطبيق Flutter المستقل `TRINEX-Admin` محذوف، ومسار `/admin` يعيد 404، وبناء الموقع لا ينشر أي واجهة إدارة. الموقع العام وAPI وتدفق نشرهما مستقلون عن تطبيق الإدارة.\n\n## Source of Truth
+## Source of Truth
 
 | المجال | المصدر |
 |---|---|
@@ -26,7 +26,7 @@ TRINEX
 | مخطط D1 والتغييرات | `backend/migrations/` |
 | إعداد Worker | `backend/wrangler.toml` |
 | الموقع العام | `website/` |
-| لوحة الإدارة | تطبيق Flutter المستقل `TRINEX-Admin/` |
+| لوحة الإدارة | `website/admin/` |
 | فحوصات الجودة | `ci/` |
 | أسرار الإنتاج | GitHub Actions / Cloudflare Secrets فقط |
 
@@ -37,7 +37,7 @@ Android Flutter ─┐
                  ├──> TRINEX API (Cloudflare Worker) ──> D1
 Public Website ──┤                                  ├──> TRINEX Drive (Google Apps Script) → Google Drive
                  ├──> TRINEX Gmail (Google Apps Script) → Gmail
-TRINEX-Admin ───┘                                  └──> Free.ai → Eino models
+Dashboard ──────┘                                  └──> Free.ai → Eino models
 ```
 
 المسار العام للتطبيق والموقع هو **TRINEX API**. Google Apps Script مقسوم إلى خدمتين مستقلتين: **TRINEX Drive** للمواد الدراسية و**TRINEX Gmail** للبريد. Worker هو الوسيط الوحيد بين التطبيق/الموقع والخدمتين.

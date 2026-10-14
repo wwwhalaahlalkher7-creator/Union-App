@@ -1,6 +1,6 @@
 import { processNotificationQueue } from './notifications.js';
 import { databaseErrorResponse, error } from './core.js';
-import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings, publicStudentProfile } from './public.js';
+import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings, publicStudentProfile, publicCounters } from './public.js';
 import { mediaGet, adminMediaUpload } from './media.js';
 import { publicChatMessages, createPublicChatMessage, deleteOwnPublicChatMessage, reportPublicChatMessage } from './chat.js';
 import {
@@ -86,6 +86,7 @@ export default {
         if (['news', 'announcements', 'achievements'].includes(action)) return publicList(ctx, action);
       }
 
+      if (request.method === 'GET' && path === '/public/counters') return publicCounters(ctx);
       if (request.method === 'GET' && path === '/public/news') return publicList(ctx, 'news');
       if (request.method === 'GET' && path === '/public/announcements') return publicList(ctx, 'announcements');
       if (request.method === 'GET' && path === '/public/activities') return publicList(ctx, 'events');

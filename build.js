@@ -3,36 +3,80 @@ import path from 'path';
 
 const rootDir = process.cwd();
 const websiteDir = path.join(rootDir, 'website');
+const adminDir = path.join(websiteDir, 'admin');
 const distDir = path.join(rootDir, 'dist');
+const distAdminDir = path.join(distDir, 'admin');
 
-console.log('[BUILD] Packaging TRINEX public website; administration is native Flutter only.');
+console.log('[BUILD] Starting packaging for TRINEX portal & admin...');
 
 function copyDirRecursive(src, dest, excludeFilter = () => false) {
-  fs.mkdirSync(dest, { recursive: true });
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true });
+  }
+
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+
+  for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
-    if (excludeFilter(entry.name, srcPath)) continue;
-    if (entry.isDirectory()) copyDirRecursive(srcPath, destPath, excludeFilter);
-    else fs.copyFileSync(srcPath, destPath);
+
+    if (excludeFilter(entry.name, srcPath)) {
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, destPath, excludeFilter);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
   }
 }
-if (fs.existsSync(distDir)) fs.rmSync(distDir, { recursive: true, force: true });
+
+// Clean dist directory
+if (fs.existsSync(distDir)) {
+  fs.rmSync(distDir, { recursive: true, force: true });
+}
 fs.mkdirSync(distDir, { recursive: true });
-copyDirRecursive(websiteDir, distDir, (name) =>
-  name === 'admin' || name === 'worker' || name === 'wrangler.toml' ||
-  name === 'node_modules' || name.endsWith('.zip') ||
-  (name.startsWith('README') && name.endsWith('.md'))
-);
-for (const file of ['index.html', 'courses.html', 'news.html', 'download.html']) {
-  if (!fs.existsSync(path.join(distDir, file))) {
-    console.error(`[BUILD ERROR] Missing expected public file: ${file}`);
+
+// Copy public website assets to dist
+copyDirRecursive(websiteDir, distDir, (name, fullPath) => {
+  if (name === 'admin' || name === 'worker' || name === 'wrangler.toml' || name === 'node_modules' || name.endsWith('.zip')) {
+    return true;
+  }
+  if (name.startsWith('README') && name.endsWith('.md')) {
+    return true;
+  }
+  return false;
+});
+
+// Copy the canonical admin UI to dist/admin only.
+// Do not publish a second /dashboard tree: /admin is the single public admin URL.
+copyDirRecursive(adminDir, distAdminDir, (name) => {
+  if (name === 'worker' || name === 'wrangler.toml' || name === 'node_modules') {
+    return true;
+  }
+  if (name.startsWith('README') && name.endsWith('.md')) {
+    return true;
+  }
+});
+
+// Verify required outputs exist
+const requiredFiles = [
+  path.join(distDir, 'index.html'),
+  path.join(distDir, 'courses.html'),
+  path.join(distDir, 'news.html'),
+  path.join(distDir, 'download.html'),
+  path.join(distAdminDir, 'index.html'),
+  path.join(distAdminDir, 'login.html'),
+  path.join(distAdminDir, 'config.js'),
+];
+
+for (const file of requiredFiles) {
+  if (!fs.existsSync(file)) {
+    console.error(`[BUILD ERROR] Missing expected file: ${file}`);
     process.exit(1);
   }
 }
-if (fs.existsSync(path.join(distDir, 'admin'))) {
-  console.error('[BUILD ERROR] Admin web files must not be published.');
-  process.exit(1);
-}
-console.log('[BUILD] Validation passed: public website packaged; no web admin included.');
+
+console.log('[BUILD] Validation passed: All public pages and admin UI packaged successfully.');
 console.log(`[BUILD] Dist ready at ${distDir}`);

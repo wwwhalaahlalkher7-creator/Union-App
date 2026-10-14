@@ -240,8 +240,8 @@ class _NotificationCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12.6),
             ),
             child: Icon(
-              _notificationIcon(item),
-              color: _notificationColor(item, cs),
+              item.category == 'schedule' ? Icons.calendar_month_rounded : item.category == 'material' ? Icons.menu_book_rounded : item.category == 'achievement' ? Icons.emoji_events_rounded : (item.isRead ? Icons.notifications_none_rounded : Icons.campaign_rounded),
+              color: item.category == 'schedule' ? cs.primary : item.category == 'material' ? cs.tertiary : item.category == 'achievement' ? cs.secondary : cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(width: 12),
@@ -267,78 +267,6 @@ class _NotificationCard extends StatelessWidget {
       ),
     );
   }
-}
-
-IconData _notificationIcon(NotificationItem item) {
-  final kind = _notificationKind(item);
-  switch (kind) {
-    case 'schedule':
-      return Icons.calendar_month_rounded;
-    case 'material':
-      return Icons.menu_book_rounded;
-    case 'achievement':
-      return Icons.emoji_events_rounded;
-    case 'news':
-      return Icons.newspaper_rounded;
-    case 'activity':
-    case 'event':
-      return Icons.event_available_rounded;
-    case 'chat':
-    case 'message':
-      return Icons.chat_bubble_rounded;
-    case 'account':
-    case 'profile':
-      return Icons.person_rounded;
-    case 'reminder':
-      return Icons.alarm_rounded;
-    default:
-      return item.isRead ? Icons.notifications_none_rounded : Icons.campaign_rounded;
-  }
-}
-
-Color _notificationColor(NotificationItem item, ColorScheme colors) {
-  switch (_notificationKind(item)) {
-    case 'schedule':
-      return colors.primary;
-    case 'material':
-      return colors.tertiary;
-    case 'achievement':
-      return colors.secondary;
-    case 'news':
-      return colors.primary;
-    case 'activity':
-    case 'event':
-      return colors.tertiary;
-    case 'chat':
-    case 'message':
-      return colors.secondary;
-    case 'account':
-    case 'profile':
-      return colors.primary;
-    case 'reminder':
-      return colors.error;
-    default:
-      return colors.onSurfaceVariant;
-  }
-}
-
-String _notificationKind(NotificationItem item) {
-  // Backend versions have used both contentType and category/type for notification kinds.
-  final candidates = [item.contentType, item.category, item.type];
-  for (final candidate in candidates) {
-    final value = (candidate ?? '').trim().toLowerCase().replaceAll('-', '_');
-    if (value.isEmpty) continue;
-    if (['schedule', 'timetable', 'lecture_schedule', 'exam_schedule', 'جدول', 'الجدول'].contains(value)) return 'schedule';
-    if (['material', 'study_material', 'course_material', 'subject', 'مواد', 'مادة'].contains(value)) return 'material';
-    if (['achievement', 'accomplishment', 'نجاح', 'إنجاز', 'انجاز'].contains(value)) return 'achievement';
-    if (['news', 'announcement', 'خبر', 'أخبار', 'اخبار'].contains(value)) return 'news';
-    if (['activity', 'activities', 'نشاط', 'أنشطة', 'انشطة'].contains(value)) return 'activity';
-    if (['event', 'events', 'فعالية', 'فعاليات'].contains(value)) return 'event';
-    if (['chat', 'message', 'messages', 'محادثة', 'رسالة', 'رسائل'].contains(value)) return 'chat';
-    if (['account', 'profile', 'student_profile', 'حساب', 'ملف_شخصي'].contains(value)) return 'account';
-    if (['reminder', 'deadline', 'تذكير'].contains(value)) return 'reminder';
-  }
-  return 'general';
 }
 
 class _StateView extends StatelessWidget {
