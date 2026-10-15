@@ -533,9 +533,23 @@ async function adminImportOcr(ctx, actorId) {
     return ok(ctx,{text,pageCount:pages,provider:'ocr.space',uploadedBytes:file.size});
   } catch (e) {
     const status = Number(e?.status || 0);
-    console.warn('Admin import OCR failed',String(e?.message||e).slice(0,180));
-    if (status === 429) return error('IMPORT_OCR_QUOTA_EXCEEDED','وصلت خدمة OCR إلى حد الاستخدام الحالي أو تجاوزت المعدل المسموح. لم يتم الحفظ؛ جرّب لاحقًا أو أكمل الإدخال يدويًا.',429,ctx.requestId,ctx.cors);
-    return error('IMPORT_OCR_FAILED','تعذر استخراج النص من خدمة OCR. تحقق من المفتاح وحجم الملف ووضوحه ثم أعد المحاولة أو أدخل البيانات يدويًا.',502,ctx.requestId,ctx.cors);
+    const providerMessage = String(e?.providerMessage || e?.message || '').slice(0, 240);
+    // Log a bounded diagnostic for operators; never expose the provider's raw
+    // response or secret material to the client.
+    console.warn('Admin import OCR failed', { status, providerCode: e?.providerCode || null, reason: providerMessage.slice(0, 160) });
+    if (status === 429 || /quota|rate.?limit|monthly limit|maximum number of requests/i.test(providerMessage)) {
+      return error('IMPORT_OCR_QUOTA_EXCEEDED','خدمة قراءة النص مشغولة أو بلغت حد الاستخدام. جرّب لاحقًا أو أدخل البيانات يدويًا.',429,ctx.requestId,ctx.cors);
+    }
+    if (status === 401 || status === 403 || /invalid api.?key|api.?key.*(invalid|required|incorrect)|not authorized/i.test(providerMessage)) {
+      return error('IMPORT_OCR_NOT_CONFIGURED','تعذر الاتصال بخدمة قراءة النص. تحقق من إعداد مفتاح الخدمة على الخادم.',503,ctx.requestId,ctx.cors);
+    }
+    if (status === 413 || /file size|file is too large|maximum.*size|size.*exceed/i.test(providerMessage)) {
+      return error('IMPORT_FILE_OVER_PROVIDER_LIMIT','تعذر إرسال الملف إلى خدمة قراءة النص. جرّب صورة أصغر أو أدخل البيانات يدويًا.',413,ctx.requestId,ctx.cors);
+    }
+    if (e?.name === 'AbortError') {
+      return error('IMPORT_OCR_TIMEOUT','استغرق استخراج النص وقتًا طويلًا. جرّب صورة أوضح أو أعد المحاولة لاحقًا.',504,ctx.requestId,ctx.cors);
+    }
+    return error('IMPORT_OCR_FAILED','تعذر استخراج النص. جرّب صورة واضحة أو أعد المحاولة لاحقًا، ويمكنك إدخال البيانات يدويًا.',502,ctx.requestId,ctx.cors);
   } finally { clearTimeout(timeout); }
 }
 
