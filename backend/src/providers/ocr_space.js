@@ -12,18 +12,18 @@ export async function ocrSpaceFromFile({ apiKey, file, signal }) {
     method: 'POST', headers: { apikey: apiKey }, body: form, signal,
   });
   const body = await response.json().catch(() => ({}));
+  const providerMessage = String(
+    body?.ErrorMessage?.join?.(' ') ||
+    body?.ErrorMessage ||
+    body?.ErrorDetails ||
+    body?.Error ||
+    ''
+  ).slice(0, 240);
   if (!response.ok || body?.IsErroredOnProcessing) {
-    const providerMessage = String(
-      body?.ErrorMessage?.join?.(' ') || body?.ErrorMessage || body?.ErrorDetails || body?.ParsedResults?.[0]?.ErrorMessage || '',
-    ).slice(0, 240);
-    const reportedCode = Number(body?.OCRExitCode || body?.ParsedResults?.[0]?.FileParseExitCode || 0);
-    const message = providerMessage || `OCR.space request failed (HTTP ${response.status})`;
-    const error = new Error(message);
-    // OCR.space sometimes returns HTTP 200 even when processing failed. Use
-    // its response fields to classify the failure instead of masking it as 502.
-    error.status = response.status >= 400 ? response.status : (reportedCode === 4 ? 413 : 422);
+    const error = new Error('OCR.space request failed');
+    error.status = response.status;
     error.providerMessage = providerMessage;
-    error.providerCode = reportedCode || null;
+    error.providerExitCode = Number(body?.OCRExitCode || 0);
     throw error;
   }
   const results = Array.isArray(body?.ParsedResults) ? body.ParsedResults : [];
