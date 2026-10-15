@@ -7,7 +7,10 @@ export async function ocrSpaceFromFile({ apiKey, file, signal }) {
   form.append('isOverlayRequired', 'false');
   form.append('detectOrientation', 'true');
   form.append('scale', 'true');
-  form.append('OCREngine', '2');
+  // Engine 1 is the safer choice for Arabic-heavy academic tables.
+  // Engine 2 is optimized primarily for alphanumeric/Latin documents and can
+  // reject or perform poorly on Arabic scans on some OCR.space plans.
+  form.append('OCREngine', '1');
   const response = await fetch('https://api.ocr.space/parse/image', {
     method: 'POST', headers: { apikey: apiKey }, body: form, signal,
   });
