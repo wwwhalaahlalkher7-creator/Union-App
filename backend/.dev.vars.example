@@ -18,3 +18,5 @@ CHROMA_TOKEN=""
 TAVILY_API_KEY=""
 EXA_API_KEY=""
 DEEPGRAM_API_KEY=""
+# Dedicated OCR service key (free tier; keep server-side only)
+OCR_SPACE_API_KEY=""

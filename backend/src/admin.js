@@ -12,6 +12,7 @@ import { recordAuthEvent } from './auth.js';
 import { deleteOwnedMediaUrls, extractMediaUrlsFromRow, markOwnedMediaAttached } from './media.js';
 import { deleteDriveFilesViaAppsScript } from './drive.js';
 import { createOrRefreshContentNotificationDraft } from './notification_drafts.js';
+import { ocrSpaceFromFile } from './providers/ocr_space.js';
 
 import { ADMIN_ROLE_IDS, ADMIN_FIELDS, CONTENT_STATUS_VALUES, CONTENT_TABLES, CONTENT_UPDATED_BY_TABLES, ADMIN_SELECT_COLUMNS } from './admin/config.js';
 import { hasAdminPermission, requireAdminPermission } from './admin/permissions.js';
@@ -133,6 +134,7 @@ export async function adminRoute(ctx) {
   const resource = parts[1] || '';
   const id = parts[2] || null;
   if (resource === 'audit-logs' && ctx.request.method === 'GET') return adminAuditLogs(ctx);
+  if (resource === 'imports') return adminImportsRoute(ctx, parts.slice(2), a.session.staff_user_id, a.session.staff_role_id);
   if (resource === 'settings') return adminSettings(ctx, id);
   if (resource === 'staff') return adminStaff(ctx, id, a.session.staff_user_id);
   if (resource === 'notifications' && parts[2] === 'send' && ctx.request.method === 'POST') return adminNotificationSend(ctx, a.session.staff_user_id);
@@ -149,6 +151,7 @@ export function adminPermission(path, method) {
   if (path.includes('/staff')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
   if (path.includes('/settings')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
   if (path.includes('/audit-logs')) return method === 'GET' ? 'superadmin.read' : 'superadmin.write';
+  if (path.includes('/imports')) return method === 'GET' ? 'superadmin.read' : 'academic.write';
   if (path.includes('/drive')) return method === 'GET' ? 'academic.read' : 'academic.write';
   if (path.includes('/notifications') || path.includes('/announcements')) return method === 'GET' ? 'notifications.read' : 'notifications.write';
   if (path.includes('/students') || path.includes('/subjects') || path.includes('/materials') || path.includes('/schedule')) return method === 'GET' ? 'academic.read' : 'academic.write';
@@ -234,6 +237,16 @@ export async function validateAcademicReferences(ctx, table, fields, existing = 
     if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end) || start >= end) {
       return error('SCHEDULE_TIME_INVALID', 'وقت بداية المحاضرة يجب أن يسبق وقت نهايتها وبصيغة HH:MM.', 400, ctx.requestId, ctx.cors);
     }
+    // A schedule slot may not overlap another active slot in the same
+    // department + semester. Adjacent intervals (end == next start) are allowed.
+    const conflict = await queryOne(ctx.env, `SELECT id, subject_id, day_of_week, start_time, end_time
+      FROM schedules WHERE active=1 AND department_id=? AND semester_id=? AND day_of_week=?
+        AND start_time < ? AND end_time > ? AND (? IS NULL OR id<>?) LIMIT 1`,
+      value('department_id'), value('semester_id'), day, end, start, existing?.id || null, existing?.id || null);
+    if (conflict) {
+      const subjectRow = conflict.subject_id ? await queryOne(ctx.env, 'SELECT name_ar FROM subjects WHERE id=?', conflict.subject_id) : null;
+      return error('SCHEDULE_TIME_CONFLICT', `تتداخل الحصة مع حصة موجودة${subjectRow?.name_ar ? ` (${subjectRow.name_ar})` : ''} يوم ${day} من ${conflict.start_time} إلى ${conflict.end_time}. غيّر اليوم أو الوقت قبل الحفظ.`, 409, ctx.requestId, ctx.cors);
+    }
   }
 
   return null;
@@ -242,6 +255,306 @@ export async function validateAcademicReferences(ctx, table, fields, existing = 
 export async function writeAudit(ctx, actorId, action, resourceType, resourceId, metadata = {}) {
   await ctx.env.DB.prepare('INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .bind(crypto.randomUUID(), 'staff', actorId, action, resourceType, resourceId, JSON.stringify(metadata || {})).run();
+}
+
+export async function adminImportsRoute(ctx, parts, actorId, roleId) {
+  if (parts[0] === 'ocr' && ctx.request.method === 'POST') return adminImportOcr(ctx, actorId);
+  await ctx.env.DB.prepare("UPDATE import_operations SET status='expired',reviewed_json='[]',summary_json='{}' WHERE status='review' AND expires_at<=?").bind(new Date().toISOString()).run().catch(() => {});
+  const id = parts[0] || null;
+  const action = parts[1] || null;
+  const isSuper = roleId === 'super_admin';
+  if (ctx.request.method === 'GET' && !id) {
+    if (!isSuper) return error('FORBIDDEN', 'عرض سجل عمليات الاستيراد متاح لمدير النظام فقط.', 403, ctx.requestId, ctx.cors);
+    const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
+    const rows = await queryAll(ctx.env, `SELECT o.id,o.import_type,o.department_id,o.semester_id,o.status,o.created_by,o.created_at,o.expires_at,o.committed_at,o.rolled_back_at,o.summary_json,d.name_ar AS department_name,s.name_ar AS semester_name,st.display_name AS actor_name
+      FROM import_operations o JOIN departments d ON d.id=o.department_id JOIN semesters s ON s.id=o.semester_id LEFT JOIN staff_users st ON st.id=o.created_by ORDER BY o.created_at DESC LIMIT ?`, limit);
+    return ok(ctx, rows.map((r) => ({...r, summary: parseJsonValue(r.summary_json, {})})));
+  }
+  if (ctx.request.method === 'POST' && !id) {
+    const body = await parseJson(ctx.request);
+    const type = String(body?.type || '');
+    const departmentId = String(body?.departmentId || '');
+    const semesterId = String(body?.semesterId || '');
+    if (!['students','schedule'].includes(type)) return error('IMPORT_TYPE_INVALID','نوع الاستيراد غير مدعوم.',400,ctx.requestId,ctx.cors);
+    if (!departmentId || !semesterId) return error('IMPORT_SCOPE_REQUIRED','اختر القسم والفصل الدراسي قبل بدء المسح.',400,ctx.requestId,ctx.cors);
+    const [department, semester] = await Promise.all([
+      queryOne(ctx.env,'SELECT id FROM departments WHERE id=? AND active=1',departmentId),
+      queryOne(ctx.env,'SELECT id FROM semesters WHERE id=? AND active=1',semesterId),
+    ]);
+    if (!department || !semester) return error('IMPORT_SCOPE_INVALID','القسم أو الفصل الدراسي غير موجود أو غير نشط. اخترهما مجددًا.',400,ctx.requestId,ctx.cors);
+    const now = Date.now(); const expiresAt = new Date(now + 60 * 60 * 1000).toISOString();
+    const operationId = crypto.randomUUID();
+    const initialRows = Array.isArray(body?.records) ? body.records : [];
+    if (initialRows.length > 2000) return error('IMPORT_TOO_MANY_ROWS','تحتوي العملية على عدد كبير جدًا من السجلات. قسّم الملف ثم أعد المحاولة.',413,ctx.requestId,ctx.cors);
+    await ctx.env.DB.prepare(`INSERT INTO import_operations (id,import_type,department_id,semester_id,status,created_by,expires_at,reviewed_json,summary_json) VALUES (?,?,?,?,'review',?,?,?,?)`)
+      .bind(operationId,type,departmentId,semesterId,actorId,expiresAt,JSON.stringify(initialRows),JSON.stringify({detected:initialRows.length})).run();
+    await writeAudit(ctx,actorId,'import_started','import_operation',operationId,{type,departmentId,semesterId,rowCount:initialRows.length});
+    return ok(ctx,{id:operationId,type,departmentId,semesterId,status:'review',expiresAt,records:initialRows},null,201);
+  }
+  if (!id) return error('IMPORT_ID_REQUIRED','معرّف عملية الاستيراد مطلوب.',400,ctx.requestId,ctx.cors);
+  const operation = await queryOne(ctx.env,'SELECT * FROM import_operations WHERE id=?',id);
+  if (!operation) return error('IMPORT_NOT_FOUND','عملية الاستيراد غير موجودة أو انتهت صلاحيتها.',404,ctx.requestId,ctx.cors);
+  if (Date.parse(operation.expires_at) <= Date.now() && ['review','expired'].includes(operation.status)) {
+    await ctx.env.DB.prepare("UPDATE import_operations SET status='expired', reviewed_json='[]',summary_json='{}' WHERE id=? AND status IN ('review','expired')").bind(id).run();
+    return error('IMPORT_EXPIRED','انتهت مهلة عملية الاستيراد (ساعة واحدة). ارجع إلى صفحة الطلاب أو الجداول وابدأ عملية جديدة.',410,ctx.requestId,ctx.cors);
+  }
+  if (ctx.request.method === 'DELETE' && !action) {
+    if (operation.status !== 'review' || (operation.created_by !== actorId && !isSuper)) return error('IMPORT_CANCEL_NOT_ALLOWED','لا يمكن إلغاء هذه العملية من الحساب الحالي أو بعد اعتمادها.',403,ctx.requestId,ctx.cors);
+    await writeAudit(ctx,actorId,'import_cancelled','import_operation',id,{type:operation.import_type});
+    await ctx.env.DB.prepare('DELETE FROM import_operations WHERE id=? AND status=\'review\'').bind(id).run();
+    return ok(ctx,{id,status:'cancelled'});
+  }
+  if (ctx.request.method === 'PATCH' && action === 'records') {
+    if (!isSuper) return error('FORBIDDEN','تعديل نسخة الاستيراد المعتمدة متاح لمدير النظام فقط.',403,ctx.requestId,ctx.cors);
+    if (operation.status !== 'committed') return error('IMPORT_NOT_EDITABLE','يمكن تعديل نسخة العملية بعد اعتمادها فقط.',409,ctx.requestId,ctx.cors);
+    const body=await parseJson(ctx.request);const rows=Array.isArray(body?.records)?body.records:null;
+    if(!rows||rows.length>2000)return error('IMPORT_RECORDS_INVALID','قائمة السجلات المعدلة غير صالحة.',400,ctx.requestId,ctx.cors);
+    const items=await queryAll(ctx.env,'SELECT * FROM import_operation_items WHERE operation_id=? ORDER BY rowid',id);
+    if(rows.length!==items.length)return error('IMPORT_RECORD_COUNT_MISMATCH','لا يمكن إضافة أو حذف سجلات من مراجعة ما بعد الاعتماد. استخدم التراجع عن العملية إذا أردت إلغاءها بالكامل.',409,ctx.requestId,ctx.cors);
+    const statements=[];const updatedRows=[];const pendingSchedules=[];
+    for(let i=0;i<items.length;i++){
+      const item=items[i], row=rows[i]||{}, after=parseJsonValue(item.after_json,{});
+      const table=item.entity_type;const current=await queryOne(ctx.env,`SELECT * FROM ${table} WHERE id=?`,item.entity_id);
+      if(!current||['students','schedules'].includes(table)===false)return error('IMPORT_EDIT_CONFLICT','تعذر تعديل العملية لأن أحد السجلات لم يعد موجودًا.',409,ctx.requestId,ctx.cors);
+      const keys=table==='students'?['student_number','full_name','email','department_id','current_semester_id','active']:['semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer','active'];
+      if(keys.some((key)=>String(current[key]??'')!==String(after[key]??'')))return error('IMPORT_EDIT_CONFLICT','تغير أحد السجلات بعد الاستيراد. أعد تحميل سجل العملية قبل تعديلها.',409,ctx.requestId,ctx.cors);
+      if(table==='students'){
+        const number=normalizeStudentNumber(row.studentNumber??row.student_number??'');const name=String(row.fullName??row.full_name??'').trim().replace(/\s+/g,' ');const email=String(row.email??'').trim()||null;
+        if(!number||!name||!/^[0-9]+(?:-[0-9]+)?$/.test(number))return error('STUDENT_FIELDS_REQUIRED',`بيانات الطالب رقم ${i+1} غير مكتملة أو غير صالحة.`,400,ctx.requestId,ctx.cors);
+        if(email&&!isValidEmail(email))return error('EMAIL_INVALID',`البريد الإلكتروني للطالب رقم ${i+1} غير صالح.`,400,ctx.requestId,ctx.cors);
+        const duplicateNumber=await queryOne(ctx.env,'SELECT id FROM students WHERE student_number=? AND id<>?',number,item.entity_id);
+        if(duplicateNumber)return error('STUDENT_NUMBER_DUPLICATE',`الرقم الجامعي ${number} مستخدم لدى طالب آخر.`,409,ctx.requestId,ctx.cors);
+        if(email){const duplicateEmail=await queryOne(ctx.env,'SELECT id FROM students WHERE lower(email)=lower(?) AND id<>?',email,item.entity_id);if(duplicateEmail)return error('EMAIL_ALREADY_IN_USE','البريد الإلكتروني مستخدم لدى طالب آخر.',409,ctx.requestId,ctx.cors);}
+        const scoped=await queryAll(ctx.env,'SELECT id,full_name FROM students WHERE department_id=? AND current_semester_id=? AND id<>?',operation.department_id,operation.semester_id,item.entity_id);
+        if(scoped.some((student)=>normalizeStudentName(student.full_name)===normalizeStudentName(name)))return error('STUDENT_NAME_DUPLICATE',`يوجد طالب بالاسم نفسه في القسم والفصل المحددين: ${name}.`,409,ctx.requestId,ctx.cors);
+        const next={...after,student_number:number,full_name:name,email};
+        statements.push(ctx.env.DB.prepare('UPDATE students SET student_number=?,full_name=?,email=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(number,name,email,item.entity_id));
+        statements.push(ctx.env.DB.prepare('UPDATE import_operation_items SET after_json=? WHERE id=?').bind(JSON.stringify(next),item.id));
+        updatedRows.push({...row,studentNumber:number,fullName:name,email:email||''});
+      }else{
+        const subjectId=String(row.subjectId??row.subject_id??'');const day=Number(row.dayOfWeek??row.day_of_week);const start=normalizeTime(row.startTime??row.start_time);const end=normalizeTime(row.endTime??row.end_time);
+        if(!subjectId||!Number.isInteger(day)||day<0||day>6||!start||!end||start>=end)return error('SCHEDULE_FIELDS_INVALID',`بيانات الحصة رقم ${i+1} غير مكتملة أو غير صالحة.`,400,ctx.requestId,ctx.cors);
+        const subject=await queryOne(ctx.env,'SELECT id,department_id,semester_id,active FROM subjects WHERE id=?',subjectId);
+        if(!subject||Number(subject.active)!==1||subject.department_id!==operation.department_id||subject.semester_id!==operation.semester_id)return error('SCHEDULE_SUBJECT_MISMATCH',`المادة في الحصة رقم ${i+1} لا تنتمي إلى النطاق المحدد.`,400,ctx.requestId,ctx.cors);
+        const conflict=await queryOne(ctx.env,`SELECT id,start_time,end_time FROM schedules WHERE active=1 AND department_id=? AND semester_id=? AND day_of_week=? AND start_time < ? AND end_time > ? AND id<>? LIMIT 1`,operation.department_id,operation.semester_id,day,end,start,item.entity_id);
+        const pending=pendingSchedules.find((slot)=>slot.day===day&&slot.start<end&&slot.end>start);
+        if(conflict||pending)return error('SCHEDULE_TIME_CONFLICT',`تتداخل الحصة رقم ${i+1} مع حصة أخرى في اليوم نفسه.`,409,ctx.requestId,ctx.cors);
+        pendingSchedules.push({day,start,end});
+        const room=String(row.room??'').trim()||null;const lecturer=String(row.lecturer??'').trim()||null;
+        const next={...after,subject_id:subjectId,day_of_week:day,start_time:start,end_time:end,room,lecturer};
+        statements.push(ctx.env.DB.prepare('UPDATE schedules SET subject_id=?,day_of_week=?,start_time=?,end_time=?,room=?,lecturer=?,updated_at=CURRENT_TIMESTAMP,updated_by=? WHERE id=?').bind(subjectId,day,start,end,room,lecturer,actorId,item.entity_id));
+        statements.push(ctx.env.DB.prepare('UPDATE import_operation_items SET after_json=? WHERE id=?').bind(JSON.stringify(next),item.id));
+        updatedRows.push({...row,subjectId,dayOfWeek:day,startTime:start,endTime:end,room:room||'',lecturer:lecturer||''});
+      }
+    }
+    statements.push(ctx.env.DB.prepare('UPDATE import_operations SET reviewed_json=?,summary_json=? WHERE id=? AND status=\'committed\'').bind(JSON.stringify(updatedRows),JSON.stringify({editedAt:new Date().toISOString(),editedBy:actorId,reviewed:updatedRows.length}),id));
+    statements.push(ctx.env.DB.prepare('INSERT INTO audit_logs (id,actor_type,actor_id,action,resource_type,resource_id,metadata_json) VALUES (?,?,?,?,?,?,?)').bind(crypto.randomUUID(),'staff',actorId,'import_review_updated','import_operation',id,JSON.stringify({recordCount:updatedRows.length})));
+    await ctx.env.DB.batch(statements);
+    return ok(ctx,{id,status:'committed',updated:updatedRows.length,reviewed:updatedRows});
+  }
+  if (ctx.request.method === 'GET' && !action) {
+    if (!isSuper) return error('FORBIDDEN','مراجعة عمليات الاستيراد السابقة متاحة لمدير النظام فقط.',403,ctx.requestId,ctx.cors);
+    const items = await queryAll(ctx.env,'SELECT * FROM import_operation_items WHERE operation_id=? ORDER BY rowid',id);
+    return ok(ctx,{...operation,reviewed:parseJsonValue(operation.reviewed_json,[]),summary:parseJsonValue(operation.summary_json,{}),items:items.map((item)=>({...item,before:parseJsonValue(item.before_json,null),after:parseJsonValue(item.after_json,{})}))});
+  }
+  if (ctx.request.method === 'PATCH' && !action) {
+    if (operation.status !== 'review') return error('IMPORT_NOT_REVIEWABLE','لم تعد هذه العملية قابلة للتعديل.',409,ctx.requestId,ctx.cors);
+    const body = await parseJson(ctx.request); const rows = body?.records;
+    if (!Array.isArray(rows) || rows.length > 2000) return error('IMPORT_RECORDS_INVALID','بيانات المراجعة غير صالحة أو تتجاوز الحد المسموح.',400,ctx.requestId,ctx.cors);
+    await ctx.env.DB.prepare('UPDATE import_operations SET reviewed_json=?,summary_json=? WHERE id=? AND status=\'review\'')
+      .bind(JSON.stringify(rows),JSON.stringify({reviewed:rows.length}),id).run();
+    return ok(ctx,{id,records:rows,expiresAt:operation.expires_at});
+  }
+  if (ctx.request.method === 'POST' && action === 'validate') {
+    if (operation.status !== 'review') return error('IMPORT_NOT_REVIEWABLE','هذه العملية ليست في حالة المراجعة.',409,ctx.requestId,ctx.cors);
+    const body = await parseJson(ctx.request); const rows = Array.isArray(body?.records) ? body.records : parseJsonValue(operation.reviewed_json,[]);
+    const validation = await validateImportRows(ctx, operation, rows);
+    return ok(ctx, {valid: validation.length === 0, errors: validation});
+  }
+  if (ctx.request.method === 'POST' && action === 'commit') {
+    if (operation.status !== 'review') return error('IMPORT_NOT_REVIEWABLE','هذه العملية ليست في حالة المراجعة.',409,ctx.requestId,ctx.cors);
+    const body = await parseJson(ctx.request); const rows = Array.isArray(body?.records) ? body.records : parseJsonValue(operation.reviewed_json,[]);
+    if (rows.length > 2000) return error('IMPORT_TOO_MANY_ROWS','تجاوزت العملية الحد المسموح من السجلات.',413,ctx.requestId,ctx.cors);
+    const statements = []; const items = []; const skipped = []; const errors = [];
+    if (operation.import_type === 'students') {
+      const seenNumbers = new Set(); const seenNames = new Set();
+      const scopedStudents = await queryAll(ctx.env, 'SELECT id,student_number,full_name,department_id,current_semester_id FROM students WHERE department_id=? AND current_semester_id=?', operation.department_id, operation.semester_id);
+      const scopedNames = new Map(scopedStudents.map((student) => [normalizeStudentName(student.full_name), student]));
+      for (let i=0;i<rows.length;i++) {
+        const row=rows[i]||{}; if (row._remove === true) { skipped.push({index:i,reason:'removed'}); continue; }
+        const number=normalizeStudentNumber(row.studentNumber ?? row.student_number ?? row.number ?? '');
+        const name=String(row.fullName ?? row.full_name ?? row.name ?? '').trim().replace(/\s+/g,' ');
+        if (!number || !name) { errors.push({index:i,code:'STUDENT_FIELDS_REQUIRED',message:'الاسم والرقم الجامعي مطلوبان.'}); continue; }
+        if (!/^[0-9]+(?:-[0-9]+)?$/.test(number)) { errors.push({index:i,code:'STUDENT_NUMBER_INVALID',message:'صيغة الرقم الجامعي غير صالحة.'}); continue; }
+        const normalizedName = normalizeStudentName(name);
+        const byNumber=seenNumbers.has(number) ? {student_number:number,full_name:name} : await queryOne(ctx.env,'SELECT id,student_number,full_name,department_id,current_semester_id FROM students WHERE student_number=?',number);
+        if (byNumber) { errors.push({index:i,code:'STUDENT_NUMBER_DUPLICATE',message:`الرقم الجامعي ${number} موجود مسبقًا أو مكرر داخل الملف؛ لن يتم تحديث الطالب عبر الاستيراد.`,existing:byNumber}); continue; }
+        const byName=scopedNames.get(normalizedName) || (seenNames.has(normalizedName) ? {student_number:'ضمن الملف'} : null);
+        if (byName) { errors.push({index:i,code:'STUDENT_NAME_DUPLICATE',message:`يوجد طالب بالاسم نفسه في القسم والفصل المحددين (${byName.student_number || 'سجل آخر في الملف'}).`,existing:byName}); continue; }
+        const email=String(row.email||'').trim()||null; if(email&&!isValidEmail(email)){errors.push({index:i,code:'EMAIL_INVALID',message:'صيغة البريد الإلكتروني غير صالحة.'});continue;}
+        const entityId=crypto.randomUUID();
+        seenNumbers.add(number); seenNames.add(normalizedName);
+        statements.push(ctx.env.DB.prepare(`INSERT INTO students (id,student_number,full_name,email,department_id,current_semester_id,active) VALUES (?,?,?,?,?,?,1)`).bind(entityId,number,name,email,operation.department_id,operation.semester_id));
+        items.push({id:crypto.randomUUID(),entity_type:'students',entity_id:entityId,action:'insert',before_json:null,after_json:JSON.stringify({id:entityId,student_number:number,full_name:name,email,department_id:operation.department_id,current_semester_id:operation.semester_id,active:1})});
+      }
+    } else {
+      const pendingSchedules = [];
+      for (let i=0;i<rows.length;i++) {
+        const row=rows[i]||{}; if(row._remove===true){skipped.push({index:i,reason:'removed'});continue;}
+        const subjectId=String(row.subjectId??row.subject_id??''); const day=Number(row.dayOfWeek??row.day_of_week); const start=normalizeTime(row.startTime??row.start_time); const end=normalizeTime(row.endTime??row.end_time);
+        if(!subjectId||!Number.isInteger(day)||day<0||day>6||!start||!end||start>=end){errors.push({index:i,code:'SCHEDULE_FIELDS_INVALID',message:'المادة واليوم ووقت البداية والنهاية مطلوبة وصحيحة.'});continue;}
+        const subject=await queryOne(ctx.env,'SELECT id,department_id,semester_id,active,name_ar FROM subjects WHERE id=?',subjectId);
+        if(!subject||Number(subject.active)!==1||subject.department_id!==operation.department_id||subject.semester_id!==operation.semester_id){errors.push({index:i,code:'SCHEDULE_SUBJECT_MISMATCH',message:'المادة لا تنتمي إلى القسم والفصل المحددين.'});continue;}
+        const existingId=String(row.existingId??row.existing_id??''); const existing=existingId?await queryOne(ctx.env,'SELECT * FROM schedules WHERE id=? AND active=1',existingId):null;
+        if(existingId&&!existing){errors.push({index:i,code:'SCHEDULE_TARGET_NOT_FOUND',message:'الحصة المطلوب تحديثها لم تعد موجودة. حدّث المراجعة قبل المتابعة.'});continue;}
+        if(existing&&(existing.department_id!==operation.department_id||existing.semester_id!==operation.semester_id)){errors.push({index:i,code:'SCHEDULE_TARGET_SCOPE_MISMATCH',message:'الحصة المختارة للتحديث خارج القسم والفصل المحددين.'});continue;}
+        const conflict=await queryOne(ctx.env,`SELECT sch.id,sch.start_time,sch.end_time,sub.name_ar AS subject_name FROM schedules sch LEFT JOIN subjects sub ON sub.id=sch.subject_id WHERE sch.active=1 AND sch.department_id=? AND sch.semester_id=? AND sch.day_of_week=? AND sch.start_time < ? AND sch.end_time > ? AND (?='' OR sch.id<>?) LIMIT 1`,operation.department_id,operation.semester_id,day,end,start,existingId,existingId);
+        const pendingConflict=pendingSchedules.find((slot)=>slot.day===day && slot.start<end && slot.end>start);
+        if(conflict || pendingConflict){const match=conflict||pendingConflict;errors.push({index:i,code:'SCHEDULE_TIME_CONFLICT',message:`تعارض زمني مع ${match.subject_name||'حصة أخرى في الملف'} (${match.start_time||match.start}–${match.end_time||match.end}).`,existing:match});continue;}
+        pendingSchedules.push({day,start,end,subject_name:subject.name_ar});
+        const newId=crypto.randomUUID(); const after={id:newId,semester_id:operation.semester_id,department_id:operation.department_id,subject_id:subjectId,day_of_week:day,start_time:start,end_time:end,room:String(row.room||'').trim()||null,lecturer:String(row.lecturer||'').trim()||null,active:1};
+        if(existing){statements.push(ctx.env.DB.prepare('DELETE FROM schedules WHERE id=?').bind(existing.id));}
+        statements.push(ctx.env.DB.prepare(`INSERT INTO schedules (id,semester_id,department_id,subject_id,day_of_week,start_time,end_time,room,lecturer,active,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,1,?,?)`).bind(newId,operation.semester_id,operation.department_id,subjectId,day,start,end,after.room,after.lecturer,actorId,actorId));
+        items.push({id:crypto.randomUUID(),entity_type:'schedules',entity_id:newId,action:existing?'replace':'insert',before_json:existing?JSON.stringify(existing):null,after_json:JSON.stringify(after)});
+      }
+    }
+    if(errors.length) return error('IMPORT_VALIDATION_FAILED','توجد سجلات تحتاج إلى مراجعة. لم يتم حفظ أي سجل؛ صحح الأخطاء أو استبعد السجلات المشار إليها ثم أعد الاعتماد.',409,ctx.requestId,ctx.cors,JSON.stringify(errors.slice(0,30)));
+    if(!statements.length) return error('IMPORT_EMPTY','لا توجد سجلات صالحة للحفظ بعد المراجعة.',400,ctx.requestId,ctx.cors);
+    const now=new Date().toISOString();
+    statements.push(ctx.env.DB.prepare(`UPDATE import_operations SET status='committed',committed_at=?,reviewed_json=?,summary_json=? WHERE id=? AND status='review'`).bind(now,JSON.stringify(rows),JSON.stringify({saved:items.length,skipped:skipped.length}),id));
+    for(const item of items){statements.push(ctx.env.DB.prepare('INSERT INTO import_operation_items (id,operation_id,entity_type,entity_id,action,before_json,after_json) VALUES (?,?,?,?,?,?,?)').bind(item.id,id,item.entity_type,item.entity_id,item.action,item.before_json,item.after_json));}
+    statements.push(ctx.env.DB.prepare('INSERT INTO audit_logs (id,actor_type,actor_id,action,resource_type,resource_id,metadata_json) VALUES (?,?,?,?,?,?,?)').bind(crypto.randomUUID(),'staff',actorId,'import_committed','import_operation',id,JSON.stringify({type:operation.import_type,saved:items.length,skipped:skipped.length})));
+    await ctx.env.DB.batch(statements);
+    return ok(ctx,{id,status:'committed',saved:items.length,skipped:skipped.length,expiresAt:operation.expires_at});
+  }
+  if (ctx.request.method === 'POST' && action === 'rollback') {
+    if(!isSuper) return error('FORBIDDEN','التراجع عن الاستيراد متاح لمدير النظام فقط.',403,ctx.requestId,ctx.cors);
+    if(operation.status!=='committed') return error('IMPORT_NOT_ROLLBACKABLE','يمكن التراجع فقط عن عملية مكتملة لم يسبق التراجع عنها.',409,ctx.requestId,ctx.cors);
+    const items=await queryAll(ctx.env,'SELECT * FROM import_operation_items WHERE operation_id=? ORDER BY rowid DESC',id); const statements=[]; const blocked=[];
+    for(const item of items){
+      const after=parseJsonValue(item.after_json,{}); const current=await queryOne(ctx.env,`SELECT * FROM ${item.entity_type} WHERE id=?`,item.entity_id);
+      if(!current){blocked.push({id:item.entity_id,reason:'missing'});continue;}
+      const expectedKeys=item.entity_type==='students'?['student_number','full_name','email','department_id','current_semester_id','active']:['semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer','active'];
+      const changed=expectedKeys.some((key)=>String(current[key]??'')!==String(after[key]??''));
+      if(changed){blocked.push({id:item.entity_id,reason:'modified_after_import'});continue;}
+      if(item.entity_type==='students' && item.action==='insert') {
+        const dependentTables=['sessions','material_progress','xp_events','student_stats','student_badges','comments','reactions','notification_devices','material_progress_events','learning_events','learning_event_completions','eino_conversations','public_chat_messages','public_chat_reports','password_reset_codes'];
+        let hasDependents=false;
+        for(const tableName of dependentTables){
+          const found=await queryOne(ctx.env,`SELECT 1 AS present FROM ${tableName} WHERE student_id=? LIMIT 1`,item.entity_id).catch(()=>null);
+          if(found){hasDependents=true;break;}
+        }
+        if(hasDependents){blocked.push({id:item.entity_id,reason:'student_has_related_data'});continue;}
+      }
+      if(item.action==='insert') statements.push(ctx.env.DB.prepare(`DELETE FROM ${item.entity_type} WHERE id=?`).bind(item.entity_id));
+      else if(item.action==='replace'&&item.before_json){
+        const before=parseJsonValue(item.before_json,{});
+        statements.push(ctx.env.DB.prepare('DELETE FROM schedules WHERE id=?').bind(item.entity_id));
+        const cols=['id','semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer','active'];
+        statements.push(ctx.env.DB.prepare(`INSERT INTO schedules (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`).bind(...cols.map((c)=>before[c]??null)));
+      }
+      statements.push(ctx.env.DB.prepare('UPDATE import_operation_items SET rolled_back=1 WHERE id=?').bind(item.id));
+    }
+    if(blocked.length) return error('IMPORT_ROLLBACK_BLOCKED','تعذر التراجع الكامل لأن بعض السجلات تغيرت أو ارتبطت ببيانات أخرى. لم يتم تنفيذ التراجع؛ راجع تفاصيل السجلات المتأثرة.',409,ctx.requestId,ctx.cors,JSON.stringify(blocked.slice(0,30)));
+    statements.push(ctx.env.DB.prepare("UPDATE import_operations SET status='rolled_back',rolled_back_at=? WHERE id=? AND status='committed'").bind(new Date().toISOString(),id));
+    statements.push(ctx.env.DB.prepare('INSERT INTO audit_logs (id,actor_type,actor_id,action,resource_type,resource_id,metadata_json) VALUES (?,?,?,?,?,?,?)').bind(crypto.randomUUID(),'staff',actorId,'import_rolled_back','import_operation',id,JSON.stringify({items:items.length})));
+    await ctx.env.DB.batch(statements);
+    return ok(ctx,{id,status:'rolled_back',rolledBack:items.length});
+  }
+  return error('IMPORT_ACTION_NOT_FOUND','الإجراء المطلوب لعملية الاستيراد غير معروف.',404,ctx.requestId,ctx.cors);
+}
+
+async function validateImportRows(ctx, operation, rows) {
+  const errors=[];
+  if(!Array.isArray(rows)||rows.length>2000) return [{index:-1,code:'IMPORT_RECORDS_INVALID',message:'قائمة السجلات غير صالحة أو تتجاوز الحد المسموح.'}];
+  if(operation.import_type==='students'){
+    const numbers=new Set(), names=new Set();
+    const [allNumbers, scoped] = await Promise.all([
+      queryAll(ctx.env,'SELECT student_number FROM students'),
+      queryAll(ctx.env,'SELECT student_number,full_name FROM students WHERE department_id=? AND current_semester_id=?',operation.department_id,operation.semester_id),
+    ]);
+    const existingNumbers=new Set(allNumbers.map((r)=>normalizeStudentNumber(r.student_number)));
+    const existingNames=new Map(scoped.map((r)=>[normalizeStudentName(r.full_name),r.student_number]));
+    rows.forEach((row,index)=>{
+      if(row?._remove===true)return;
+      const number=normalizeStudentNumber(row?.studentNumber??row?.student_number??row?.number??'');
+      const name=String(row?.fullName??row?.full_name??row?.name??'').trim().replace(/\s+/g,' ');
+      if(!number||!name){errors.push({index,code:'STUDENT_FIELDS_REQUIRED',message:'الاسم والرقم الجامعي مطلوبان.'});return;}
+      if(!/^[0-9]+(?:-[0-9]+)?$/.test(number)){errors.push({index,code:'STUDENT_NUMBER_INVALID',message:'صيغة الرقم الجامعي غير صالحة.'});return;}
+      if(existingNumbers.has(number)||numbers.has(number)){errors.push({index,code:'STUDENT_NUMBER_DUPLICATE',message:`الرقم الجامعي ${number} موجود مسبقًا أو مكرر داخل الملف.`});return;}
+      const normalizedName=normalizeStudentName(name);
+      if(existingNames.has(normalizedName)||names.has(normalizedName)){errors.push({index,code:'STUDENT_NAME_DUPLICATE',message:`يوجد اسم مطابق في القسم والفصل المحددين (${existingNames.get(normalizedName)||'ضمن الملف'}).`});return;}
+      const email=String(row?.email||'').trim(); if(email&&!isValidEmail(email)){errors.push({index,code:'EMAIL_INVALID',message:'صيغة البريد الإلكتروني غير صالحة.'});return;}
+      numbers.add(number);names.add(normalizedName);
+    });
+  } else {
+    const pending=[];
+    for(let index=0;index<rows.length;index++){
+      const row=rows[index]||{}; if(row._remove===true)continue;
+      const subjectId=String(row.subjectId??row.subject_id??'');const day=Number(row.dayOfWeek??row.day_of_week);const start=normalizeTime(row.startTime??row.start_time);const end=normalizeTime(row.endTime??row.end_time);
+      if(!subjectId||!Number.isInteger(day)||day<0||day>6||!start||!end||start>=end){errors.push({index,code:'SCHEDULE_FIELDS_INVALID',message:'المادة واليوم ووقت البداية والنهاية مطلوبة وصحيحة.'});continue;}
+      const subject=await queryOne(ctx.env,'SELECT id,department_id,semester_id,active,name_ar FROM subjects WHERE id=?',subjectId);
+      if(!subject||Number(subject.active)!==1||subject.department_id!==operation.department_id||subject.semester_id!==operation.semester_id){errors.push({index,code:'SCHEDULE_SUBJECT_MISMATCH',message:'المادة لا تنتمي إلى القسم والفصل المحددين.'});continue;}
+      const existingId=String(row.existingId??row.existing_id??'');const existing=existingId?await queryOne(ctx.env,'SELECT id,department_id,semester_id FROM schedules WHERE id=? AND active=1',existingId):null;
+      if(existingId&&(!existing||existing.department_id!==operation.department_id||existing.semester_id!==operation.semester_id)){errors.push({index,code:'SCHEDULE_TARGET_NOT_FOUND',message:'الحصة المختارة للتحديث لم تعد موجودة ضمن النطاق المحدد.'});continue;}
+      const conflict=await queryOne(ctx.env,`SELECT sch.id,sch.start_time,sch.end_time,sub.name_ar AS subject_name FROM schedules sch LEFT JOIN subjects sub ON sub.id=sch.subject_id WHERE sch.active=1 AND sch.department_id=? AND sch.semester_id=? AND sch.day_of_week=? AND sch.start_time < ? AND sch.end_time > ? AND (?='' OR sch.id<>?) LIMIT 1`,operation.department_id,operation.semester_id,day,end,start,existingId,existingId);
+      const pendingConflict=pending.find((slot)=>slot.day===day&&slot.start<end&&slot.end>start);
+      if(conflict||pendingConflict){const match=conflict||pendingConflict;errors.push({index,code:'SCHEDULE_TIME_CONFLICT',message:`تعارض زمني مع ${match.subject_name||'حصة أخرى في الملف'} (${match.start_time||match.start}–${match.end_time||match.end}).`});continue;}
+      pending.push({day,start,end,subject_name:subject.name_ar});
+    }
+  }
+  return errors;
+}
+
+async function adminImportOcr(ctx, actorId) {
+  const form = await ctx.request.formData().catch(() => null);
+  const file = form?.get('file');
+  if (!(file instanceof File) || !file.size) return error('IMPORT_FILE_REQUIRED','اختر ملفًا أو صورة للمسح أولًا.',400,ctx.requestId,ctx.cors);
+  if (file.size > 100 * 1024 * 1024) return error('IMPORT_FILE_TOO_LARGE','حجم الملف يتجاوز 100 ميغابايت. اختر ملفًا أصغر ثم أعد المحاولة.',413,ctx.requestId,ctx.cors);
+  const type = String(file.type || '').toLowerCase();
+  const name = String(file.name || '').toLowerCase();
+  const isImage = ['image/jpeg','image/png','image/webp','image/tiff'].includes(type);
+  const isPdf = type === 'application/pdf' || name.endsWith('.pdf');
+  if (!isImage && !isPdf) return error('IMPORT_FILE_TYPE_UNSUPPORTED','هذا المسار مخصص للصور وملفات PDF فقط. استخدم CSV أو Excel لملفات الجداول.',415,ctx.requestId,ctx.cors);
+  if (!ctx.env.OCR_SPACE_API_KEY) return error('IMPORT_OCR_NOT_CONFIGURED','خدمة OCR.space غير مهيأة على الخادم. أضف OCR_SPACE_API_KEY إلى أسرار Cloudflare Worker ثم أعد المحاولة.',503,ctx.requestId,ctx.cors);
+  // The client compresses/rasterizes files before upload. Enforce the free-tier
+  // provider limit again here; never spend quota on a file that cannot be accepted.
+  const providerMaxBytes = 1024 * 1024;
+  if (file.size > providerMaxBytes) return error('IMPORT_FILE_OVER_PROVIDER_LIMIT','حجم الملف بعد الضغط ما زال أكبر من 1 ميغابايت. قلّل دقة المسح أو أرسل صورة أوضح وأصغر.',413,ctx.requestId,ctx.cors);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 90000);
+  try {
+    const result = await ocrSpaceFromFile({apiKey:ctx.env.OCR_SPACE_API_KEY,file,signal:controller.signal});
+    const pages = Number.isInteger(result?.pageCount) ? result.pageCount : 1;
+    if (pages > 1) return error('IMPORT_MULTIPAGE_FILE','يحتوي المستند على أكثر من صفحة. أدرج صفحة واحدة فقط ثم أعد المسح؛ يمكن أن تحتوي الصفحة الواحدة على أسطر كثيرة.',400,ctx.requestId,ctx.cors);
+    const text = String(result?.text || '').trim();
+    if (!text) return error('IMPORT_OCR_EMPTY','لم يتمكن محرك OCR من قراءة نص واضح. حسّن وضوح الصورة أو جرّب قالبًا مدعومًا آخر.',422,ctx.requestId,ctx.cors);
+    await writeAudit(ctx,actorId,'import_ocr_completed','import_source',null,{filename:String(file.name||'').slice(0,120),sizeBytes:file.size,contentType:type,provider:'ocr.space',pageCount:pages});
+    return ok(ctx,{text,pageCount:pages,provider:'ocr.space',uploadedBytes:file.size});
+  } catch (e) {
+    const status = Number(e?.status || 0);
+    console.warn('Admin import OCR failed',String(e?.message||e).slice(0,180));
+    if (status === 429) return error('IMPORT_OCR_QUOTA_EXCEEDED','وصلت خدمة OCR إلى حد الاستخدام الحالي أو تجاوزت المعدل المسموح. لم يتم الحفظ؛ جرّب لاحقًا أو أكمل الإدخال يدويًا.',429,ctx.requestId,ctx.cors);
+    return error('IMPORT_OCR_FAILED','تعذر استخراج النص من خدمة OCR. تحقق من المفتاح وحجم الملف ووضوحه ثم أعد المحاولة أو أدخل البيانات يدويًا.',502,ctx.requestId,ctx.cors);
+  } finally { clearTimeout(timeout); }
+}
+
+function normalizeStudentNumber(value) {
+  return normalizeDigits(String(value ?? '')).replace(/\s+/g,'').trim();
+}
+function normalizeStudentName(value) {
+  return String(value ?? '').normalize('NFC').trim().replace(/\s+/g,' ').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي');
+}
+function normalizeDigits(value) {
+  const arabic='٠١٢٣٤٥٦٧٨٩'; const persian='۰۱۲۳۴۵۶۷۸۹';
+  return String(value).replace(/[٠-٩]/g,(c)=>String(arabic.indexOf(c))).replace(/[۰-۹]/g,(c)=>String(persian.indexOf(c)));
+}
+function normalizeTime(value) {
+  const raw=normalizeDigits(String(value??'')).trim();
+  const match=raw.match(/^(\d{1,2})(?::(\d{1,2}))?$/); if(!match)return null;
+  const hour=Number(match[1]); const minute=Number(match[2]??0);
+  if(hour<0||hour>23||minute<0||minute>59)return null;
+  return `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
 }
 
 export async function adminCrud(ctx, table, id, actorId) {

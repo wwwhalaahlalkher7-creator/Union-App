@@ -26,13 +26,14 @@
 |---|---|
 | `FREE_AI_BASE_URL` | عنوان Free.ai API الاحتياطي |
 | `FREE_AI_API_KEY` | مفتاح Free.ai الاحتياطي |
-| `MISTRAL_API_KEY` | مفتاح Mistral |
+| `MISTRAL_API_KEY` | مفتاح Mistral لمسارات Eino الأخرى؛ لا يحتاجه ماسح الاستيراد |
+| `OCR_SPACE_API_KEY` | مفتاح OCR.space لمسح ملفات الطلاب والجداول؛ يُحفظ كسرّ في Worker |
 | `GROQ_API_KEY` | مفتاح Groq |
 | `EINO_MISTRAL_TEXT_MODEL` | نموذج النص الأساسي: `mistral-small-2603` |
 | `EINO_GROQ_TEXT_MODEL` | نموذج النص الاحتياطي: `openai/gpt-oss-120b` |
 | `EINO_MISTRAL_VISION_MODEL` | نموذج الرؤية: `mistral-small-2603` |
 | `EINO_GROQ_VISION_MODEL` | نموذج الرؤية الاحتياطي: `qwen/qwen3.8-27b` |
-| `EINO_MISTRAL_OCR_MODEL` | OCR الأساسي: `mistral-ocr-latest` |
+| `EINO_MISTRAL_OCR_MODEL` | OCR داخل مسارات Eino الأخرى فقط؛ لا يستخدمه ماسح الاستيراد |
 | `EINO_GROQ_STT_MODEL` | STT الأساسي: `whisper-large-v3-turbo` |
 | `EINO_GROQ_TTS_MODEL` | TTS العربي الأساسي: `canopylabs/orpheus-arabic-saudi` |
 | `EINO_EMBEDDING_BASE_URL` | مزود embeddings الاختياري بصيغة OpenAI-compatible |
@@ -77,6 +78,7 @@ Worker:
 
 - Cloudflare: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 - Eino providers: `MISTRAL_API_KEY`, `GROQ_API_KEY`, و`FREE_AI_API_KEY` عند تفعيل fallback الأخير.
+- OCR للاستيراد: `OCR_SPACE_API_KEY` يُقرأ من GitHub Actions Secret ثم يُزامَن إلى Cloudflare Worker باستخدام `wrangler secret put`؛ لا يُضمّن في التطبيق أو ملفات الإعداد العامة.
 - Eino embeddings: `EINO_EMBEDDING_BASE_URL`, `EINO_EMBEDDING_API_KEY`, `EINO_EMBEDDING_MODEL` عند تفعيل الذاكرة الدلالية.
 - Android signing: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_STORE_PASSWORD`.
 - InfinityFree: `INFINITYFREE_FTP_USERNAME`, `INFINITYFREE_FTP_PASSWORD`.
@@ -89,3 +91,7 @@ Worker:
 2. لا ترسل القيمة في issue أو chat أو commit.
 3. إذا تغير اسم secret، حدّث كل المستهلكين في نفس التغيير.
 4. بعد التغيير شغّل workflow أو فحص health المناسب.
+
+
+### استيراد OCR
+| `OCR_SPACE_API_KEY` | مفتاح OCR.space لمسح الصور وPDF؛ يُحفظ سرًا في Cloudflare Worker ولا يوضع في التطبيق. |

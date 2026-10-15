@@ -61,3 +61,43 @@ export async function mistralTts({ baseUrl, apiKey, model = MISTRAL_DEFAULTS.tts
   let binary = ''; for (const byte of new Uint8Array(blob)) binary += String.fromCharCode(byte);
   return { audioBase64: btoa(binary), contentType: 'audio/mpeg', model, raw: null };
 }
+
+/**
+ * OCR a multipart File without converting a potentially large upload to a
+ * base64 data URL in Worker memory. The provider-side temporary file is deleted
+ * in a finally block after OCR, including failed OCR requests.
+ */
+export async function mistralOcrFromFile({ baseUrl, apiKey, model = MISTRAL_DEFAULTS.ocr, file, signal }) {
+  if (!apiKey) throw new Error('MISTRAL_API_KEY is empty');
+  if (!(file instanceof File) || !file.size) throw new Error('empty OCR file');
+  const base = String(baseUrl || 'https://api.mistral.ai').replace(/\/+$/, '');
+  const headers = { authorization: `Bearer ${apiKey}` };
+  const uploadForm = new FormData();
+  uploadForm.append('purpose', 'ocr');
+  uploadForm.append('file', file, file.name || 'scanner-upload');
+  const uploaded = await fetch(`${base}/v1/files`, { method: 'POST', headers, body: uploadForm, signal });
+  if (!uploaded.ok) throw providerError(uploaded.status, await uploaded.text().catch(() => ''));
+  const uploadData = await uploaded.json();
+  const fileId = String(uploadData?.id || '');
+  if (!fileId) throw providerError(502, 'OCR provider did not return a temporary file ID');
+  try {
+    const response = await fetch(`${base}/v1/ocr`, {
+      method: 'POST',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ model, document: { type: 'file', file_id: fileId } }),
+      signal,
+    });
+    if (!response.ok) throw providerError(response.status, await response.text().catch(() => ''));
+    const data = await response.json();
+    const text = Array.isArray(data?.pages)
+      ? data.pages.map((page) => page?.markdown || page?.text || '').filter(Boolean).join('\n\n')
+      : String(data?.document_annotation || data?.text || '').trim();
+    if (!text.trim()) throw providerError(502, 'empty OCR result');
+    return { text: text.trim(), model: data?.model || model, usage: data?.usage_info || null, raw: data };
+  } finally {
+    // Best-effort deletion is deliberately independent of the request abort signal.
+    const deleted = await fetch(`${base}/v1/files/${encodeURIComponent(fileId)}`, { method: 'DELETE', headers })
+      .catch(() => null);
+    if (deleted && !deleted.ok) console.warn('Temporary OCR provider file deletion failed', deleted.status);
+  }
+}

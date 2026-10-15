@@ -110,6 +110,11 @@ export default {
   async scheduled(event, env, ctx) {
     // The only remaining Cron is the low-frequency retention cleanup and a
     // daily recovery signal for alarms that predate deployment/config changes.
+    if (event.cron === '0 * * * *') {
+      ctx.waitUntil(env.DB.prepare("UPDATE import_operations SET status='expired',reviewed_json='[]',summary_json='{}' WHERE status='review' AND expires_at<=?")
+        .bind(new Date().toISOString()).run().catch((e) => console.error('Expired scanner import cleanup failed', e)));
+      return;
+    }
     if (event.cron !== '0 3 * * *') return;
     ctx.waitUntil(Promise.all([
       env.DB.prepare("DELETE FROM usage_events WHERE created_at < datetime('now','-90 days')").run(),
