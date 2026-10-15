@@ -533,32 +533,24 @@ async function adminImportOcr(ctx, actorId) {
     return ok(ctx,{text,pageCount:pages,provider:'ocr.space',uploadedBytes:file.size});
   } catch (e) {
     const status = Number(e?.status || 0);
-    const detail = String(e?.providerMessage || e?.message || '').slice(0, 240);
-    const normalized = detail.toLowerCase();
-    // Keep the provider's raw response in server logs only; return a specific,
-    // actionable error code to the client without exposing secrets or internals.
-    console.warn('Admin import OCR failed', JSON.stringify({
-      status,
-      name: String(e?.name || 'Error').slice(0, 40),
-      providerMessage: detail,
-      providerExitCode: Number(e?.providerExitCode || 0),
-    }));
-    if (status === 429 || /quota|rate.?limit|too many requests|usage limit/.test(normalized)) {
-      return error('IMPORT_OCR_QUOTA_EXCEEDED','وصلت خدمة قراءة النص إلى حد الاستخدام الحالي. لم تُحفظ بيانات؛ جرّب لاحقًا أو أدخلها يدويًا.',429,ctx.requestId,ctx.cors);
-    }
-    if (/invalid.*(api.?key|key)|api.?key.*(invalid|missing)|unauthori[sz]ed|access denied/.test(normalized)) {
-      return error('IMPORT_OCR_AUTH_FAILED','تعذّر الاتصال بخدمة قراءة النص بسبب إعدادات مفتاح الخدمة. أبلغ مسؤول النظام.',502,ctx.requestId,ctx.cors);
-    }
-    if (/file.*(too large|size limit)|maximum.*file|file size/.test(normalized)) {
-      return error('IMPORT_OCR_PROVIDER_SIZE_LIMIT','خدمة قراءة النص رفضت حجم الملف. جرّب صورة أصغر مع الحفاظ على وضوح الجدول.',413,ctx.requestId,ctx.cors);
-    }
-    if (e?.name === 'AbortError') {
-      return error('IMPORT_OCR_TIMEOUT','استغرق استخراج النص وقتًا أطول من المتوقع. جرّب مرة أخرى أو أدخل البيانات يدويًا.',504,ctx.requestId,ctx.cors);
-    }
-    if (status >= 500 || status === 0) {
-      return error('IMPORT_OCR_UNAVAILABLE','خدمة قراءة النص غير متاحة مؤقتًا. جرّب مرة أخرى بعد قليل.',502,ctx.requestId,ctx.cors);
-    }
-    return error('IMPORT_OCR_PROVIDER_REJECTED','رفضت خدمة قراءة النص الملف. جرّب صورة JPG واضحة أو أدخل البيانات يدويًا.',502,ctx.requestId,ctx.cors);
+    // Keep the upstream reason in Worker logs; never log the API key or file contents.
+    console.error('Admin import OCR failed', {
+      requestId: ctx.requestId,
+      errorCode: String(e?.code || '').slice(0, 80) || null,
+      upstreamStatus: Number.isFinite(status) && status > 0 ? status : null,
+      providerHttpStatus: Number(e?.providerHttpStatus || 0) || null,
+      providerCode: String(e?.providerCode || '').slice(0, 80) || null,
+      providerMessage: String(e?.providerMessage || e?.message || e || 'Unknown OCR error').slice(0, 240),
+      fileSizeBytes: file.size,
+      contentType: type || null,
+      timedOut: Boolean(controller.signal.aborted),
+    });
+    if (controller.signal.aborted || e?.code === 'OCR_UPSTREAM_TIMEOUT') return error('IMPORT_OCR_TIMEOUT','تأخرت خدمة قراءة النص. أعد المحاولة بعد قليل أو أدخل البيانات يدويًا.',504,ctx.requestId,ctx.cors);
+    if (status === 429) return error('IMPORT_OCR_QUOTA_EXCEEDED','وصلت خدمة قراءة النص إلى حد الاستخدام الحالي. جرّب لاحقًا أو أدخل البيانات يدويًا.',429,ctx.requestId,ctx.cors);
+    if (status === 401 || status === 403 || e?.code === 'OCR_NOT_CONFIGURED') return error('IMPORT_OCR_CONFIGURATION','تعذر الاتصال بخدمة قراءة النص بسبب إعدادات الخدمة. يرجى إبلاغ مسؤول النظام.',503,ctx.requestId,ctx.cors);
+    if (status === 413) return error('IMPORT_FILE_OVER_PROVIDER_LIMIT','الملف أكبر من الحد الذي تقبله خدمة قراءة النص. اختر صورة أصغر.',413,ctx.requestId,ctx.cors);
+    if (status === 422) return error('IMPORT_OCR_UNREADABLE','تعذر على محرك قراءة النص معالجة هذه الصورة. جرّب صورة أوضح أو أدخل البيانات يدويًا.',422,ctx.requestId,ctx.cors);
+    return error('IMPORT_OCR_FAILED','تعذر الاتصال بخدمة قراءة النص. أعد المحاولة لاحقًا أو أدخل البيانات يدويًا.',502,ctx.requestId,ctx.cors);
   } finally { clearTimeout(timeout); }
 }
 
