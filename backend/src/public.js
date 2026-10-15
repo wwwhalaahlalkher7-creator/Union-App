@@ -57,6 +57,17 @@ export async function publicStudentProfile(ctx, studentId) {
   return ok(ctx, { studentId: row.studentId, fullName: row.fullName, departmentName: row.departmentName || null, semesterName: row.semesterName || null });
 }
 
+function eventStatusLabel(startValue, endValue, now = Date.now()) {
+  const start = startValue ? new Date(startValue).getTime() : NaN;
+  const end = endValue ? new Date(endValue).getTime() : NaN;
+  const hasStart = Number.isFinite(start);
+  const hasEnd = Number.isFinite(end);
+  if (!hasStart && !hasEnd) return 'منشور';
+  if (hasStart && now < start) return 'قريبًا';
+  if (hasEnd && now >= end) return 'انتهى';
+  return 'جارٍ الآن';
+}
+
 export async function publicContentDetail(ctx) {
   const parts = ctx.path.split('/');
   const route = parts[2];
@@ -102,7 +113,7 @@ export async function publicContentDetail(ctx) {
   if (!row) return error('CONTENT_NOT_FOUND','المحتوى غير موجود أو غير متاح حاليًا.',404,ctx.requestId,ctx.cors);
   if (table === 'events') {
     const item = serializePublicContent(table, row);
-    item.statusLabel = row.event_at && new Date(row.event_at).getTime() > Date.now() ? 'قريباً' : 'منشور';
+    item.statusLabel = eventStatusLabel(row.event_at, row.end_at);
     return ok(ctx, item, {source:'d1'});
   }
   if (table === 'achievements') {
@@ -178,7 +189,7 @@ export async function publicList(ctx, table) {
   const data = rows.map(row => {
     if (table === 'news' || table === 'events') {
       const item = serializePublicContent(table, row);
-      if (table === 'events') item.statusLabel = row.event_at && new Date(row.event_at).getTime() > Date.now() ? 'قريباً' : 'منشور';
+      if (table === 'events') item.statusLabel = eventStatusLabel(row.event_at, row.end_at);
       return item;
     }
     if (table === 'achievements') return {

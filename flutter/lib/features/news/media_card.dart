@@ -71,9 +71,18 @@ class _MediaCardState extends State<MediaCard> {
                 const SizedBox(height: 5),
                 Text(widget.item.summary?.trim().isNotEmpty == true ? widget.item.summary! : widget.item.body!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.6, color: cs.onSurfaceVariant)),
               ],
-              if (widget.type == 'activity' && widget.item.eventAt != null && widget.item.eventAt?.isAfter(DateTime.now()) == true) ...[
+              if (widget.type == 'activity' && _eventStatus(widget.item.eventAt, widget.item.endAt) case final status?) ...[
                 const SizedBox(height: 4),
-                Align(alignment: AlignmentDirectional.centerStart, child: Chip(visualDensity: VisualDensity.compact, label: const Text('قريباً'), avatar: const Icon(Icons.event_available_outlined, size: 16))),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: Icon(status.icon, size: 16, color: status.color),
+                    label: Text(status.label, style: TextStyle(color: status.color, fontWeight: FontWeight.w800)),
+                    side: BorderSide(color: status.color.withValues(alpha: 0.35)),
+                    backgroundColor: status.color.withValues(alpha: 0.10),
+                  ),
+                ),
               ],
               if (widget.type == 'activity' && (widget.item.location?.trim().isNotEmpty == true || widget.item.eventAt != null || widget.item.endAt != null)) ...[
                 const SizedBox(height: 7),
@@ -105,6 +114,18 @@ class _MediaCardState extends State<MediaCard> {
   }
 
 }
+({String label, IconData icon, Color color})? _eventStatus(DateTime? start, DateTime? end) {
+  final now = DateTime.now();
+  if (start == null && end == null) return null;
+  if (start != null && now.isBefore(start)) {
+    return (label: 'قريبًا', icon: Icons.schedule_rounded, color: const Color(0xFFB7791F));
+  }
+  if (end != null && !now.isBefore(end)) {
+    return (label: 'انتهى', icon: Icons.check_circle_outline_rounded, color: const Color(0xFF64748B));
+  }
+  return (label: 'جارٍ الآن', icon: Icons.play_circle_outline_rounded, color: const Color(0xFF16805D));
+}
+
 String _date(DateTime? d) => d == null ? '' : '${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
 class _MediaImage extends StatelessWidget {
   const _MediaImage({this.url, required this.label, required this.icon});
