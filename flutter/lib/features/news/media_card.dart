@@ -55,6 +55,7 @@ class _MediaCardState extends State<MediaCard> {
   }
   @override Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme; final image = widget.item.images.isNotEmpty ? widget.item.images.first : widget.item.imageUrl;
+    final eventStatus = widget.type == 'activity' ? _eventStatus(widget.item.eventAt, widget.item.endAt) : null;
     return AppCard(padding: EdgeInsets.zero, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Stack(children: [
         _MediaImage(url: image, label: widget.label, icon: widget.type == 'news' ? Icons.article_rounded : (widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.groups_rounded)),
@@ -71,16 +72,16 @@ class _MediaCardState extends State<MediaCard> {
                 const SizedBox(height: 5),
                 Text(widget.item.summary?.trim().isNotEmpty == true ? widget.item.summary! : widget.item.body!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.6, color: cs.onSurfaceVariant)),
               ],
-              if (widget.type == 'activity' && _eventStatus(widget.item.eventAt, widget.item.endAt) case final status?) ...[
+              if (eventStatus != null) ...[
                 const SizedBox(height: 4),
                 Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: Chip(
                     visualDensity: VisualDensity.compact,
-                    avatar: Icon(status.icon, size: 16, color: status.color),
-                    label: Text(status.label, style: TextStyle(color: status.color, fontWeight: FontWeight.w800)),
-                    side: BorderSide(color: status.color.withValues(alpha: 0.35)),
-                    backgroundColor: status.color.withValues(alpha: 0.10),
+                    avatar: Icon(eventStatus.icon, size: 16, color: eventStatus.color),
+                    label: Text(eventStatus.label, style: TextStyle(color: eventStatus.color, fontWeight: FontWeight.w800)),
+                    side: BorderSide(color: eventStatus.color.withValues(alpha: 0.35)),
+                    backgroundColor: eventStatus.color.withValues(alpha: 0.10),
                   ),
                 ),
               ],
