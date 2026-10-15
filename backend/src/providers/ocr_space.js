@@ -8,12 +8,14 @@ export async function ocrSpaceFromFile({ apiKey, file, signal }) {
 
   const form = new FormData();
   form.append('file', file, file.name || 'scan.jpg');
-  form.append('language', 'ara');
+  // OCR.space Engine 2 requires/works best with automatic language detection.
+  // Explicit legacy language codes can trigger E201 on some OCR.space configurations.
+  form.append('language', 'auto');
   form.append('isOverlayRequired', 'false');
   form.append('detectOrientation', 'true');
   form.append('scale', 'true');
-  // Engine 1 is the safer compatibility choice for Arabic text.
-  form.append('OCREngine', '1');
+  // Engine 2 supports automatic language detection, including Arabic, and table output.
+  form.append('OCREngine', '2');
 
   let response;
   try {
