@@ -9,7 +9,7 @@ export const ADMIN_ROLE_IDS = new Set(Object.keys(ADMIN_ROLE_PERMISSIONS));
 export const ADMIN_FIELDS = {
   news: ['title','body','image_url','images_json','publish_at','expires_at','status','category','publisher'],
   announcements: ['title','body','type','target_department_id','target_semester_id','publish_at','expires_at','status'],
-  events: ['title','body','image_url','images_json','category','event_at','end_at','location','publisher','status'],
+  events: ['title','body','image_url','images_json','category','event_at','end_at','location','publisher'],
   achievements: ['title','description','intro','highlights_title','highlights','badge','publisher','image_url','images_json','achieved_at','status'],
   subjects: ['semester_id','department_id','code','name_ar','name_en','active','sort_order'],
   materials: ['subject_id','title','description','drive_file_id','drive_url','mime_type','size_bytes','active','sort_order','drive_parent_id','drive_modified_at','drive_web_view_url','pinned','source'],

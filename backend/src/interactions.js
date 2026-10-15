@@ -31,7 +31,7 @@ export async function contentIsCommentable(ctx, type, id) {
   const table = type === 'activity' ? 'events' : type === 'announcement' ? 'announcements' : type === 'achievement' ? 'achievements' : 'news';
   const dateColumn = table === 'events' ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
   const expiry = ['news', 'announcements'].includes(table) ? ' AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)' : '';
-  const row = await queryOne(ctx.env, `SELECT id FROM ${table} WHERE id=? AND status='published' AND (${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)${expiry} LIMIT 1`, id);
+  const row = await queryOne(ctx.env, `SELECT id FROM ${table} WHERE id=? AND ${table === 'events' ? '1=1' : "status='published'"} AND (${dateColumn === 'event_at' ? '1=1' : `${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP`})${expiry} LIMIT 1`, id);
   return Boolean(row);
 }
 

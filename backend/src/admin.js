@@ -268,6 +268,8 @@ export async function adminCrud(ctx, table, id, actorId) {
   }
   if (ctx.request.method === 'POST') {
     const body = await parseJson(ctx.request); const fields = cleanAdminPayload(table, body);
+    // Events are always immediately available; their label is derived from dates, never a draft/publish state.
+    if (table === 'events') fields.status = 'published';
     if (CONTENT_TABLES.has(table) && fields.status !== undefined && !CONTENT_STATUS_VALUES.has(String(fields.status))) return error('CONTENT_STATUS_INVALID','حالة المحتوى غير مدعومة.',400,ctx.requestId,ctx.cors);
     const id = String(body?.id || makeId(table.slice(0, -1) || table));
     if (table === 'students') {
@@ -304,6 +306,8 @@ export async function adminCrud(ctx, table, id, actorId) {
   if (!id) return error('ADMIN_ID_REQUIRED','معرّف السجل مطلوب.',400,ctx.requestId,ctx.cors);
   if (ctx.request.method === 'PATCH') {
     const body = await parseJson(ctx.request); const fields = cleanAdminPayload(table, body);
+    // Ignore legacy status payloads for events: the event lifecycle is date-based only.
+    if (table === 'events') delete fields.status;
     if (CONTENT_TABLES.has(table) && fields.status !== undefined && !CONTENT_STATUS_VALUES.has(String(fields.status))) return error('CONTENT_STATUS_INVALID','حالة المحتوى غير مدعومة.',400,ctx.requestId,ctx.cors);
     if (!Object.keys(fields).length) return error('ADMIN_NO_FIELDS','لم يتم إرسال أي تغييرات.',400,ctx.requestId,ctx.cors);
     if (table === 'students' && fields.student_number !== undefined &&

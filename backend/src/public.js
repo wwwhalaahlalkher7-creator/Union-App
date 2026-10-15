@@ -104,7 +104,7 @@ export async function publicContentDetail(ctx) {
       (SELECT COUNT(*) FROM reactions r WHERE r.content_type=? AND r.content_id=${table}.id) AS like_count,
       ${myReactionSql}
     FROM ${table}
-    WHERE id=? AND status='published'
+    WHERE id=? ${table === 'events' ? '' : "AND status='published'"}
       AND (${table === 'events' ? '1=1' : `(${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)`})
       ${expiryClause}`,
     ...params,
@@ -175,7 +175,7 @@ export async function publicList(ctx, table) {
        (SELECT COUNT(*) FROM reactions r WHERE r.content_type = ? AND r.content_id = ${table}.id) AS like_count,
        ${myReactionSql}
      FROM ${table}
-     WHERE status = 'published'
+     WHERE ${table === 'events' ? '1=1' : "status = 'published'"}
        AND (${table === 'events' ? '1=1' : `(${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)`})
        ${expiryClause}
      ORDER BY ${order} LIMIT ?`;
