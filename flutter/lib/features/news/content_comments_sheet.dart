@@ -357,4 +357,11 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   }
 }
 
-String _date(DateTime? date) => date == null ? '' : '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+String _date(DateTime? date) {
+  if (date == null) return '';
+  final sudan = DateTime.fromMillisecondsSinceEpoch(
+    date.millisecondsSinceEpoch + const Duration(hours: 2).inMilliseconds,
+    isUtc: true,
+  );
+  return '${sudan.year.toString().padLeft(4, '0')}-${sudan.month.toString().padLeft(2, '0')}-${sudan.day.toString().padLeft(2, '0')}';
+}

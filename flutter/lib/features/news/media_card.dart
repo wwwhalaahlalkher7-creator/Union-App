@@ -121,13 +121,25 @@ class _MediaCardState extends State<MediaCard> {
   if (start != null && now.isBefore(start)) {
     return (label: 'قريبًا', icon: Icons.schedule_rounded, color: colors.tertiary);
   }
-  if (end != null && !now.isBefore(end)) {
+  // An end value exactly at midnight is treated as an inclusive calendar day,
+  // matching the admin/backend convention (e.g. 2026-10-20T00:00:00).
+  final effectiveEnd = end != null && end.hour == 0 && end.minute == 0 && end.second == 0
+      ? DateTime(end.year, end.month, end.day, 23, 59, 59, 999)
+      : end;
+  if (effectiveEnd != null && now.isAfter(effectiveEnd)) {
     return (label: 'انتهى', icon: Icons.check_circle_outline_rounded, color: colors.onSurfaceVariant);
   }
   return (label: 'جارٍ الآن', icon: Icons.play_circle_outline_rounded, color: colors.primary);
 }
 
-String _date(DateTime? d) => d == null ? '' : '${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
+String _date(DateTime? d) {
+  if (d == null) return '';
+  final sudan = DateTime.fromMillisecondsSinceEpoch(
+    d.millisecondsSinceEpoch + const Duration(hours: 2).inMilliseconds,
+    isUtc: true,
+  );
+  return '${sudan.year.toString().padLeft(4, '0')}-${sudan.month.toString().padLeft(2, '0')}-${sudan.day.toString().padLeft(2, '0')}';
+}
 class _MediaImage extends StatelessWidget {
   const _MediaImage({this.url, required this.label, required this.icon});
   final String? url;

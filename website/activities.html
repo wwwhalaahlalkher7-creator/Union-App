@@ -227,34 +227,51 @@
     // يعيد null فقط عندما لا يمكن تفسير التاريخ، حتى لا يمنع
     // سجل سليم من الظهور بسبب بيانات زمنية ناقصة.
     // ----------------------------------------------------
+    // Naive dates from the admin UI are Sudan local time (UTC+02:00).
+    // Explicit Z/offset values remain absolute instants.
+    function parseSudanDate(value, { endOfDay = false } = {}) {
+        if (!value) return null;
+        const raw = String(value).trim();
+        const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+        const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+        const isMidnight = /(?:T| )00:00(?::00(?:\.0+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/.test(raw);
+        let normalized = raw;
+        if (!hasZone) {
+            if (isDateOnly) normalized = `${raw}T00:00:00+02:00`;
+            else if (raw.includes('T')) normalized = `${raw}+02:00`;
+            else if (/^\d{4}-\d{2}-\d{2} \d{2}:/.test(raw)) normalized = `${raw.replace(' ', 'T')}+02:00`;
+            else normalized = `${raw}T00:00:00+02:00`;
+        }
+        const date = new Date(normalized);
+        if (Number.isNaN(date.getTime())) return null;
+        if (endOfDay && (isDateOnly || isMidnight)) {
+            date.setTime(date.getTime() + 24 * 60 * 60 * 1000 - 1);
+        }
+        return date;
+    }
+
     function computeActivityStatus({ Date: startValue, EndDate: endValue } = {}) {
-        const start = startValue ? new Date(startValue) : null;
-        const end = endValue ? new Date(endValue) : null;
+        const start = parseSudanDate(startValue);
+        const end = parseSudanDate(endValue, { endOfDay: true });
         const now = new Date();
 
-        const startValid = start && !Number.isNaN(start.getTime());
-        const endValid = end && !Number.isNaN(end.getTime());
-
-        if (!startValid && !endValid) return null;
-
-        if (startValid && now < start) {
+        if (!start && !end) return null;
+        if (start && now < start) {
             return { state: "upcoming", icon: "fa-clock", label: "قريبًا" };
         }
-
-        if (endValid && now >= end) {
+        if (end && now > end) {
             return { state: "ended", icon: "fa-circle-check", label: "انتهى" };
         }
-
         return { state: "ongoing", icon: "fa-circle-play", label: "جارٍ الآن" };
     }
 
     function formatEventDateTime(value) {
         if (!value) return "";
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return String(value);
-        const datePart = date.toLocaleDateString("ar-EG", {year:"numeric", month:"long", day:"numeric"});
-        const hasTime = /T\d{2}:\d{2}/.test(String(value));
-        return hasTime ? `${datePart} — ${date.toLocaleTimeString("ar-EG", {hour:"2-digit", minute:"2-digit"})}` : datePart;
+        const date = parseSudanDate(value);
+        if (!date || Number.isNaN(date.getTime())) return String(value);
+        const datePart = date.toLocaleDateString("ar-EG", {year:"numeric", month:"long", day:"numeric", timeZone:"Africa/Khartoum"});
+        const hasTime = /(?:T| )\d{2}:\d{2}/.test(String(value));
+        return hasTime ? `${datePart} — ${date.toLocaleTimeString("ar-EG", {hour:"2-digit", minute:"2-digit", timeZone:"Africa/Khartoum"})}` : datePart;
     }
 
     // ----------------------------------------------------

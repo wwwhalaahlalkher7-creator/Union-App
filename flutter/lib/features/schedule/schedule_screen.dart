@@ -82,16 +82,19 @@ class _ScheduleScreenState
 
           final data = snapshot.data!;
 
-          final days = data.days.isEmpty
-              ? (data.items
-                    .map((item) => item.dayOfWeek)
-                    .toSet()
-                    .toList()
-                  ..sort())
-              : data.days;
+          // Schedule day numbers use Sunday=0 ... Saturday=6.
+          // Keep today's selection on first load even when there are no
+          // lectures today; never silently label another day as 'Today'.
+          final today = DateTime.now().weekday % 7;
+          final days = <int>{
+            ...data.days,
+            ...data.items.map((item) => item.dayOfWeek),
+            today,
+          }.toList()
+            ..sort();
 
-          if (_selectedDay == null && days.isNotEmpty) {
-            _selectedDay = days.first;
+          if (_selectedDay == null) {
+            _selectedDay = today;
           }
 
           final shown = _week
@@ -230,6 +233,8 @@ class _Lecture extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isRtl = l10n.locale.languageCode == 'ar';
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -240,6 +245,7 @@ class _Lecture extends StatelessWidget {
         ),
       ),
       child: Row(
+        textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
         children: [
           Container(
             width: 46,

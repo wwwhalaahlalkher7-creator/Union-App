@@ -57,14 +57,38 @@ export async function publicStudentProfile(ctx, studentId) {
   return ok(ctx, { studentId: row.studentId, fullName: row.fullName, departmentName: row.departmentName || null, semesterName: row.semesterName || null });
 }
 
+// TRINEX stores user-entered event dates as Sudan local wall time unless
+// an explicit timezone is present. Normalize naive values to Africa/Khartoum
+// (UTC+02:00) so Cloudflare UTC and client local timezone cannot disagree.
+function parseSudanDate(value, { endOfDay = false } = {}) {
+  if (!value) return NaN;
+  const raw = String(value).trim();
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+  const isMidnight = /(?:T| )00:00(?::00(?:\.0+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/.test(raw);
+  let normalized = raw;
+  if (!hasZone) {
+    if (isDateOnly) normalized = `${raw}T00:00:00+02:00`;
+    else if (raw.includes('T')) normalized = `${raw}+02:00`;
+    else if (/^\d{4}-\d{2}-\d{2} \d{2}:/.test(raw)) normalized = `${raw.replace(' ', 'T')}+02:00`;
+    else normalized = `${raw}T00:00:00+02:00`;
+  }
+  const timestamp = Date.parse(normalized);
+  if (!Number.isFinite(timestamp)) return NaN;
+  // Admin end dates are inclusive by calendar day. Midnight means the end
+  // of that entered day, not the very first instant of it.
+  if (endOfDay && (isDateOnly || isMidnight)) return timestamp + 24 * 60 * 60 * 1000 - 1;
+  return timestamp;
+}
+
 function eventStatusLabel(startValue, endValue, now = Date.now()) {
-  const start = startValue ? new Date(startValue).getTime() : NaN;
-  const end = endValue ? new Date(endValue).getTime() : NaN;
+  const start = parseSudanDate(startValue);
+  const end = parseSudanDate(endValue, { endOfDay: true });
   const hasStart = Number.isFinite(start);
   const hasEnd = Number.isFinite(end);
   if (!hasStart && !hasEnd) return 'منشور';
   if (hasStart && now < start) return 'قريبًا';
-  if (hasEnd && now >= end) return 'انتهى';
+  if (hasEnd && now > end) return 'انتهى';
   return 'جارٍ الآن';
 }
 

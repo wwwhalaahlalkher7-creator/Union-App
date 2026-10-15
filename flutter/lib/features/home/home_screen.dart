@@ -490,9 +490,10 @@ class _HomeScheduleCard extends StatelessWidget {
   final VoidCallback onTap;
   final double extraTopHeight;
 
-  static const _sudanOffset = Duration(hours: 2);
-
-  DateTime _sudanNow() => DateTime.now().toUtc().add(_sudanOffset);
+  // Schedule times are local wall-clock values. Compare them with the device's
+  // local clock; shifting a UTC DateTime by +2 hours changes the instant and
+  // made lectures appear ended up to two hours too early.
+  DateTime _sudanNow() => DateTime.now();
 
   int _minuteOfDay(String value) {
     final parts = value.split(':');
@@ -601,6 +602,7 @@ class _HomeScheduleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
+    final isRtl = l10n.locale.languageCode == 'ar';
     final state = _state();
 
     Color accent;
@@ -675,6 +677,7 @@ class _HomeScheduleCard extends StatelessWidget {
             border: Border.all(color: accent.withValues(alpha: .35)),
           ),
           child: Row(
+            textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
             children: [
               Container(
                 width: 46,

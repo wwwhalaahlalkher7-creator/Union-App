@@ -48,8 +48,37 @@ class ContentItem {
         ? Map<String, dynamic>.from(json['fields'] as Map)
         : json;
 
-    DateTime? parseDate(dynamic value) =>
-        value == null ? null : DateTime.tryParse(value.toString());
+    DateTime? parseDate(dynamic value, {bool inclusiveEndDate = false}) {
+      if (value == null) return null;
+      final raw = value.toString().trim();
+      if (raw.isEmpty) return null;
+      // Values without an explicit zone are entered as Sudan wall time.
+      // Pin them to UTC+02:00 so device timezone settings do not change the
+      // represented instant. DateTime.parse keeps the instant when converting.
+      final hasZone = RegExp(r'(Z|[+-]\d{2}:?\d{2})$', caseSensitive: false).hasMatch(raw);
+      final dateOnly = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(raw);
+      final normalized = hasZone
+          ? raw
+          : dateOnly
+              ? '${raw}T00:00:00+02:00'
+              : raw.contains('T')
+                  ? '${raw}+02:00'
+                  : RegExp(r'^\d{4}-\d{2}-\d{2} \d{2}:').hasMatch(raw)
+                      ? '${raw.replaceFirst(' ', 'T')}+02:00'
+                      : '${raw}T00:00:00+02:00';
+      final parsed = DateTime.tryParse(normalized);
+      if (parsed == null) return null;
+      final midnightValue = dateOnly || RegExp(
+        r'(?:T| )00:00(?::00(?:\.0+)?)?(?:Z|[+-]\d{2}:?\d{2})?$',
+        caseSensitive: false,
+      ).hasMatch(raw);
+      if (inclusiveEndDate && midnightValue) {
+        return DateTime.fromMillisecondsSinceEpoch(
+          parsed.millisecondsSinceEpoch + const Duration(days: 1).inMilliseconds - 1,
+        );
+      }
+      return parsed;
+    }
 
     return ContentItem(
       id: (json['id'] ?? json['ID'] ?? fields['id'] ?? fields['ID'] ?? '')
@@ -80,7 +109,7 @@ class ContentItem {
       category: fields['category']?.toString(),
       publisher: fields['publisher']?.toString(),
       eventAt: parseDate(fields['eventAt'] ?? fields['event_at']),
-      endAt: parseDate(fields['endAt'] ?? fields['end_at']),
+      endAt: parseDate(fields['endAt'] ?? fields['end_at'], inclusiveEndDate: true),
       location: fields['location']?.toString(),
       commentCount: _toInt(fields['commentCount'] ?? fields['comment_count']),
       likeCount: _toInt(fields['likeCount'] ?? fields['like_count']),
