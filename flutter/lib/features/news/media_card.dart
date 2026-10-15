@@ -55,7 +55,7 @@ class _MediaCardState extends State<MediaCard> {
   }
   @override Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme; final image = widget.item.images.isNotEmpty ? widget.item.images.first : widget.item.imageUrl;
-    final eventStatus = widget.type == 'activity' ? _eventStatus(widget.item.eventAt, widget.item.endAt) : null;
+    final eventStatus = widget.type == 'activity' ? _eventStatus(widget.item.eventAt, widget.item.endAt, Theme.of(context).colorScheme) : null;
     return AppCard(padding: EdgeInsets.zero, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Stack(children: [
         _MediaImage(url: image, label: widget.label, icon: widget.type == 'news' ? Icons.article_rounded : (widget.type == 'achievement' ? Icons.emoji_events_rounded : Icons.groups_rounded)),
@@ -115,16 +115,16 @@ class _MediaCardState extends State<MediaCard> {
   }
 
 }
-({String label, IconData icon, Color color})? _eventStatus(DateTime? start, DateTime? end) {
+({String label, IconData icon, Color color})? _eventStatus(DateTime? start, DateTime? end, ColorScheme colors) {
   final now = DateTime.now();
   if (start == null && end == null) return null;
   if (start != null && now.isBefore(start)) {
-    return (label: 'قريبًا', icon: Icons.schedule_rounded, color: const Color(0xFFB7791F));
+    return (label: 'قريبًا', icon: Icons.schedule_rounded, color: colors.tertiary);
   }
   if (end != null && !now.isBefore(end)) {
-    return (label: 'انتهى', icon: Icons.check_circle_outline_rounded, color: const Color(0xFF64748B));
+    return (label: 'انتهى', icon: Icons.check_circle_outline_rounded, color: colors.onSurfaceVariant);
   }
-  return (label: 'جارٍ الآن', icon: Icons.play_circle_outline_rounded, color: const Color(0xFF16805D));
+  return (label: 'جارٍ الآن', icon: Icons.play_circle_outline_rounded, color: colors.primary);
 }
 
 String _date(DateTime? d) => d == null ? '' : '${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
