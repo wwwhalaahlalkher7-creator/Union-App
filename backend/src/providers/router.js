@@ -163,7 +163,10 @@ export async function routeVision(env, args) {
     if (route.provider === 'mistral') return mistralVision({ baseUrl: `${String(env.EINO_MISTRAL_BASE_URL || 'https://api.mistral.ai').replace(/\/+$/, '')}/v1`, apiKey: env.MISTRAL_API_KEY, model: route.model, ...args });
     if (route.provider === 'groq') return groqVision({ baseUrl: env.EINO_GROQ_BASE_URL || 'https://api.groq.com/openai/v1', apiKey: env.GROQ_API_KEY, model: route.model, ...args });
     if (route.provider === 'gemini') return geminiVision({ baseUrl: env.EINO_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta', apiKey: env.GEMINI_API_KEY, model: route.model, ...args });
-    const result = await freeAiVision({ ...argsForFree(env, route.model), ...args });
+    // Free.ai's adapter names the instruction `mode`; routeVision's public
+    // contract uses `prompt`. Forward it explicitly so structured extraction
+    // instructions are honored instead of silently falling back to describe.
+    const result = await freeAiVision({ ...argsForFree(env, route.model), ...args, mode: args.prompt || args.mode || 'describe' });
     return { text: String(result?.text || result?.description || result?.caption || result?.result || '').trim(), raw: result };
   }, 'vision');
 }

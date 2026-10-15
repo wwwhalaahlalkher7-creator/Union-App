@@ -760,7 +760,7 @@ export async function einoVision(ctx) {
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 30000); const started = Date.now();
   try {
     const result = await routeVision(ctx.env, { imageDataUrl: image, prompt: String(body?.mode || 'describe'), signal: controller.signal });
-    const text = String(result?.text || result?.description || result?.caption || result?.result || '').trim();
+    const text = String(result?.text || result?.answer || result?.description || result?.caption || result?.result || '').trim();
     if (actor.actorType === 'student' && body?.conversationId) {
       await saveEinoMediaExchange(ctx, body.conversationId, actor.studentId, `🖼️ ${String(body?.attachmentName || 'صورة').trim()}`, text);
     }
