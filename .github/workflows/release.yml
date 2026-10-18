@@ -1,0 +1,289 @@
+name: Production App Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_release:
+        description: 'Confirm that the current flutter/VERSION is ready for production app release'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: production-app-release
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION_FILE: flutter/VERSION
+
+jobs:
+  gate:
+    name: App Release Gate
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.version.outputs.should_release }}
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      build: ${{ steps.version.outputs.build }}
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Synchronize generated version files
+        run: |
+          python3 flutter/tool/sync_version.py
+          python3 ci/sync_release_metadata.py
+
+      - name: Resolve release version
+        id: version
+        env:
+          CONFIRM_RELEASE: ${{ inputs.confirm_release }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test "$CONFIRM_RELEASE" = "true" || {
+            echo "Production app release requires explicit confirmation."
+            exit 1
+          }
+
+          read_version() {
+            local values count
+            values="$(sed -E '/^[[:space:]]*#/d; /^[[:space:]]*$/d; s/[[:space:]]+#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$1")"
+            [[ -n "$values" ]] || { echo "flutter/VERSION contains no version value"; exit 1; }
+            count="$(printf '%s\n' "$values" | wc -l | tr -d ' ')"
+            [[ "$count" == "1" ]] || { echo "flutter/VERSION must contain exactly one version value"; exit 1; }
+            printf '%s\n' "$values"
+          }
+
+          parse_version() {
+            local value="$1"
+            VERSION_NAME="${value%%+*}"
+            BUILD_NUMBER="${value#*+}"
+            [[ "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid semantic version: $VERSION_NAME"; exit 1; }
+            [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid build number: $BUILD_NUMBER"; exit 1; }
+          }
+
+          CURRENT_RAW="$(read_version flutter/VERSION)"
+          parse_version "$CURRENT_RAW"
+          CURRENT_VERSION="$VERSION_NAME"
+          CURRENT_BUILD="$BUILD_NUMBER"
+          TAG="v${CURRENT_VERSION}"
+
+          echo "Canonical release: $CURRENT_VERSION+$CURRENT_BUILD"
+          echo "Release tag: $TAG"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git fetch --quiet origin "refs/tags/$TAG:refs/tags/$TAG"
+            PRODUCTION_RAW="$(git show "refs/tags/$TAG:flutter/VERSION")"
+            PRODUCTION_RAW="$(printf '%s\n' "$PRODUCTION_RAW" | sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p; q')"
+            parse_version "$PRODUCTION_RAW"
+            PRODUCTION_VERSION="$VERSION_NAME"
+            PRODUCTION_BUILD="$BUILD_NUMBER"
+
+            [[ "$CURRENT_VERSION" == "$PRODUCTION_VERSION" ]] || {
+              echo "Tag $TAG points to an unexpected version: $PRODUCTION_VERSION"
+              exit 1
+            }
+            (( CURRENT_BUILD >= PRODUCTION_BUILD )) || {
+              echo "Build number cannot decrease: production=$PRODUCTION_BUILD current=$CURRENT_BUILD"
+              exit 1
+            }
+
+            if (( CURRENT_BUILD == PRODUCTION_BUILD )); then
+              echo "Same production build detected: $CURRENT_VERSION+$CURRENT_BUILD."
+              echo "Checking whether the GitHub Release contains the official APK asset..."
+              RELEASE_ASSETS="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | sort | join("\n")' 2>/dev/null || true)"
+              if grep -Fxq "TRINEX.apk" <<< "$RELEASE_ASSETS" && grep -Fxq "TRINEX.zip" <<< "$RELEASE_ASSETS"; then
+                echo "No new production build: $CURRENT_VERSION+$CURRENT_BUILD is already published."
+                exit 1
+              fi
+              echo "The existing release is missing TRINEX.apk or TRINEX.zip; repairing it."
+            else
+              echo "Updating existing release $TAG from build $PRODUCTION_BUILD to $CURRENT_BUILD."
+            fi
+          else
+            echo "Creating new production release $TAG at build $CURRENT_BUILD."
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$CURRENT_BUILD" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run project verification
+        run: |
+          python3 ci/verify_project.py
+          python3 ci/release_check.py
+          python3 ci/final_release_check.py
+
+  android:
+    name: Build Signed Production APK
+    needs: gate
+    if: needs.gate.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    defaults:
+      run:
+        working-directory: flutter
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Synchronize version
+        run: python3 tool/sync_version.py
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Configure production signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_STORE_PASSWORD ANDROID_KEY_PASSWORD ANDROID_KEY_ALIAS; do
+            test -n "${!name}" || { echo "Missing $name"; exit 1; }
+          done
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          cat > android/key.properties <<EOF2
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=../upload-keystore.jks
+          EOF2
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test
+
+      - name: Build signed APK
+        run: flutter build apk --release --no-pub
+
+      - name: Verify Android signatures
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          APKSIGNER="${ANDROID_HOME}/build-tools/$(ls -1 "${ANDROID_HOME}/build-tools" | sort -V | tail -1)/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
+
+      - name: Prepare release assets
+        env:
+          RELEASE_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-assets
+          cp build/app/outputs/flutter-apk/app-release.apk build/release-assets/TRINEX.apk
+          cd build/release-assets
+          zip -1 -q TRINEX.zip TRINEX.apk
+          unzip -t TRINEX.zip
+          sha256sum TRINEX.apk TRINEX.zip > SHA256SUMS.txt
+
+      - name: Upload Android release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-production-${{ needs.gate.outputs.version }}
+          path: flutter/build/release-assets/
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [gate, android]
+    if: needs.gate.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Synchronize generated version files
+        run: |
+          python3 flutter/tool/sync_version.py
+          python3 ci/sync_release_metadata.py
+
+      - name: Download Android release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: android-production-${{ needs.gate.outputs.version }}
+          path: release-assets
+
+      - name: Prepare release notes
+        env:
+          RELEASE_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          set -euo pipefail
+          sed -n 's/^[[:space:]]*#[[:space:]]*//p' flutter/VERSION | sed '/^[[:space:]]*$/d' > RELEASE_NOTES.md
+          # Release notes come only from comments in flutter/VERSION.
+          # An empty notes file is valid; no default text is injected.
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create or update release tag
+        env:
+          TAG: ${{ needs.gate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git fetch --quiet origin "refs/tags/$TAG:refs/tags/$TAG"
+            git tag -fa "$TAG" -m "Union App $TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG" --force
+          else
+            git tag -a "$TAG" -m "Union App $TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG"
+          fi
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.gate.outputs.tag }}
+          VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          set -euo pipefail
+          ASSETS=(
+            "release-assets/TRINEX.apk"
+            "release-assets/TRINEX.zip"
+            "release-assets/SHA256SUMS.txt"
+          )
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --notes-file RELEASE_NOTES.md \
+              --title "Union App ${TAG}"
+            gh release upload "$TAG" "${ASSETS[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "${ASSETS[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --notes-file RELEASE_NOTES.md \
+              --title "Union App ${TAG}" \
+              --verify-tag
+          fi

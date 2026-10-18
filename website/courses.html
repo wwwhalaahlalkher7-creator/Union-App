@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+    <title>المواد والفصول الدراسية | أمانة الإعلام ورابطة كلية الهندسة والعمارة</title>
+
+    <!-- SEO: وصف الصفحة والرابط الأساسي -->
+    <meta name="description" content="المستندات والمواد الأكاديمية لمواد كلية الهندسة والعمارة – جامعة شندي، منظمة حسب القسم والفصل الدراسي مع إمكانية البحث والمفضلة.">
+    <link rel="canonical" href="https://ush-eng.great-site.net/courses.html">
+
+    <!-- Open Graph / مشاركة على وسائل التواصل -->
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="ar_AR">
+    <meta property="og:title" content="المواد والفصول الدراسية | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
+    <meta property="og:description" content="المستندات والمواد الأكاديمية لمواد كلية الهندسة والعمارة – جامعة شندي.">
+    <meta property="og:url" content="https://ush-eng.great-site.net/courses.html">
+    <meta property="og:image" content="https://ush-eng.great-site.net/favicon.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="المواد والفصول الدراسية | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
+    <meta name="twitter:description" content="المستندات والمواد الأكاديمية لمواد كلية الهندسة والعمارة – جامعة شندي.">
+    <meta name="twitter:image" content="https://ush-eng.great-site.net/favicon.png">
+
+    <!-- الاتصال بواجهة TRINEX العامة يتم عند الحاجة -->
+<!-- مكتبة الأيقونات FontAwesome -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <!-- خط كايرو المحدث -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="courses-page.css?v=2">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="api-config.js?v=1"></script>
+    <link rel="stylesheet" href="ui-pro.css?v=5">
+</head>
+
+<body>
+
+<header id="header">
+    <div class="logo">
+        <h2 id="siteLogoName">رابطة كلية الهندسة والعمارة</h2>
+        <p>جامعة شندي</p>
+    </div>
+    
+    <div class="menu-toggle" id="menuToggle" aria-label="قائمة التنقل" aria-expanded="false">
+        <i class="fas fa-bars"></i>
+    </div>
+
+    <!-- قائمة التنقل الموحدة المسطحة -->
+    <nav id="navMenu">
+        <ul>
+            <li><a href="index.html">الرئيسية</a></li>
+            <li><a href="Injazat.html">الإنجازات</a></li>
+            <li><a href="courses.html" class="active">المواد الدراسية</a></li>
+            <li><a href="activities.html">الأنشطة</a></li>
+            <li><a href="committees.html">الأمانات الأخرى</a></li>
+            <li><a href="news.html">آخر الأخبار</a></li>
+            <li><a href="download.html"> تحميل التطبيق</a></li>
+        </ul>
+    </nav>
+</header>
+
+<section class="page-title-section">
+    <h1>المستندات والمواد الأكاديمية</h1>
+    <p>اختر القسم، ثم تصفح المراجع والشيتات والمحاضرات الرقمية الموزعة حسب الفصول الدراسية.</p>
+</section>
+
+<!-- شريط إشعار الملفات الجديدة منذ آخر زيارة -->
+<div class="section-wrap">
+    <div class="update-banner" id="updateBanner" role="status">
+        <i class="fas fa-bell"></i>
+        <span id="updateBannerText"></span>
+        <button class="btn-view-new" id="btnViewNewFiles" type="button">عرض الملفات الجديدة</button>
+        <button class="btn-dismiss" id="btnDismissBanner" type="button" aria-label="إغلاق الإشعار"><i class="fas fa-xmark"></i></button>
+    </div>
+</div>
+
+<!-- شريط البحث الاحترافي -->
+<div class="section-wrap">
+    <div class="search-bar" id="searchBar">
+        <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+        <label for="searchInput" class="visually-hidden">ابحث عن مادة أو ملف أو قسم أو سمستر</label>
+        <input type="search" id="searchInput" placeholder="ابحث باسم المادة أو الملف أو القسم أو السمستر...">
+        <button class="btn-clear-search" id="btnClearSearch" type="button" aria-label="مسح البحث"><i class="fas fa-xmark"></i></button>
+        <button class="btn-refresh" id="btnRefresh" type="button" title="حذف الكاش وإعادة جلب الملفات">
+            <i class="fas fa-rotate-right" aria-hidden="true"></i><span>تحديث الملفات</span>
+        </button>
+    </div>
+    <p class="search-scope-hint" id="searchScopeHint">يشمل البحث كل الأقسام والسمسترات والمواد دائماً.</p>
+</div>
+
+<!-- موضع إعلان: materials_top -->
+<!-- حاوية تجمع الأزرار والمحتوى لنتمكّن من عكس ترتيبهما بصرياً أثناء البحث -->
+<div class="courses-body" id="coursesBody">
+    <!-- أزرار التبديل الكبرى للأقسام (تُبنى ديناميكياً بالكامل من Google Drive) -->
+    <div class="tabs-container" id="tabsContainer" role="tablist" aria-label="أقسام المواد الدراسية"></div>
+
+    <!-- موضع إعلان: materials_middle — ثابت بين شريط التبويبات ومنطقة المحتوى
+         الديناميكية (لم نُدرجه داخل منطق بناء الملفات نفسه تفاديًا لأي تعارض
+         مع نظام التبويب/البحث المعقّد في هذه الصفحة تحديدًا) -->
+<!-- منطقة المحتوى الرئيسية (تُبنى ديناميكياً) -->
+    <main id="contentArea"></main>
+</div>
+
+<!-- موضع إعلان: materials_bottom -->
+<footer>
+    <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
+    <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
+</footer>
+
+<!-- نافذة عرض PDF -->
+<div class="modal-overlay" id="pdfModal" role="dialog" aria-modal="true" aria-labelledby="pdfModalTitle">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="pdfModalTitle">عرض الملف</h3>
+            <button class="modal-close" id="btnCloseModal" type="button" aria-label="إغلاق"><i class="fas fa-xmark"></i></button>
+        </div>
+        <div class="modal-frame-wrap">
+            <iframe id="pdfModalFrame" title="معاينة ملف PDF" src="about:blank" loading="lazy"></iframe>
+        </div>
+        <div class="modal-footer">
+            <a id="modalOpenDrive" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1"><i class="fas fa-up-right-from-square"></i> فتح في Drive</a>
+            <a id="modalDownload" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1"><i class="fas fa-download"></i> تنزيل</a>
+            <button id="modalShare" type="button"><i class="fas fa-share-nodes"></i> مشاركة</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+    // ========================================================================
+    // 1) سلوك الهيدر عند التمرير الموحد (بدون تعديل)
+    // ========================================================================
+    window.addEventListener('scroll', () => {
+        const header = document.getElementById('header');
+        if (window.scrollY > 40) header.classList.add('scrolled');
+        else header.classList.remove('scrolled');
+    });
+
+    // ========================================================================
+    // 2) قائمة الهاتف (الهامبرغر) الموحدة (بدون تعديل)
+    // ========================================================================
+    const menuToggle = document.getElementById('menuToggle');
+    const navMenu = document.getElementById('navMenu');
+
+    menuToggle.addEventListener('click', () => {
+        navMenu.classList.toggle('active');
+        const expanded = navMenu.classList.contains('active');
+        menuToggle.setAttribute('aria-expanded', expanded);
+        const icon = menuToggle.querySelector('i');
+        icon.classList.toggle('fa-bars');
+        icon.classList.toggle('fa-times');
+    });
+
+    window.addEventListener('click', (e) => {
+        if (navMenu && !navMenu.contains(e.target) && !menuToggle.contains(e.target)) {
+            if (navMenu.classList.contains('active')) {
+                menuToggle.click();
+            }
+        }
+    });
+
+    // إغلاق القائمة تلقائياً عند العودة لهذه الصفحة (زر رجوع المتصفح / bfcache)
+    // حتى لا تبقى القائمة مفتوحة كما كانت عليه الحال قبل مغادرة الصفحة
+    window.addEventListener('pageshow', () => {
+        navMenu.classList.remove('active');
+        menuToggle.setAttribute('aria-expanded', 'false');
+        const menuIcon = menuToggle.querySelector('i');
+        if (menuIcon) {
+            menuIcon.classList.add('fa-bars');
+            menuIcon.classList.remove('fa-times');
+        }
+    });
+
+    // ========================================================================
+    // 3) نظام إدارة المواد الدراسية الديناميكي
+    // ========================================================================
+    const CoursesApp = (function () {
+
+        // -------------------- الإعدادات --------------------
+        const CONFIG = {
+            // عنوان واجهة TRINEX العامة للمواد الدراسية
+            PUBLIC_MATERIALS_URL: window.PUBLIC_API_BASE + '/materials',
+
+            SESSION_CACHE_KEY: 'coursesData_v2',
+            CACHE_TTL_MS: 20 * 60 * 1000, // مدة صلاحية النسخة المخزّنة محلياً قبل اعتبارها قديمة (٢٠ دقيقة)
+            FAVORITES_KEY: 'coursesFavorites_v1',
+            RECENT_OPENED_KEY: 'coursesRecentlyOpened_v1',
+            LAST_VISIT_KEY: 'coursesLastVisit_v1',
+            LAST_LOCATION_KEY: 'coursesLastLocation_v1',
+            MAX_RECENT_OPENED: 20,
+            NEW_FILE_DAYS: 7
+        };
+
+        // -------------------- الحالة --------------------
+        const state = {
+            index: null,          // بيانات Drive الكاملة (أقسام + ملفات)
+            currentSectionId: null,
+            currentSemesterId: null,
+            currentView: 'semesters', // semesters | files | favorites | recent | mostused | newfiles | search
+            searchQuery: '',
+            activeTabKey: null
+        };
+
+        const contentArea = document.getElementById('contentArea');
+        const tabsContainer = document.getElementById('tabsContainer');
+
+        // ====================================================================
+        // أدوات مساعدة عامة (Utilities)
+        // ====================================================================
+        function escapeHTML(str) {
+            const div = document.createElement('div');
+            div.textContent = String(str == null ? '' : str);
+            return div.innerHTML;
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes <= 0) return '0 KB';
+            const units = ['بايت', 'KB', 'MB', 'GB'];
+            let i = 0, val = bytes;
+            while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
+            return (i === 0 ? val : val.toFixed(1)) + ' ' + units[i];
+        }
+
+        function formatDate(iso) {
+            try {
+                return new Date(iso).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+            } catch (e) { return ''; }
+        }
+
+        function isNewFile(iso) {
+            const days = (Date.now() - new Date(iso).getTime()) / 86400000;
+            return days >= 0 && days <= CONFIG.NEW_FILE_DAYS;
+        }
+
+        function debounce(fn, wait) {
+            let t;
+            return function (...args) {
+                clearTimeout(t);
+                t = setTimeout(() => fn.apply(this, args), wait);
+            };
+        }
+
+        function showToast(message, iconClass) {
+            const toast = document.getElementById('toast');
+            toast.innerHTML = '<i class="fas ' + (iconClass || 'fa-circle-check') + '"></i> ' + escapeHTML(message);
+            toast.classList.add('show');
+            clearTimeout(showToast._t);
+            showToast._t = setTimeout(() => toast.classList.remove('show'), 2600);
+        }
+
+        function copyText(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(text);
+            }
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) { /* تجاهل */ }
+            document.body.removeChild(ta);
+            return Promise.resolve();
+        }
+
+        // ====================================================================
+        // التخزين المحلي: المفضلة، آخر ما فُتح، آخر مكان، آخر زيارة
+        // ====================================================================
+        function getFavorites() {
+            try { return JSON.parse(localStorage.getItem(CONFIG.FAVORITES_KEY)) || []; }
+            catch (e) { return []; }
+        }
+        function isFavorite(id) { return getFavorites().indexOf(id) !== -1; }
+        function toggleFavorite(id) {
+            let favs = getFavorites();
+            const idx = favs.indexOf(id);
+            if (idx === -1) { favs.unshift(id); } else { favs.splice(idx, 1); }
+            localStorage.setItem(CONFIG.FAVORITES_KEY, JSON.stringify(favs));
+            return idx === -1;
+        }
+
+        function getRecentlyOpened() {
+            try { return JSON.parse(localStorage.getItem(CONFIG.RECENT_OPENED_KEY)) || []; }
+            catch (e) { return []; }
+        }
+        function addRecentlyOpened(id) {
+            let list = getRecentlyOpened().filter(x => x !== id);
+            list.unshift(id);
+            list = list.slice(0, CONFIG.MAX_RECENT_OPENED);
+            localStorage.setItem(CONFIG.RECENT_OPENED_KEY, JSON.stringify(list));
+        }
+        function clearRecentlyOpened() {
+            localStorage.removeItem(CONFIG.RECENT_OPENED_KEY);
+        }
+
+        function removeFavorite(id) {
+            const favs = getFavorites().filter(x => x !== id);
+            localStorage.setItem(CONFIG.FAVORITES_KEY, JSON.stringify(favs));
+        }
+        function removeRecentlyOpened(id) {
+            const list = getRecentlyOpened().filter(x => x !== id);
+            localStorage.setItem(CONFIG.RECENT_OPENED_KEY, JSON.stringify(list));
+        }
+
+        // ينظّف المفضلة وقائمة "آخر ما فتحته" من أي ملف لم يعد موجوداً في الفهرس الحالي
+        // (تم حذفه أو نقله من درايف)، حتى لا يبقى العداد يحسبه ولا تبقى بطاقته عالقة
+        function pruneMissingSavedFiles() {
+            if (!state.index) return false;
+            let changed = false;
+
+            const favs = getFavorites();
+            const validFavs = favs.filter(id => findFile(id));
+            if (validFavs.length !== favs.length) {
+                localStorage.setItem(CONFIG.FAVORITES_KEY, JSON.stringify(validFavs));
+                changed = true;
+            }
+
+            const recents = getRecentlyOpened();
+            const validRecents = recents.filter(id => findFile(id));
+            if (validRecents.length !== recents.length) {
+                localStorage.setItem(CONFIG.RECENT_OPENED_KEY, JSON.stringify(validRecents));
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        function getLastVisit() {
+            return localStorage.getItem(CONFIG.LAST_VISIT_KEY);
+        }
+        function setLastVisitNow() {
+            localStorage.setItem(CONFIG.LAST_VISIT_KEY, new Date().toISOString());
+        }
+
+        function getLastLocation() {
+            try { return JSON.parse(localStorage.getItem(CONFIG.LAST_LOCATION_KEY)); }
+            catch (e) { return null; }
+        }
+        function setLastLocation(sectionId, semesterId) {
+            localStorage.setItem(CONFIG.LAST_LOCATION_KEY, JSON.stringify({ sectionId, semesterId }));
+        }
+
+        // ====================================================================
+        // طبقة الاتصال بـ TRINEX Public API
+        // ====================================================================
+        function readLocalCache() {
+            try {
+                const raw = localStorage.getItem(CONFIG.SESSION_CACHE_KEY);
+                return raw ? JSON.parse(raw) : null; // { data, ts }
+            } catch (e) { return null; }
+        }
+
+        function writeLocalCache(data) {
+            try {
+                localStorage.setItem(CONFIG.SESSION_CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
+            } catch (e) { /* تجاهل امتلاء التخزين */ }
+        }
+
+        function fetchFromServer(forceRefresh) {
+            const url = CONFIG.PUBLIC_MATERIALS_URL + '?limit=1000' + (forceRefresh ? '&nocache=1' : '');
+            return fetch(url).then(res => {
+                if (!res.ok) throw new Error('تعذر الاتصال بخادم المواد (HTTP ' + res.status + ')');
+                return res.json();
+            }).then(payload => {
+                if (!payload || payload.success !== true || !payload.data) throw new Error('استجابة غير صالحة من خادم المواد');
+                const sections=[]; const files=[];
+                (payload.data.departments || []).forEach(dept => {
+                    const section={id:dept.id,name:dept.name||dept.nameEn||'',semesters:[]};
+                    (dept.semesters||[]).forEach(sem => {
+                        const semester={id:sem.id,name:sem.name||sem.nameEn||'',fileCount:0};
+                        section.semesters.push(semester);
+                        (sem.subjects||[]).forEach(subject => {
+                            (subject.files||[]).forEach(f => {
+                                files.push({
+                                    id:f.id,name:f.name||'',size:Number(f.sizeBytes||0),modified:f.modifiedAt||new Date().toISOString(),
+                                    pinned:false,sectionId:dept.id,sectionName:section.name,semesterId:sem.id,semesterName:semester.name,
+                                    materialName:subject.name||subject.nameEn||'',previewLink:f.viewUrl||f.downloadUrl||'',link:f.viewUrl||f.downloadUrl||'',downloadLink:f.downloadUrl||f.viewUrl||''
+                                }); semester.fileCount++;
+                            });
+                        });
+                    });
+                    sections.push(section);
+                });
+                const data={sections,files};
+                writeLocalCache(data); return data;
+            });
+        }
+
+        function fetchIndex(forceRefresh) {
+            if (forceRefresh) return fetchFromServer(true);
+
+            const cached = readLocalCache();
+            if (cached) {
+                // إذا كانت النسخة المخزّنة قديمة، جدّدها بصمت في الخلفية (لن تؤثر على العرض الحالي)
+                // فتكون جاهزة وسريعة في الزيارة التالية دون انتظار المستخدم لها الآن
+                if (Date.now() - cached.ts > CONFIG.CACHE_TTL_MS) {
+                    fetchFromServer(false).catch(() => { /* سيُعاد المحاولة في الزيارة القادمة */ });
+                }
+                return Promise.resolve(cached.data);
+            }
+
+            return fetchFromServer(false);
+        }
+
+        function logFileOpenRemote(file) { /* Public website has no analytics/open tracking. */ }
+
+        // ====================================================================
+        // البحث عن ملف بمعرفه داخل الفهرس المحمّل
+        // ====================================================================
+        function findFile(id) {
+            if (!state.index) return null;
+            return state.index.files.find(f => f.id === id) || null;
+        }
+
+        function findSection(id) {
+            if (!state.index) return null;
+            return state.index.sections.find(s => s.id === id) || null;
+        }
+
+        // ====================================================================
+        // ترتيب الملفات: المثبت أولاً، ثم الأحدث
+        // ====================================================================
+        function sortFiles(files) {
+            return files.slice().sort((a, b) => {
+                if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+                return new Date(b.modified) - new Date(a.modified);
+            });
+        }
+
+        // ====================================================================
+        // بناء بطاقة ملف واحدة (HTML مُهرّب بالكامل لمنع XSS)
+        // ====================================================================
+        function fileCardHTML(file, opts) {
+            opts = opts || {};
+            const fav = isFavorite(file.id);
+            const showNew = isNewFile(file.modified);
+            const showTags = opts.showTags !== false;
+
+            let badges = '';
+            if (file.pinned) badges += '<span class="badge-pill badge-pinned"><i class="fas fa-thumbtack"></i> مثبت</span>';
+            if (showNew) badges += '<span class="badge-pill badge-new"><i class="fas fa-star"></i> جديد</span>';
+
+            const tags = showTags
+                ? '<div class="file-tags">' +
+                    '<span class="file-tag">' + escapeHTML(file.sectionName) + '</span>' +
+                    '<span class="file-tag">' + escapeHTML(file.semesterName) + '</span>' +
+                    (file.materialName ? '<span class="file-tag">' + escapeHTML(file.materialName) + '</span>' : '') +
+                  '</div>'
+                : '';
+
+            return (
+                '<article class="file-card" data-file-id="' + escapeHTML(file.id) + '">' +
+                    (badges ? '<div class="badges-row">' + badges + '</div>' : '') +
+                    '<div class="file-head">' +
+                        '<i class="fas fa-file-pdf file-icon" aria-hidden="true"></i>' +
+                        '<div>' +
+                            '<div class="file-name" title="' + escapeHTML(file.name) + '">' + escapeHTML(file.name) + '</div>' +
+                            '<div class="file-meta">' +
+                                '<span>' + escapeHTML(formatBytes(file.size)) + '</span>' +
+                                '<span>•</span>' +
+                                '<span>آخر تعديل: ' + escapeHTML(formatDate(file.modified)) + '</span>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    tags +
+                    '<div class="file-actions">' +
+                        '<button class="btn-open" type="button" data-action="open-file" aria-label="فتح الملف">' +
+                            '<i class="fas fa-eye"></i> فتح الملف</button>' +
+                        '<button class="icon-btn" type="button" data-action="copy-link" aria-label="نسخ الرابط" title="نسخ الرابط">' +
+                            '<i class="fas fa-link"></i></button>' +
+                        '<button class="icon-btn" type="button" data-action="share-file" aria-label="مشاركة" title="مشاركة">' +
+                            '<i class="fas fa-share-nodes"></i></button>' +
+                        '<button class="icon-btn' + (fav ? ' is-favorite' : '') + '" type="button" data-action="toggle-favorite" ' +
+                            'aria-label="' + (fav ? 'إزالة من المفضلة' : 'إضافة للمفضلة') + '" title="المفضلة">' +
+                            '<i class="fa-star ' + (fav ? 'fas' : 'far') + '"></i></button>' +
+                    '</div>' +
+                '</article>'
+            );
+        }
+
+        function emptyStateHTML(icon, title, subtitle) {
+            return (
+                '<div class="state-card">' +
+                    '<div class="state-icon"><i class="fas ' + icon + '"></i></div>' +
+                    '<p class="state-title">' + escapeHTML(title) + '</p>' +
+                    (subtitle ? '<p>' + escapeHTML(subtitle) + '</p>' : '') +
+                '</div>'
+            );
+        }
+
+        function errorStateHTML(message) {
+            return (
+                '<div class="state-card is-error">' +
+                    '<div class="state-icon"><i class="fas fa-triangle-exclamation"></i></div>' +
+                    '<p class="state-title">تعذّر تحميل البيانات</p>' +
+                    '<p>' + escapeHTML(message) + '</p>' +
+                    '<button class="btn-retry" type="button" data-action="retry-load">إعادة المحاولة</button>' +
+                '</div>'
+            );
+        }
+
+        function skeletonGridHTML(count, kind) {
+            let html = '';
+            for (let i = 0; i < count; i++) {
+                html += '<div class="skeleton-card">' +
+                    '<div class="skeleton-line w-60"></div>' +
+                    '<div class="skeleton-line w-40"></div>' +
+                    (kind === 'file' ? '<div class="skeleton-line w-80"></div>' : '') +
+                    '</div>';
+            }
+            return html;
+        }
+
+        // ====================================================================
+        // بناء أزرار التبويبات (الأقسام + تبويبات الأدوات) — ديناميكي بالكامل
+        // ====================================================================
+        function deptIcon(name) {
+            const n = name || '';
+            if (n.indexOf('عمار') !== -1) return 'fa-compass-drafting';
+            if (n.indexOf('مدني') !== -1) return 'fa-building-columns';
+            if (n.indexOf('كهرب') !== -1 || n.indexOf('إلكترون') !== -1) return 'fa-microchip';
+            if (n.indexOf('ميكانيك') !== -1) return 'fa-gears';
+            if (n.indexOf('حاسوب') !== -1 || n.indexOf('حاسب') !== -1) return 'fa-laptop-code';
+            return 'fa-graduation-cap';
+        }
+
+        function renderTabs() {
+            const favCount = getFavorites().length;
+            const recentCount = getRecentlyOpened().length;
+
+            let html = '';
+            state.index.sections.forEach((section) => {
+                const key = 'section:' + section.id;
+                html += tabButtonHTML(key, deptIcon(section.name), section.name, state.activeTabKey === key);
+            });
+
+            html += '<div class="tabs-divider" role="presentation"></div>';
+            html += tabButtonHTML('util:favorites', 'fa-star', 'المفضلة', state.activeTabKey === 'util:favorites', favCount);
+            html += tabButtonHTML('util:recent', 'fa-clock-rotate-left', 'آخر ما فتحته', state.activeTabKey === 'util:recent', recentCount);
+            html += tabButtonHTML('util:mostused', 'fa-fire', 'الأكثر استخداماً', state.activeTabKey === 'util:mostused');
+
+            tabsContainer.innerHTML = html;
+        }
+
+        function tabButtonHTML(key, icon, label, active, badgeCount) {
+            const badge = (badgeCount) ? '<span class="tab-badge">' + badgeCount + '</span>' : '';
+            return (
+                '<button type="button" class="tab-button' + (active ? ' active' : '') + '" role="tab" ' +
+                    'aria-selected="' + (active ? 'true' : 'false') + '" data-tab-key="' + escapeHTML(key) + '">' +
+                    '<i class="fas ' + icon + '"></i> ' + escapeHTML(label) + badge +
+                '</button>'
+            );
+        }
+
+        function setActiveTab(key) {
+            tabsContainer.querySelectorAll('.tab-button').forEach(btn => {
+                const isActive = btn.getAttribute('data-tab-key') === key;
+                btn.classList.toggle('active', isActive);
+                btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+        }
+
+        // ====================================================================
+        // العروض (Views)
+        // ====================================================================
+        function goToSection(sectionId) {
+            state.currentSectionId = sectionId;
+            state.currentSemesterId = null;
+            state.currentView = 'semesters';
+            state.activeTabKey = 'section:' + sectionId;
+            setActiveTab(state.activeTabKey);
+            setLastLocation(sectionId, null);
+            clearSearchUI();
+            renderSemestersView();
+        }
+
+        function goToSemester(sectionId, semesterId) {
+            state.currentSectionId = sectionId;
+            state.currentSemesterId = semesterId;
+            state.currentView = 'files';
+            setLastLocation(sectionId, semesterId);
+            clearSearchUI();
+            renderFilesView();
+        }
+
+        function goToUtility(kind) {
+            state.currentView = kind;
+            state.currentSectionId = null;
+            state.currentSemesterId = null;
+            state.activeTabKey = 'util:' + kind;
+            setActiveTab(state.activeTabKey);
+            clearSearchUI();
+            renderUtilityView(kind);
+        }
+
+        function renderSemestersView() {
+            const section = findSection(state.currentSectionId);
+            if (!section) return;
+
+            let cardsHTML = '';
+            if (section.semesters.length === 0) {
+                cardsHTML = emptyStateHTML('fa-folder-open', 'لا توجد سمسترات بعد.', 'تعمل الأمانة الاعلامية بالتعاون مع الامانة الاكاديمية على توفير الشيتات و نشرها يرجى مراجعة الصفحة في وقت لاحق.');
+            } else {
+                section.semesters.forEach(sem => {
+                    cardsHTML +=
+                        '<div class="semester-card" role="button" tabindex="0" data-action="open-semester" ' +
+                            'data-section-id="' + escapeHTML(section.id) + '" data-semester-id="' + escapeHTML(sem.id) + '">' +
+                            '<i class="fas fa-folder-open"></i>' +
+                            '<h3>' + escapeHTML(sem.name) + '</h3>' +
+                            '<p>' + (sem.fileCount > 0 ? sem.fileCount + ' ملف' : 'لا توجد ملفات بعد') + '</p>' +
+                        '</div>';
+                });
+            }
+
+            contentArea.innerHTML =
+                '<div class="tab-content active">' +
+                    '<div class="semesters-grid">' + cardsHTML + '</div>' +
+                '</div>';
+        }
+
+        function renderFilesView() {
+            const section = findSection(state.currentSectionId);
+            const semester = section && section.semesters.find(s => s.id === state.currentSemesterId);
+            if (!section || !semester) return;
+
+            const files = sortFiles(state.index.files.filter(f =>
+                f.sectionId === state.currentSectionId && f.semesterId === state.currentSemesterId));
+
+            const bodyHTML = files.length
+                ? groupedFilesHTML(files)
+                : '<div class="files-grid">' + emptyStateHTML('fa-folder-open', 'لا توجد ملفات بعد.') + '</div>';
+
+            contentArea.innerHTML =
+                '<div class="tab-content active">' +
+                    '<div class="breadcrumb-bar">' +
+                        '<p class="crumb-text"><b>' + escapeHTML(section.name) + '</b><span class="sep">/</span>' + escapeHTML(semester.name) + '</p>' +
+                        '<button class="btn-back" type="button" data-action="back-to-semesters">' +
+                            '<i class="fas fa-arrow-right"></i> رجوع</button>' +
+                    '</div>' +
+                    bodyHTML +
+                '</div>';
+        }
+
+        // يجمّع ملفات السمستر الواحد حسب اسم المادة (مجلد المادة على درايف) بدل عرضها
+        // جميعاً متداخلة في شبكة واحدة. الملفات الموضوعة مباشرة داخل مجلد السمستر
+        // (بلا مجلد مادة) تظهر أولاً بلا عنوان، ثم تتبعها كل مادة في مجموعتها الخاصة.
+        function groupedFilesHTML(files) {
+            const generalFiles = files.filter(f => !f.materialName);
+            const namedGroups = {};
+            files.forEach(f => {
+                if (!f.materialName) return;
+                if (!namedGroups[f.materialName]) namedGroups[f.materialName] = [];
+                namedGroups[f.materialName].push(f);
+            });
+
+            const materialNames = Object.keys(namedGroups).sort((a, b) => a.localeCompare(b, 'ar'));
+
+            let html = '';
+
+            if (generalFiles.length) {
+                html += '<div class="files-grid">' +
+                    generalFiles.map(f => fileCardHTML(f, { showTags: false })).join('') +
+                    '</div>';
+            }
+
+            materialNames.forEach((name, idx) => {
+                const groupId = 'mat-' + idx;
+                html +=
+                    '<div class="material-group" id="' + groupId + '">' +
+                        '<div class="material-group-title" role="button" tabindex="0" data-action="toggle-material" ' +
+                            'aria-expanded="false" aria-controls="' + groupId + '-body">' +
+                            '<span class="title-left"><i class="fas fa-book"></i><span>' + escapeHTML(name) + '</span></span>' +
+                            '<span class="title-right">' +
+                                '<span class="material-group-count">' + namedGroups[name].length + ' ملف</span>' +
+                                '<i class="fas fa-chevron-down material-group-chevron" aria-hidden="true"></i>' +
+                            '</span>' +
+                        '</div>' +
+                        '<div class="material-group-body" id="' + groupId + '-body">' +
+                            '<div class="material-group-body-inner">' +
+                                '<div class="files-grid">' +
+                                    namedGroups[name].map(f => fileCardHTML(f, { showTags: false })).join('') +
+                                '</div>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+            });
+
+            return html;
+        }
+
+        function renderUtilityView(kind) {
+            let files = [];
+            let title = '';
+            let icon = 'fa-star';
+            let emptyTitle = 'لا توجد ملفات هنا بعد.';
+            let extraControls = '';
+
+            if (kind === 'favorites') {
+                const ids = getFavorites();
+                files = ids.map(findFile).filter(Boolean);
+                title = 'المواد المفضلة';
+                icon = 'fa-star';
+                emptyTitle = 'لم تُضِف أي ملف للمفضلة بعد.';
+            } else if (kind === 'recent') {
+                const ids = getRecentlyOpened();
+                files = ids.map(findFile).filter(Boolean);
+                title = 'آخر ما فتحته';
+                icon = 'fa-clock-rotate-left';
+                emptyTitle = 'لم تفتح أي ملف بعد.';
+                if (files.length) extraControls = '<button class="btn-clear-list" type="button" data-action="clear-recent">مسح القائمة</button>';
+            } else if (kind === 'mostused') {
+                files = state.index.files.filter(f => f.openCount > 0)
+                    .slice().sort((a, b) => b.openCount - a.openCount).slice(0, 30);
+                title = 'الأكثر استخداماً';
+                icon = 'fa-fire';
+                emptyTitle = 'لا توجد بيانات استخدام كافية بعد.';
+            } else if (kind === 'newfiles') {
+                files = state.index.files.filter(f => isNewFile(f.modified));
+                title = 'الملفات الجديدة';
+                icon = 'fa-star';
+                emptyTitle = 'لا توجد ملفات جديدة حالياً.';
+            }
+
+            const gridHTML = files.length
+                ? files.map(f => fileCardHTML(f, { showTags: true })).join('')
+                : emptyStateHTML('fa-folder-open', emptyTitle);
+
+            contentArea.innerHTML =
+                '<div class="tab-content active">' +
+                    '<div class="breadcrumb-bar">' +
+                        '<p class="panel-title" style="margin-bottom:0;"><i class="fas ' + icon + '"></i> ' + escapeHTML(title) + '</p>' +
+                        extraControls +
+                    '</div>' +
+                    '<div class="files-grid">' + gridHTML + '</div>' +
+                '</div>';
+        }
+
+        // ====================================================================
+        // البحث
+        // ====================================================================
+        function matchesQuery(file, q) {
+            return file.name.toLowerCase().indexOf(q) !== -1 ||
+                file.sectionName.toLowerCase().indexOf(q) !== -1 ||
+                file.semesterName.toLowerCase().indexOf(q) !== -1 ||
+                (file.materialName || '').toLowerCase().indexOf(q) !== -1;
+        }
+
+        function runSearch(query) {
+            const q = query.trim().toLowerCase();
+            const searchBar = document.getElementById('searchBar');
+            searchBar.classList.toggle('has-query', q.length > 0);
+
+            if (!q) {
+                clearSearchUI();
+                restoreCurrentView();
+                return;
+            }
+
+            document.getElementById('coursesBody').classList.add('search-active');
+
+            // البحث عام دائماً: يشمل كل الأقسام والسمسترات والمواد بلا استثناء،
+            // بغض النظر عن الشاشة التي يقف عندها المستخدم حالياً.
+            const results = sortFiles(state.index.files.filter(f => matchesQuery(f, q)));
+            const gridHTML = results.length
+                ? results.map(f => fileCardHTML(f, { showTags: true })).join('')
+                : emptyStateHTML('fa-magnifying-glass', 'لا توجد ملفات مطابقة.');
+
+            contentArea.innerHTML =
+                '<div class="tab-content active">' +
+                    '<div class="breadcrumb-bar">' +
+                        '<p class="crumb-text">نتائج البحث عن «<b>' + escapeHTML(query) + '</b>» (' + results.length + ')</p>' +
+                    '</div>' +
+                    '<div class="files-grid">' + gridHTML + '</div>' +
+                '</div>';
+        }
+
+        function clearSearchUI() {
+            const input = document.getElementById('searchInput');
+            input.value = '';
+            document.getElementById('searchBar').classList.remove('has-query');
+            document.getElementById('coursesBody').classList.remove('search-active');
+        }
+
+        function restoreCurrentView() {
+            if (state.currentView === 'files') renderFilesView();
+            else if (state.currentView === 'semesters') renderSemestersView();
+            else if (['favorites', 'recent', 'mostused', 'newfiles'].indexOf(state.currentView) !== -1) renderUtilityView(state.currentView);
+        }
+
+        // ====================================================================
+        // شريط الإشعار بالملفات الجديدة
+        // ====================================================================
+        function checkNewFilesBanner() {
+            const lastVisit = getLastVisit();
+            const banner = document.getElementById('updateBanner');
+            if (!lastVisit) { banner.classList.remove('show'); return; }
+
+            const lastVisitTime = new Date(lastVisit).getTime();
+            const newOnes = state.index.files.filter(f => new Date(f.modified).getTime() > lastVisitTime);
+
+            if (newOnes.length > 0) {
+                document.getElementById('updateBannerText').textContent =
+                    'تمت إضافة ' + newOnes.length + (newOnes.length === 1 ? ' ملف جديد' : ' ملفات جديدة') + ' منذ آخر زيارة.';
+                banner.classList.add('show');
+            } else {
+                banner.classList.remove('show');
+            }
+        }
+
+        // ====================================================================
+        // نافذة عرض PDF
+        // ====================================================================
+        let lastFocusedBeforeModal = null;
+
+        function safeCourseUrl(value) {
+            try {
+                const url = new URL(String(value || ""));
+                return url.protocol === "https:" ? url.href : "";
+            } catch (_) { return ""; }
+        }
+
+        function openPdfModal(file) {
+            lastFocusedBeforeModal = document.activeElement;
+
+            const previewUrl = safeCourseUrl(file.previewLink);
+            const openUrl = safeCourseUrl(file.link);
+            const downloadUrl = safeCourseUrl(file.downloadLink);
+            if (!previewUrl || !openUrl || !downloadUrl) {
+                showToast('رابط الملف غير صالح أو غير آمن', 'fa-triangle-exclamation');
+                return;
+            }
+            document.getElementById('pdfModalTitle').textContent = file.name || '';
+            document.getElementById('pdfModalFrame').src = previewUrl;
+            const openDriveLink = document.getElementById('modalOpenDrive');
+            const downloadLink = document.getElementById('modalDownload');
+            openDriveLink.href = openUrl;
+            downloadLink.href = downloadUrl;
+            openDriveLink.rel = 'noopener noreferrer';
+            downloadLink.rel = 'noopener noreferrer';
+            openDriveLink.removeAttribute('aria-disabled');
+            openDriveLink.removeAttribute('tabindex');
+            downloadLink.removeAttribute('aria-disabled');
+            downloadLink.removeAttribute('tabindex');
+
+            const modal = document.getElementById('pdfModal');
+            modal.classList.add('show');
+            modal.dataset.fileId = file.id;
+            document.getElementById('btnCloseModal').focus();
+
+            addRecentlyOpened(file.id);
+            logFileOpenRemote(file);
+        }
+
+        function closePdfModal() {
+            const modal = document.getElementById('pdfModal');
+            modal.classList.remove('show');
+            document.getElementById('pdfModalFrame').src = 'about:blank';
+            for (const id of ['modalOpenDrive', 'modalDownload']) {
+                const link = document.getElementById(id);
+                link.removeAttribute('href');
+                link.setAttribute('aria-disabled', 'true');
+                link.setAttribute('tabindex', '-1');
+            }
+            if (lastFocusedBeforeModal) lastFocusedBeforeModal.focus();
+        }
+
+        // ====================================================================
+        // تحميل البيانات وتهيئة الصفحة
+        // ====================================================================
+        function showGlobalSkeleton() {
+            tabsContainer.innerHTML =
+                '<div class="skeleton-card" style="width:140px;"><div class="skeleton-line w-60"></div></div>'.repeat(3);
+            contentArea.innerHTML =
+                '<div class="tab-content active"><div class="semesters-grid">' + skeletonGridHTML(6, 'semester') + '</div></div>';
+        }
+
+        function showFatalError(message) {
+            tabsContainer.innerHTML = '';
+            contentArea.innerHTML = '<div class="tab-content active"><div class="files-grid">' + errorStateHTML(message) + '</div></div>';
+        }
+
+        function loadData(forceRefresh) {
+            showGlobalSkeleton();
+            return fetchIndex(forceRefresh)
+                .then(data => {
+                    state.index = data;
+                    pruneMissingSavedFiles();
+                    renderTabs();
+                    checkNewFilesBanner();
+                    openInitialView();
+                    setLastVisitNow();
+                })
+                .catch(err => {
+                    showFatalError(err.message || 'حدث خطأ غير متوقع، تحقّق من اتصالك بالإنترنت.');
+                });
+        }
+
+        function openInitialView() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const deptParam = urlParams.get('dept');
+
+            if (deptParam) {
+                // كلمات مفتاحية عربية لكل قسم لمطابقة أسماء الأقسام القادمة من الخادم
+                const keywordsBySlug = {
+                    architecture: ['عمار'],
+                    civil: ['مدني'],
+                    electrical: ['كهرب', 'إلكترون']
+                };
+
+                let target = null;
+
+                // 1) مطابقة مباشرة عبر معرّف القسم (الأدق والأكثر ثباتاً)
+                target = state.index.sections.find(s => s.id === deptParam);
+
+                // 2) مطابقة عبر اسم القسم بالعربية (تعمل حتى لو تغيّر ترتيب الأقسام أو معرّفاتها)
+                if (!target && keywordsBySlug[deptParam]) {
+                    const keywords = keywordsBySlug[deptParam];
+                    target = state.index.sections.find(s =>
+                        keywords.some(k => (s.name || '').indexOf(k) !== -1)
+                    );
+                }
+
+                // 3) كحل أخير فقط: الاعتماد على ترتيب الأقسام كما وردت من الخادم
+                if (!target) {
+                    const bySlug = { architecture: 0, civil: 1, electrical: 2 };
+                    target = state.index.sections[bySlug[deptParam]] || null;
+                }
+
+                if (target) { goToSection(target.id); return; }
+            }
+
+            const last = getLastLocation();
+            if (last && findSection(last.sectionId)) {
+                if (last.semesterId) { goToSemester(last.sectionId, last.semesterId); return; }
+                goToSection(last.sectionId);
+                return;
+            }
+
+            if (state.index.sections.length) goToSection(state.index.sections[0].id);
+        }
+
+        // ====================================================================
+        // الأحداث (تفويض النقر بدل onclick المضمّن لمنع الحقن)
+        // ====================================================================
+        function handleGlobalClick(e) {
+            const tabBtn = e.target.closest('[data-tab-key]');
+            if (tabBtn) {
+                const key = tabBtn.getAttribute('data-tab-key');
+                if (key.indexOf('section:') === 0) goToSection(key.slice(8));
+                else if (key.indexOf('util:') === 0) goToUtility(key.slice(5));
+                return;
+            }
+
+            const actionEl = e.target.closest('[data-action]');
+            if (!actionEl) return;
+            const action = actionEl.getAttribute('data-action');
+
+            if (action === 'open-semester') {
+                goToSemester(actionEl.getAttribute('data-section-id'), actionEl.getAttribute('data-semester-id'));
+            } else if (action === 'back-to-semesters') {
+                goToSection(state.currentSectionId);
+            } else if (action === 'retry-load') {
+                loadData(true);
+            } else if (action === 'clear-recent') {
+                clearRecentlyOpened();
+                renderUtilityView('recent');
+                renderTabs();
+                setActiveTab('util:recent');
+            } else if (action === 'open-file') {
+                const openCard = actionEl.closest('[data-file-id]');
+                const openId = openCard ? openCard.getAttribute('data-file-id') : null;
+                const file = openId ? findFile(openId) : null;
+                if (file) openPdfModal(file);
+                else handleMissingFile(openId);
+            } else if (action === 'copy-link') {
+                const card = actionEl.closest('[data-file-id]');
+                const file = findFile(card.getAttribute('data-file-id'));
+                if (file) copyText(file.link).then(() => showToast('تم نسخ الرابط', 'fa-link'));
+                else handleMissingFile(card.getAttribute('data-file-id'));
+            } else if (action === 'share-file') {
+                const card = actionEl.closest('[data-file-id]');
+                const file = findFile(card.getAttribute('data-file-id'));
+                if (!file) { handleMissingFile(card.getAttribute('data-file-id')); return; }
+                if (navigator.share) {
+                    navigator.share({ title: file.name, url: file.link }).catch(() => {});
+                } else {
+                    copyText(file.link).then(() => showToast('تم نسخ رابط المشاركة', 'fa-share-nodes'));
+                }
+            } else if (action === 'toggle-material') {
+                const groupEl = actionEl.closest('.material-group');
+                if (!groupEl) return;
+                const nowExpanded = groupEl.classList.toggle('expanded');
+                actionEl.setAttribute('aria-expanded', nowExpanded ? 'true' : 'false');
+            } else if (action === 'toggle-favorite') {
+                const card = actionEl.closest('[data-file-id]');
+                const id = card.getAttribute('data-file-id');
+                const nowFav = toggleFavorite(id);
+                actionEl.classList.toggle('is-favorite', nowFav);
+                actionEl.querySelector('i').className = 'fa-star ' + (nowFav ? 'fas' : 'far');
+                actionEl.setAttribute('aria-label', nowFav ? 'إزالة من المفضلة' : 'إضافة للمفضلة');
+                showToast(nowFav ? 'أُضيف إلى المفضلة' : 'أُزيل من المفضلة', 'fa-star');
+                renderTabs();
+            }
+        }
+
+        // يُستدعى عندما يضغط المستخدم على ملف لم يعد موجوداً في الفهرس (حُذف أو نُقل من درايف)
+        function handleMissingFile(id) {
+            showToast('هذا الملف لم يعد متاحاً، رُبما حُذف أو نُقل', 'fa-triangle-exclamation');
+            removeFavorite(id);
+            removeRecentlyOpened(id);
+            renderTabs();
+            if (['favorites', 'recent'].indexOf(state.currentView) !== -1) {
+                renderUtilityView(state.currentView);
+            }
+        }
+
+        function handleGlobalKeydown(e) {
+            // دعم لوحة المفاتيح لبطاقات السمستر (Enter / Space)
+            if ((e.key === 'Enter' || e.key === ' ') &&
+                e.target.matches('[data-action="open-semester"], [data-action="toggle-material"]')) {
+                e.preventDefault();
+                e.target.click();
+            }
+
+            const modal = document.getElementById('pdfModal');
+            if (!modal.classList.contains('show')) return;
+
+            if (e.key === 'Escape') {
+                closePdfModal();
+                return;
+            }
+
+            // حبس التركيز داخل النافذة أثناء فتحها (Focus Trap)
+            if (e.key === 'Tab') {
+                const focusables = modal.querySelectorAll('button, a[href], iframe, [tabindex]:not([tabindex="-1"])');
+                if (!focusables.length) return;
+                const first = focusables[0];
+                const last = focusables[focusables.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault(); last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault(); first.focus();
+                }
+            }
+        }
+
+        function init() {
+            document.addEventListener('click', handleGlobalClick);
+            document.addEventListener('keydown', handleGlobalKeydown);
+
+            document.getElementById('searchInput').addEventListener('input', debounce((e) => {
+                state.searchQuery = e.target.value;
+                runSearch(state.searchQuery);
+            }, 220));
+
+            document.getElementById('btnClearSearch').addEventListener('click', () => {
+                clearSearchUI();
+                restoreCurrentView();
+            });
+
+            document.getElementById('btnRefresh').addEventListener('click', (e) => {
+                const btn = e.currentTarget;
+                btn.classList.add('spinning');
+                loadData(true).finally(() => btn.classList.remove('spinning'));
+            });
+
+            document.getElementById('btnViewNewFiles').addEventListener('click', () => {
+                document.getElementById('updateBanner').classList.remove('show');
+                goToUtility('newfiles');
+            });
+
+            document.getElementById('btnDismissBanner').addEventListener('click', () => {
+                document.getElementById('updateBanner').classList.remove('show');
+            });
+
+            document.getElementById('btnCloseModal').addEventListener('click', closePdfModal);
+            document.getElementById('pdfModal').addEventListener('click', (e) => {
+                if (e.target.id === 'pdfModal') closePdfModal();
+            });
+            document.getElementById('modalShare').addEventListener('click', () => {
+                const id = document.getElementById('pdfModal').dataset.fileId;
+                const file = findFile(id);
+                if (!file) return;
+                if (navigator.share) {
+                    navigator.share({ title: file.name, url: file.link }).catch(() => {});
+                } else {
+                    copyText(file.link).then(() => showToast('تم نسخ رابط المشاركة', 'fa-share-nodes'));
+                }
+            });
+
+            loadData(false);
+        }
+
+        return { init };
+    })();
+
+    window.addEventListener('DOMContentLoaded', () => {
+        CoursesApp.init();
+    });
+</script>
+<script src="site-settings.js"></script>
+    <script src="ui-pro.js?v=5"></script>
+  <script src="analytics.js" defer></script>
+</body>
+</html>

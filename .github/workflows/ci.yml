@@ -1,0 +1,404 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Flutter Analyze, Test & Signed Artifacts
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check whether Flutter needs to run
+        id: flutter_changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          # Manual runs always validate Flutter. On push/PR, stop this job early
+          # when no Flutter-related files changed. This avoids a dedicated runner
+          # just for change detection.
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Flutter CI: manual run -> RUN"
+            exit 0
+          fi
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base="$BASE_SHA"
+          else
+            base="$BEFORE_SHA"
+            if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+              base="$(git rev-list --max-parents=0 HEAD)"
+            fi
+          fi
+
+          changed="$(git diff --name-only "$base" "$HEAD_SHA")"
+          echo "Changed files:"
+          printf '%s\n' "$changed"
+
+          while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            case "$file" in
+              flutter/*|\
+              ci/flutter_secure_storage_check.py|\
+              ci/offline_cache_check.py|\
+              ci/color_theme_check.py|\
+              ci/release_check.py|\
+              ci/final_release_check.py|\
+              ci/verify_project.py|\
+              ci/workflow_consistency_check.py|\
+              .github/workflows/ci.yml)
+                echo "run=true" >> "$GITHUB_OUTPUT"
+                echo "Flutter CI: relevant changes detected -> RUN"
+                exit 0
+                ;;
+            esac
+          done <<< "$changed"
+
+          echo "run=false" >> "$GITHUB_OUTPUT"
+          echo "Flutter CI: no relevant changes detected -> SKIP"
+          exit 0
+
+      - name: Setup Java 17
+        if: steps.flutter_changes.outputs.run == 'true'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle cache
+        if: steps.flutter_changes.outputs.run == 'true'
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Setup Flutter
+        if: steps.flutter_changes.outputs.run == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        if: steps.flutter_changes.outputs.run == 'true'
+        run: flutter --version
+
+      - name: Synchronize version from canonical VERSION
+        if: steps.flutter_changes.outputs.run == 'true'
+        run: python3 tool/sync_version.py
+
+      - name: Resolve dependencies
+        if: steps.flutter_changes.outputs.run == 'true'
+        run: flutter pub get
+
+      - name: Analyze + Test (parallel)
+        if: steps.flutter_changes.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -uo pipefail
+          flutter analyze --no-fatal-infos > /tmp/trinex-analyze.log 2>&1 &
+          analyze_pid=$!
+          flutter test --coverage > /tmp/trinex-test.log 2>&1 &
+          test_pid=$!
+
+          analyze_status=0
+          test_status=0
+          wait "$analyze_pid" || analyze_status=$?
+          wait "$test_pid" || test_status=$?
+
+          echo '===== flutter analyze ====='
+          cat /tmp/trinex-analyze.log
+          echo '===== flutter test ====='
+          cat /tmp/trinex-test.log
+
+          if [[ "$analyze_status" -ne 0 || "$test_status" -ne 0 ]]; then
+            echo "Analyze exit: $analyze_status; Test exit: $test_status"
+            exit 1
+          fi
+
+      - name: Project verification
+        if: steps.flutter_changes.outputs.run == 'true'
+        working-directory: ${{ github.workspace }}
+        run: python3 ci/verify_project.py
+
+      - name: Workflow consistency
+        if: steps.flutter_changes.outputs.run == 'true'
+        working-directory: ${{ github.workspace }}
+        run: python3 ci/workflow_consistency_check.py
+
+      - name: Flutter release-safety checks
+        if: steps.flutter_changes.outputs.run == 'true'
+        working-directory: ${{ github.workspace }}
+        run: |
+          python3 ci/release_check.py
+          python3 ci/final_release_check.py
+          python3 ci/flutter_secure_storage_check.py
+          python3 ci/offline_cache_check.py
+          python3 ci/color_theme_check.py
+
+      - name: Configure Android signing for CI artifacts
+        if: steps.flutter_changes.outputs.run == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_STORE_PASSWORD ANDROID_KEY_PASSWORD ANDROID_KEY_ALIAS; do
+            test -n "${!name}" || { echo "Missing $name"; exit 1; }
+          done
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          cat > android/key.properties <<EOF2
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=../upload-keystore.jks
+          EOF2
+
+      - name: Build signed APK
+        if: steps.flutter_changes.outputs.run == 'true'
+        run: flutter build apk --release --no-pub
+
+      - name: Build signed AAB
+        if: steps.flutter_changes.outputs.run == 'true'
+        run: flutter build appbundle --release --no-pub
+
+      - name: Verify Android signatures
+        if: steps.flutter_changes.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          AAB="build/app/outputs/bundle/release/app-release.aab"
+          APKSIGNER="${ANDROID_HOME}/build-tools/$(ls -1 "${ANDROID_HOME}/build-tools" | sort -V | tail -1)/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
+          jarsigner -verify -verbose -certs "$AAB" >/tmp/trinex-aab-signature.txt
+          grep -q 'jar verified' /tmp/trinex-aab-signature.txt
+
+      - name: Prepare compressed CI artifacts
+        if: steps.flutter_changes.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p build/ci-artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk "build/ci-artifacts/TRINEX.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "build/ci-artifacts/TRINEX.aab"
+          cd build/ci-artifacts
+          zip -1 -q "TRINEX APK.zip" TRINEX.apk
+          zip -1 -q "TRINEX AAB.zip" TRINEX.aab
+          unzip -t "TRINEX APK.zip"
+          unzip -t "TRINEX AAB.zip"
+
+      - name: Upload Flutter coverage
+        if: steps.flutter_changes.outputs.run == 'true' && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: flutter-coverage-${{ github.sha }}
+          path: flutter/coverage/lcov.info
+          if-no-files-found: ignore
+
+      - name: Upload signed APK zip
+        if: steps.flutter_changes.outputs.run == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: TRINEX APK.zip
+          path: flutter/build/ci-artifacts/TRINEX APK.zip
+          if-no-files-found: error
+
+      - name: Upload signed AAB zip
+        if: steps.flutter_changes.outputs.run == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: TRINEX AAB.zip
+          path: flutter/build/ci-artifacts/TRINEX AAB.zip
+          if-no-files-found: error
+
+  backend:
+    name: Backend Validate & Deploy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Syntax check
+        run: npm run check
+
+      - name: Contract & security checks
+        working-directory: ${{ github.workspace }}
+        run: |
+          python3 ci/backend_schema_check.py
+          python3 ci/backend_schema_audit.py
+          python3 ci/backend_api_integrity_check.py
+          python3 ci/backend_api_contract_check.py
+          python3 ci/student_features_contract_check.py
+          python3 ci/admin_crud_check.py
+          python3 ci/usage_analytics_check.py
+          python3 ci/auth_hardening_check.py
+          node ci/api_authorization_check.mjs
+          python3 ci/eino_provider_check.py
+          python3 ci/eino_dashboard_check.py
+          python3 ci/eino_observability_check.py
+          node ci/eino_provider_matrix_check.mjs
+
+      - name: Wrangler dry run
+        run: npx wrangler deploy --dry-run
+
+      - name: Deploy backend on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GOOGLE_APPS_SCRIPT_DRIVE_URL: ${{ secrets.GOOGLE_APPS_SCRIPT_DRIVE_URL }}
+          GOOGLE_APPS_SCRIPT_GMAIL_URL: ${{ secrets.GOOGLE_APPS_SCRIPT_GMAIL_URL }}
+          GOOGLE_APPS_SCRIPT_DRIVE_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_DRIVE_TOKEN }}
+          GOOGLE_APPS_SCRIPT_GMAIL_TOKEN: ${{ secrets.GOOGLE_APPS_SCRIPT_GMAIL_TOKEN }}
+          FREE_AI_API_KEY: ${{ secrets.FREE_AI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FREE_AI_BASE_URL: ${{ secrets.FREE_AI_BASE_URL }}
+          EINO_EMBEDDING_API_KEY: ${{ secrets.EINO_EMBEDDING_API_KEY }}
+          STAFF_BOOTSTRAP_TOKEN: ${{ secrets.STAFF_BOOTSTRAP_TOKEN }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
+          OCR_SPACE_API_KEY: ${{ secrets.OCR_SPACE_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$GOOGLE_APPS_SCRIPT_DRIVE_URL"
+          test -n "$GOOGLE_APPS_SCRIPT_GMAIL_URL"
+          test -n "$GOOGLE_APPS_SCRIPT_DRIVE_TOKEN"
+          test -n "$GOOGLE_APPS_SCRIPT_GMAIL_TOKEN"
+
+          npx wrangler d1 migrations apply leo-association-db --remote
+
+          for pair in \
+            FREE_AI_API_KEY \
+            MISTRAL_API_KEY \
+            GROQ_API_KEY \
+            GEMINI_API_KEY \
+            FREE_AI_BASE_URL \
+            EINO_EMBEDDING_API_KEY \
+            GOOGLE_APPS_SCRIPT_DRIVE_TOKEN \
+            GOOGLE_APPS_SCRIPT_GMAIL_TOKEN \
+            STAFF_BOOTSTRAP_TOKEN \
+            FCM_SERVICE_ACCOUNT_JSON \
+            OCR_SPACE_API_KEY; do
+            value="${!pair:-}"
+            if [ -n "$value" ]; then
+              printf '%s' "$value" | npx wrangler secret put "$pair"
+            fi
+          done
+
+          npx wrangler deploy \
+            --var "GOOGLE_APPS_SCRIPT_DRIVE_URL:$GOOGLE_APPS_SCRIPT_DRIVE_URL" \
+            --var "GOOGLE_APPS_SCRIPT_GMAIL_URL:$GOOGLE_APPS_SCRIPT_GMAIL_URL"
+
+      - name: Verify production API
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL || 'https://leo-association-api.www-halaahlalkher7.workers.dev' }}
+        run: |
+          set -euo pipefail
+          HEALTH_URL="${API_BASE_URL%/}/api/v1/health"
+          echo "Verifying production API: $HEALTH_URL"
+          curl --fail --silent --show-error --retry 8 --retry-delay 5 --retry-all-errors "$HEALTH_URL"
+
+  website:
+    name: Website Build & Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build distribution
+        run: npm run build
+
+      - name: Web security checks
+        run: |
+          python3 ci/web_security_check.py
+          python3 ci/website_audit_regression_check.py
+          python3 ci/interactive_controls_audit.py
+          python3 ci/xss_dom_check.py
+          python3 ci/admin_ui_payload_check.py
+
+      - name: Upload website artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-dist-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Deploy website on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ftpupload.net
+          username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: /ush-eng.great-site.net/htdocs/
+          dangerous-clean-slate: false
+
+      - name: Verify production website
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://ush-eng.great-site.net' }}
+        run: |
+          set -euo pipefail
+          test -n "$SITE_URL" || { echo 'SITE_URL is empty'; exit 1; }
+          # InfinityFree may reject generic curl requests with an empty reply.
+          # Send a browser-like request and keep the response body for diagnostics.
+          curl --fail --silent --show-error --location \
+            --retry 5 --retry-delay 5 --retry-all-errors \
+            --connect-timeout 20 --max-time 60 \
+            -A "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/140.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" \
+            -H "Accept-Language: en-US,en;q=0.9" \
+            -o /tmp/site-health.html \
+            -w "HTTP status: %{http_code}\n" \
+            "$SITE_URL/"
+          test -s /tmp/site-health.html || { echo 'Website returned an empty body'; exit 1; }
+          echo 'Website health check passed.'

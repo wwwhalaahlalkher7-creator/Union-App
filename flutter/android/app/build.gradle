@@ -1,0 +1,88 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+// Firebase Android config is optional in source archives; enabled when google-services.json is supplied.
+if (file("google-services.json").exists()) {
+    apply plugin: "com.google.gms.google-services"
+}
+
+// Production signing is supplied at build time through android/key.properties
+// and is intentionally never committed to the repository.
+import java.util.Properties
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def hasReleaseSigning = [
+    'keyAlias', 'keyPassword', 'storeFile', 'storePassword'
+].every { keystoreProperties.getProperty(it) }
+
+android {
+    namespace = "com.leoassociation.app"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = "28.2.13676358"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        // Required by flutter_local_notifications on Android release builds.
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                keyAlias = keystoreProperties['keyAlias']
+                keyPassword = keystoreProperties['keyPassword']
+                storeFile = file(keystoreProperties['storeFile'])
+                storePassword = keystoreProperties['storePassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Production releases must be signed with the configured production key.
+            // Debug signing is intentionally never used for release artifacts.
+            if (hasReleaseSigning) signingConfig = signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    defaultConfig {
+        applicationId = "com.leoassociation.app"
+        minSdk = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+}
+
+dependencies {
+    // Backport Java APIs required by flutter_local_notifications.
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+}
+
+flutter {
+    source = "../.."
+}
+
+afterEvaluate {
+    tasks.matching { it.name == 'assembleRelease' || it.name == 'bundleRelease' }.configureEach {
+        doFirst {
+            if (!hasReleaseSigning) {
+                throw new GradleException('Release signing is not configured. Create android/key.properties with keyAlias, keyPassword, storeFile, and storePassword before building a release artifact.')
+            }
+        }
+    }
+}

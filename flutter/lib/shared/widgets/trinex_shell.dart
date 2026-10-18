@@ -1,0 +1,500 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+
+import '../../core/localization/app_localizations.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../features/eino/eino_face.dart';
+import '../../core/di/app_dependencies.dart';
+import '../../core/notifications/push_notification_service.dart';
+import '../../data/models/notification_item.dart';
+
+class TrinexShell extends StatefulWidget {
+  const TrinexShell({
+    required this.location,
+    required this.child,
+    super.key,
+  });
+
+  final String location;
+  final Widget child;
+
+  @override
+  State<TrinexShell> createState() => _TrinexShellState();
+}
+
+class _TrinexShellState extends State<TrinexShell>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 3),
+  )..repeat();
+
+  bool _einoVisible = false;
+  int _unreadNotifications = 0;
+  StreamSubscription<void>? _notificationSubscription;
+  StreamSubscription<UserAccelerometerEvent>? _shakeSubscription;
+  DateTime _lastShakeAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  bool get _readingMode => widget.location == '/media/detail';
+
+  bool get _hideFloatingEino => widget.location.startsWith('/student');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _notificationSubscription = PushNotificationService.instance.notificationArrived.listen((_) => _handleNotificationArrived());
+    _startShakeDetection();
+    _einoVisible = !_readingMode && !_hideFloatingEino;
+    FocusManager.instance.addListener(_handleFocusChange);
+    _refreshUnreadNotifications();
+  }
+
+  @override
+  void didUpdateWidget(covariant TrinexShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((oldWidget.location.startsWith('/notifications') && !widget.location.startsWith('/notifications')) ||
+        (oldWidget.location.startsWith('/login') && widget.location.startsWith('/home'))) {
+      _refreshUnreadNotifications();
+    }
+    if (oldWidget.location != widget.location && _readingMode) {
+      _einoVisible = false;
+    } else if (oldWidget.location != widget.location && !_readingMode) {
+      _einoVisible = !_hideFloatingEino;
+    }
+  }
+
+  void _handleFocusChange() {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    final isEditing =
+        focusContext?.findAncestorWidgetOfExactType<EditableText>() != null;
+    if (!mounted) return;
+    if (isEditing && _einoVisible) {
+      setState(() => _einoVisible = false);
+    } else if (!isEditing && !_einoVisible && !_readingMode && !_hideFloatingEino) {
+      setState(() => _einoVisible = true);
+    }
+  }
+
+  void _handleNotificationArrived() {
+    if (!mounted) return;
+    setState(() => _unreadNotifications += 1);
+  }
+
+  void _startShakeDetection() {
+    if (_shakeSubscription != null) return;
+    try {
+      _shakeSubscription = userAccelerometerEventStream(
+        samplingPeriod: const Duration(milliseconds: 120),
+      ).listen(
+        _handleShake,
+        onError: (_) {},
+        cancelOnError: false,
+      );
+    } catch (_) {
+      // Sensors may be unavailable on simulators or some desktop devices.
+    }
+  }
+
+  void _stopShakeDetection() {
+    final subscription = _shakeSubscription;
+    _shakeSubscription = null;
+    if (subscription != null) unawaited(subscription.cancel());
+  }
+
+  void _handleShake(UserAccelerometerEvent event) {
+    if (!mounted || widget.location == '/feedback') return;
+    final magnitude = math.sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+    if (magnitude < 15.0) return;
+    final now = DateTime.now();
+    if (now.difference(_lastShakeAt) < const Duration(seconds: 2)) return;
+    _lastShakeAt = now;
+    context.push('/feedback');
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startShakeDetection();
+      _refreshUnreadNotifications();
+    } else {
+      _stopShakeDetection();
+    }
+  }
+
+  Future<void> _refreshUnreadNotifications() async {
+    try {
+      final items = await AppDependencies.instance.notifications.list();
+      if (!mounted) return;
+      setState(() => _unreadNotifications = items.where((NotificationItem item) => !item.isRead).length);
+    } catch (_) {
+      // Signed-out visitors see no badge; failures do not trigger repeated requests.
+      if (mounted) setState(() => _unreadNotifications = 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _notificationSubscription?.cancel();
+    _stopShakeDetection();
+    FocusManager.instance.removeListener(_handleFocusChange);
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  int get index {
+    if (widget.location.startsWith('/more')) return 0;
+    if (widget.location.startsWith('/media')) return 1;
+    if (widget.location.startsWith('/materials')) return 2;
+    if (widget.location.startsWith('/home')) return 3;
+    return -1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _TopHeader(unreadNotifications: _unreadNotifications),
+            Expanded(
+              child: Stack(
+                children: [
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final maxWidth = constraints.maxWidth >= 1100 ? 1040.0 : constraints.maxWidth;
+                      return Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: maxWidth),
+                          child: widget.child,
+                        ),
+                      );
+                    },
+                  ),
+                  if (_einoVisible)
+                    PositionedDirectional(
+                      end: 16,
+                      bottom: 18,
+                      child: EinoFloatingButton(animation: _pulse),
+                    ),
+                  // A narrow edge gesture lets the student summon Eino again
+                  // without adding another permanent button to the UI.
+                  PositionedDirectional(
+                    start: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 24,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragEnd: (details) {
+                        final rtl = Directionality.of(context) == TextDirection.rtl;
+                        final velocity = details.primaryVelocity ?? 0;
+                        final summoned = rtl ? velocity < -350 : velocity > 350;
+                        if (summoned && !_einoVisible && mounted) {
+                          setState(() => _einoVisible = true);
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _MainNav(selected: index),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopHeader extends StatelessWidget {
+  const _TopHeader({required this.unreadNotifications});
+
+  final int unreadNotifications;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      height: 68,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: .96),
+        border: Border(
+          bottom: BorderSide(color: context.colors.outlineVariant.withValues(alpha: .62)),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final compact = box.maxWidth < 600;
+          final button = compact ? 48.0 : 52.0;
+          final avatar = compact ? 42.0 : 46.0;
+          final logo = compact ? 48.0 : 52.0;
+          final primary = context.colors.primary;
+
+          // The header is intentionally LTR so its physical layout stays
+          // consistent in the Arabic UI:
+          // left  -> TRINEX + app icon (app icon opens Settings)
+          // right -> profile + System
+          return Directionality(
+            textDirection: TextDirection.ltr,
+            child: Row(
+              children: [
+                // Left side: tappable application icon + brand name.
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(DesignTokens.radius12),
+                    onTap: () => context.push('/settings'),
+                    child: Tooltip(
+                      message: l10n.t('settings'),
+                      child: Container(
+                        width: logo,
+                        height: logo,
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: primary,
+                          borderRadius: BorderRadius.circular(DesignTokens.radius14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primary.withValues(alpha: .18),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          'assets/icons/trinex_icon.png',
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Text(
+                  'TRINEX',
+                  style: TextStyle(
+                    fontSize: compact ? 18 : 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .3,
+                  ),
+                ),
+                const Spacer(),
+                // Right side: notifications + profile.
+                _HeaderIcon(
+                  icon: Icons.notifications_none_rounded,
+                  size: button,
+                  tooltip: l10n.t('notifications'),
+                  badgeCount: unreadNotifications,
+                  onTap: () => context.push('/notifications'),
+                ),
+                const SizedBox(width: 4),
+                _Avatar(
+                  size: avatar,
+                  onTap: () => context.go('/student'),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MainNav extends StatelessWidget {
+  const _MainNav({required this.selected});
+
+  final int selected;
+
+  static const items = [
+    ('navMore', Icons.grid_view_rounded, '/more'),
+    ('navMedia', Icons.campaign_outlined, '/media'),
+    ('navMaterials', Icons.menu_book_outlined, '/materials'),
+    ('navHome', Icons.home_outlined, '/home'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: context.colors.surface,
+          borderRadius: BorderRadius.circular(DesignTokens.radius20),
+          border: Border.all(color: context.colors.outlineVariant.withValues(alpha: .72)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? .16 : .06),
+              blurRadius: 18,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: NavigationBar(
+          selectedIndex: selected < 0 ? 0 : selected.clamp(0, items.length - 1),
+          height: 68,
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          indicatorColor: context.colors.primaryContainer,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (i) => context.go(items[i].$3),
+          destinations: [
+            for (final item in items)
+              NavigationDestination(
+                icon: Icon(item.$2),
+                selectedIcon: Icon(item.$2),
+                label: l10n.t(item.$1),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderIcon extends StatelessWidget {
+  const _HeaderIcon({
+    required this.icon,
+    required this.tooltip,
+    this.onTap,
+    this.size = 48,
+    this.badgeCount = 0,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final double size;
+  final int badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(DesignTokens.radius12),
+          onTap: onTap,
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Stack(clipBehavior: Clip.none, children: [
+              Center(child: Icon(icon, color: context.colors.onSurface, size: 29)),
+              if (badgeCount > 0)
+                Positioned(
+                  top: 3,
+                  left: 2,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                    child: Text(badgeCount > 99 ? '99+' : '$badgeCount', textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+                  ),
+                ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({this.size = 50, this.onTap});
+
+  final double size;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Tooltip(
+      message: l10n.t('profile'),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(size),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: context.colors.surfaceContainerHigh,
+            border: Border.all(
+              color: context.colors.outlineVariant,
+              width: 1.2,
+            ),
+          ),
+          child: Icon(
+            Icons.account_circle_rounded,
+            color: context.colors.primary,
+            size: size * .84,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class EinoFloatingButton extends StatelessWidget {
+  const EinoFloatingButton({required this.animation, super.key});
+
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = context.colors.primary;
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        final glow =
+            .12 + (.10 * (0.5 + 0.5 * (animation.value * 2 - 1).abs()));
+        return Semantics(
+          button: true,
+          label: 'Eino',
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => context.push('/eino?from=shell'),
+              customBorder: const CircleBorder(),
+              splashColor: primary.withValues(alpha: .12),
+              highlightColor: primary.withValues(alpha: .06),
+              child: Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withValues(alpha: glow),
+                      blurRadius: 12,
+                    ),
+                  ],
+                ),
+                child: const EinoFace(
+                  size: 76,
+                  mood: EinoMood.happy,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

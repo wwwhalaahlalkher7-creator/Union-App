@@ -1,0 +1,89 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../features/auth/login_screen.dart';
+import '../features/auth/register_screen.dart';
+import '../features/auth/forgot_password_screen.dart';
+import '../features/settings/student_account_screen.dart';
+import '../features/eino/eino_screen.dart';
+import '../features/home/home_screen.dart';
+import '../features/market/market_screen.dart';
+import '../features/more/more_screen.dart';
+import '../features/materials/materials_screen.dart';
+import '../features/materials/downloads_screen.dart';
+import '../features/feedback/feedback_screen.dart';
+import '../features/news/media_screen.dart';
+import '../features/news/content_detail_screen.dart';
+import '../features/notifications/notifications_screen.dart';
+import '../features/chat/general_chat_screen.dart';
+import '../features/onboarding/onboarding_screen.dart';
+import '../features/recent/recent_screen.dart';
+import '../features/schedule/schedule_screen.dart';
+import '../features/settings/settings_screen.dart';
+import '../features/student/student_screen.dart';
+import '../features/student/student_public_profile_screen.dart';
+import '../features/splash/splash_screen.dart';
+import '../features/tools/tools_screen.dart';
+import '../features/xp/xp_screen.dart';
+import '../shared/widgets/trinex_shell.dart';
+import '../shared/widgets/student_access_gate.dart';
+
+
+GoRouter buildRouter({
+  required ValueChanged<ThemeMode> onThemeModeChanged,
+  required ValueChanged<Locale?> onLocaleChanged,
+  required ThemeMode Function() themeMode,
+  required Locale? Function() locale,
+  required Future<void> startupFuture,
+  ValueChanged<String>? onAccentColorChanged,
+  String Function()? accentColorId,
+  String initialLocation = '/splash',
+}) {
+  return GoRouter(initialLocation: initialLocation, routes: [
+    GoRoute(path: '/splash', builder: (_, _) => SplashScreen(startupFuture: startupFuture)),
+    GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
+    GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+    GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+    GoRoute(path: '/forgot-password', builder: (_, state) => ForgotPasswordScreen(initialStudentNumber: state.uri.queryParameters['studentNumber'])),
+    ShellRoute(builder: (context, state, child) => TrinexShell(location: state.uri.path, child: child), routes: [
+      GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
+      GoRoute(path: '/student', builder: (_, _) => const StudentScreen()),
+      GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
+      GoRoute(path: '/materials', builder: (_, _) => const MaterialsScreen()),
+      GoRoute(path: '/downloads', builder: (_, _) => const DownloadsScreen()),
+      GoRoute(path: '/feedback', builder: (_, _) => const FeedbackScreen()),
+      GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),
+      GoRoute(path: '/media', builder: (_, state) {
+        final rawTab = int.tryParse(state.uri.queryParameters['tab'] ?? '0') ?? 0;
+        final initialTab = rawTab.clamp(0, 2).toInt();
+        return MediaScreen(initialTab: initialTab);
+      }),
+      GoRoute(path: '/media/detail', builder: (_, state) {
+        final type = state.uri.queryParameters['type']?.trim() ?? '';
+        final id = state.uri.queryParameters['id']?.trim() ?? '';
+        if ((type == 'news' || type == 'achievement' || type == 'activity') && id.isNotEmpty) {
+          return ContentDetailScreen(id: id, type: type);
+        }
+        return const MediaScreen();
+      }),
+    ]),
+    // Keep the public profile on the root navigator, like general chat.
+    // This avoids crossing ShellRoute navigator boundaries when opening a
+    // student's profile from chat and preserves the pushed route on screen.
+    GoRoute(path: '/student/profile/:id', builder: (_, state) => StudentPublicProfileScreen(
+      studentId: state.pathParameters['id'] ?? '',
+      name: state.uri.queryParameters['name'] ?? '',
+      department: state.uri.queryParameters['department'] ?? '',
+      semester: state.uri.queryParameters['semester'] ?? '',
+    )),
+    GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
+    GoRoute(path: '/market', builder: (_, _) => const MarketScreen()),
+    GoRoute(path: '/recent', builder: (_, _) => const RecentScreen()),
+    GoRoute(path: '/xp', builder: (_, _) => const StudentAccessGate(child: XpScreen())),
+    GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
+    GoRoute(path: '/general-chat', builder: (_, _) => const StudentAccessGate(child: GeneralChatScreen())),
+    GoRoute(path: '/eino', builder: (_, state) => EinoScreen(source: state.uri.queryParameters['from'] ?? 'home')),
+    GoRoute(path: '/edit-profile', builder: (_, _) => const StudentAccountScreen()),
+    GoRoute(path: '/account-settings', builder: (_, _) => const StudentAccountScreen()),
+    GoRoute(path: '/settings', builder: (_, _) => SettingsScreen(currentThemeMode: themeMode(), onThemeModeChanged: onThemeModeChanged, locale: locale(), onLocaleChanged: onLocaleChanged, accentColorId: accentColorId?.call(), onAccentColorChanged: onAccentColorChanged)),
+  ]);
+}

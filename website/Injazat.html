@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- إضافة هذا الوسم لمنع هواتف أندرويد وشاومي من تخريب الألوان بوضع الـ Dark Mode الإجباري -->
+<meta name="color-scheme" content="dark">
+<link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<title>الإنجازات | أمانة الإعلام ورابطة كلية الهندسة والعمارة</title>
+
+<!-- SEO: وصف الصفحة والرابط الأساسي -->
+<meta name="description" content="إنجازات رابطة كلية الهندسة والعمارة – جامعة شندي الأكاديمية والرياضية والقيادية والمجتمعية.">
+<link rel="canonical" href="https://ush-eng.great-site.net/Injazat.html">
+
+<!-- Open Graph / مشاركة على وسائل التواصل -->
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ar_AR">
+<meta property="og:title" content="الإنجازات | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
+<meta property="og:description" content="إنجازات رابطة كلية الهندسة والعمارة – جامعة شندي.">
+<meta property="og:url" content="https://ush-eng.great-site.net/Injazat.html">
+<meta property="og:image" content="https://ush-eng.great-site.net/favicon.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="الإنجازات | أمانة الإعلام ورابطة كلية الهندسة والعمارة">
+<meta name="twitter:description" content="إنجازات رابطة كلية الهندسة والعمارة – جامعة شندي.">
+<meta name="twitter:image" content="https://ush-eng.great-site.net/favicon.png">
+
+<!-- الاتصال بواجهة TRINEX العامة يتم عند الحاجة -->
+<!-- مكتبة الأيقونات FontAwesome -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<!-- خط كايرو المحدث -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="Injazat-page.css?v=3">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="api-config.js?v=1"></script>
+    <link rel="stylesheet" href="ui-pro.css?v=5">
+</head>
+
+<body>
+
+<header id="header">
+    <div class="logo">
+        <h2 id="siteLogoName">رابطة كلية الهندسة والعمارة</h2>
+        <p>جامعة شندي</p>
+    </div>
+    
+    <div class="menu-toggle" id="menuToggle" aria-label="قائمة التنقل" aria-expanded="false">
+        <i class="fas fa-bars"></i>
+    </div>
+
+    <!-- قائمة التنقل الموحدة -->
+    <nav id="navMenu">
+        <ul>
+            <li><a href="index.html">الرئيسية</a></li>
+            <li><a href="Injazat.html" class="active">الإنجازات</a></li>
+            <li><a href="courses.html">المواد الدراسية</a></li>
+            <li><a href="activities.html">الأنشطة</a></li>
+            <li><a href="committees.html">الأمانات الأخرى</a></li>
+            <li><a href="news.html">آخر الأخبار</a></li>
+            <li><a href="download.html"> تحميل التطبيق</a></li>
+        </ul>
+    </nav>
+</header>
+
+<div class="page-header">
+    <h1>الإنجازات</h1>
+    <p>توثيق حي ومستمر لرحلة تميز الرابطة، وأبرز المحطات في مسيرتنا الأكاديمية والمهنية</p>
+</div>
+
+<!-- ✅ شريط البحث والفلترة والترتيب — Phase 2 (Client-side بالكامل) -->
+<div class="news-toolbar">
+    <div class="toolbar-row">
+        <div class="news-search-box">
+            <input type="text" id="achSearchInput" placeholder="ابحث في الإنجازات..." aria-label="ابحث في الإنجازات">
+            <i class="fas fa-search"></i>
+        </div>
+
+        <div class="toolbar-filter-wrap">
+            <button type="button" class="toolbar-icon-btn" id="achFilterBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="تصنيف الإنجازات">
+                <i class="fas fa-filter"></i>
+                <span class="toolbar-badge-dot" id="achFilterDot"></span>
+            </button>
+            <div class="toolbar-dropdown" id="achCategoryChips" role="listbox" aria-label="اختر تصنيف الإنجازات">
+                <button type="button" class="toolbar-dropdown-item active" data-category="all" role="option" aria-selected="true">الكل</button>
+            </div>
+        </div>
+
+        <button type="button" class="toolbar-icon-btn sort-desc" id="achSortBtn" aria-label="الترتيب: الأحدث أولاً (اضغط لعكس الترتيب)">
+            <i class="fas fa-arrow-up" id="achSortIcon"></i>
+        </button>
+    </div>
+</div>
+
+<div class="content-container">   
+    
+    <!-- حاوية جافا سكريبت لعرض الإنجازات الديناميكية -->
+    <div id="page-cards-container" style="display: flex; flex-direction: column; gap: 40px; width: 100%;"></div>
+
+</div>
+
+<!-- الصندوق الضوئي لتكبير صور معرض الإنجازات -->
+<div class="lightbox-overlay" id="lightbox">
+    <span class="lightbox-close" id="lightboxClose" aria-label="إغلاق"><i class="fas fa-times"></i></span>
+    <span class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="الصورة السابقة"><i class="fas fa-chevron-right"></i></span>
+    <img id="lightboxImg" src="" alt="عرض موسّع لصورة الإنجاز">
+    <span class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="الصورة التالية"><i class="fas fa-chevron-left"></i></span>
+    <div class="lightbox-counter" id="lightboxCounter"></div>
+</div>
+
+<!-- الفوتر الموحد -->
+<div class="content-details-overlay" id="achievementDetailsOverlay" role="dialog" aria-modal="true" aria-label="تفاصيل الإنجاز"><div class="content-details-dialog"><button type="button" class="content-details-close" id="achievementDetailsClose" aria-label="إغلاق"><i class="fas fa-xmark"></i></button><div id="achievementDetailsContent"></div></div></div>
+
+<footer>
+    <p>جميع الحقوق محفوظة © أمانة الإعلام و <span id="footerSiteName">رابطة كلية الهندسة والعمارة</span> - <span id="footerUniversity">جامعة شندي</span></p>
+    <div class="developer-credit">تطوير Eng. Leonardo <br> Eng. Ahmad M</div>
+</footer>
+
+<script>
+    // 1. تغيير مظهر وتأثير الهيدر عند التمرير
+    window.addEventListener('scroll', () => {
+        const header = document.getElementById('header');
+        if (window.scrollY > 40) header.classList.add('scrolled');
+        else header.classList.remove('scrolled');
+    });
+
+    // 2. قائمة الهاتف (الهامبرغر) الموحدة
+    const menuToggle = document.getElementById('menuToggle');
+    const navMenu = document.getElementById('navMenu');
+    
+    menuToggle.addEventListener('click', () => {
+        navMenu.classList.toggle('active');
+        const expanded = navMenu.classList.contains('active');
+        menuToggle.setAttribute('aria-expanded', expanded);
+        const icon = menuToggle.querySelector('i');
+        icon.classList.toggle('fa-bars');
+        icon.classList.toggle('fa-times');
+    });
+
+    // إغلاق القائمة عند الضغط خارجها (للهاتف)
+    window.addEventListener('click', (e) => {
+        if (navMenu && !navMenu.contains(e.target) && !menuToggle.contains(e.target)) {
+            if(navMenu.classList.contains('active')) {
+                menuToggle.click();
+            }
+        }
+    });
+
+    // إغلاق القائمة تلقائياً عند العودة لهذه الصفحة (زر رجوع المتصفح / bfcache)
+    // حتى لا تبقى القائمة مفتوحة كما كانت عليه الحال قبل مغادرة الصفحة
+    window.addEventListener('pageshow', () => {
+        navMenu.classList.remove('active');
+        menuToggle.setAttribute('aria-expanded', 'false');
+        const menuIcon = menuToggle.querySelector('i');
+        if (menuIcon) {
+            menuIcon.classList.add('fa-bars');
+            menuIcon.classList.remove('fa-times');
+        }
+    });
+
+    // ----------------------------------------------------
+    // جلب الإنجازات الحية من TRINEX Public API
+    // ----------------------------------------------------
+    const PUBLIC_API_URL = window.PUBLIC_API_BASE + "/achievements";
+
+    // ----------------------------------------------------
+    // معرض الصور (Gallery) والصندوق الضوئي (Lightbox)
+    // ----------------------------------------------------
+    let lbImages = [];
+    let lbIndex = 0;
+
+    // خريطة تصنيفات الشارة القادمة من عقد TRINEX.
+    // كل تصنيف مرتبط بأيقونة ونص ثابتين يحددهما الكود، فلا حاجة لكتابة اسم
+    // أيقونة يدوياً في كل سجل، ولا احتمال لخطأ إملائي أو حرف غير مدعوم.
+    const BADGE_MAP = {
+        "أكاديمي":  { icon: "fa-graduation-cap", label: "إنجاز أكاديمي" },
+        "رياضي":    { icon: "fa-trophy",          label: "إنجاز رياضي" },
+        "اجتماعي":  { icon: "fa-users",           label: "نشاط مجتمعي" },
+        "تكريم":    { icon: "fa-award",           label: "تكريم" },
+        "قيادة":    { icon: "fa-star",            label: "إنجاز قيادي" },
+        "تنظيمي":   { icon: "fa-clipboard-check", label: "إنجاز تنظيمي" }
+    };
+    const DEFAULT_BADGE = { icon: "fa-trophy", label: "إنجاز مميز" };
+
+    /**
+     * يحدد أيقونة ونص الشارة اعتماداً على حقل Badge (Single Select).
+     * أي قيمة غير معروفة أو فارغة تُعيد الشارة الافتراضية.
+     * @param {Object} fields
+     * @return {{icon:string,text:string}}
+     */
+    function resolveBadge(fields) {
+        const category = (fields.Badge || "").toString().trim();
+        const entry = BADGE_MAP[category] || DEFAULT_BADGE;
+        return { icon: entry.icon, text: category || entry.label };
+    }
+
+    function safeAchievementImageUrl(value) {
+        try { const url = new URL(String(value || "")); return url.protocol === "https:" ? url.href : ""; }
+        catch (_) { return ""; }
+    }
+
+    function buildGallery(images) {
+        const wrap = document.createElement("div");
+        const isSingle = images.length === 1;
+        wrap.className = "gallery-grid " + (isSingle ? "single" : "multi");
+
+        const maxShow = isSingle ? 1 : Math.min(images.length, 4);
+        for (let i = 0; i < maxShow; i++) {
+            const item = document.createElement("div");
+            item.className = "gallery-item";
+
+            const img = document.createElement("img");
+            img.src = safeAchievementImageUrl(images[i]);
+            if (!img.src) return;
+            img.alt = "صورة من الإنجاز";
+            img.loading = "lazy";
+            item.appendChild(img);
+
+            const zoomIcon = document.createElement("div");
+            zoomIcon.className = "zoom-icon";
+            zoomIcon.innerHTML = '<i class="fas fa-expand"></i>';
+            item.appendChild(zoomIcon);
+
+            if (!isSingle && i === 3 && images.length > 4) {
+                const overlay = document.createElement("div");
+                overlay.className = "more-overlay";
+                overlay.textContent = "+" + (images.length - 4);
+                item.appendChild(overlay);
+            }
+
+            item.addEventListener("click", () => openLightbox(images, i));
+            wrap.appendChild(item);
+        }
+        return wrap;
+    }
+
+    function updateLightboxImage() {
+        document.getElementById("lightboxImg").src = safeAchievementImageUrl(lbImages[lbIndex]);
+        document.getElementById("lightboxCounter").textContent = (lbIndex + 1) + " / " + lbImages.length;
+        const showNav = lbImages.length > 1;
+        document.getElementById("lightboxPrev").style.display = showNav ? "flex" : "none";
+        document.getElementById("lightboxNext").style.display = showNav ? "flex" : "none";
+    }
+
+    function openLightbox(images, index) {
+        lbImages = images;
+        lbIndex = index;
+        updateLightboxImage();
+        document.getElementById("lightbox").classList.add("active");
+        document.body.style.overflow = "hidden";
+    }
+
+    function closeLightbox() {
+        document.getElementById("lightbox").classList.remove("active");
+        document.body.style.overflow = "";
+    }
+
+    function lbNext() { lbIndex = (lbIndex + 1) % lbImages.length; updateLightboxImage(); }
+    function lbPrev() { lbIndex = (lbIndex - 1 + lbImages.length) % lbImages.length; updateLightboxImage(); }
+
+    document.getElementById("lightboxClose").addEventListener("click", closeLightbox);
+    document.getElementById("lightboxNext").addEventListener("click", lbNext);
+    document.getElementById("lightboxPrev").addEventListener("click", lbPrev);
+    document.getElementById("lightbox").addEventListener("click", (e) => {
+        if (e.target.id === "lightbox") closeLightbox();
+    });
+    document.addEventListener("keydown", (e) => {
+        if (!document.getElementById("lightbox").classList.contains("active")) return;
+        if (e.key === "Escape") closeLightbox();
+        if (e.key === "ArrowLeft") lbNext();
+        if (e.key === "ArrowRight") lbPrev();
+    });
+
+    // ----------------------------------------------------
+    // بناء بطاقة إنجاز واحدة من سجل TRINEX
+    // ----------------------------------------------------
+    function buildAchievementCard(record) {
+        const fields = record;
+
+        const badge           = resolveBadge({Badge: fields.badge});
+        const badgeText       = badge.text;
+        const badgeIcon       = badge.icon;
+        const title           = fields.title || "";
+        const introRaw        = fields.intro || fields.description || "";
+        const highlightsTitle = fields.highlightsTitle || "أبرز المحاور";
+        const highlightsRaw   = fields.highlights || "";
+        const publisher       = fields.publisher || "أمانة الإعلام";
+        
+
+        // استخراج جميع روابط الصور المرفقة (يدعم أكثر من صورة للإنجاز الواحد)
+        const images = (Array.isArray(fields.images) ? fields.images : [fields.imageUrl]).map(safeAchievementImageUrl).filter(Boolean);
+
+        // تنسيق تاريخ العرض: تاريخ النشر المجدول وإلا تاريخ إنشاء السجل
+        const dateSource = fields.achievedAt || record.createdAt;
+        const parsedDate = new Date(dateSource);
+        const dateString = isNaN(parsedDate) ? "" : parsedDate.toLocaleDateString("ar-EG", {
+            year: "numeric",
+            month: "long",
+            day: "numeric"
+        });
+
+        // تفكيك فقرات النص التمهيدي
+        const introParagraphs = introRaw
+            .split(/\n+/)
+            .map(p => p.trim())
+            .filter(Boolean);
+
+        // تفكيك المحاور المفصولة بـ || إلى عناوين وتفاصيل
+        const highlightItems = (Array.isArray(highlightsRaw) ? highlightsRaw : String(highlightsRaw || "").split("||"))
+            .map(seg => {
+                if (seg && typeof seg === "object") return {title: seg.title || seg.name || "", detail: seg.detail || seg.description || ""};
+                const parts = String(seg).split(":"); return {title:(parts.shift()||"").trim(), detail:parts.join(":").trim()};
+            }).filter(x => x.title || x.detail);
+
+        const card = document.createElement("div");
+        card.className = "achievement-card";
+        if (record.id) card.id = "ach-" + record.id;
+
+        card.innerHTML = `
+            <div class="badge"><i class="fas ${badgeIcon}"></i> <span class="badge-text"></span></div>
+            <h2 class="ach-title"></h2>
+            <div class="gallery-slot"></div>
+            <div class="intro-text-container"></div>
+            <div class="structure-section">
+                <h3><i class="fas fa-layer-group"></i> <span class="highlights-title"></span></h3>
+                <div class="members-list"></div>
+            </div>
+            <div class="achievement-footer">
+                <span class="ach-publisher"><i class="far fa-user"></i></span>
+                <span class="ach-date"><i class="far fa-calendar"></i> ${dateString}</span>
+            </div>
+        `;
+
+        // حماية النصوص من الحقن عبر textContent
+        card.querySelector(".badge-text").textContent = badgeText;
+        card.querySelector(".ach-title").textContent = title;
+        card.querySelector(".highlights-title").textContent = highlightsTitle;
+        card.querySelector(".ach-publisher").appendChild(document.createTextNode(" الناشر: " + publisher));
+
+        // معرض الصور
+        const gallerySlot = card.querySelector(".gallery-slot");
+        if (images.length > 0) {
+            gallerySlot.appendChild(buildGallery(images));
+        } else {
+            gallerySlot.remove();
+        }
+
+        // النص التمهيدي
+        const introBox = card.querySelector(".intro-text-container");
+        if (introParagraphs.length > 0) {
+            introParagraphs.forEach(p => {
+                const pEl = document.createElement("p");
+                pEl.textContent = p;
+                introBox.appendChild(pEl);
+            });
+        } else {
+            introBox.remove();
+        }
+
+        // قسم المحاور والمميزات
+        const membersList = card.querySelector(".members-list");
+        if (highlightItems.length > 0) {
+            highlightItems.forEach((item, idx) => {
+                const el = document.createElement("div");
+                el.className = "member-item" + (idx === 0 ? " leader" : "");
+
+                const t = document.createElement("div");
+                t.className = "member-title";
+                t.textContent = item.title;
+
+                const d = document.createElement("div");
+                d.className = "member-name";
+                d.textContent = item.detail;
+
+                el.appendChild(t);
+                el.appendChild(d);
+                membersList.appendChild(el);
+            });
+        } else {
+            card.querySelector(".structure-section").remove();
+        }
+
+        // ✅ Phase 5 — زر مشاركة رابط الإنجاز مباشرة (Injazat.html?id=...)
+        if (record.id) {
+            const footer = card.querySelector(".achievement-footer");
+            const shareBtn = document.createElement("button");
+            shareBtn.type = "button";
+            shareBtn.className = "heart-btn";
+            shareBtn.setAttribute("aria-label", "مشاركة هذا الإنجاز");
+            shareBtn.innerHTML = '<i class="fas fa-share-nodes"></i>';
+            shareBtn.addEventListener("click", (event) => { event.stopPropagation(); shareAchievementLink(record.id, shareBtn); });
+            footer.appendChild(shareBtn);
+        }
+
+        card.setAttribute("tabindex", "0");
+        card.setAttribute("role", "button");
+        card.setAttribute("aria-label", "عرض تفاصيل " + title);
+        card.addEventListener("click", (event) => {
+            if (event.target.closest("button, a")) return;
+            openAchievementDetails(card, title);
+        });
+        card.addEventListener("keydown", (event) => {
+            if (event.target !== card) return;
+            if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openAchievementDetails(card, title); }
+        });
+        return card;
+    }
+
+    function openAchievementDetails(card, title) {
+        const overlay = document.getElementById("achievementDetailsOverlay");
+        const content = document.getElementById("achievementDetailsContent");
+        if (!overlay || !content) return;
+        content.replaceChildren();
+        const clone = card.cloneNode(true);
+        clone.classList.add("details-content-expanded");
+        clone.removeAttribute("tabindex");
+        clone.removeAttribute("role");
+        clone.querySelectorAll("button").forEach(button => button.remove());
+        content.appendChild(clone);
+        overlay.classList.add("open");
+        overlay.setAttribute("aria-label", "تفاصيل " + title);
+        document.body.style.overflow = "hidden";
+    }
+    function closeAchievementDetails() {
+        const overlay = document.getElementById("achievementDetailsOverlay");
+        if (overlay) overlay.classList.remove("open");
+        document.body.style.overflow = "";
+    }
+    document.getElementById("achievementDetailsClose")?.addEventListener("click", closeAchievementDetails);
+    document.getElementById("achievementDetailsOverlay")?.addEventListener("click", event => { if (event.target.id === "achievementDetailsOverlay") closeAchievementDetails(); });
+    document.addEventListener("keydown", event => { if (event.key === "Escape") closeAchievementDetails(); });
+
+    // ----------------------------------------------------
+    // ✅ Phase 5 — رابط مباشر وقابل للمشاركة لإنجاز واحد (Injazat.html?id=RECORD_ID)
+    // بدون إنشاء أي صفحة HTML جديدة — نفس صفحة Injazat.html تخدم كل الإنجازات.
+    // ----------------------------------------------------
+    function shareAchievementLink(id, btn) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("id", id);
+        const shareUrl = url.toString();
+
+        if (navigator.share) {
+            navigator.share({ url: shareUrl }).catch(() => {});
+            return;
+        }
+        if (navigator.clipboard && btn) {
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(() => { btn.innerHTML = original; }, 1500);
+            }).catch(() => {});
+        }
+    }
+
+    // ----------------------------------------------------
+    // جلب الإنجازات من TRINEX وعرضها في الصفحة
+    // ----------------------------------------------------
+    // ----------------------------------------------------
+    // ✅ Phase 2 — حالة البحث/الفلترة/الترتيب (Client-side بالكامل، نفس مبدأ صفحة الأخبار)
+    // ----------------------------------------------------
+    let allAchievementsData = [];
+    let achActiveCategory = "all";
+    let achActiveSort = "newest";
+
+    async function fetchAchievements() {
+        const container=document.getElementById("page-cards-container");
+        container.innerHTML=`<div class="loading-status"><i class="fas fa-circle-notch fa-spin"></i> جاري تحميل الإنجازات...</div>`;
+        try { const r=await fetch(PUBLIC_API_URL+"?limit=50"); if(!r.ok) throw new Error(); const d=await r.json(); const records=Array.isArray(d.data)?d.data:[];
+            if(!records.length){container.innerHTML=`<div class="loading-status"><i class="far fa-folder-open"></i> لا توجد إنجازات منشورة حالياً</div>`;return;}
+            allAchievementsData=records; buildAchCategoryChips(records); applyAchFiltersAndRender();
+        } catch(e){ console.error(e); container.innerHTML=`<div class="loading-status" style="color:#ff4a4a">تعذر تحميل الإنجازات، يرجى المحاولة لاحقاً.</div>`; }
+    }
+
+    function buildAchCategoryChips(records) {
+        const chipsContainer = document.getElementById("achCategoryChips");
+        if (!chipsContainer) return;
+
+        const seen = new Map(); // key: نص الشارة، value: نص الشارة (يُستخدم كمعرّف وكعنوان)
+        records.forEach(record => {
+            const badge = resolveBadge({Badge: record.badge});
+            if (!seen.has(badge.text)) seen.set(badge.text, badge.text);
+        });
+
+        if (chipsContainer.dataset.built === String(seen.size)) return;
+
+        chipsContainer.innerHTML = '<button type="button" class="toolbar-dropdown-item active" data-category="all" role="option" aria-selected="true">الكل</button>';
+        seen.forEach((label, key) => {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "toolbar-dropdown-item";
+            chip.dataset.category = key;
+            chip.setAttribute("role", "option");
+            chip.setAttribute("aria-selected", "false");
+            chip.textContent = label;
+            chipsContainer.appendChild(chip);
+        });
+        chipsContainer.dataset.built = String(seen.size);
+        achActiveCategory = "all";
+        updateAchFilterIndicator();
+
+        chipsContainer.querySelectorAll(".toolbar-dropdown-item").forEach(chip => {
+            chip.addEventListener("click", () => {
+                chipsContainer.querySelectorAll(".toolbar-dropdown-item").forEach(c => {
+                    c.classList.remove("active");
+                    c.setAttribute("aria-selected", "false");
+                });
+                chip.classList.add("active");
+                chip.setAttribute("aria-selected", "true");
+                achActiveCategory = chip.dataset.category;
+                updateAchFilterIndicator();
+                closeAchFilterDropdown();
+                applyAchFiltersAndRender();
+            });
+        });
+    }
+
+    // ----------------------------------------------------
+    // ✅ زر ولوحة فلترة التصنيف — فتح/إغلاق منسدل بدلاً من صف شرائح أفقي
+    // ----------------------------------------------------
+    const achFilterBtn = document.getElementById("achFilterBtn");
+    const achFilterDropdown = document.getElementById("achCategoryChips");
+    const achFilterDot = document.getElementById("achFilterDot");
+
+    function updateAchFilterIndicator() {
+        const isFiltered = achActiveCategory !== "all";
+        if (achFilterDot) achFilterDot.classList.toggle("show", isFiltered);
+        if (achFilterBtn) achFilterBtn.classList.toggle("active", isFiltered);
+    }
+
+    function openAchFilterDropdown() {
+        achFilterDropdown.classList.add("open");
+        achFilterBtn.setAttribute("aria-expanded", "true");
+    }
+
+    function closeAchFilterDropdown() {
+        achFilterDropdown.classList.remove("open");
+        achFilterBtn.setAttribute("aria-expanded", "false");
+    }
+
+    if (achFilterBtn && achFilterDropdown) {
+        achFilterBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isOpen = achFilterDropdown.classList.contains("open");
+            if (isOpen) closeAchFilterDropdown(); else openAchFilterDropdown();
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!achFilterDropdown.contains(e.target) && !achFilterBtn.contains(e.target)) {
+                closeAchFilterDropdown();
+            }
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") closeAchFilterDropdown();
+        });
+    }
+
+    // ----------------------------------------------------
+    // ✅ Phase 2 — تطبيق البحث + الفلترة + الترتيب على البيانات المحمّلة فعليًا (بدون أي API request)
+    // ----------------------------------------------------
+    function applyAchFiltersAndRender() {
+        const searchInput = document.getElementById("achSearchInput");
+        const query = (searchInput && searchInput.value ? searchInput.value : "").trim().toLowerCase();
+
+        let list = allAchievementsData.slice();
+
+        if (achActiveCategory !== "all") {
+            list = list.filter(record => resolveBadge({Badge: record.badge}).text === achActiveCategory);
+        }
+
+        if (query) {
+            list = list.filter(record => {
+                const fields = record;
+                const haystack = `${fields.title || ""} ${fields.intro || fields.description || ""} ${fields.publisher || ""}`.toLowerCase();
+                return haystack.includes(query);
+            });
+        }
+
+        list.sort((a, b) => {
+            const da = new Date((a.achievedAt) || a.createdAt);
+            const db = new Date((b.achievedAt) || b.createdAt);
+            const diff = db - da;
+            return achActiveSort === "oldest" ? -diff : diff;
+        });
+
+        renderAchievementsList(list);
+    }
+
+    // ----------------------------------------------------
+    // ✅ Phase 2 — بناء بطاقات الإنجازات (منطق البناء الأصلي، مفصول في دالة قابلة لإعادة الاستخدام)
+    // ----------------------------------------------------
+    function renderAchievementsList(records) {
+        const container = document.getElementById("page-cards-container");
+
+        // ✅ Phase 5 — رابط مباشر لإنجاز واحد عبر ?id=: يُعرض هذا الإنجاز فقط مع زر للعودة لكل الإنجازات
+        const idParam = new URLSearchParams(window.location.search).get("id");
+        if (idParam) {
+            const single = allAchievementsData.find(r => r.id === idParam);
+            container.innerHTML = "";
+
+            const backBar = document.createElement("div");
+            backBar.className = "breadcrumb-bar";
+            backBar.style.cssText = "display:flex;justify-content:flex-end;margin-bottom:8px;";
+            const backBtn = document.createElement("button");
+            backBtn.type = "button";
+            backBtn.className = "pill-btn";
+            backBtn.innerHTML = '<i class="fas fa-arrow-right"></i> عرض كل الإنجازات';
+            backBtn.addEventListener("click", () => {
+                const url = new URL(window.location.href);
+                url.searchParams.delete("id");
+                history.pushState({}, "", url);
+                applyAchFiltersAndRender();
+            });
+            backBar.appendChild(backBtn);
+            container.appendChild(backBar);
+
+            if (single) {
+                container.appendChild(buildAchievementCard(single));
+            } else {
+                container.innerHTML += `
+                <div class="news-empty-state">
+                    <i class="fas fa-circle-exclamation"></i>
+                    <p>تعذر العثور على هذا الإنجاز.</p>
+                    <p>قد يكون الرابط غير صحيح أو تم حذفه.</p>
+                </div>`;
+            }
+            return;
+        }
+
+        if (records.length === 0) {
+            // ✅ إصلاح — إن لم تكن هناك أي إنجازات أصلاً (allAchievementsData فارغة)، فهذا ليس نتيجة
+            // بحث/فلترة فارغة، بل عدم وجود إنجازات منشورة إطلاقاً. نعرض رسالة مطابقة لتلك الحالة.
+            if (allAchievementsData.length === 0) {
+                container.innerHTML = `
+                <div class="loading-status">
+                    <i class="far fa-folder-open" style="font-size: 2rem; display:block; margin-bottom:10px;"></i>
+                    لا توجد إنجازات منشورة حالياً
+                </div>`;
+                return;
+            }
+            container.innerHTML = `
+            <div class="news-empty-state">
+                <i class="fas fa-magnifying-glass"></i>
+                <p>لا توجد إنجازات مطابقة لبحثك.</p>
+                <p>جرّب تغيير كلمة البحث أو الفلتر.</p>
+            </div>`;
+            return;
+        }
+
+        container.innerHTML = "";
+        records.forEach(record => {
+            container.appendChild(buildAchievementCard(record));
+        });
+    }
+
+    // ----------------------------------------------------
+    // ✅ Phase 2 — ربط عناصر شريط البحث/الفلترة/الترتيب بالأحداث
+    // ----------------------------------------------------
+    (function initAchToolbar() {
+        const searchInput = document.getElementById("achSearchInput");
+        const sortBtn = document.getElementById("achSortBtn");
+
+        if (searchInput) {
+            let debounceTimer = null;
+            searchInput.addEventListener("input", () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(applyAchFiltersAndRender, 150);
+            });
+        }
+
+        // ✅ زر الترتيب: سهم يلف بأناقة بين الأعلى (تصاعدي/الأقدم أولاً) والأسفل (تنازلي/الأحدث أولاً)
+        if (sortBtn) {
+            sortBtn.addEventListener("click", () => {
+                achActiveSort = achActiveSort === "newest" ? "oldest" : "newest";
+                sortBtn.classList.toggle("sort-desc", achActiveSort === "newest");
+                sortBtn.setAttribute(
+                    "aria-label",
+                    achActiveSort === "newest"
+                        ? "الترتيب: الأحدث أولاً (اضغط لعكس الترتيب)"
+                        : "الترتيب: الأقدم أولاً (اضغط لعكس الترتيب)"
+                );
+                applyAchFiltersAndRender();
+            });
+        }
+    })();
+
+    // ✅ Phase 5 — إعادة العرض عند التنقل بالخلف/الأمام في المتصفح (لتحديث حالة ?id=)
+    window.addEventListener("popstate", () => {
+        if (allAchievementsData.length > 0) applyAchFiltersAndRender();
+    });
+
+    // تشغيل الدالة بمجرد تحميل محتوى الصفحة
+    window.addEventListener("DOMContentLoaded", fetchAchievements);
+</script>
+<script src="site-settings.js"></script>
+    <script src="ui-pro.js?v=5"></script>
+  <script src="analytics.js" defer></script>
+</body>
+</html>
