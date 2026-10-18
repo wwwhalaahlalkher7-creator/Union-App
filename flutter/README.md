@@ -11,6 +11,9 @@ flutter test
 flutter run
 ```
 
+`flutter pub get` resolves the exact dependency graph and creates `pubspec.lock`.
+Keep that generated file next to `pubspec.yaml` under version control so local builds and CI use the same package versions. The CI workflow also uploads its resolver-generated lockfile as the `trinex-pubspec-lock-<commit>` artifact when it runs; use that artifact if you need to add the resolved file from a Flutter-enabled runner.
+
 ## Release build
 
 ```bash

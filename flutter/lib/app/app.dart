@@ -42,14 +42,17 @@ class _TrinexAppState extends State<TrinexApp> {
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
   String _accentColorId = 'amber';
-  late final Future<void> _preferencesFuture = _bootstrap();
+  late Future<void> _preferencesFuture;
   late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
+    _preferencesFuture = _bootstrap();
     _router = buildRouter(
       startupFuture: _preferencesFuture,
+      onRetryStartup: _retryBootstrap,
+      onboardingCompleted: () => _preferences.onboardingCompleted,
       onThemeModeChanged: setThemeMode,
       onLocaleChanged: setLocale,
       onAccentColorChanged: setAccentColor,
@@ -70,9 +73,21 @@ class _TrinexAppState extends State<TrinexApp> {
     }).catchError((_) {}));
   }
 
+  Future<void> _retryBootstrap() async {
+    // A failed initialization may have assigned some late fields before the
+    // failure. Dispose/reset the container so retry starts from a clean state.
+    AppDependencies.instance.dispose();
+    final retry = _bootstrap();
+    _preferencesFuture = retry;
+    await retry;
+  }
+
   Future<void> _bootstrap() async {
     await Future.wait<void>([
-      widget.startupFutureOverride ?? _loadPreferences(),
+      _loadPreferences(),
+      // Tests may inject an additional startup gate; preferences must still be
+      // initialized because the splash uses the configured onboarding state.
+      widget.startupFutureOverride ?? Future<void>.value(),
       AppDependencies.instance.initialize(),
     ]);
     unawaited(StartupPreloader(AppDependencies.instance.apiClient).warmPublicCache());
@@ -92,7 +107,13 @@ class _TrinexAppState extends State<TrinexApp> {
 
 
   Future<void> _checkForUpdate() async {
-    await _preferencesFuture;
+    try {
+      await _preferencesFuture;
+    } catch (_) {
+      // Startup recovery UI handles the initialization failure. Do not create
+      // an unhandled asynchronous error from the optional update check.
+      return;
+    }
     final service = UpdateService(AppDependencies.instance.apiClient);
     final info = await service.check();
     if (!mounted || info == null) return;

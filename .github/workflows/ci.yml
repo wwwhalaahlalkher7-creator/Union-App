@@ -212,6 +212,14 @@ jobs:
           unzip -t "TRINEX APK.zip"
           unzip -t "TRINEX AAB.zip"
 
+      - name: Upload resolved pub dependency lockfile
+        if: steps.flutter_changes.outputs.run == 'true' && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: trinex-pubspec-lock-${{ github.sha }}
+          path: flutter/pubspec.lock
+          if-no-files-found: warn
+
       - name: Upload Flutter coverage
         if: steps.flutter_changes.outputs.run == 'true' && always()
         uses: actions/upload-artifact@v7

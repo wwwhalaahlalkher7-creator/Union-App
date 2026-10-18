@@ -34,12 +34,21 @@ GoRouter buildRouter({
   required ThemeMode Function() themeMode,
   required Locale? Function() locale,
   required Future<void> startupFuture,
+  required Future<void> Function() onRetryStartup,
+  required bool Function() onboardingCompleted,
   ValueChanged<String>? onAccentColorChanged,
   String Function()? accentColorId,
   String initialLocation = '/splash',
 }) {
   return GoRouter(initialLocation: initialLocation, routes: [
-    GoRoute(path: '/splash', builder: (_, _) => SplashScreen(startupFuture: startupFuture)),
+    GoRoute(
+      path: '/splash',
+      builder: (_, _) => SplashScreen(
+        startupFuture: startupFuture,
+        onRetryStartup: onRetryStartup,
+        onboardingCompleted: onboardingCompleted,
+      ),
+    ),
     GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
     GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),

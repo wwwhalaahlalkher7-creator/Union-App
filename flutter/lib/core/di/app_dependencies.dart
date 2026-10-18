@@ -42,33 +42,50 @@ final class AppDependencies {
   late final FeedbackRepository feedback;
 
   bool _initialized = false;
+  ApiClient? _clientDuringInitialization;
 
   Future<void> initialize() async {
     if (_initialized) return;
-    authStorage = await AuthStorage.create();
-    apiClient = ApiClient(
-      baseUrl: AppConstants.apiBaseUrl,
-      authStorage: authStorage,
-    );
-    content = ContentRepository(apiClient);
-    student = StudentRepository(apiClient);
-    materials = MaterialsRepository(apiClient);
-    progress = ProgressRepository(apiClient);
-    interactions = InteractionsRepository(apiClient);
-    notifications = NotificationsRepository(apiClient);
-    schedule = ScheduleRepository(apiClient);
-    xp = XpRepository(apiClient);
-    badges = BadgesRepository(apiClient);
-    eino = EinoRepository(apiClient);
-    generalChat = GeneralChatRepository(apiClient);
-    feedback = FeedbackRepository(apiClient);
-    _initialized = true;
+    try {
+      authStorage = await AuthStorage.create();
+      final client = ApiClient(
+        baseUrl: AppConstants.apiBaseUrl,
+        authStorage: authStorage,
+      );
+      _clientDuringInitialization = client;
+      apiClient = client;
+      content = ContentRepository(client);
+      student = StudentRepository(client);
+      materials = MaterialsRepository(client);
+      progress = ProgressRepository(client);
+      interactions = InteractionsRepository(client);
+      notifications = NotificationsRepository(client);
+      schedule = ScheduleRepository(client);
+      xp = XpRepository(client);
+      badges = BadgesRepository(client);
+      eino = EinoRepository(client);
+      generalChat = GeneralChatRepository(client);
+      feedback = FeedbackRepository(client);
+      _initialized = true;
+      _clientDuringInitialization = null;
+    } catch (_) {
+      // Some late fields may have been assigned before a constructor failed.
+      // Replace the entire singleton rather than retrying on a half-built one.
+      _clientDuringInitialization?.dispose();
+      _clientDuringInitialization = null;
+      if (identical(_instance, this)) _instance = AppDependencies._();
+      rethrow;
+    }
   }
 
   void dispose() {
-    if (!_initialized) return;
-    apiClient.dispose();
+    if (_initialized) {
+      apiClient.dispose();
+    } else {
+      _clientDuringInitialization?.dispose();
+    }
+    _clientDuringInitialization = null;
     _initialized = false;
-    _instance = AppDependencies._();
+    if (identical(_instance, this)) _instance = AppDependencies._();
   }
 }
