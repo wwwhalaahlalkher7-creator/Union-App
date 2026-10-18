@@ -14,7 +14,10 @@ void main() {
         GoRoute(
           path: '/splash',
           builder: (_, _) => SplashScreen(
-            startupFuture: Future<void>.error(StateError('simulated startup error')),
+            startupFuture: Future<void>.delayed(
+              Duration.zero,
+              () => throw StateError('simulated startup error'),
+            ),
             onRetryStartup: () async {
               retryCalls++;
             },
@@ -29,12 +32,17 @@ void main() {
     );
     addTearDown(router.dispose);
 
+    // Disable animations so this test verifies startup/retry routing rather
+    // than depending on wall-clock animation duration in CI.
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: router,
-        locale: const Locale('ar'),
-        supportedLocales: AppLocalizations.supportedLocales,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('ar'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+        ),
       ),
     );
     await tester.pumpAndSettle();

@@ -37,7 +37,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _bootstrap();
   }
 
-  Future<void> _bootstrap({Future<void>? future}) async {
+  Future<void> _bootstrap({Future<void>? future, bool skipBrandDelay = false}) async {
     final started = DateTime.now();
     try {
       await (future ?? widget.startupFuture);
@@ -61,7 +61,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     } else {
       final elapsed = DateTime.now().difference(started);
       final remaining = const Duration(milliseconds: 1200) - elapsed;
-      if (remaining > Duration.zero && !_startupFailed) {
+      if (!skipBrandDelay && remaining > Duration.zero && !_startupFailed) {
         await Future<void>.delayed(remaining);
       }
       if (!mounted || _navigated) return;
@@ -102,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       // The app owner resets the DI container before trying initialization
       // again. Feed that future through the same guarded startup path.
       final retryFuture = widget.onRetryStartup();
-      await _bootstrap(future: retryFuture);
+      await _bootstrap(future: retryFuture, skipBrandDelay: true);
     } catch (error, stackTrace) {
       debugPrint('TRINEX startup retry failed: $error\n$stackTrace');
       if (mounted) {
