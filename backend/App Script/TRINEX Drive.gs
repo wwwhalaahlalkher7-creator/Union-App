@@ -17,7 +17,7 @@
  *   Who has access: Anyone
  */
 
-var CACHE_KEY = 'trINEX_drive_index_v4';
+var CACHE_KEY = 'trINEX_drive_index_v3';
 var CACHE_TTL_SECONDS = 900;
 var ROOT_FOLDER_KEY = 'ROOT_FOLDER_ID';
 var API_TOKEN_KEY = 'API_TOKEN';
@@ -125,7 +125,7 @@ function normalizeFolderName(name) {
     .replace(/[إأآٱ]/g, 'ا')
     .replace(/ى/g, 'ي')
     .replace(/ة/g, 'ه')
-    .replace(/\s+/g, ' ')
+    .replace(/\\s+/g, ' ')
     .toLowerCase();
 }
 

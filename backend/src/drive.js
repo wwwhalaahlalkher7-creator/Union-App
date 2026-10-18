@@ -222,20 +222,6 @@ export async function adminDriveSync(ctx) {
     let foldersSeen = Array.isArray(index.sections) ? index.sections.reduce((n, s) => n + 1 + (Array.isArray(s.semesters) ? s.semesters.length : 0), 0) : 0;
     let filesSeen = index.files.length;
     let upserted = 0;
-    let deactivated = 0;
-    const seenDriveFileIds = new Set();
-
-    // Validate the complete index before making destructive reconciliation decisions.
-    // A partial/unknown mapping must fail the run rather than deactivate valid records.
-    const unmappedFiles = index.files.filter(file => {
-      const dep = depByName.get(normalizeDriveName(file.sectionName));
-      const sem = semByName.get(normalizeDriveName(file.semesterName)) || semesters.find(s => s.number === semesterNumberFromName(file.semesterName));
-      return !dep || !sem;
-    });
-    if (unmappedFiles.length) {
-      const sample = unmappedFiles.slice(0, 5).map(file => `${file.name || file.id} [${file.sectionName || '?'} / ${file.semesterName || '?'}]`).join('; ');
-      throw new Error(`تعذر ربط ${unmappedFiles.length} ملف بقسم أو فصل نشط؛ أُوقفت المزامنة لمنع تعطيل بيانات صحيحة. أمثلة: ${sample}`);
-    }
 
     // Keep the folder index coherent with the Apps Script source.
     for (const section of (Array.isArray(index.sections) ? index.sections : [])) {
@@ -271,8 +257,8 @@ export async function adminDriveSync(ctx) {
 
     for (const group of subjectGroups.values()) {
       const subjectSeed = group.files[0];
-      const candidateSubjects = await queryAll(ctx.env, `SELECT id,name_ar FROM subjects WHERE active=1 AND department_id=? AND semester_id=?`, group.dep.id, group.sem.id);
-      const existingSubject = candidateSubjects.find(subject => normalizeDriveName(subject.name_ar) === normalizeDriveName(group.materialName));
+      const existingSubject = await queryOne(ctx.env, `SELECT id FROM subjects WHERE active=1 AND department_id=? AND semester_id=? AND lower(trim(name_ar))=lower(trim(?)) LIMIT 1`,
+        group.dep.id, group.sem.id, group.materialName);
       const subjectId = existingSubject?.id || `drive-subject-${subjectSeed.sectionId}-${subjectSeed.semesterId}-${normalizeDriveName(group.materialName).replace(/[^a-z0-9\u0600-\u06ff]+/gi, '-').slice(0, 100)}`;
       if (!existingSubject) {
         await ctx.env.DB.prepare(`INSERT INTO subjects (id,semester_id,department_id,code,name_ar,name_en,active,sort_order) VALUES (?,?,?,?,?,?,1,0)
@@ -286,50 +272,27 @@ export async function adminDriveSync(ctx) {
         .bind(folderIndexId, `apps-script-semester-${subjectSeed.semesterId}`, 'subject', group.dep.id, group.sem.id, subjectId, group.materialName, null).run();
 
       for (const file of group.files) {
-        const generatedMaterialId = `drive-material-${file.id}`;
-        const existingMaterial = await queryOne(ctx.env, 'SELECT id,subject_id,title,description,drive_file_id FROM materials WHERE drive_file_id=? OR id=? LIMIT 1', file.id, generatedMaterialId);
-        const materialId = existingMaterial?.id || generatedMaterialId;
+        const materialId = `drive-material-${file.id}`;
+        const alreadyRegistered = await queryOne(ctx.env, 'SELECT id FROM materials WHERE id=? OR drive_file_id=? LIMIT 1', materialId, file.id);
+        if (alreadyRegistered) continue;
         const link = file.link || `https://drive.google.com/file/d/${file.id}/view`;
-        seenDriveFileIds.add(String(file.id));
         await ctx.env.DB.prepare(`INSERT INTO materials
           (id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,last_synced_at)
           VALUES (?,?,?,?,?,?,?,?,1,0,?,?,?,?,'drive',CURRENT_TIMESTAMP)
           ON CONFLICT(id) DO UPDATE SET subject_id=excluded.subject_id,title=excluded.title,description=excluded.description,
-          drive_file_id=excluded.drive_file_id,drive_url=excluded.drive_url,mime_type=excluded.mime_type,size_bytes=excluded.size_bytes,active=1,
+          drive_url=excluded.drive_url,mime_type=excluded.mime_type,size_bytes=excluded.size_bytes,active=1,
           drive_parent_id=excluded.drive_parent_id,drive_modified_at=excluded.drive_modified_at,
-          drive_web_view_url=excluded.drive_web_view_url,pinned=excluded.pinned,source='drive',last_synced_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP`)
+          drive_web_view_url=excluded.drive_web_view_url,pinned=excluded.pinned,source='drive',last_synced_at=CURRENT_TIMESTAMP`)
           .bind(materialId, subjectId, file.name, file.description || null, file.id, link, 'application/pdf', Number(file.size || 0), file.id, file.modified || null, file.previewLink || link, file.pinned ? 1 : 0).run();
         const materialRow = await queryOne(ctx.env, 'SELECT * FROM materials WHERE id=?', materialId);
-        if (!existingMaterial || existingMaterial.subject_id !== subjectId || existingMaterial.title !== file.name || existingMaterial.description !== (file.description || null)) {
-          await createOrRefreshContentNotificationDraft(ctx, 'materials', materialRow, a.session.staff_user_id);
-        }
+        await createOrRefreshContentNotificationDraft(ctx, 'materials', materialRow, a.session.staff_user_id);
         upserted++;
       }
     }
 
-    // Reconcile only Drive-managed records. Manual uploads and manually created materials are untouched.
-    const currentDriveMaterials = await queryAll(ctx.env, `SELECT id,drive_file_id FROM materials WHERE source='drive' AND active=1`);
-    for (const material of currentDriveMaterials) {
-      if (!material.drive_file_id || !seenDriveFileIds.has(String(material.drive_file_id))) {
-        await ctx.env.DB.prepare(`UPDATE materials SET active=0,updated_at=CURRENT_TIMESTAMP,last_synced_at=CURRENT_TIMESTAMP WHERE id=? AND source='drive' AND active=1`).bind(material.id).run();
-        deactivated++;
-      }
-    }
-
-    // Mark folder-index rows inactive when their source IDs are absent from a successful complete index.
-    const seenFolderIds = new Set();
-    for (const section of (Array.isArray(index.sections) ? index.sections : [])) {
-      seenFolderIds.add(`apps-script-department-${section.id}`);
-      for (const semester of (Array.isArray(section.semesters) ? section.semesters : [])) seenFolderIds.add(`apps-script-semester-${semester.id}`);
-    }
-    const indexedFolders = await queryAll(ctx.env, `SELECT id FROM drive_folder_index WHERE id LIKE 'apps-script-department-%' OR id LIKE 'apps-script-semester-%'`);
-    for (const folder of indexedFolders) {
-      if (!seenFolderIds.has(folder.id)) await ctx.env.DB.prepare('UPDATE drive_folder_index SET active=0,last_synced_at=CURRENT_TIMESTAMP WHERE id=?').bind(folder.id).run();
-    }
-
     await ctx.env.DB.prepare("UPDATE drive_sync_runs SET status='success', finished_at=CURRENT_TIMESTAMP, folders_seen=?, files_seen=?, materials_upserted=?, materials_deactivated=? WHERE id=?")
-      .bind(foldersSeen, filesSeen, upserted, deactivated, syncId).run();
-    return ok(ctx, { syncId, source: 'google-apps-script', generatedAt: index.generatedAt || null, foldersSeen, filesSeen, materialsUpserted: upserted, materialsDeactivated: deactivated });
+      .bind(foldersSeen, filesSeen, upserted, 0, syncId).run();
+    return ok(ctx, { syncId, source: 'google-apps-script', generatedAt: index.generatedAt || null, foldersSeen, filesSeen, materialsUpserted: upserted, materialsDeactivated: 0 });
   } catch (e) {
     await ctx.env.DB.prepare("UPDATE drive_sync_runs SET status='failed', finished_at=CURRENT_TIMESTAMP, error_message=? WHERE id=?")
       .bind(String(e?.message || e).slice(0,1000), syncId).run();
