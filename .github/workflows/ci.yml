@@ -262,6 +262,7 @@ jobs:
           python3 ci/backend_schema_check.py
           python3 ci/backend_schema_audit.py
           python3 ci/backend_api_integrity_check.py
+          python3 ci/notification_scheduling_check.py
           python3 ci/backend_api_contract_check.py
           python3 ci/student_features_contract_check.py
           python3 ci/admin_crud_check.py

@@ -35,15 +35,16 @@ export class TrinexScheduler extends DurableObject {
   async alarm() {
     try {
       const now = new Date().toISOString();
-      // Keep the same publication rules as the former cron worker.
+      // Scheduled public content follows its existing date rules. Academic
+      // schedule/material announcements are intentionally NOT auto-promoted:
+      // they remain drafts until an administrator explicitly approves them.
       await Promise.all([
         this.env.DB.prepare("UPDATE news SET status='published', updated_at=CURRENT_TIMESTAMP WHERE status='draft' AND publish_at IS NOT NULL AND datetime(publish_at) <= CURRENT_TIMESTAMP").run(),
         this.env.DB.prepare("UPDATE achievements SET status='published', updated_at=CURRENT_TIMESTAMP WHERE status='draft' AND achieved_at IS NOT NULL AND datetime(achieved_at) <= CURRENT_TIMESTAMP").run(),
-        this.env.DB.prepare("UPDATE announcements SET status='published', updated_at=CURRENT_TIMESTAMP WHERE status='draft' AND publish_at IS NOT NULL AND datetime(publish_at) <= CURRENT_TIMESTAMP AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)").run(),
       ]);
 
-      // This function materializes due announcement targets before dispatching
-      // the queue, preserving the previous sequence and idempotency guarantees.
+      // This function materializes due published announcements before dispatching
+      // the queue. Future publish_at values remain pending until this alarm fires.
       await processNotificationQueue(this.env);
       await this.scheduleNextAlarm();
     } catch (error) {
@@ -65,11 +66,6 @@ export class TrinexScheduler extends DurableObject {
         SELECT achieved_at AS due_at
           FROM achievements
          WHERE status='draft' AND achieved_at IS NOT NULL
-        UNION ALL
-        SELECT publish_at AS due_at
-          FROM announcements
-         WHERE status='draft' AND publish_at IS NOT NULL
-           AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)
         UNION ALL
         SELECT COALESCE(a.publish_at, a.created_at) AS due_at
           FROM announcements a

@@ -103,7 +103,7 @@ export async function publicContentDetail(ctx) {
 
   const dateColumn = table === 'events' ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
   const expiryClause = table === 'news'
-    ? " AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)"
+    ? " AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)"
     : '';
 
   let studentId = null;
@@ -129,7 +129,7 @@ export async function publicContentDetail(ctx) {
       ${myReactionSql}
     FROM ${table}
     WHERE id=? ${table === 'events' ? '' : "AND status='published'"}
-      AND (${table === 'events' ? '1=1' : `(${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)`})
+      AND (${table === 'events' ? '1=1' : `(${dateColumn} IS NULL OR datetime(${dateColumn}) <= CURRENT_TIMESTAMP)`})
       ${expiryClause}`,
     ...params,
   );
@@ -168,9 +168,9 @@ export function serializePublicContent(table, row) {
 export async function publicList(ctx, table) {
   const limit = clampInt(ctx.url.searchParams.get('limit'), 20);
   const dateColumn = ['events'].includes(table) ? 'event_at' : table === 'achievements' ? 'achieved_at' : 'publish_at';
-  const order = `${dateColumn} DESC`;
+  const order = `datetime(${dateColumn}) DESC`;
   const expiryClause = ['news', 'announcements'].includes(table)
-    ? " AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)"
+    ? " AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)"
     : '';
 
   // Public content remains readable without authentication. When a valid
@@ -200,7 +200,7 @@ export async function publicList(ctx, table) {
        ${myReactionSql}
      FROM ${table}
      WHERE ${table === 'events' ? '1=1' : "status = 'published'"}
-       AND (${table === 'events' ? '1=1' : `(${dateColumn} IS NULL OR ${dateColumn} <= CURRENT_TIMESTAMP)`})
+       AND (${table === 'events' ? '1=1' : `(${dateColumn} IS NULL OR datetime(${dateColumn}) <= CURRENT_TIMESTAMP)`})
        ${expiryClause}
      ORDER BY ${order} LIMIT ?`;
 

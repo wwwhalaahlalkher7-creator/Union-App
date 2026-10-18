@@ -1,7 +1,10 @@
 import { queryOne, makeId } from './core.js';
 
 export async function createOrRefreshContentNotificationDraft(ctx, table, row, actorId) {
-  if (!row || !['schedules', 'materials', 'achievements'].includes(table)) return null;
+  // Only academic schedule/material updates require manual notification review.
+  // News, achievements and manually-created announcements follow the normal
+  // publish/schedule path and must not create generic notification drafts.
+  if (!row || !['schedules', 'materials'].includes(table)) return null;
   let category, contentType, title, body, departmentId = null, semesterId = null;
   if (table === 'schedules') {
     const refs = await queryOne(ctx.env, `SELECT d.name_ar AS department_name, s.name_ar AS semester_name, sub.name_ar AS subject_name
@@ -18,10 +21,6 @@ export async function createOrRefreshContentNotificationDraft(ctx, table, row, a
     title = 'مادة دراسية جديدة';
     body = `أُضيفت أو حُدّثت مادة دراسية${refs?.subject_name ? `: ${refs.subject_name}` : ''}${row.title ? ` — ${row.title}` : ''}. افتح التطبيق للاطلاع على المادة.`;
     departmentId = refs?.department_id || null; semesterId = refs?.semester_id || null;
-  } else {
-    category = 'achievement'; contentType = 'achievement';
-    title = 'إنجاز جديد يستحق الاحتفاء';
-    body = `${row.title || 'تم نشر إنجاز جديد'}. افتح التطبيق للاطلاع على التفاصيل.`;
   }
   const existing = await queryOne(ctx.env, `SELECT id FROM announcements WHERE content_type=? AND content_id=? AND status='draft' ORDER BY created_at DESC LIMIT 1`, contentType, row.id);
   if (existing) {

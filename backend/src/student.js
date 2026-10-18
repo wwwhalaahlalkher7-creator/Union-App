@@ -50,8 +50,8 @@ export async function studentNotifications(ctx) {
     FROM notification_targets nt
     JOIN announcements a ON a.id = nt.announcement_id
     WHERE nt.student_id = ? AND a.status = 'published'
-      AND (a.publish_at IS NULL OR a.publish_at <= CURRENT_TIMESTAMP)
-      AND (a.expires_at IS NULL OR a.expires_at > CURRENT_TIMESTAMP)
+      AND (a.publish_at IS NULL OR datetime(a.publish_at) <= CURRENT_TIMESTAMP)
+      AND (a.expires_at IS NULL OR datetime(a.expires_at) > CURRENT_TIMESTAMP)
     ORDER BY COALESCE(a.publish_at, a.created_at) DESC LIMIT ?`, a.session.student_id, limit);
   const unread = rows.filter(r => !r.read_at).length;
   return ok(ctx, rows, {count: rows.length, unread});

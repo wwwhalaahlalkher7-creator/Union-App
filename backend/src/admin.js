@@ -672,6 +672,49 @@ function normalizeTime(value) {
   return `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
 }
 
+// Announcement datetimes are stored as UTC ISO strings. A legacy/local wall
+// time without an explicit zone is interpreted as Sudan time (UTC+02:00),
+// matching the admin's date-time pickers and preventing Worker-local timezone
+// assumptions from shifting publication or expiration.
+function normalizeAnnouncementTimestamp(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const raw = String(value).trim();
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  let normalized = raw;
+  if (!hasZone) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) normalized = `${raw}T00:00:00+02:00`;
+    else if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:/.test(raw)) normalized = `${raw.replace(' ', 'T')}+02:00`;
+    else if (raw.includes('T')) normalized = `${raw}+02:00`;
+  }
+  const timestamp = Date.parse(normalized);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : Number.NaN;
+}
+
+function normalizeAnnouncementDates(ctx, fields, existing = null) {
+  for (const key of ['publish_at', 'expires_at']) {
+    if (Object.prototype.hasOwnProperty.call(fields, key)) {
+      const normalized = normalizeAnnouncementTimestamp(fields[key]);
+      if (Number.isNaN(normalized)) {
+        return error('ANNOUNCEMENT_DATETIME_INVALID', key === 'publish_at'
+          ? 'موعد النشر غير صالح.' : 'موعد انتهاء الصلاحية غير صالح.', 400, ctx.requestId, ctx.cors);
+      }
+      fields[key] = normalized;
+    }
+  }
+
+  const publishAt = Object.prototype.hasOwnProperty.call(fields, 'publish_at')
+    ? fields.publish_at : normalizeAnnouncementTimestamp(existing?.publish_at);
+  const expiresAt = Object.prototype.hasOwnProperty.call(fields, 'expires_at')
+    ? fields.expires_at : normalizeAnnouncementTimestamp(existing?.expires_at);
+  if (Number.isNaN(publishAt) || Number.isNaN(expiresAt)) {
+    return error('ANNOUNCEMENT_DATETIME_INVALID', 'تاريخ النشر أو الانتهاء المخزن غير صالح؛ صححه قبل الحفظ.', 400, ctx.requestId, ctx.cors);
+  }
+  if (publishAt && expiresAt && Date.parse(expiresAt) <= Date.parse(publishAt)) {
+    return error('ANNOUNCEMENT_DATE_ORDER_INVALID', 'تاريخ انتهاء الصلاحية يجب ألا يسبق موعد النشر.', 400, ctx.requestId, ctx.cors);
+  }
+  return null;
+}
+
 export async function adminCrud(ctx, table, id, actorId) {
   if (ctx.request.method === 'GET') {
     const limit = clampInt(ctx.url.searchParams.get('limit'), 50, 1, 100);
@@ -698,6 +741,18 @@ export async function adminCrud(ctx, table, id, actorId) {
     const body = await parseJson(ctx.request); const fields = cleanAdminPayload(table, body);
     // Events are always immediately available; their label is derived from dates, never a draft/publish state.
     if (table === 'events') fields.status = 'published';
+    if (table === 'announcements') {
+      // Manual notifications are published at creation. A future publish_at
+      // controls visibility and dispatch time; it is not a separate DB status.
+      if (!String(fields.title || '').trim() || !String(fields.body || '').trim()) {
+        return error('ANNOUNCEMENT_CONTENT_REQUIRED', 'عنوان الإشعار ونصه مطلوبان.', 400, ctx.requestId, ctx.cors);
+      }
+      fields.status = 'published';
+      fields.type = fields.target_department_id || fields.target_semester_id ? 'academic' : 'general';
+      fields.notification_category = fields.type;
+      const dateError = normalizeAnnouncementDates(ctx, fields);
+      if (dateError) return dateError;
+    }
     if (CONTENT_TABLES.has(table) && fields.status !== undefined && !CONTENT_STATUS_VALUES.has(String(fields.status))) return error('CONTENT_STATUS_INVALID','حالة المحتوى غير مدعومة.',400,ctx.requestId,ctx.cors);
     const id = String(body?.id || makeId(table.slice(0, -1) || table));
     if (table === 'students') {
@@ -757,6 +812,9 @@ export async function adminCrud(ctx, table, id, actorId) {
     const body = await parseJson(ctx.request); const fields = cleanAdminPayload(table, body);
     // Ignore legacy status payloads for events: the event lifecycle is date-based only.
     if (table === 'events') delete fields.status;
+    // Older clients sent 'scheduled'. Scheduling is represented by publish_at;
+    // the database status remains 'published' so public/student APIs stay aligned.
+    if (table === 'announcements' && fields.status === 'scheduled') fields.status = 'published';
     if (CONTENT_TABLES.has(table) && fields.status !== undefined && !CONTENT_STATUS_VALUES.has(String(fields.status))) return error('CONTENT_STATUS_INVALID','حالة المحتوى غير مدعومة.',400,ctx.requestId,ctx.cors);
     if (!Object.keys(fields).length) return error('ADMIN_NO_FIELDS','لم يتم إرسال أي تغييرات.',400,ctx.requestId,ctx.cors);
     if (table === 'students' && fields.student_number !== undefined &&
@@ -772,6 +830,22 @@ export async function adminCrud(ctx, table, id, actorId) {
     }
     const existing = await queryOne(ctx.env, `SELECT * FROM ${table} WHERE id=?`, id);
     if (!existing) return error('ADMIN_NOT_FOUND','السجل غير موجود.',404,ctx.requestId,ctx.cors);
+    if (table === 'announcements') {
+      const generatedAcademicDraft = existing.status === 'draft' && ['schedule', 'material'].includes(existing.content_type);
+      // Only automatically generated schedule/material notifications may remain
+      // drafts. Legacy/manual drafts are promoted when edited.
+      if (fields.status === 'draft' && !generatedAcademicDraft) fields.status = 'published';
+      if (!['schedule', 'material'].includes(existing.content_type)) {
+        const departmentId = Object.prototype.hasOwnProperty.call(fields, 'target_department_id')
+          ? fields.target_department_id : existing.target_department_id;
+        const semesterId = Object.prototype.hasOwnProperty.call(fields, 'target_semester_id')
+          ? fields.target_semester_id : existing.target_semester_id;
+        fields.type = departmentId || semesterId ? 'academic' : 'general';
+        fields.notification_category = fields.type;
+      }
+      const dateError = normalizeAnnouncementDates(ctx, fields, existing);
+      if (dateError) return dateError;
+    }
     const oldMediaUrls = CONTENT_TABLES.has(table) ? extractMediaUrlsFromRow(ctx, existing) : [];
     const notificationRelevantFields = {
       schedules: ['semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer'],
@@ -1099,10 +1173,15 @@ export async function adminNotificationSend(ctx, actorId) {
     announcementId);
   if (!announcement) return error('ANNOUNCEMENT_NOT_FOUND', 'الإعلان غير موجود.', 404, ctx.requestId, ctx.cors);
   if (announcement.status !== 'published') return error('ANNOUNCEMENT_NOT_PUBLISHED', 'يجب نشر الإعلان قبل إرساله.', 400, ctx.requestId, ctx.cors);
-  if (announcement.publish_at && new Date(announcement.publish_at).getTime() > Date.now()) {
+  const normalizedPublishAt = normalizeAnnouncementTimestamp(announcement.publish_at);
+  const normalizedExpiresAt = normalizeAnnouncementTimestamp(announcement.expires_at);
+  if (Number.isNaN(normalizedPublishAt) || Number.isNaN(normalizedExpiresAt)) {
+    return error('ANNOUNCEMENT_DATETIME_INVALID', 'موعد النشر أو انتهاء الصلاحية غير صالح.', 400, ctx.requestId, ctx.cors);
+  }
+  if (normalizedPublishAt && Date.parse(normalizedPublishAt) > Date.now()) {
     return error('ANNOUNCEMENT_SCHEDULED', 'هذا الإعلان مجدول للمستقبل؛ سيُجهّز للإرسال تلقائيًا عند حلول موعده.', 409, ctx.requestId, ctx.cors);
   }
-  if (announcement.expires_at && new Date(announcement.expires_at).getTime() <= Date.now()) {
+  if (normalizedExpiresAt && Date.parse(normalizedExpiresAt) <= Date.now()) {
     return error('ANNOUNCEMENT_EXPIRED', 'انتهت صلاحية هذا الإعلان ولا يمكن إرساله.', 409, ctx.requestId, ctx.cors);
   }
 

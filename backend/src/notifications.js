@@ -61,8 +61,8 @@ async function sendFcm(env, token, title, body, announcementId) {
 async function materializeDueAnnouncements(env) {
   const now = new Date().toISOString();
   const due = await env.DB.prepare(`SELECT id, target_department_id, target_semester_id FROM announcements a
-    WHERE a.status='published' AND (a.publish_at IS NULL OR a.publish_at <= ?)
-      AND (a.expires_at IS NULL OR a.expires_at > ?)
+    WHERE a.status='published' AND (a.publish_at IS NULL OR datetime(a.publish_at) <= datetime(?))
+      AND (a.expires_at IS NULL OR datetime(a.expires_at) > datetime(?))
       AND NOT EXISTS (SELECT 1 FROM notification_targets nt WHERE nt.announcement_id=a.id)
       AND NOT EXISTS (SELECT 1 FROM notification_schedule_runs sr WHERE sr.announcement_id=a.id)
     ORDER BY COALESCE(a.publish_at,a.created_at) ASC LIMIT 20`).bind(now, now).all();
@@ -100,8 +100,8 @@ export async function processNotificationQueue(env) {
     LEFT JOIN notification_devices nd ON nd.id=q.device_id
     WHERE q.status='pending' AND q.scheduled_at <= ? AND q.attempts < 5
       AND (q.channel='in_app' OR ?=1)
-      AND a.status='published' AND (a.publish_at IS NULL OR a.publish_at <= ?)
-      AND (a.expires_at IS NULL OR a.expires_at > ?)
+      AND a.status='published' AND (a.publish_at IS NULL OR datetime(a.publish_at) <= datetime(?))
+      AND (a.expires_at IS NULL OR datetime(a.expires_at) > datetime(?))
     ORDER BY q.created_at ASC LIMIT 50`).bind(now, env.FCM_SERVICE_ACCOUNT_JSON ? 1 : 0, now, now).all();
   for (const row of (result.results || [])) {
     // Claim one row before network I/O to prevent concurrent scheduled invocations duplicating sends.

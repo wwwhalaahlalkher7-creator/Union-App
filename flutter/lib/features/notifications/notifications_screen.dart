@@ -224,6 +224,16 @@ class _NotificationCard extends StatelessWidget {
   const _NotificationCard({required this.item});
   final NotificationItem item;
 
+  String _formatDateTime(String value) {
+    final date = DateTime.tryParse(value)?.toLocal();
+    if (date == null) return value;
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}  $hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -258,7 +268,11 @@ class _NotificationCard extends StatelessWidget {
                 Text(item.body, maxLines: 4, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
                 if (item.publishAt?.isNotEmpty == true) ...[
                   const SizedBox(height: 7),
-                  Text(item.publishAt!, style: Theme.of(context).textTheme.bodySmall),
+                  Text('النشر: ${_formatDateTime(item.publishAt!)}', style: Theme.of(context).textTheme.bodySmall),
+                ],
+                if (item.expiresAt?.isNotEmpty == true) ...[
+                  const SizedBox(height: 4),
+                  Text('انتهاء الصلاحية: ${_formatDateTime(item.expiresAt!)}', style: Theme.of(context).textTheme.bodySmall),
                 ],
               ],
             ),
