@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
@@ -25,7 +27,7 @@ class TrinexShell extends StatefulWidget {
 }
 
 class _TrinexShellState extends State<TrinexShell>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 3),
@@ -34,6 +36,9 @@ class _TrinexShellState extends State<TrinexShell>
   bool _einoVisible = false;
   int _unreadNotifications = 0;
   StreamSubscription<void>? _notificationSubscription;
+  StreamSubscription<AccelerometerEvent>? _shakeSubscription;
+  DateTime _lastShakeAt = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _feedbackOpening = false;
 
   bool get _readingMode => widget.location == '/media/detail';
 
@@ -42,6 +47,8 @@ class _TrinexShellState extends State<TrinexShell>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startShakeDetection();
     _notificationSubscription = PushNotificationService.instance.notificationArrived.listen((_) => _handleNotificationArrived());
     _einoVisible = !_readingMode && !_hideFloatingEino;
     FocusManager.instance.addListener(_handleFocusChange);
@@ -91,7 +98,57 @@ class _TrinexShellState extends State<TrinexShell>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startShakeDetection();
+    } else {
+      _stopShakeDetection();
+    }
+  }
+
+  void _startShakeDetection() {
+    if (_shakeSubscription != null) return;
+    _shakeSubscription = accelerometerEventStream(
+      samplingPeriod: const SensorInterval.normalInterval,
+    ).listen(
+      _handleAccelerometerEvent,
+      onError: (_) => _stopShakeDetection(),
+      cancelOnError: true,
+    );
+  }
+
+  void _stopShakeDetection() {
+    final subscription = _shakeSubscription;
+    _shakeSubscription = null;
+    if (subscription != null) {
+      unawaited(subscription.cancel());
+    }
+  }
+
+  void _handleAccelerometerEvent(AccelerometerEvent event) {
+    if (!mounted || _feedbackOpening) return;
+    final magnitude = math.sqrt(
+      event.x * event.x + event.y * event.y + event.z * event.z,
+    );
+    // A brisk movement beyond gravity is enough; the cooldown prevents a
+    // single shake from pushing multiple feedback routes.
+    if (magnitude < 18) return;
+    final now = DateTime.now();
+    if (now.difference(_lastShakeAt) < const Duration(seconds: 2)) return;
+    _lastShakeAt = now;
+    _feedbackOpening = true;
+    unawaited(
+      context.push('/feedback').then<void>(
+        (_) => _feedbackOpening = false,
+        onError: (Object _) => _feedbackOpening = false,
+      ),
+    );
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopShakeDetection();
     _notificationSubscription?.cancel();
     FocusManager.instance.removeListener(_handleFocusChange);
     _pulse.dispose();

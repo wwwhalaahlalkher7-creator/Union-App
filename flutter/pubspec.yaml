@@ -26,6 +26,7 @@ dependencies:
   path_provider: ^2.1.5
   pdfrx: ^2.6.5
   latext: ^0.5.1
+  sensors_plus: ^6.1.2
 
 # Keep the Android plugin on the stable pre-JNI implementation.
 # shared_preferences_android 2.5.0 changed its native bridge to Pigeon JNI;
