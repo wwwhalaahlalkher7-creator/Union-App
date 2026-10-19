@@ -27,6 +27,13 @@ dependencies:
   pdfrx: ^2.6.5
   latext: ^0.5.1
 
+# Keep the Android plugin on the stable pre-JNI implementation.
+# shared_preferences_android 2.5.0 changed its native bridge to Pigeon JNI;
+# the current production APK comparison showed this bridge differs from the
+# last known working build. Revisit only after device startup is verified.
+dependency_overrides:
+  shared_preferences_android: 2.4.25
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

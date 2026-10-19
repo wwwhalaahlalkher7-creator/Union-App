@@ -120,13 +120,30 @@ class _TrinexAppState extends State<TrinexApp> {
     String stage,
     Future<void> Function() operation,
   ) async {
+    final stopwatch = Stopwatch()..start();
     debugPrint('TRINEX startup stage started: $stage');
     try {
-      await operation();
-      debugPrint('TRINEX startup stage completed: $stage');
+      // Never leave the splash screen waiting forever if a native plugin call
+      // fails to answer. A timeout exposes a recoverable error and preserves
+      // the stage name in logcat for diagnosis.
+      await operation().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException(
+          'Startup stage "$stage" did not finish within 15 seconds.',
+        ),
+      );
+      debugPrint(
+        'TRINEX startup stage completed: $stage '
+        '(${stopwatch.elapsedMilliseconds} ms)',
+      );
     } catch (error, stackTrace) {
-      debugPrint('TRINEX startup stage FAILED: $stage\n$error\n$stackTrace');
+      debugPrint(
+        'TRINEX startup stage FAILED: $stage '
+        '(${stopwatch.elapsedMilliseconds} ms)\n$error\n$stackTrace',
+      );
       rethrow;
+    } finally {
+      stopwatch.stop();
     }
   }
 
