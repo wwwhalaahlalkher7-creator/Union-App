@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/di/app_dependencies.dart';
+import '../../data/repositories/feedback_repository.dart';
 import '../../shared/widgets/app_card.dart';
 
 class FeedbackScreen extends StatefulWidget {
@@ -15,6 +16,14 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   final _detailsController = TextEditingController();
   String _category = 'suggestion';
   bool _sending = false;
+  late final FeedbackRepository _feedbackRepository;
+
+  @override
+  void initState() {
+    super.initState();
+    // Create the feedback feature dependency only when this screen is opened.
+    _feedbackRepository = FeedbackRepository(AppDependencies.instance.apiClient);
+  }
 
   @override
   void dispose() {
@@ -27,7 +36,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     if (!_formKey.currentState!.validate() || _sending) return;
     setState(() => _sending = true);
     try {
-      await AppDependencies.instance.feedback.submit(
+      await _feedbackRepository.submit(
         category: _category,
         title: _titleController.text,
         details: _detailsController.text,
@@ -62,7 +71,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           const Text('شاركنا اقتراحك أو أبلغ عن مشكلة', textAlign: TextAlign.center,
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
           const SizedBox(height: 5),
-          Text('سيصل البلاغ إلى لوحة الإدارة، ويمكنك فتح هذه الصفحة من قائمة الخدمات أو بهز الهاتف.',
+          Text('سيصل البلاغ إلى لوحة الإدارة، ويمكنك فتح هذه الصفحة من قائمة الخدمات.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ])),

@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
@@ -27,7 +25,7 @@ class TrinexShell extends StatefulWidget {
 }
 
 class _TrinexShellState extends State<TrinexShell>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with SingleTickerProviderStateMixin {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 3),
@@ -36,8 +34,6 @@ class _TrinexShellState extends State<TrinexShell>
   bool _einoVisible = false;
   int _unreadNotifications = 0;
   StreamSubscription<void>? _notificationSubscription;
-  StreamSubscription<UserAccelerometerEvent>? _shakeSubscription;
-  DateTime _lastShakeAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   bool get _readingMode => widget.location == '/media/detail';
 
@@ -46,9 +42,7 @@ class _TrinexShellState extends State<TrinexShell>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _notificationSubscription = PushNotificationService.instance.notificationArrived.listen((_) => _handleNotificationArrived());
-    _startShakeDetection();
     _einoVisible = !_readingMode && !_hideFloatingEino;
     FocusManager.instance.addListener(_handleFocusChange);
     _refreshUnreadNotifications();
@@ -85,47 +79,6 @@ class _TrinexShellState extends State<TrinexShell>
     setState(() => _unreadNotifications += 1);
   }
 
-  void _startShakeDetection() {
-    if (_shakeSubscription != null) return;
-    try {
-      _shakeSubscription = userAccelerometerEventStream(
-        samplingPeriod: const Duration(milliseconds: 120),
-      ).listen(
-        _handleShake,
-        onError: (_) {},
-        cancelOnError: false,
-      );
-    } catch (_) {
-      // Sensors may be unavailable on simulators or some desktop devices.
-    }
-  }
-
-  void _stopShakeDetection() {
-    final subscription = _shakeSubscription;
-    _shakeSubscription = null;
-    if (subscription != null) unawaited(subscription.cancel());
-  }
-
-  void _handleShake(UserAccelerometerEvent event) {
-    if (!mounted || widget.location == '/feedback') return;
-    final magnitude = math.sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
-    if (magnitude < 15.0) return;
-    final now = DateTime.now();
-    if (now.difference(_lastShakeAt) < const Duration(seconds: 2)) return;
-    _lastShakeAt = now;
-    context.push('/feedback');
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _startShakeDetection();
-      _refreshUnreadNotifications();
-    } else {
-      _stopShakeDetection();
-    }
-  }
-
   Future<void> _refreshUnreadNotifications() async {
     try {
       final items = await AppDependencies.instance.notifications.list();
@@ -139,9 +92,7 @@ class _TrinexShellState extends State<TrinexShell>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _notificationSubscription?.cancel();
-    _stopShakeDetection();
     FocusManager.instance.removeListener(_handleFocusChange);
     _pulse.dispose();
     super.dispose();

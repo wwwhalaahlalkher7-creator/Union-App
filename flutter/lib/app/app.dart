@@ -83,16 +83,51 @@ class _TrinexAppState extends State<TrinexApp> {
   }
 
   Future<void> _bootstrap() async {
-    await Future.wait<void>([
-      _loadPreferences(),
-      // Tests may inject an additional startup gate; preferences must still be
-      // initialized because the splash uses the configured onboarding state.
-      widget.startupFutureOverride ?? Future<void>.value(),
-      AppDependencies.instance.initialize(),
-    ]);
-    unawaited(StartupPreloader(AppDependencies.instance.apiClient).warmPublicCache());
+    // Run startup stages separately so a device-only failure can be traced to
+    // the exact plugin/service instead of being hidden by Future.wait.
+    await _runStartupStage('preferences', _loadPreferences);
+
+    // Tests may inject an additional startup gate; preferences must still be
+    // initialized because the splash uses the configured onboarding state.
+    await _runStartupStage(
+      'startup override',
+      () => widget.startupFutureOverride ?? Future<void>.value(),
+    );
+
+    await _runStartupStage(
+      'dependency container / secure storage',
+      AppDependencies.instance.initialize,
+    );
+
+    unawaited(
+      StartupPreloader(AppDependencies.instance.apiClient)
+          .warmPublicCache()
+          .catchError((Object error, StackTrace stackTrace) {
+        debugPrint('TRINEX non-blocking public cache warmup failed: $error\n$stackTrace');
+      }),
+    );
     // FCM permission is requested at first launch; absent Firebase config never blocks app startup.
-    unawaited(PushNotificationService.instance.initializeAtFirstLaunch());
+    unawaited(
+      PushNotificationService.instance.initializeAtFirstLaunch().catchError(
+        (Object error, StackTrace stackTrace) {
+          debugPrint('TRINEX non-blocking notification initialization failed: $error\n$stackTrace');
+        },
+      ),
+    );
+  }
+
+  Future<void> _runStartupStage(
+    String stage,
+    Future<void> Function() operation,
+  ) async {
+    debugPrint('TRINEX startup stage started: $stage');
+    try {
+      await operation();
+      debugPrint('TRINEX startup stage completed: $stage');
+    } catch (error, stackTrace) {
+      debugPrint('TRINEX startup stage FAILED: $stage\n$error\n$stackTrace');
+      rethrow;
+    }
   }
 
   Future<void> _loadPreferences() async {
