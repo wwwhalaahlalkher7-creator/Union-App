@@ -105,10 +105,10 @@ class ContentItem {
       updatedAt: parseDate(
         fields['updatedAt'] ?? fields['updated_at'] ?? fields['UpdatedAt'],
       ),
-      imageUrl: (fields['imageUrl'] ?? fields['image_url'])?.toString(),
-      category: fields['category']?.toString(),
+      imageUrl: (fields['imageUrl'] ?? fields['image_url'] ?? _firstImage(fields['images'] ?? fields['images_json']))?.toString(),
+      category: (fields['category'] ?? fields['badge'] ?? fields['Badge'])?.toString(),
       publisher: fields['publisher']?.toString(),
-      eventAt: parseDate(fields['eventAt'] ?? fields['event_at']),
+      eventAt: parseDate(fields['eventAt'] ?? fields['event_at'] ?? fields['publishAt'] ?? fields['publish_at'] ?? fields['achievedAt'] ?? fields['achieved_at']),
       endAt: parseDate(fields['endAt'] ?? fields['end_at'], inclusiveEndDate: true),
       location: fields['location']?.toString(),
       commentCount: _toInt(fields['commentCount'] ?? fields['comment_count']),
@@ -144,4 +144,9 @@ List<String> _toHighlights(dynamic value) {
     try { final decoded = jsonDecode(value); return _toHighlights(decoded); } catch (_) {}
   }
   return const <String>[];
+}
+
+String? _firstImage(dynamic value) {
+  final images = _toImages(value);
+  return images.isEmpty ? null : images.first;
 }
