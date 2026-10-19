@@ -109,7 +109,7 @@ class _TrinexShellState extends State<TrinexShell>
   void _startShakeDetection() {
     if (_shakeSubscription != null) return;
     _shakeSubscription = accelerometerEventStream(
-      samplingPeriod: const SensorInterval.normalInterval,
+      samplingPeriod: const Duration(milliseconds: 200),
     ).listen(
       _handleAccelerometerEvent,
       onError: (_) => _stopShakeDetection(),
