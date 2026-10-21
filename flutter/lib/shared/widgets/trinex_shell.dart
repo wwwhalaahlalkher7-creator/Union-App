@@ -67,7 +67,9 @@ class _TrinexShellState extends State<TrinexShell>
       final preferences = AppPreferences();
       await preferences.init();
       if (!preferences.learningModePendingFor(studentNumber) ||
-          preferences.learningModeCompletedFor(studentNumber)) return;
+          preferences.learningModeCompletedFor(studentNumber)) {
+        return;
+      }
 
       // Wait for the real home content to render before placing the spotlight.
       var targetReady = false;
@@ -486,9 +488,7 @@ class _MainNav extends StatelessWidget {
           destinations: [
             for (final item in items)
               NavigationDestination(
-                icon: Icon(item.$2),
-                selectedIcon: Icon(item.$2),
-                label: KeyedSubtree(
+                icon: KeyedSubtree(
                   key: item.$3 == '/materials'
                       ? guidedTourMaterialsKey
                       : item.$3 == '/media'
@@ -498,8 +498,10 @@ class _MainNav extends StatelessWidget {
                               : item.$3 == '/home'
                                   ? guidedTourHomeNavKey
                                   : null,
-                  child: Text(l10n.t(item.$1)),
+                  child: Icon(item.$2),
                 ),
+                selectedIcon: Icon(item.$2),
+                label: l10n.t(item.$1),
               ),
           ],
         ),
