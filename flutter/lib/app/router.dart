@@ -16,6 +16,7 @@ import '../features/news/content_detail_screen.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/chat/general_chat_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
+import '../features/onboarding/learning_mode_screen.dart';
 import '../features/recent/recent_screen.dart';
 import '../features/schedule/schedule_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -50,6 +51,7 @@ GoRouter buildRouter({
       ),
     ),
     GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
+    GoRoute(path: '/learning-mode', builder: (_, _) => const LearningModeScreen()),
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
     GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
     GoRoute(path: '/forgot-password', builder: (_, state) => ForgotPasswordScreen(initialStudentNumber: state.uri.queryParameters['studentNumber'])),

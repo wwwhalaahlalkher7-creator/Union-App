@@ -6,6 +6,7 @@ class AppPreferences {
   static const _localeKey = 'locale';
   static const _onboardingKey = 'onboarding_completed';
   static const _accentKey = 'accent_color_id';
+  static const _tutorialCompletedPrefix = 'learning_mode_completed_';
 
   late SharedPreferences _prefs;
 
@@ -62,5 +63,21 @@ class AppPreferences {
 
   Future<void> setOnboardingCompleted(bool value) async {
     await _prefs.setBool(_onboardingKey, value);
+  }
+
+  /// Tracks the interactive learning walkthrough separately for each student.
+  bool learningModeCompletedFor(String studentNumber) {
+    final id = studentNumber.trim();
+    if (id.isEmpty) return false;
+    return _prefs.getBool('$_tutorialCompletedPrefix$id') ?? false;
+  }
+
+  Future<void> setLearningModeCompletedFor(
+    String studentNumber,
+    bool value,
+  ) async {
+    final id = studentNumber.trim();
+    if (id.isEmpty) return;
+    await _prefs.setBool('$_tutorialCompletedPrefix$id', value);
   }
 }

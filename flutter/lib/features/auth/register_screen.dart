@@ -123,6 +123,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final prefs = AppPreferences();
       await prefs.init();
       await prefs.setOnboardingCompleted(true);
+      final tutorialAlreadyCompleted =
+          prefs.learningModeCompletedFor(studentNumber);
 
       if (!mounted) return;
       HapticFeedback.mediumImpact();
@@ -132,7 +134,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
-      context.go('/home');
+      context.go(tutorialAlreadyCompleted ? '/home' : '/learning-mode');
     } catch (e) {
       if (!mounted) return;
       final message = e is ApiException
