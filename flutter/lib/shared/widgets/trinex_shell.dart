@@ -9,6 +9,8 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../features/eino/eino_face.dart';
 import '../../core/di/app_dependencies.dart';
+import '../../core/storage/app_preferences.dart';
+import '../../features/onboarding/guided_tour_overlay.dart';
 import '../../core/notifications/push_notification_service.dart';
 import '../../data/models/notification_item.dart';
 
@@ -39,6 +41,8 @@ class _TrinexShellState extends State<TrinexShell>
   StreamSubscription<AccelerometerEvent>? _shakeSubscription;
   DateTime _lastShakeAt = DateTime.fromMillisecondsSinceEpoch(0);
   bool _feedbackOpening = false;
+  int? _guidedTourStep;
+  bool _guidedTourActionRunning = false;
 
   bool get _readingMode => widget.location == '/media/detail';
 
@@ -53,6 +57,109 @@ class _TrinexShellState extends State<TrinexShell>
     _einoVisible = !_readingMode && !_hideFloatingEino;
     FocusManager.instance.addListener(_handleFocusChange);
     _refreshUnreadNotifications();
+    _checkPendingGuidedTour();
+  }
+
+  Future<void> _checkPendingGuidedTour() async {
+    try {
+      final studentNumber = (await AppDependencies.instance.authStorage.studentNumber)?.trim() ?? '';
+      if (studentNumber.isEmpty) return; // Guests never see the guided tour.
+      final preferences = AppPreferences();
+      await preferences.init();
+      if (!preferences.learningModePendingFor(studentNumber) ||
+          preferences.learningModeCompletedFor(studentNumber)) return;
+
+      // Wait for the real home content to render before placing the spotlight.
+      var targetReady = false;
+      for (var attempt = 0; attempt < 100; attempt++) {
+        if (!mounted) return;
+        final targetContext = guidedTourHomeNavKey.currentContext;
+        final targetObject = targetContext?.findRenderObject();
+        final scheduleObject = guidedTourScheduleKey.currentContext?.findRenderObject();
+        if (targetObject is RenderBox && targetObject.hasSize &&
+            scheduleObject is RenderBox && scheduleObject.hasSize) {
+          targetReady = true;
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      }
+      if (!mounted || widget.location != '/home' || !targetReady) return;
+      setState(() => _guidedTourStep = 0);
+    } catch (error, stackTrace) {
+      debugPrint('Could not initialize guided tour: $error\n$stackTrace');
+    }
+  }
+
+  Future<void> _onGuidedTourTargetTap() async {
+    if (_guidedTourActionRunning || _guidedTourStep == null || !mounted) return;
+    _guidedTourActionRunning = true;
+    final step = _guidedTourStep!;
+    try {
+      switch (step) {
+        case 0:
+          // The highlighted destination is the real Home navigation item.
+          context.go('/home');
+          setState(() => _guidedTourStep = 1);
+          break;
+        case 1:
+          // Perform the same action as the highlighted schedule card.
+          context.push('/schedule');
+          setState(() => _guidedTourStep = 2);
+          break;
+        case 2:
+          context.go('/materials');
+          setState(() => _guidedTourStep = 3);
+          break;
+        case 3:
+          context.go('/media');
+          setState(() => _guidedTourStep = 4);
+          break;
+        case 4:
+          context.go('/more');
+          setState(() => _guidedTourStep = 5);
+          break;
+        case 5:
+          await _completeGuidedTour();
+          if (mounted) context.push('/eino?from=shell');
+          break;
+      }
+    } finally {
+      _guidedTourActionRunning = false;
+    }
+  }
+
+  Future<void> _skipGuidedTour() async {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.t('guidedTourSkipTitle')),
+        content: Text(l10n.t('guidedTourSkipMessage')),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: Text(l10n.t('guidedTourKeepGoing'))),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text(l10n.t('guidedTourConfirmSkip'))),
+        ],
+      ),
+    );
+    if (confirmed == true) await _completeGuidedTour();
+  }
+
+  Future<void> _completeGuidedTour() async {
+    try {
+      final studentNumber = (await AppDependencies.instance.authStorage.studentNumber)?.trim() ?? '';
+      if (studentNumber.isNotEmpty) {
+        final preferences = AppPreferences();
+        await preferences.init();
+        await preferences.setLearningModeCompletedFor(studentNumber, true);
+        await preferences.setLearningModePendingFor(studentNumber, false);
+      }
+    } catch (error, stackTrace) {
+      // Never block app access if local preference storage is unavailable.
+      debugPrint('Could not persist guided-tour completion: $error\n$stackTrace');
+    } finally {
+      if (mounted) setState(() => _guidedTourStep = null);
+    }
   }
 
   @override
@@ -167,9 +274,12 @@ class _TrinexShellState extends State<TrinexShell>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Column(
           children: [
             _TopHeader(unreadNotifications: _unreadNotifications),
             Expanded(
@@ -191,7 +301,10 @@ class _TrinexShellState extends State<TrinexShell>
                     PositionedDirectional(
                       end: 16,
                       bottom: 18,
-                      child: EinoFloatingButton(animation: _pulse),
+                      child: KeyedSubtree(
+                        key: guidedTourEinoKey,
+                        child: EinoFloatingButton(animation: _pulse),
+                      ),
                     ),
                   // A narrow edge gesture lets the student summon Eino again
                   // without adding another permanent button to the UI.
@@ -218,7 +331,17 @@ class _TrinexShellState extends State<TrinexShell>
             _MainNav(selected: index),
             const SizedBox(height: 4),
           ],
-        ),
+            ),
+          ),
+          if (_guidedTourStep != null)
+            Positioned.fill(
+              child: GuidedTourOverlay(
+                stepIndex: _guidedTourStep!,
+                onTargetTap: _onGuidedTourTargetTap,
+                onSkip: _skipGuidedTour,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -365,7 +488,18 @@ class _MainNav extends StatelessWidget {
               NavigationDestination(
                 icon: Icon(item.$2),
                 selectedIcon: Icon(item.$2),
-                label: l10n.t(item.$1),
+                label: KeyedSubtree(
+                  key: item.$3 == '/materials'
+                      ? guidedTourMaterialsKey
+                      : item.$3 == '/media'
+                          ? guidedTourMediaKey
+                          : item.$3 == '/more'
+                              ? guidedTourMoreKey
+                              : item.$3 == '/home'
+                                  ? guidedTourHomeNavKey
+                                  : null,
+                  child: Text(l10n.t(item.$1)),
+                ),
               ),
           ],
         ),

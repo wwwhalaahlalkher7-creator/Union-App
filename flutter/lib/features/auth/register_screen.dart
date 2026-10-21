@@ -125,6 +125,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await prefs.setOnboardingCompleted(true);
       final tutorialAlreadyCompleted =
           prefs.learningModeCompletedFor(studentNumber);
+      if (!tutorialAlreadyCompleted) {
+        await prefs.setLearningModePendingFor(studentNumber, true);
+      }
 
       if (!mounted) return;
       HapticFeedback.mediumImpact();
@@ -134,7 +137,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
-      context.go(tutorialAlreadyCompleted ? '/home' : '/learning-mode');
+      // The guided tour is an overlay on the real application UI, not a
+      // separate tutorial page. The shell starts it only for this pending
+      // newly registered account; guest and returning sign-ins bypass it.
+      context.go('/home');
     } catch (e) {
       if (!mounted) return;
       final message = e is ApiException

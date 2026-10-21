@@ -15,6 +15,7 @@ import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/list_skeleton.dart';
 import '../../features/eino/eino_face.dart';
+import '../onboarding/guided_tour_overlay.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -129,10 +130,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           flex: 2,
                           child: Align(
                             alignment: Alignment.bottomCenter,
-                            child: _HomeScheduleCard(
+                            child: KeyedSubtree(
+                              key: guidedTourScheduleKey,
+                              child: _HomeScheduleCard(
                               schedule: data.schedule,
                               onTap: () => context.push('/schedule'),
                               extraTopHeight: 20,
+                            ),
                             ),
                           ),
                         ),
