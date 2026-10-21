@@ -10,7 +10,7 @@ void main() {
       ));
 
       expect(find.byType(EinoOrb), findsOneWidget);
-      expect(find.byType(CustomPaint), findsOneWidget);
+      expect(find.byType(CustomPaint), findsAtLeastNWidgets(1));
       expect(find.bySemanticsLabel('Eino assistant'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 250));
     });

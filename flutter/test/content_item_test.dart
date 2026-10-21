@@ -12,7 +12,7 @@ void main() {
 
     final achievement = ContentItem.fromJson({
       'id': 'a2', 'title': 'إنجاز', 'achieved_at': '2026-10-17',
-      'badge': 'أكاديمي', 'images_json': '[\"https://cdn.example/a.jpg\",\"https://cdn.example/b.jpg\"]',
+      'badge': 'أكاديمي', 'images_json': '["https://cdn.example/a.jpg","https://cdn.example/b.jpg"]',
     });
     expect(achievement.eventAt, isNotNull);
     expect(achievement.category, 'أكاديمي');
