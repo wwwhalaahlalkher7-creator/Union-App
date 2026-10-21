@@ -632,7 +632,7 @@ class EinoFloatingButton extends StatelessWidget {
                 ),
                 child: const EinoFace(
                   size: 76,
-                  mood: EinoMood.happy,
+                  mood: EinoMood.calm,
                 ),
               ),
             ),
