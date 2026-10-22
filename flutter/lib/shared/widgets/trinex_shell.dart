@@ -461,8 +461,8 @@ class _TrinexShellState extends State<TrinexShell>
                                 radius: 1.05,
                                 colors: [
                                   Theme.of(context).colorScheme.primary.withValues(alpha: .55),
-                                  const Color(0xFF171438).withValues(alpha: .72),
-                                  const Color(0xFF050817).withValues(alpha: .94),
+                                  Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .72),
+                                  Theme.of(context).colorScheme.surface.withValues(alpha: .94),
                                 ],
                                 stops: const [0, .42, 1],
                               ),
