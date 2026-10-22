@@ -30,6 +30,14 @@ class MaterialsRepository {
     return MaterialItem.fromJson(data);
   }
 
+  Future<List<MaterialItem>> exams({String? semesterId, String? subjectId}) async {
+    final query = <String, String>{'limit': '500'};
+    if (semesterId != null && semesterId.isNotEmpty) query['semesterId'] = semesterId;
+    if (subjectId != null && subjectId.isNotEmpty) query['subjectId'] = subjectId;
+    final json = await _client.getJson('/api/v1/exams', query: query, forceRefresh: true);
+    return RepositoryParser.maps(json).map(MaterialItem.fromJson).toList(growable: false);
+  }
+
   Future<List<MaterialItem>> list({String? semesterId, String? subjectId}) async {
     final query = <String, String>{'limit': '100'};
     if (semesterId != null && semesterId.isNotEmpty) {

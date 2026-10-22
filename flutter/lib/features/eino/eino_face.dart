@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
@@ -30,6 +31,7 @@ class EinoFace extends StatefulWidget {
     this.mood = EinoMood.calm,
     this.accentColor,
     this.showAura = true,
+    this.motionBoost = 0,
   });
 
   final double size;
@@ -37,6 +39,8 @@ class EinoFace extends StatefulWidget {
   final EinoMood mood;
   final Color? accentColor;
   final bool showAura;
+  /// 0..1 transition intensity supplied by the shell during enter/return.
+  final double motionBoost;
 
   @override
   State<EinoFace> createState() => _EinoFaceState();
@@ -45,14 +49,77 @@ class EinoFace extends StatefulWidget {
 /// New semantic name for use in new code.
 typedef EinoOrb = EinoFace;
 
-class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin {
+class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 4200),
   )..repeat();
+  bool _lowActivity = false;
+  bool _reduceMotion = false;
+  AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
+  Timer? _idleTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scheduleIdle();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    if (_reduceMotion == reduceMotion) return;
+    _reduceMotion = reduceMotion;
+    if (_reduceMotion) {
+      _idleTimer?.cancel();
+      _controller.stop(canceled: false);
+    } else if (_lifecycleState == AppLifecycleState.resumed) {
+      _controller.repeat();
+      _scheduleIdle();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant EinoFace oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.mood != widget.mood || oldWidget.talking != widget.talking || (oldWidget.motionBoost <= .01) != (widget.motionBoost <= .01)) {
+      _scheduleIdle();
+    }
+  }
+
+  void _scheduleIdle() {
+    _idleTimer?.cancel();
+    if (_lowActivity) setState(() => _lowActivity = false);
+    if (_reduceMotion) return;
+    _controller.duration = const Duration(milliseconds: 4200);
+    if (!_controller.isAnimating && _lifecycleState == AppLifecycleState.resumed) _controller.repeat();
+    if (widget.motionBoost > .01 || widget.talking || widget.mood == EinoMood.thinking || widget.mood == EinoMood.talking) return;
+    _idleTimer = Timer(const Duration(seconds: 30), () {
+      if (!mounted || _lifecycleState != AppLifecycleState.resumed) return;
+      setState(() => _lowActivity = true);
+      _controller.duration = const Duration(milliseconds: 14000);
+      _controller.repeat();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycleState = state;
+    if (state == AppLifecycleState.resumed) {
+      if (!_reduceMotion && !_controller.isAnimating) _controller.repeat();
+      if (!_reduceMotion) _scheduleIdle();
+    } else {
+      _idleTimer?.cancel();
+      _controller.stop(canceled: false);
+    }
+  }
 
   @override
   void dispose() {
+    _idleTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
@@ -62,7 +129,7 @@ class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     final isActive = widget.talking ||
         widget.mood == EinoMood.thinking ||
-        widget.mood == EinoMood.talking;
+        widget.mood == EinoMood.talking || widget.motionBoost > .05;
     final label = switch (widget.mood) {
       EinoMood.concerned => 'Eino connection issue',
       EinoMood.thinking || EinoMood.focused => 'Eino thinking',
@@ -90,6 +157,8 @@ class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin
                   accent: widget.accentColor ?? const Color(0xFF4A7BFF),
                   showAura: widget.showAura,
                   active: isActive,
+                  lowActivity: _lowActivity && widget.motionBoost <= .01,
+                  motionBoost: widget.motionBoost.clamp(0.0, 1.0).toDouble(),
                 ),
               ),
             );
@@ -108,6 +177,8 @@ class _EinoOrbPainter extends CustomPainter {
     required this.accent,
     required this.showAura,
     required this.active,
+    required this.lowActivity,
+    required this.motionBoost,
   });
 
   final double time;
@@ -116,6 +187,9 @@ class _EinoOrbPainter extends CustomPainter {
   final Color accent;
   final bool showAura;
   final bool active;
+  final bool lowActivity;
+  /// 0..1 transition intensity supplied by the shell during enter/return.
+  final double motionBoost;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -123,11 +197,15 @@ class _EinoOrbPainter extends CustomPainter {
     if (shortest <= 0) return;
     final center = Offset(size.width / 2, size.height / 2);
     final radius = shortest * 0.355;
-    final phase = time * math.pi * 2;
+    final intensity = lowActivity ? .20 : (active ? 1.0 : .62) + motionBoost * 1.8;
+    final phase = time * math.pi * 2 * (1 + motionBoost * 2.4);
     final isError = mood == EinoMood.concerned;
     final isThinking = mood == EinoMood.thinking || mood == EinoMood.focused;
     final isSpeaking = talking || mood == EinoMood.talking;
-    final blue = isError ? const Color(0xFFFF6B72) : accent;
+    final isHappy = mood == EinoMood.happy || mood == EinoMood.proud;
+    final isCurious = mood == EinoMood.curious || mood == EinoMood.surprised;
+    final isConfused = mood == EinoMood.confused || mood == EinoMood.pouting;
+    final blue = isError ? const Color(0xFFFF6B72) : isHappy ? const Color(0xFFFFC45C) : isCurious ? const Color(0xFF62F0D0) : isConfused ? const Color(0xFFFF91D2) : accent;
     const violet = Color(0xFF965CFF);
     const pink = Color(0xFFFF8FCF);
     const gold = Color(0xFFFFC875);
@@ -136,7 +214,7 @@ class _EinoOrbPainter extends CustomPainter {
     if (showAura) {
       final aura = Paint()
         ..shader = RadialGradient(
-          colors: [blue.withValues(alpha: active ? .34 : .20), violet.withValues(alpha: .08), Colors.transparent],
+          colors: [blue.withValues(alpha: (active ? .34 : .20) * (lowActivity ? .72 : 1 + motionBoost * .5)), violet.withValues(alpha: .08 + motionBoost * .10), Colors.transparent],
           stops: const [0, .48, 1],
         ).createShader(Rect.fromCircle(center: center, radius: radius * 1.9));
       canvas.drawCircle(center, radius * 1.9, aura);
@@ -177,7 +255,7 @@ class _EinoOrbPainter extends CustomPainter {
     );
 
     // Inner organic energy: three softly overlapping fluid lobes.
-    final drift = math.sin(phase) * radius * (active ? .12 : .065);
+    final drift = math.sin(phase) * radius * (lowActivity ? .025 : (active ? .12 : .065) * intensity);
     final innerRect = Rect.fromCircle(center: center, radius: radius * .67);
     final energyPaint = Paint()
       ..shader = const LinearGradient(
@@ -188,6 +266,11 @@ class _EinoOrbPainter extends CustomPainter {
       ).createShader(innerRect)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
 
+    canvas.save();
+    canvas.translate(
+      math.sin(phase * .48) * radius * motionBoost * .22,
+      math.cos(phase * .61) * radius * motionBoost * .18,
+    );
     final lobe1 = Path()
       ..moveTo(center.dx - radius * .52, center.dy - radius * .05 + drift)
       ..cubicTo(center.dx - radius * .48, center.dy - radius * .52, center.dx - radius * .08, center.dy - radius * .47 - drift, center.dx + radius * .02, center.dy - radius * .14)
@@ -203,9 +286,11 @@ class _EinoOrbPainter extends CustomPainter {
       ..cubicTo(center.dx - radius * .18, center.dy + radius * .04, center.dx - radius * .25, center.dy - radius * .11, center.dx - radius * .10, center.dy - radius * .28 - drift)
       ..close();
     canvas.drawPath(lobe2, Paint()..color = violet.withValues(alpha: .83));
+    canvas.restore();
 
     // A luminous central core gives the orb its identity.
-    final coreCenter = center.translate(radius * .12 + drift * .3, radius * .04);
+    final moodOffset = isCurious ? math.sin(phase * .65) * radius * .08 : isConfused ? math.cos(phase * .7) * radius * .06 : 0.0;
+    final coreCenter = center.translate(radius * .12 + drift * .3 + moodOffset, radius * .04 + (isHappy ? -radius * .04 : 0));
     canvas.drawCircle(
       coreCenter,
       radius * .25,
@@ -217,13 +302,14 @@ class _EinoOrbPainter extends CustomPainter {
     );
 
     // Thin orbital rings are more visible while thinking, but remain restrained.
-    final ringColor = isThinking ? const Color(0xFF6EDBFF) : gold;
-    for (var i = 0; i < (isThinking ? 3 : 2); i++) {
+    final ringColor = isError ? const Color(0xFFFF6B72) : isThinking ? const Color(0xFF6EDBFF) : isHappy ? gold : isCurious ? const Color(0xFF62F0D0) : gold;
+    final ringCount = isThinking || isCurious || motionBoost > .45 ? 3 : 2;
+    for (var i = 0; i < ringCount; i++) {
       final ringRadius = radius * (.79 + i * .11);
       final rect = Rect.fromCenter(center: center, width: ringRadius * 2, height: ringRadius * (isThinking ? 1.35 : .72));
       canvas.save();
       canvas.translate(center.dx, center.dy);
-      canvas.rotate((time * (isThinking ? 1.0 : .35) * (i.isEven ? 1 : -1)) + i * .75);
+      canvas.rotate((phase * (isThinking ? 1.0 : .35) * (i.isEven ? 1 : -1) * intensity) + i * .75 + motionBoost * (i.isEven ? 1.3 : -1.1));
       canvas.translate(-center.dx, -center.dy);
       canvas.drawArc(
         rect,
@@ -234,7 +320,7 @@ class _EinoOrbPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = math.max(.65, shortest * .009)
           ..strokeCap = StrokeCap.round
-          ..color = ringColor.withValues(alpha: isThinking ? .54 : .30),
+          ..color = ringColor.withValues(alpha: lowActivity ? .22 : isThinking ? .54 : .30 + motionBoost * .22),
       );
       canvas.restore();
     }
@@ -256,13 +342,17 @@ class _EinoOrbPainter extends CustomPainter {
 
     // Small status spark: amber for ready, blue for processing, red for error.
     final statusColor = isError ? const Color(0xFFFF6B72) : isThinking ? const Color(0xFF68D9FF) : gold;
-    final statusCenter = center.translate(radius * .77, -radius * .73);
-    canvas.drawCircle(statusCenter, shortest * .035, Paint()..color = statusColor.withValues(alpha: .22));
-    canvas.drawCircle(statusCenter, shortest * .018, Paint()..color = statusColor);
+    final statusCenter = center.translate(
+      radius * (.77 + math.sin(phase * .72) * (lowActivity ? .012 : .055 * intensity)),
+      radius * (-.73 + math.cos(phase * .91) * (lowActivity ? .010 : .045 * intensity)),
+    );
+    canvas.drawCircle(statusCenter, shortest * (.035 + motionBoost * .012), Paint()..color = statusColor.withValues(alpha: lowActivity ? .12 : .22 + motionBoost * .22));
+    canvas.drawCircle(statusCenter, shortest * (.018 + motionBoost * .008), Paint()..color = statusColor);
   }
 
   @override
   bool shouldRepaint(covariant _EinoOrbPainter oldDelegate) =>
       oldDelegate.time != time || oldDelegate.mood != mood || oldDelegate.talking != talking ||
-      oldDelegate.accent != accent || oldDelegate.showAura != showAura || oldDelegate.active != active;
+      oldDelegate.accent != accent || oldDelegate.showAura != showAura || oldDelegate.active != active ||
+      oldDelegate.lowActivity != lowActivity || oldDelegate.motionBoost != motionBoost;
 }

@@ -4,6 +4,8 @@ class _MaterialRow extends StatelessWidget {
   const _MaterialRow({
     required this.material,
     required this.progressFuture,
+    this.showProgress = true,
+    this.downloadTooltip = 'Download sheet',
     required this.onTap,
     required this.onDownload,
     required this.downloading,
@@ -11,6 +13,8 @@ class _MaterialRow extends StatelessWidget {
 
   final MaterialItem material;
   final Future<ProgressSnapshot>? progressFuture;
+  final bool showProgress;
+  final String downloadTooltip;
   final VoidCallback onTap;
   final VoidCallback onDownload;
   final bool downloading;
@@ -70,7 +74,7 @@ class _MaterialRow extends StatelessWidget {
                     ),
                     const SizedBox(width: 2),
                     IconButton(
-                      tooltip: 'تنزيل الشيت',
+                      tooltip: downloadTooltip,
                       visualDensity: VisualDensity.compact,
                       constraints: const BoxConstraints.tightFor(width: 36, height: 36),
                       onPressed: downloading ? null : onDownload,
@@ -80,6 +84,7 @@ class _MaterialRow extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (showProgress) ...[
                 const SizedBox(height: 7),
                 Row(
                   children: [
@@ -114,6 +119,7 @@ class _MaterialRow extends StatelessWidget {
                     ),
                   ],
                 ),
+                ],
               ],
             ),
           ),

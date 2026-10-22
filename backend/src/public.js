@@ -273,7 +273,7 @@ export async function publicMaterials(ctx) {
     JOIN subjects s ON s.id = m.subject_id
     JOIN departments d ON d.id = s.department_id
     JOIN semesters sem ON sem.id = s.semester_id
-    WHERE m.active = 1 AND s.active = 1 AND d.active = 1 AND sem.active = 1
+    WHERE m.active = 1 AND COALESCE(m.content_type, 'material') = 'material' AND s.active = 1 AND d.active = 1 AND sem.active = 1
       AND (? IS NULL OR d.id = ?)
       AND (? IS NULL OR sem.id = ?)
       AND (? IS NULL OR s.id = ?)

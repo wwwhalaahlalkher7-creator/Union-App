@@ -17,7 +17,7 @@
  *   Who has access: Anyone
  */
 
-var CACHE_KEY = 'trINEX_drive_index_v3';
+var CACHE_KEY = 'trINEX_drive_index_v4';
 var CACHE_TTL_SECONDS = 900;
 var ROOT_FOLDER_KEY = 'ROOT_FOLDER_ID';
 var API_TOKEN_KEY = 'API_TOKEN';
@@ -316,7 +316,8 @@ function buildIndex() {
         0,
         semesterFiles,
         files,
-        sectionFolder
+        sectionFolder,
+        ''
       );
 
       section.semesters.push({
@@ -353,7 +354,7 @@ function buildIndex() {
   };
 }
 
-function collectPdfFiles(folder, semesterId, semesterName, materialName, depth, semesterFiles, allFiles, sectionFolder) {
+function collectPdfFiles(folder, semesterId, semesterName, materialName, depth, semesterFiles, allFiles, sectionFolder, relativePath) {
   if (depth > MAX_DEPTH) return;
   if (allFiles.length >= MAX_FILES) {
     throw new Error('تجاوز عدد الملفات الحد الآمن: ' + MAX_FILES);
@@ -380,6 +381,8 @@ function collectPdfFiles(folder, semesterId, semesterName, materialName, depth, 
       semesterId: semesterId,
       semesterName: semesterName,
       materialName: currentMaterialName,
+      folderPath: relativePath || '',
+      parentFolderId: folder.getId(),
       description: file.getDescription() || '',
       pinned: isPinnedDescription(file.getDescription()),
       openCount: 0,
@@ -393,6 +396,7 @@ function collectPdfFiles(folder, semesterId, semesterName, materialName, depth, 
   while (childIterator.hasNext()) {
     var child = childIterator.next();
     var childMaterialName = materialName;
+    var childPath = relativePath ? relativePath + '/' + child.getName() : child.getName();
 
     if (folder.getId() === semesterId) {
       childMaterialName = child.getName();
@@ -406,7 +410,8 @@ function collectPdfFiles(folder, semesterId, semesterName, materialName, depth, 
       depth + 1,
       semesterFiles,
       allFiles,
-      sectionFolder
+      sectionFolder,
+      childPath
     );
   }
 }

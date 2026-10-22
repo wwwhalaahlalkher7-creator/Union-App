@@ -42,6 +42,20 @@ void main() {
       }
     });
 
+
+    testWidgets('all declared moods render without errors', (tester) async {
+      for (final mood in EinoMood.values) {
+        await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+            body: Center(child: EinoOrb(key: ValueKey(mood), size: 64, mood: mood)),
+          ),
+        ));
+        await tester.pump(const Duration(milliseconds: 120));
+        expect(find.byType(EinoOrb), findsOneWidget, reason: 'Mood $mood should render');
+        expect(tester.takeException(), isNull, reason: 'Mood $mood should not throw');
+      }
+    });
+
     testWidgets('respects reduced-motion preference and renders at small sizes', (tester) async {
       await tester.pumpWidget(const MaterialApp(
         home: MediaQuery(

@@ -52,6 +52,7 @@ class GuidedTourOverlay extends StatefulWidget {
 
 class _GuidedTourOverlayState extends State<GuidedTourOverlay> {
   Rect? _targetRect;
+  int _measureAttempts = 0;
 
   @override
   void initState() {
@@ -66,6 +67,7 @@ class _GuidedTourOverlayState extends State<GuidedTourOverlay> {
   }
 
   void _scheduleMeasure() {
+    _measureAttempts = 0;
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureTarget());
   }
 
@@ -77,7 +79,13 @@ class _GuidedTourOverlayState extends State<GuidedTourOverlay> {
     final targetObject = targetContext?.findRenderObject();
     if (targetObject is! RenderBox || !targetObject.hasSize ||
         overlayObject is! RenderBox || !overlayObject.hasSize) {
-      setState(() => _targetRect = null);
+      if (_measureAttempts++ < 12) {
+        Future<void>.delayed(const Duration(milliseconds: 80), () {
+          if (mounted) WidgetsBinding.instance.addPostFrameCallback((_) => _measureTarget());
+        });
+      } else {
+        setState(() => _targetRect = null);
+      }
       return;
     }
     final globalTopLeft = targetObject.localToGlobal(Offset.zero);
@@ -114,12 +122,16 @@ class _GuidedTourOverlayState extends State<GuidedTourOverlay> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          CustomPaint(
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: target == null ? widget.onTargetTap : null,
+            child: CustomPaint(
             painter: _SpotlightPainter(
               target: target,
               scrim: Colors.black.withValues(alpha: .72),
               accent: colors.primary,
             ),
+          ),
           ),
           if (target != null)
             Positioned.fromRect(

@@ -81,7 +81,7 @@ class AppLocalizations {
       'standingExcellent': 'امتياز', 'standingVeryGood': 'جيد جدًا', 'standingGood': 'جيد', 'standingPass': 'مقبول', 'standingWarning': 'إنذار',
       'navHome': 'الرئيسية', 'navMore': 'المزيد', 'navStudent': 'الطالب', 'navSchedule': 'الجداول', 'navMaterials': 'المواد', 'navMedia': 'الإعلام',
       'hello': 'مرحباً {name} 👋', 'levelShort': 'المستوى', 'semesterShort': 'الفصل', 'newsLatest': 'أحدث الأخبار',
-      'materialsTitle': 'المواد الدراسية', 'materialsSubtitle': 'المواد المتاحة حسب تخصصك وفصلك الدراسي', 'search': 'بحث', 'filesCount': '{count} ملفات',
+      'materialsTitle': 'المواد الدراسية', 'materialsSubtitle': 'المواد المتاحة حسب تخصصك وفصلك الدراسي', 'previousExamsTitle': 'الامتحانات السابقة', 'previousExamsSubtitle': 'امتحانات المواد في الفصل الدراسي المحدد', 'previousExamsButton': 'الامتحانات', 'studyMaterialsButton': 'المواد', 'downloadExam': 'تنزيل الامتحان', 'downloadSheet': 'تنزيل الشيت', 'search': 'بحث', 'filesCount': '{count} ملفات',
       'openMaterialUnavailable': 'الملف غير متاح حاليًا', 'loginToOpenMaterial': 'يجب تسجيل الدخول لفتح الملف', 'notPdf': 'هذا الملف ليس PDF', 'openMaterialFailed': 'تعذر فتح الملف',
       'scheduleTitle': 'الجدول الدراسي', 'today': 'اليوم', 'week': 'الأسبوع', 'noScheduledLectures': 'لا توجد محاضرات مجدولة.',
       
@@ -613,7 +613,7 @@ class AppLocalizations {
       'standingExcellent': 'Excellent', 'standingVeryGood': 'Very good', 'standingGood': 'Good', 'standingPass': 'Pass', 'standingWarning': 'Warning',
       'navHome': 'Home', 'navMore': 'More', 'navStudent': 'Student', 'navSchedule': 'Schedule', 'navMaterials': 'Materials', 'navMedia': 'Media',
       'hello': 'Hello {name} 👋', 'levelShort': 'Level', 'semesterShort': 'Semester', 'newsLatest': 'Latest news',
-      'materialsTitle': 'Study materials', 'materialsSubtitle': 'Materials available for your department and semester', 'search': 'Search', 'filesCount': '{count} files',
+      'materialsTitle': 'Study materials', 'materialsSubtitle': 'Materials available for your department and semester', 'previousExamsTitle': 'Past exams', 'previousExamsSubtitle': 'Exam files for the selected semester', 'previousExamsButton': 'Exams', 'studyMaterialsButton': 'Materials', 'downloadExam': 'Download exam', 'downloadSheet': 'Download sheet', 'search': 'Search', 'filesCount': '{count} files',
       'openMaterialUnavailable': 'This file is currently unavailable', 'loginToOpenMaterial': 'Sign in to open this file', 'notPdf': 'This file is not a PDF', 'openMaterialFailed': 'Could not open the file',
       'scheduleTitle': 'Study schedule', 'today': 'Today', 'week': 'Week', 'noScheduledLectures': 'No lectures are scheduled.',
       
@@ -1143,7 +1143,7 @@ class AppLocalizations {
       'standingExcellent': 'Excellent', 'standingVeryGood': 'Très bien', 'standingGood': 'Bien', 'standingPass': 'Passable', 'standingWarning': 'Avertissement',
       'navHome': 'Accueil', 'navMore': 'Plus', 'navStudent': 'Étudiant', 'navSchedule': 'Emploi du temps', 'navMaterials': 'Cours', 'navMedia': 'Média',
       'hello': 'Bonjour {name} 👋', 'levelShort': 'Niveau', 'semesterShort': 'Semestre', 'newsLatest': 'Dernières actualités',
-      'materialsTitle': 'Supports de cours', 'materialsSubtitle': 'Supports disponibles pour votre département et semestre', 'search': 'Rechercher', 'filesCount': '{count} fichiers',
+      'materialsTitle': 'Supports de cours', 'materialsSubtitle': 'Supports disponibles pour votre département et semestre', 'previousExamsTitle': 'Anciens examens', 'previousExamsSubtitle': 'Fichiers d’examen du semestre choisi', 'previousExamsButton': 'Examens', 'studyMaterialsButton': 'Supports', 'downloadExam': 'Télécharger l’examen', 'downloadSheet': 'Télécharger le support', 'search': 'Rechercher', 'filesCount': '{count} fichiers',
       'openMaterialUnavailable': 'Ce fichier est actuellement indisponible', 'loginToOpenMaterial': 'Connectez-vous pour ouvrir ce fichier', 'notPdf': 'Ce fichier n’est pas un PDF', 'openMaterialFailed': 'Impossible d’ouvrir le fichier',
       'scheduleTitle': 'Emploi du temps', 'today': 'Aujourd’hui', 'week': 'Semaine', 'noScheduledLectures': 'Aucun cours n’est programmé.',
       

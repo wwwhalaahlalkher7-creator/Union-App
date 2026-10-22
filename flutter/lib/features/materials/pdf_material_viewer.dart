@@ -7,6 +7,7 @@ class PdfMaterialViewerScreen extends StatefulWidget {
     required this.url,
     required this.accessToken,
     this.localFile,
+    this.trackProgress = true,
     super.key,
   });
 
@@ -15,6 +16,7 @@ class PdfMaterialViewerScreen extends StatefulWidget {
   final Uri? url;
   final String accessToken;
   final File? localFile;
+  final bool trackProgress;
 
   @override
   State<PdfMaterialViewerScreen> createState() => _PdfMaterialViewerScreenState();
@@ -89,7 +91,7 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
         _localPdf = file;
         _loadingFile = false;
       });
-      _startProgressTracking();
+      if (widget.trackProgress) _startProgressTracking();
       unawaited(_restoreLastPage());
     } catch (e) {
       if (!mounted) return;
@@ -134,7 +136,7 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
   }
 
   Future<void> _sendPageProgress() async {
-    if (_pageCount <= 0 || _currentPage <= 0) return;
+    if (!widget.trackProgress || _pageCount <= 0 || _currentPage <= 0) return;
     try {
       // Opening a downloaded file offline may not have created the server-side
       // progress row. Retry the open event once connectivity returns before
@@ -177,15 +179,17 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(4),
-          child: LinearProgressIndicator(
-            value: _pageCount > 0
-                ? (_currentPage / _pageCount).clamp(0.0, 1.0)
-                : 0.0,
-            minHeight: 4,
-          ),
-        ),
+        bottom: widget.trackProgress
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(4),
+                child: LinearProgressIndicator(
+                  value: _pageCount > 0
+                      ? (_currentPage / _pageCount).clamp(0.0, 1.0)
+                      : 0.0,
+                  minHeight: 4,
+                ),
+              )
+            : null,
       ),
       body: _loadingFile
           ? const Center(child: CircularProgressIndicator())
@@ -248,7 +252,7 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
                               await prefs.setInt(preferenceKey, nextPage);
                             }));
                           }
-                          _sendPageProgress();
+                          if (widget.trackProgress) _sendPageProgress();
                         },
                         linkHandlerParams: PdfLinkHandlerParams(
                           onLinkTap: (_) {},

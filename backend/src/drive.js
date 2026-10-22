@@ -243,16 +243,22 @@ export async function adminDriveSync(ctx) {
       }
     }
 
-    // Group the flat Apps Script file index by department + semester + material.
+    // Group by the actual Drive hierarchy. Files inside an 'الامتحانات' child folder
+    // are classified separately while remaining linked to their parent subject.
     const subjectGroups = new Map();
     for (const file of index.files) {
       const dep = depByName.get(normalizeDriveName(file.sectionName));
       const sem = semByName.get(normalizeDriveName(file.semesterName)) || semesters.find(s => s.number === semesterNumberFromName(file.semesterName));
       if (!dep || !sem) continue;
       const materialName = String(file.materialName || 'مواد عامة').trim() || 'مواد عامة';
-      const groupKey = `${dep.id}::${sem.id}::${normalizeDriveName(materialName)}`;
-      if (!subjectGroups.has(groupKey)) subjectGroups.set(groupKey, { dep, sem, materialName, files: [] });
-      subjectGroups.get(groupKey).files.push(file);
+      const pathParts = String(file.folderPath || '').split('/').map(part => String(part).trim()).filter(Boolean);
+      const examFolderNames = ['الامتحانات', 'امتحانات', 'exams', 'exam', 'previous exams'].map(normalizeDriveName);
+      const examFolderIndex = pathParts.findIndex(part => examFolderNames.includes(normalizeDriveName(part)));
+      const isExam = examFolderIndex >= 0;
+      const parentSubjectName = isExam ? (pathParts[examFolderIndex - 1] || materialName) : materialName;
+      const groupKey = `${dep.id}::${sem.id}::${normalizeDriveName(parentSubjectName)}`;
+      if (!subjectGroups.has(groupKey)) subjectGroups.set(groupKey, { dep, sem, materialName: parentSubjectName, files: [] });
+      subjectGroups.get(groupKey).files.push({ ...file, isExam });
     }
 
     for (const group of subjectGroups.values()) {
@@ -272,20 +278,22 @@ export async function adminDriveSync(ctx) {
         .bind(folderIndexId, `apps-script-semester-${subjectSeed.semesterId}`, 'subject', group.dep.id, group.sem.id, subjectId, group.materialName, null).run();
 
       for (const file of group.files) {
-        const materialId = `drive-material-${file.id}`;
-        const alreadyRegistered = await queryOne(ctx.env, 'SELECT id FROM materials WHERE id=? OR drive_file_id=? LIMIT 1', materialId, file.id);
-        if (alreadyRegistered) continue;
+        const alreadyRegistered = await queryOne(ctx.env, 'SELECT id FROM materials WHERE id=? OR drive_file_id=? LIMIT 1', `drive-material-${file.id}`, file.id);
+        const materialId = alreadyRegistered?.id || `drive-material-${file.id}`;
         const link = file.link || `https://drive.google.com/file/d/${file.id}/view`;
+        const contentType = file.isExam ? 'exam' : 'material';
         await ctx.env.DB.prepare(`INSERT INTO materials
-          (id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,last_synced_at)
-          VALUES (?,?,?,?,?,?,?,?,1,0,?,?,?,?,'drive',CURRENT_TIMESTAMP)
+          (id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,last_synced_at,content_type)
+          VALUES (?,?,?,?,?,?,?,?,1,0,?,?,?,?,'drive',CURRENT_TIMESTAMP,?)
           ON CONFLICT(id) DO UPDATE SET subject_id=excluded.subject_id,title=excluded.title,description=excluded.description,
           drive_url=excluded.drive_url,mime_type=excluded.mime_type,size_bytes=excluded.size_bytes,active=1,
           drive_parent_id=excluded.drive_parent_id,drive_modified_at=excluded.drive_modified_at,
-          drive_web_view_url=excluded.drive_web_view_url,pinned=excluded.pinned,source='drive',last_synced_at=CURRENT_TIMESTAMP`)
-          .bind(materialId, subjectId, file.name, file.description || null, file.id, link, 'application/pdf', Number(file.size || 0), file.id, file.modified || null, file.previewLink || link, file.pinned ? 1 : 0).run();
+          drive_web_view_url=excluded.drive_web_view_url,pinned=excluded.pinned,source='drive',content_type=excluded.content_type,last_synced_at=CURRENT_TIMESTAMP`)
+          .bind(materialId, subjectId, file.name, file.description || null, file.id, link, 'application/pdf', Number(file.size || 0), file.parentFolderId || file.id, file.modified || null, file.previewLink || link, file.pinned ? 1 : 0, contentType).run();
         const materialRow = await queryOne(ctx.env, 'SELECT * FROM materials WHERE id=?', materialId);
-        await createOrRefreshContentNotificationDraft(ctx, 'materials', materialRow, a.session.staff_user_id);
+        if (contentType === 'material') {
+          await createOrRefreshContentNotificationDraft(ctx, 'materials', materialRow, a.session.staff_user_id);
+        }
         upserted++;
       }
     }

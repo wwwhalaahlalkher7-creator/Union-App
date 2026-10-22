@@ -15,7 +15,7 @@ import {
   registerNotificationDevice, unregisterNotificationDevice, deleteStudentNotification,
 } from './student.js';
 import {
-  semesters, departments, subjects, materials, materialFile, materialById, schedule,
+  semesters, departments, subjects, materials, exams, materialFile, materialById, schedule,
   progress, xp, badges, materialProgress,
 } from './academic.js';
 import {
@@ -227,6 +227,7 @@ export default {
       if (path === '/departments' && request.method === 'GET') return departments(ctx);
       if (path === '/subjects' && request.method === 'GET') return subjects(ctx);
       if (path === '/materials' && request.method === 'GET') return materials(ctx);
+      if (path === '/exams' && request.method === 'GET') return exams(ctx);
       if (/^\/materials\/[^/]+\/file$/.test(path) && request.method === 'GET') return materialFile(ctx, path.split('/')[2]);
       if (/^\/materials\/[^/]+$/.test(path) && request.method === 'GET') return materialById(ctx, path.split('/')[2]);
       if (path === '/schedule' && request.method === 'GET') return schedule(ctx);

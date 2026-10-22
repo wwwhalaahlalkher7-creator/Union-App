@@ -29,11 +29,17 @@ class TrinexShell extends StatefulWidget {
 }
 
 class _TrinexShellState extends State<TrinexShell>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 3),
   )..repeat();
+  late final AnimationController _transitionController = AnimationController(
+    vsync: this, duration: const Duration(milliseconds: 720),
+  );
+  bool _einoTransitionRunning = false;
+  bool _reduceMotion = false;
+  Timer? _pulseIdleTimer;
 
   bool _einoVisible = false;
   int _unreadNotifications = 0;
@@ -43,10 +49,62 @@ class _TrinexShellState extends State<TrinexShell>
   bool _feedbackOpening = false;
   int? _guidedTourStep;
   bool _guidedTourActionRunning = false;
+  bool _guidedTourCheckRunning = false;
+  bool _guidedTourCheckRequested = false;
 
   bool get _readingMode => widget.location == '/media/detail';
 
-  bool get _hideFloatingEino => widget.location.startsWith('/student');
+  bool get _hideFloatingEino => widget.location.startsWith('/student') || widget.location.startsWith('/eino');
+
+  void _schedulePulseIdle() {
+    _pulseIdleTimer?.cancel();
+    if (_reduceMotion) {
+      _pulse.stop(canceled: false);
+      return;
+    }
+    _pulse.repeat();
+    _pulseIdleTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted) _pulse.stop(canceled: false);
+    });
+  }
+
+  Future<void> _openEinoWithTransition() async {
+    if (_einoTransitionRunning || !mounted) return;
+    if (_reduceMotion) {
+      await context.push('/eino?from=shell');
+      if (mounted) _schedulePulseIdle();
+      return;
+    }
+    _einoTransitionRunning = true;
+    _pulseIdleTimer?.cancel();
+    _pulse.repeat();
+    try {
+      await _transitionController.forward(from: 0);
+      if (!mounted) return;
+      await context.push('/eino?from=shell');
+      if (mounted) {
+        await _transitionController.reverse();
+        _schedulePulseIdle();
+      }
+    } finally {
+      _einoTransitionRunning = false;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    if (_reduceMotion == reduceMotion) return;
+    _reduceMotion = reduceMotion;
+    if (_reduceMotion) {
+      _pulseIdleTimer?.cancel();
+      _pulse.stop(canceled: false);
+      _transitionController.stop(canceled: false);
+    } else if (mounted) {
+      _schedulePulseIdle();
+    }
+  }
 
   @override
   void initState() {
@@ -57,10 +115,17 @@ class _TrinexShellState extends State<TrinexShell>
     _einoVisible = !_readingMode && !_hideFloatingEino;
     FocusManager.instance.addListener(_handleFocusChange);
     _refreshUnreadNotifications();
+    _schedulePulseIdle();
     _checkPendingGuidedTour();
   }
 
   Future<void> _checkPendingGuidedTour() async {
+    if (_guidedTourCheckRunning || _guidedTourStep != null) {
+      _guidedTourCheckRequested = true;
+      return;
+    }
+    _guidedTourCheckRunning = true;
+    _guidedTourCheckRequested = false;
     try {
       final studentNumber = (await AppDependencies.instance.authStorage.studentNumber)?.trim() ?? '';
       if (studentNumber.isEmpty) return; // Guests never see the guided tour.
@@ -77,18 +142,26 @@ class _TrinexShellState extends State<TrinexShell>
         if (!mounted) return;
         final targetContext = guidedTourHomeNavKey.currentContext;
         final targetObject = targetContext?.findRenderObject();
-        final scheduleObject = guidedTourScheduleKey.currentContext?.findRenderObject();
-        if (targetObject is RenderBox && targetObject.hasSize &&
-            scheduleObject is RenderBox && scheduleObject.hasSize) {
+        if (targetObject is RenderBox && targetObject.hasSize) {
           targetReady = true;
           break;
         }
         await Future<void>.delayed(const Duration(milliseconds: 200));
       }
-      if (!mounted || widget.location != '/home' || !targetReady) return;
+      if (!mounted) return;
+      if (widget.location != '/home' || !targetReady) {
+        _guidedTourCheckRequested = widget.location != '/home' || !targetReady;
+        return;
+      }
       setState(() => _guidedTourStep = 0);
     } catch (error, stackTrace) {
       debugPrint('Could not initialize guided tour: $error\n$stackTrace');
+    } finally {
+      _guidedTourCheckRunning = false;
+      if (mounted && _guidedTourCheckRequested && widget.location == '/home' && _guidedTourStep == null) {
+        _guidedTourCheckRequested = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) unawaited(_checkPendingGuidedTour()); });
+      }
     }
   }
 
@@ -122,7 +195,7 @@ class _TrinexShellState extends State<TrinexShell>
           break;
         case 5:
           await _completeGuidedTour();
-          if (mounted) context.push('/eino?from=shell');
+          if (mounted) await _openEinoWithTransition();
           break;
       }
     } finally {
@@ -167,6 +240,9 @@ class _TrinexShellState extends State<TrinexShell>
   @override
   void didUpdateWidget(covariant TrinexShell oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.location != widget.location && widget.location == '/home' && _guidedTourStep == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) unawaited(_checkPendingGuidedTour()); });
+    }
     if ((oldWidget.location.startsWith('/notifications') && !widget.location.startsWith('/notifications')) ||
         (oldWidget.location.startsWith('/login') && widget.location.startsWith('/home'))) {
       _refreshUnreadNotifications();
@@ -210,8 +286,12 @@ class _TrinexShellState extends State<TrinexShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _startShakeDetection();
+      _schedulePulseIdle();
     } else {
       _stopShakeDetection();
+      _pulseIdleTimer?.cancel();
+      _pulse.stop(canceled: false);
+      _transitionController.stop(canceled: false);
     }
   }
 
@@ -260,7 +340,9 @@ class _TrinexShellState extends State<TrinexShell>
     _stopShakeDetection();
     _notificationSubscription?.cancel();
     FocusManager.instance.removeListener(_handleFocusChange);
+    _pulseIdleTimer?.cancel();
     _pulse.dispose();
+    _transitionController.dispose();
     super.dispose();
   }
 
@@ -305,7 +387,7 @@ class _TrinexShellState extends State<TrinexShell>
                       bottom: 18,
                       child: KeyedSubtree(
                         key: guidedTourEinoKey,
-                        child: EinoFloatingButton(animation: _pulse),
+                        child: EinoFloatingButton(animation: _pulse, transitionAnimation: _transitionController, onTap: _openEinoWithTransition),
                       ),
                     ),
                   // A narrow edge gesture lets the student summon Eino again
@@ -596,9 +678,11 @@ class _Avatar extends StatelessWidget {
 }
 
 class EinoFloatingButton extends StatelessWidget {
-  const EinoFloatingButton({required this.animation, super.key});
+  const EinoFloatingButton({required this.animation, required this.transitionAnimation, required this.onTap, super.key});
 
   final Animation<double> animation;
+  final Animation<double> transitionAnimation;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -608,13 +692,15 @@ class EinoFloatingButton extends StatelessWidget {
       builder: (context, _) {
         final glow =
             .12 + (.10 * (0.5 + 0.5 * (animation.value * 2 - 1).abs()));
-        return Semantics(
+        return AnimatedBuilder(
+          animation: transitionAnimation,
+          builder: (context, _) => Semantics(
           button: true,
           label: 'Eino',
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => context.push('/eino?from=shell'),
+              onTap: onTap,
               customBorder: const CircleBorder(),
               splashColor: primary.withValues(alpha: .12),
               highlightColor: primary.withValues(alpha: .06),
@@ -630,13 +716,15 @@ class EinoFloatingButton extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const EinoFace(
+                child: EinoFace(
                   size: 76,
                   mood: EinoMood.calm,
+                  motionBoost: transitionAnimation.value,
                 ),
               ),
             ),
           ),
+        ),
         );
       },
     );

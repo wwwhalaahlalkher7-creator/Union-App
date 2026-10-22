@@ -38,6 +38,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
   List<Map<String, dynamic>> _semesters = [];
   String? _semesterId;
   String _query = '';
+  bool _examMode = false;
+  Future<List<MaterialItem>>? _examFuture;
   Future<ProgressSnapshot>? _progressFuture;
   final Set<String> _downloadingIds = <String>{};
 
@@ -84,6 +86,9 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
 
     setState(() {
       _future = future;
+      if (_examMode) {
+        _examFuture = AppDependencies.instance.materials.exams(semesterId: _semesterId);
+      }
     });
 
     try {
@@ -163,6 +168,27 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
     }
   }
 
+  Future<void> _openExam(MaterialItem exam) async {
+    final l10n = AppLocalizations.of(context);
+    final token = await AppDependencies.instance.authStorage.accessToken;
+    if (token == null || token.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('loginToOpenMaterial'))));
+      return;
+    }
+    if ((exam.mimeType ?? '').toLowerCase() != 'application/pdf') {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.t('notPdf'))));
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PdfMaterialViewerScreen(
+      title: exam.name,
+      materialId: exam.id,
+      url: Uri.parse('${AppConstants.apiBaseUrl}/api/v1/materials/${Uri.encodeComponent(exam.id)}/file'),
+      accessToken: token,
+      trackProgress: false,
+    )));
+  }
+
   Future<void> _downloadMaterial(MaterialItem material) async {
     if (_downloadingIds.contains(material.id)) return;
     final l10n = AppLocalizations.of(context);
@@ -211,7 +237,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
     return RefreshIndicator(
       onRefresh: _reload,
       child: FutureBuilder<List<MaterialItem>>(
-        future: _future,
+        future: _examMode ? (_examFuture ??= AppDependencies.instance.materials.exams(semesterId: _semesterId)) : _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState ==
               ConnectionState.waiting) {
@@ -265,7 +291,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
             ),
             children: [
               Text(
-                l10n.t('materialsTitle'),
+                l10n.t(_examMode ? 'previousExamsTitle' : 'materialsTitle'),
                 textAlign: TextAlign.end,
                 style: const TextStyle(
                   fontSize: 20.2,
@@ -274,7 +300,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                l10n.t('materialsSubtitle'),
+                l10n.t(_examMode ? 'previousExamsSubtitle' : 'materialsSubtitle'),
                 textAlign: TextAlign.end,
                 style: TextStyle(
                   color: context.colors.onSurfaceVariant,
@@ -331,6 +357,20 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                       ),
                     ),
                   ],
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _examMode = !_examMode;
+                          _query = '';
+                          if (_examMode) _examFuture = AppDependencies.instance.materials.exams(semesterId: _semesterId);
+                        });
+                      },
+                      icon: Icon(_examMode ? Icons.menu_book_rounded : Icons.assignment_rounded, size: 17),
+                      label: Text(l10n.t(_examMode ? 'studyMaterialsButton' : 'previousExamsButton'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -368,8 +408,10 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                           for (final material in entry.value)
                             _MaterialRow(
                               material: material,
-                              progressFuture: _progressFuture,
-                              onTap: () => _openMaterial(material),
+                              progressFuture: _examMode ? null : _progressFuture,
+                              showProgress: !_examMode,
+                              downloadTooltip: l10n.t(_examMode ? 'downloadExam' : 'downloadSheet'),
+                              onTap: () => _examMode ? _openExam(material) : _openMaterial(material),
                               onDownload: () => _downloadMaterial(material),
                               downloading: _downloadingIds.contains(material.id),
                             ),
