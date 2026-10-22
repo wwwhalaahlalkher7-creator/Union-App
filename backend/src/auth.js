@@ -204,7 +204,10 @@ export async function registerStudent(ctx) {
   }
 
   await recordAuthEvent(ctx, 'student', student.id, 'register_success');
-  return issueSession(ctx, { studentId: student.id });
+  // This flag is emitted only after the atomic NULL -> password-hash claim
+  // succeeds. issueSession also reads the persisted registered state back from
+  // D1, so the app can distinguish a real new registration from an ordinary login.
+  return issueSession(ctx, { studentId: student.id, registrationTransition: true });
 }
 
 
@@ -560,13 +563,27 @@ export async function issueSession(ctx, identity) {
   if (identity.studentId) profile = await queryOne(ctx.env, `
     SELECT st.id AS studentId, st.student_number AS studentNumber, st.full_name AS fullName,
            st.email, st.department_id AS departmentId, d.name_ar AS departmentName,
-           st.current_semester_id AS currentSemesterId, se.name_ar AS semesterName
+           st.current_semester_id AS currentSemesterId, se.name_ar AS semesterName,
+           CASE WHEN st.auth_secret_hash IS NULL THEN 0 ELSE 1 END AS registered
     FROM students st
     LEFT JOIN departments d ON d.id = st.department_id
     LEFT JOIN semesters se ON se.id = st.current_semester_id
     WHERE st.id = ?
   `, identity.studentId) || {};
-  return ok(ctx, { token: accessToken, refreshToken, expiresInSeconds: AUTH_ACCESS_TTL, refreshExpiresInSeconds: AUTH_REFRESH_TTL, ...profile });
+  const payload = {
+    token: accessToken,
+    refreshToken,
+    expiresInSeconds: AUTH_ACCESS_TTL,
+    refreshExpiresInSeconds: AUTH_REFRESH_TTL,
+    ...profile,
+  };
+  if (hasStudent) {
+    const registered = Boolean(profile.registered);
+    payload.registered = registered;
+    // True only for the request that actually created the account, never for login/refresh.
+    payload.registrationTransition = Boolean(identity.registrationTransition && registered);
+  }
+  return ok(ctx, payload);
 }
 
 export async function authMe(ctx) {

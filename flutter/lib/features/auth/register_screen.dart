@@ -129,11 +129,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final prefs = AppPreferences();
       await prefs.init();
       await prefs.setOnboardingCompleted(true);
+      // Start the walkthrough only when the backend confirms the actual
+      // unregistered -> registered transition for this successful new account.
+      // Ordinary login never reaches this code path, and a profile-only status
+      // of registered is not enough to replay the tour.
+      final registrationTransition = result['registrationTransition'] == true;
+      final registered = result['registered'] == true;
       final tutorialAlreadyCompleted =
           prefs.learningModeCompletedFor(studentNumber);
-      if (!tutorialAlreadyCompleted) {
-        await prefs.setLearningModePendingFor(studentNumber, true);
-      }
+      final shouldStartTour = registrationTransition && registered &&
+          !tutorialAlreadyCompleted;
+      await prefs.setLearningModePendingFor(studentNumber, shouldStartTour);
 
       if (!mounted) return;
       HapticFeedback.mediumImpact();

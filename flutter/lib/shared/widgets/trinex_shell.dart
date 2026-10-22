@@ -39,6 +39,7 @@ class _TrinexShellState extends State<TrinexShell>
   );
   bool _einoTransitionRunning = false;
   bool _showEinoTransition = false;
+  bool _isReturningEino = false;
   bool _reduceMotion = false;
   Timer? _pulseIdleTimer;
 
@@ -76,7 +77,10 @@ class _TrinexShellState extends State<TrinexShell>
     _pulse.repeat();
     try {
       if (!_reduceMotion) {
-        setState(() => _showEinoTransition = true);
+        setState(() {
+          _isReturningEino = false;
+          _showEinoTransition = true;
+        });
         await _transitionController.forward(from: 0);
         if (!mounted) return;
         setState(() => _showEinoTransition = false);
@@ -88,15 +92,26 @@ class _TrinexShellState extends State<TrinexShell>
       if (!mounted) return;
       _pulse.repeat();
       if (!_reduceMotion) {
-        // A distinct return: the expanded orb contracts back toward its
-        // floating-button position instead of simply reversing the route.
-        setState(() => _showEinoTransition = true);
-        await _transitionController.reverse(from: 1);
+        // Return is a new forward animation with its own easing curve, not a
+        // literal reverse of the entry timeline. It contracts quickly first,
+        // then settles softly into the floating-button position.
+        setState(() {
+          _isReturningEino = true;
+          _showEinoTransition = true;
+        });
+        await _transitionController.forward(from: 0);
         if (!mounted) return;
-        setState(() => _showEinoTransition = false);
+        setState(() {
+          _showEinoTransition = false;
+          _isReturningEino = false;
+        });
+        // The floating orb must return to its normal motion profile after the
+        // full-screen return animation has settled.
+        _transitionController.value = 0;
       }
       _schedulePulseIdle();
     } finally {
+      _isReturningEino = false;
       _einoTransitionRunning = false;
     }
   }
@@ -440,7 +455,9 @@ class _TrinexShellState extends State<TrinexShell>
                   animation: _transitionController,
                   builder: (context, _) {
                     final raw = _transitionController.value;
-                    final t = Curves.easeInOutCubic.transform(raw);
+                    final t = _isReturningEino
+                        ? (1 - Curves.easeOutQuart.transform(raw)).clamp(0.0, 1.0).toDouble()
+                        : Curves.easeInOutCubic.transform(raw);
                     final startAlignment = AlignmentDirectional.bottomEnd.resolve(Directionality.of(context));
                     final alignment = Alignment.lerp(
                       startAlignment,
@@ -477,7 +494,7 @@ class _TrinexShellState extends State<TrinexShell>
                               size: 92,
                               mood: EinoMood.curious,
                               showAura: true,
-                              motionBoost: raw,
+                              motionBoost: _isReturningEino ? 1 - raw : raw,
                             ),
                           ),
                         ),

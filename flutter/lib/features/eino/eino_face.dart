@@ -213,172 +213,229 @@ class _EinoOrbPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final shortest = math.min(size.width, size.height);
     if (shortest <= 0) return;
+
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = shortest * 0.355;
-    final intensity = lowActivity ? .20 : (active ? 1.0 : .62) + motionBoost * 1.8;
-    final phase = time * math.pi * 2 * (1 + motionBoost * 4.2);
-    final fluidWave = math.sin(phase * 1.55) * radius * (lowActivity ? .018 : .085 * intensity);
-    final fluidCounterWave = math.cos(phase * 1.18 + .8) * radius * (lowActivity ? .014 : .068 * intensity);
+    final radius = shortest * .315;
+    final boost = motionBoost.clamp(0.0, 1.0).toDouble();
+    final energy = lowActivity ? .20 : (active ? 1.0 : .68);
+    final phase = time * math.pi * 2;
+    final drift = math.sin(phase) * radius * (.018 + .025 * energy) * (1 + boost * 2.2);
+    final breathing = 1 + math.sin(phase * .5) * (lowActivity ? .008 : .018 + boost * .012);
+
     final isError = mood == EinoMood.concerned;
     final isThinking = mood == EinoMood.thinking || mood == EinoMood.focused;
     final isSpeaking = talking || mood == EinoMood.talking;
     final isHappy = mood == EinoMood.happy || mood == EinoMood.proud;
     final isCurious = mood == EinoMood.curious || mood == EinoMood.surprised;
     final isConfused = mood == EinoMood.confused || mood == EinoMood.pouting;
-    final blue = isError ? const Color(0xFFFF6B72) : isHappy ? const Color(0xFFFFC45C) : isCurious ? const Color(0xFF62F0D0) : isConfused ? const Color(0xFFFF91D2) : accent;
-    const violet = Color(0xFF965CFF);
-    const pink = Color(0xFFFF8FCF);
-    const gold = Color(0xFFFFC875);
+    final moodColor = isError
+        ? const Color(0xFFFF697A)
+        : isHappy
+            ? const Color(0xFFFFC86B)
+            : isCurious
+                ? const Color(0xFF68E8D4)
+                : isConfused
+                    ? const Color(0xFFFF91C8)
+                    : isThinking
+                        ? const Color(0xFF70CFFF)
+                        : accent;
+    const violet = Color(0xFF9C7BFF);
+    const cyan = Color(0xFF82F0F5);
+    const rose = Color(0xFFFFA8D7);
+    final ringAlpha = lowActivity ? .22 : (.36 + boost * .28);
 
-    // Soft ambient light, intentionally subtle at small floating-button sizes.
+    // Ambient halo: one soft, broad glow rather than several competing effects.
     if (showAura) {
-      final aura = Paint()
-        ..shader = RadialGradient(
-          colors: [blue.withValues(alpha: (active ? .34 : .20) * (lowActivity ? .72 : 1 + motionBoost * .5)), violet.withValues(alpha: .08 + motionBoost * .10), Colors.transparent],
-          stops: const [0, .48, 1],
-        ).createShader(Rect.fromCircle(center: center, radius: radius * 1.9));
-      canvas.drawCircle(center, radius * 1.9, aura);
+      final haloRadius = radius * (2.05 + boost * .18);
+      canvas.drawCircle(
+        center,
+        haloRadius,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              moodColor.withValues(alpha: (lowActivity ? .14 : .23) + boost * .12),
+              violet.withValues(alpha: .075 + boost * .06),
+              Colors.transparent,
+            ],
+            stops: const [0, .48, 1],
+          ).createShader(Rect.fromCircle(center: center, radius: haloRadius)),
+      );
     }
 
-    // Outer glass shell.
-    final shellRect = Rect.fromCircle(center: center, radius: radius);
-    final shell = Paint()
-      ..shader = const RadialGradient(
-        center: Alignment(-.38, -.48),
-        radius: 1.15,
-        colors: [Color(0xFF315B9A), Color(0xFF111E3D), Color(0xFF070E20)],
-        stops: [0, .48, 1],
-      ).createShader(shellRect);
-    canvas.drawCircle(center, radius, shell);
-
-    // Glass rim and small specular highlight.
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(1.0, shortest * .018)
-        ..shader = const SweepGradient(
-          colors: [Color(0xFF8CEBFF), Color(0xFF6A8BFF), Color(0xFFE5A6FF), Color(0xFFFFD89A), Color(0xFF8CEBFF)],
-        ).createShader(shellRect),
-    );
-    canvas.drawArc(
-      Rect.fromCircle(center: center.translate(-radius * .08, -radius * .08), radius: radius * .88),
-      math.pi * 1.05,
-      math.pi * .68,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = math.max(1.1, shortest * .026)
-        ..color = Colors.white.withValues(alpha: .48),
-    );
-
-    // Inner organic energy: three softly overlapping fluid lobes.
-    final drift = math.sin(phase * 1.12) * radius * (lowActivity ? .025 : (active ? .17 : .10) * intensity) + fluidWave * .42;
-    final innerRect = Rect.fromCircle(center: center, radius: radius * .67);
-    final energyPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF5EE7FF), Color(0xFF526BFF), Color(0xFFB56BFF), Color(0xFFFF9FD7)],
-        stops: [0, .34, .70, 1],
-      ).createShader(innerRect)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
-
-    canvas.save();
-    canvas.translate(
-      math.sin(phase * .48) * radius * motionBoost * .22,
-      math.cos(phase * .61) * radius * motionBoost * .18,
-    );
-    final lobe1 = Path()
-      ..moveTo(center.dx - radius * .52 + fluidCounterWave * .24, center.dy - radius * .05 + drift)
-      ..cubicTo(center.dx - radius * .48 + fluidWave * .26, center.dy - radius * .52 + fluidCounterWave * .34, center.dx - radius * .08 + fluidCounterWave * .28, center.dy - radius * .47 - drift - fluidWave * .20, center.dx + radius * .02 + fluidWave * .24, center.dy - radius * .14)
-      ..cubicTo(center.dx + radius * .14 + fluidCounterWave * .24, center.dy + radius * .13 + fluidWave * .24, center.dx - radius * .12 - fluidWave * .22, center.dy + radius * .42 + fluidCounterWave * .25, center.dx - radius * .35, center.dy + radius * .25 + drift * .30)
-      ..cubicTo(center.dx - radius * .52 - fluidWave * .18, center.dy + radius * .13 + fluidCounterWave * .18, center.dx - radius * .63 + fluidCounterWave * .20, center.dy + radius * .13, center.dx - radius * .52 + fluidCounterWave * .24, center.dy - radius * .05 + drift)
-      ..close();
-    canvas.drawPath(lobe1, energyPaint);
-
-    final lobe2 = Path()
-      ..moveTo(center.dx - radius * .10 + fluidWave * .18, center.dy - radius * .28 - drift)
-      ..cubicTo(center.dx + radius * .12 + fluidCounterWave * .22, center.dy - radius * .53 - fluidWave * .24, center.dx + radius * .56 + fluidWave * .18, center.dy - radius * .27 + fluidCounterWave * .24, center.dx + radius * .48, center.dy + radius * .02 + fluidWave * .18)
-      ..cubicTo(center.dx + radius * .43 - fluidWave * .18, center.dy + radius * .28, center.dx + radius * .11 + fluidCounterWave * .22, center.dy + radius * .42 + drift + fluidWave * .18, center.dx - radius * .06, center.dy + radius * .20 + fluidCounterWave * .20)
-      ..cubicTo(center.dx - radius * .18 - fluidCounterWave * .18, center.dy + radius * .04 + fluidWave * .20, center.dx - radius * .25 + fluidWave * .18, center.dy - radius * .11, center.dx - radius * .10 + fluidWave * .18, center.dy - radius * .28 - drift)
-      ..close();
-    canvas.drawPath(lobe2, Paint()..color = violet.withValues(alpha: .83));
-    canvas.restore();
-
-    // A luminous central core gives the orb its identity.
-    final moodOffset = isCurious ? math.sin(phase * .65) * radius * .08 : isConfused ? math.cos(phase * .7) * radius * .06 : 0.0;
-    final coreCenter = center.translate(radius * .12 + drift * .3 + moodOffset, radius * .04 + (isHappy ? -radius * .04 : 0));
-    canvas.drawCircle(
-      coreCenter,
-      radius * .25,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [Colors.white.withValues(alpha: .98), pink.withValues(alpha: .95), violet.withValues(alpha: .70), Colors.transparent],
-          stops: const [0, .22, .62, 1],
-        ).createShader(Rect.fromCircle(center: coreCenter, radius: radius * .32)),
-    );
-
-    // Thin orbital rings are more visible while thinking, but remain restrained.
-    final ringColor = isError ? const Color(0xFFFF6B72) : isThinking ? const Color(0xFF6EDBFF) : isHappy ? gold : isCurious ? const Color(0xFF62F0D0) : gold;
-    final ringCount = isThinking || isCurious || motionBoost > .45 ? 3 : 2;
-    for (var i = 0; i < ringCount; i++) {
-      final ringRadius = radius * (.79 + i * .11);
-      final rect = Rect.fromCenter(center: center, width: ringRadius * 2, height: ringRadius * (isThinking ? 1.35 : .72));
+    // Two restrained orbital tracks. Their directions differ to create depth,
+    // while their speed follows the idle / active / transition profile.
+    final orbitSpeed = lowActivity ? .22 : (isThinking ? 1.05 : .62) + boost * 2.8;
+    for (var i = 0; i < 2; i++) {
+      final orbitRadius = radius * (1.28 + i * .18);
+      final orbitRect = Rect.fromCenter(
+        center: center,
+        width: orbitRadius * 2,
+        height: orbitRadius * (i == 0 ? .62 : .92),
+      );
       canvas.save();
       canvas.translate(center.dx, center.dy);
-      canvas.rotate((phase * (isThinking ? 1.35 : .68) * (i.isEven ? 1 : -1) * intensity) + i * .75 + motionBoost * (i.isEven ? 2.2 : -1.8));
+      canvas.rotate(phase * orbitSpeed * (i == 0 ? 1 : -.72) + i * 1.1);
       canvas.translate(-center.dx, -center.dy);
+      canvas.drawOval(
+        orbitRect,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(.8, shortest * .012)
+          ..color = moodColor.withValues(alpha: ringAlpha * (i == 0 ? 1 : .72)),
+      );
       canvas.drawArc(
-        rect,
-        phase + i * 1.8,
-        isThinking ? math.pi * .9 : math.pi * .58,
+        orbitRect,
+        phase * orbitSpeed * (i == 0 ? -.55 : .7) + i * 1.7,
+        math.pi * (i == 0 ? .40 : .27),
         false,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = math.max(.65, shortest * .009)
           ..strokeCap = StrokeCap.round
-          ..color = ringColor.withValues(alpha: lowActivity ? .22 : isThinking ? .54 : .30 + motionBoost * .22),
+          ..strokeWidth = math.max(1.2, shortest * .025)
+          ..color = Colors.white.withValues(alpha: lowActivity ? .28 : .66),
       );
       canvas.restore();
     }
 
-    // Listening/speaking waveform appears inside the orb, without replacing its core.
-    if (isSpeaking) {
-      final waveY = center.dy;
-      final wavePaint = Paint()
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = math.max(1.0, shortest * .018);
-      for (var i = 0; i < 7; i++) {
-        final x = center.dx + (i - 3) * radius * .13;
-        final strength = (1 - (i - 3).abs() / 4);
-        final wave = radius * (.08 + strength * (.16 + .10 * math.sin(phase * 1.5 + i)));
-        wavePaint.color = Color.lerp(const Color(0xFF72DFFF), pink, i / 6)!.withValues(alpha: .92);
-        canvas.drawLine(Offset(x, waveY - wave), Offset(x, waveY + wave), wavePaint);
-      }
-    }
+    final orbCenter = center.translate(0, drift);
+    final orbRadius = radius * breathing;
+    final orbRect = Rect.fromCircle(center: orbCenter, radius: orbRadius);
 
-    // Small status spark: amber for ready, blue for processing, red for error.
-    final statusColor = isError ? const Color(0xFFFF6B72) : isThinking ? const Color(0xFF68D9FF) : gold;
-    final statusCenter = center.translate(
-      radius * (.77 + math.sin(phase * .72) * (lowActivity ? .012 : .055 * intensity)),
-      radius * (-.73 + math.cos(phase * .91) * (lowActivity ? .010 : .045 * intensity)),
+    // The glass body has a stable silhouette; only its light moves, avoiding
+    // the distorted overlapping blobs that made the previous animation noisy.
+    canvas.drawCircle(
+      orbCenter,
+      orbRadius,
+      Paint()
+        ..shader = RadialGradient(
+          center: Alignment(-.38 + math.sin(phase * .55) * .06, -.55),
+          radius: 1.18,
+          colors: [
+            Color.lerp(const Color(0xFFB6F7FF), moodColor, .34)!,
+            const Color(0xFF344B83),
+            const Color(0xFF151D3D),
+            const Color(0xFF080D20),
+          ],
+          stops: const [0, .27, .68, 1],
+        ).createShader(orbRect),
     );
-    canvas.drawCircle(statusCenter, shortest * (.035 + motionBoost * .012), Paint()..color = statusColor.withValues(alpha: lowActivity ? .12 : .22 + motionBoost * .22));
-    canvas.drawCircle(statusCenter, shortest * (.018 + motionBoost * .008), Paint()..color = statusColor);
 
-    // During entry/return, tiny luminous motes travel around the shell. This
-    // makes the fluid feel as if it is spilling through the orbital rings.
-    if (motionBoost > .02) {
-      for (var i = 0; i < 5; i++) {
-        final angle = phase * (1.35 + i * .08) + i * (math.pi * 2 / 5);
-        final orbit = radius * (.82 + motionBoost * (.24 + .10 * math.sin(phase + i)));
-        final mote = center.translate(math.cos(angle) * orbit, math.sin(angle) * orbit * .72);
-        final moteRadius = shortest * (.012 + motionBoost * .008) * (1 - i * .08);
-        canvas.drawCircle(mote, moteRadius * 2.8, Paint()..color = ringColor.withValues(alpha: .10 + motionBoost * .18));
-        canvas.drawCircle(mote, moteRadius, Paint()..color = Colors.white.withValues(alpha: .45 + motionBoost * .45));
+    // A single luminous ribbon flows through the core. Its curves stay smooth
+    // and continuous, with restrained amplitude at rest and more energy on tap.
+    canvas.save();
+    canvas.clipPath(Path()..addOval(orbRect.deflate(orbRadius * .055)));
+    final ribbonRect = orbRect.inflate(orbRadius * .12);
+    final ribbonPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [cyan.withValues(alpha: .90), moodColor.withValues(alpha: .90), violet.withValues(alpha: .82), rose.withValues(alpha: .74)],
+      ).createShader(ribbonRect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(1.5, shortest * .038)
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
+    final waveY = orbCenter.dy + math.sin(phase * .72) * orbRadius * .16;
+    final waveAmplitude = orbRadius * (lowActivity ? .12 : .22 + boost * .10);
+    final wave = Path()
+      ..moveTo(orbCenter.dx - orbRadius * 1.12, waveY + math.sin(phase) * waveAmplitude * .30)
+      ..cubicTo(
+        orbCenter.dx - orbRadius * .62,
+        waveY - waveAmplitude * math.cos(phase * .78),
+        orbCenter.dx - orbRadius * .28,
+        waveY + waveAmplitude * math.sin(phase * .83 + .7),
+        orbCenter.dx + orbRadius * .02,
+        waveY,
+      )
+      ..cubicTo(
+        orbCenter.dx + orbRadius * .34,
+        waveY - waveAmplitude * math.sin(phase * .83 + .7),
+        orbCenter.dx + orbRadius * .64,
+        waveY + waveAmplitude * math.cos(phase * .78),
+        orbCenter.dx + orbRadius * 1.12,
+        waveY + math.sin(phase) * waveAmplitude * .25,
+      );
+    canvas.drawPath(wave, ribbonPaint);
+
+    // The inner light moves gently across the ribbon to make the core feel alive.
+    final coreCenter = orbCenter.translate(
+      math.sin(phase * .56) * orbRadius * (isCurious ? .22 : .13),
+      math.cos(phase * .68) * orbRadius * (isHappy ? .12 : .08),
+    );
+    final coreRadius = orbRadius * (isSpeaking ? .20 + .025 * math.sin(phase * 3) : .17);
+    canvas.drawCircle(
+      coreCenter,
+      coreRadius * 1.65,
+      Paint()
+        ..shader = RadialGradient(colors: [Colors.white.withValues(alpha: .48), moodColor.withValues(alpha: .20), Colors.transparent])
+            .createShader(Rect.fromCircle(center: coreCenter, radius: coreRadius * 1.65)),
+    );
+    canvas.drawCircle(
+      coreCenter,
+      coreRadius,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [Colors.white, cyan.withValues(alpha: .94), moodColor.withValues(alpha: .72), Colors.transparent],
+          stops: const [0, .26, .66, 1],
+        ).createShader(Rect.fromCircle(center: coreCenter, radius: coreRadius * 1.28)),
+    );
+    canvas.restore();
+
+    // Glass rim and a single moving specular highlight.
+    canvas.drawCircle(
+      orbCenter,
+      orbRadius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.0, shortest * .018)
+        ..shader = SweepGradient(
+          transform: GradientRotation(phase * (lowActivity ? .08 : .24 + boost * .8)),
+          colors: [cyan.withValues(alpha: .82), moodColor.withValues(alpha: .72), violet.withValues(alpha: .66), Colors.white.withValues(alpha: .86), cyan.withValues(alpha: .82)],
+        ).createShader(orbRect),
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: orbCenter.translate(-orbRadius * .08, -orbRadius * .08), radius: orbRadius * .84),
+      math.pi * (1.05 + math.sin(phase * .3) * .035),
+      math.pi * .47,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = math.max(1.0, shortest * .024)
+        ..color = Colors.white.withValues(alpha: lowActivity ? .30 : .54),
+    );
+
+    // A small orbiting signal dot communicates state without cluttering the orb.
+    final signalAngle = phase * (lowActivity ? .16 : .48 + boost * 2.4) - math.pi * .35;
+    final signalRadius = radius * 1.48;
+    final signalCenter = center.translate(
+      math.cos(signalAngle) * signalRadius,
+      math.sin(signalAngle) * signalRadius * .58,
+    );
+    canvas.drawCircle(
+      signalCenter,
+      shortest * .048,
+      Paint()..color = moodColor.withValues(alpha: lowActivity ? .12 : .24),
+    );
+    canvas.drawCircle(
+      signalCenter,
+      shortest * .020,
+      Paint()..color = Colors.white.withValues(alpha: lowActivity ? .55 : .92),
+    );
+
+    // Speech becomes a subtle pulse of three light bars, not a separate noisy layer.
+    if (isSpeaking) {
+      for (var i = -1; i <= 1; i++) {
+        final barHeight = shortest * (.035 + .045 * (0.5 + .5 * math.sin(phase * 2.8 + i * .9)));
+        final barCenter = orbCenter.translate(i * shortest * .075, orbRadius * .48);
+        canvas.drawLine(
+          Offset(barCenter.dx, barCenter.dy - barHeight),
+          Offset(barCenter.dx, barCenter.dy + barHeight),
+          Paint()
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = math.max(1.0, shortest * .018)
+            ..color = Colors.white.withValues(alpha: .76),
+        );
       }
     }
   }

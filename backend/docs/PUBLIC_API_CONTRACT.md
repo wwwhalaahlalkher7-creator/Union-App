@@ -134,7 +134,7 @@ Request:
 }
 ```
 
-`email` is optional. The department and current semester returned after registration come from the existing `students` record.
+`email` is optional. The department and current semester returned after registration come from the existing `students` record. On successful account creation, the response includes `registered: true`, derived from the persisted authentication hash, and `registrationTransition: true` only for the request that successfully claims the previously unregistered record. Login and refresh responses never set `registrationTransition` to true; the app uses this distinction to start the first-account guided tour without replaying it on ordinary login.
 
 `POST /student/semester` is retained only as a compatibility guard and returns `403 ACADEMIC_RECORD_READ_ONLY`. The official `students.current_semester_id` belongs to the academic record managed by administration.
 
