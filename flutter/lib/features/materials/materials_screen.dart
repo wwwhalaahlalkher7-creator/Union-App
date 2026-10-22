@@ -38,6 +38,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
   List<Map<String, dynamic>> _semesters = [];
   String? _semesterId;
   String _query = '';
+  bool _searchExpanded = false;
   bool _examMode = false;
   Future<List<MaterialItem>>? _examFuture;
   Future<ProgressSnapshot>? _progressFuture;
@@ -307,68 +308,134 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                   fontSize: 11.5,
                 ),
               ),
-              const SizedBox(height: 12),
               const SizedBox(height: 14),
+              // Search sits on its own row above the semester/mode controls.
+              // The compact state is a circular icon; tapping it expands into
+              // a real search field without stealing space from the controls.
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final expandedWidth = constraints.maxWidth;
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ClipRect(
+                        child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeOutCubic,
+                        width: _searchExpanded ? expandedWidth : 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: context.colors.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(_searchExpanded ? 16 : 24),
+                          border: Border.all(color: context.colors.outlineVariant),
+                        ),
+                        child: _searchExpanded
+                            ? Row(
+                                children: [
+                                  const SizedBox(width: 14),
+                                  Icon(Icons.search_rounded, color: context.colors.onSurfaceVariant),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextField(
+                                      autofocus: true,
+                                      onChanged: (value) => setState(() => _query = value),
+                                      textInputAction: TextInputAction.search,
+                                      decoration: InputDecoration(
+                                        hintText: l10n.t('search'),
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: l10n.t('cancel'),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => setState(() {
+                                      _searchExpanded = false;
+                                      _query = '';
+                                    }),
+                                    icon: const Icon(Icons.close_rounded),
+                                  ),
+                                ],
+                              )
+                            : IconButton(
+                                tooltip: l10n.t('search'),
+                                onPressed: () => setState(() => _searchExpanded = true),
+                                icon: const Icon(Icons.search_rounded),
+                              ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
               Row(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      onChanged: (value) {
-                        setState(() => _query = value);
-                      },
-                      decoration: InputDecoration(
-                        hintText: l10n.t('search'),
-                        prefixIcon: const Icon(
-                          Icons.search_rounded,
+                  if (_semesters.isNotEmpty)
+                    Expanded(
+                      flex: 6,
+                      child: SizedBox(
+                        height: 54,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _semesterId,
+                          isExpanded: true,
+                          alignment: Alignment.centerRight,
+                          icon: const Icon(Icons.expand_more_rounded, size: 24),
+                          items: [
+                            for (final semester in _semesters)
+                              DropdownMenuItem(
+                                value: semester['id']?.toString(),
+                                child: Text(
+                                  semester['name_ar']?.toString() ?? l10n.t('semester'),
+                                  textAlign: TextAlign.start,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() => _semesterId = value);
+                            _reload();
+                          },
+                          decoration: InputDecoration(
+                            labelText: l10n.t('semester'),
+                            contentPadding: const EdgeInsetsDirectional.fromSTEB(14, 14, 10, 14),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  if (_semesters.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 142,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _semesterId,
-                        isExpanded: true,
-                        alignment: Alignment.centerRight,
-                        items: [
-                          for (final semester in _semesters)
-                            DropdownMenuItem(
-                              value: semester['id']?.toString(),
-                              child: Text(
-                                semester['name_ar']?.toString() ?? l10n.t('semester'),
-                                textAlign: TextAlign.start,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                        onChanged: (value) {
-                          if (value == null) return;
-
+                  if (_semesters.isNotEmpty) const SizedBox(width: 10),
+                  Expanded(
+                    flex: 5,
+                    child: SizedBox(
+                      height: 54,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          side: BorderSide(color: context.colors.outlineVariant),
+                        ),
+                        onPressed: () {
                           setState(() {
-                            _semesterId = value;
+                            _examMode = !_examMode;
+                            _query = '';
+                            if (_examMode) _examFuture = AppDependencies.instance.materials.exams(semesterId: _semesterId);
                           });
-
-                          _reload();
                         },
-                        decoration: const InputDecoration(),
+                        icon: Icon(_examMode ? Icons.menu_book_rounded : Icons.assignment_rounded, size: 19),
+                        label: Text(
+                          l10n.t(_examMode ? 'studyMaterialsButton' : 'previousExamsButton'),
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _examMode = !_examMode;
-                          _query = '';
-                          if (_examMode) _examFuture = AppDependencies.instance.materials.exams(semesterId: _semesterId);
-                        });
-                      },
-                      icon: Icon(_examMode ? Icons.menu_book_rounded : Icons.assignment_rounded, size: 17),
-                      label: Text(l10n.t(_examMode ? 'studyMaterialsButton' : 'previousExamsButton'), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                   ),
                 ],

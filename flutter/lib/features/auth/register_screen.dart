@@ -118,7 +118,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         semesterId: _selectedSemester!,
       );
 
-      await AppDependencies.instance.authStorage.saveSession(result);
+      await AppDependencies.instance.authStorage.saveSession(<String, dynamic>{
+        ...result,
+        // Some registration responses omit this field even though it was
+        // supplied by the student. Keep the local identity so the first-run
+        // guided tour can be associated with the newly registered account.
+        'studentNumber': result['studentNumber'] ?? studentNumber,
+      });
 
       final prefs = AppPreferences();
       await prefs.init();

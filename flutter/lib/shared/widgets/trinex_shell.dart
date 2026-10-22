@@ -35,9 +35,10 @@ class _TrinexShellState extends State<TrinexShell>
     duration: const Duration(seconds: 3),
   )..repeat();
   late final AnimationController _transitionController = AnimationController(
-    vsync: this, duration: const Duration(milliseconds: 720),
+    vsync: this, duration: const Duration(milliseconds: 940),
   );
   bool _einoTransitionRunning = false;
+  bool _showEinoTransition = false;
   bool _reduceMotion = false;
   Timer? _pulseIdleTimer;
 
@@ -70,22 +71,31 @@ class _TrinexShellState extends State<TrinexShell>
 
   Future<void> _openEinoWithTransition() async {
     if (_einoTransitionRunning || !mounted) return;
-    if (_reduceMotion) {
-      await context.push('/eino?from=shell');
-      if (mounted) _schedulePulseIdle();
-      return;
-    }
     _einoTransitionRunning = true;
     _pulseIdleTimer?.cancel();
     _pulse.repeat();
     try {
-      await _transitionController.forward(from: 0);
-      if (!mounted) return;
-      await context.push('/eino?from=shell');
-      if (mounted) {
-        await _transitionController.reverse();
-        _schedulePulseIdle();
+      if (!_reduceMotion) {
+        setState(() => _showEinoTransition = true);
+        await _transitionController.forward(from: 0);
+        if (!mounted) return;
+        setState(() => _showEinoTransition = false);
       }
+      // The floating orb is hidden in chat; stop its shell glow while the
+      // chat screen owns the visible Eino animation.
+      _pulse.stop(canceled: false);
+      await context.push('/eino?from=shell');
+      if (!mounted) return;
+      _pulse.repeat();
+      if (!_reduceMotion) {
+        // A distinct return: the expanded orb contracts back toward its
+        // floating-button position instead of simply reversing the route.
+        setState(() => _showEinoTransition = true);
+        await _transitionController.reverse(from: 1);
+        if (!mounted) return;
+        setState(() => _showEinoTransition = false);
+      }
+      _schedulePulseIdle();
     } finally {
       _einoTransitionRunning = false;
     }
@@ -127,7 +137,9 @@ class _TrinexShellState extends State<TrinexShell>
     _guidedTourCheckRunning = true;
     _guidedTourCheckRequested = false;
     try {
-      final studentNumber = (await AppDependencies.instance.authStorage.studentNumber)?.trim() ?? '';
+      final authStorage = AppDependencies.instance.authStorage;
+      final profile = await authStorage.profile;
+      final studentNumber = ((profile?['studentNumber'] ?? await authStorage.studentNumber) ?? '').toString().trim();
       if (studentNumber.isEmpty) return; // Guests never see the guided tour.
       final preferences = AppPreferences();
       await preferences.init();
@@ -241,7 +253,11 @@ class _TrinexShellState extends State<TrinexShell>
   void didUpdateWidget(covariant TrinexShell oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.location != widget.location && widget.location == '/home' && _guidedTourStep == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) unawaited(_checkPendingGuidedTour()); });
+      // Registration may finish while the shell already exists; always retry
+      // after the home route has completed its first layout.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_checkPendingGuidedTour());
+      });
     }
     if ((oldWidget.location.startsWith('/notifications') && !widget.location.startsWith('/notifications')) ||
         (oldWidget.location.startsWith('/login') && widget.location.startsWith('/home'))) {
@@ -286,7 +302,7 @@ class _TrinexShellState extends State<TrinexShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _startShakeDetection();
-      _schedulePulseIdle();
+      if (!_einoTransitionRunning) _schedulePulseIdle();
     } else {
       _stopShakeDetection();
       _pulseIdleTimer?.cancel();
@@ -417,6 +433,60 @@ class _TrinexShellState extends State<TrinexShell>
           ],
             ),
           ),
+          if (_showEinoTransition && !_reduceMotion)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _transitionController,
+                  builder: (context, _) {
+                    final raw = _transitionController.value;
+                    final t = Curves.easeInOutCubic.transform(raw);
+                    final startAlignment = AlignmentDirectional.bottomEnd.resolve(Directionality.of(context));
+                    final alignment = Alignment.lerp(
+                      startAlignment,
+                      Alignment.center,
+                      t,
+                    )!;
+                    final scale = 1 + (7.2 * t);
+                    final opacity = (t * .92).clamp(0.0, .92).toDouble();
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Opacity(
+                          opacity: opacity,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                center: alignment,
+                                radius: 1.05,
+                                colors: [
+                                  Theme.of(context).colorScheme.primary.withValues(alpha: .55),
+                                  const Color(0xFF171438).withValues(alpha: .72),
+                                  const Color(0xFF050817).withValues(alpha: .94),
+                                ],
+                                stops: const [0, .42, 1],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Align(
+                          alignment: alignment,
+                          child: Transform.scale(
+                            scale: scale,
+                            child: EinoFace(
+                              size: 92,
+                              mood: EinoMood.curious,
+                              showAura: true,
+                              motionBoost: raw,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
           if (_guidedTourStep != null)
             Positioned.fill(
               child: GuidedTourOverlay(

@@ -84,22 +84,40 @@ class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin
   @override
   void didUpdateWidget(covariant EinoFace oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.mood != widget.mood || oldWidget.talking != widget.talking || (oldWidget.motionBoost <= .01) != (widget.motionBoost <= .01)) {
-      _scheduleIdle();
-    }
+    final moodChanged = oldWidget.mood != widget.mood || oldWidget.talking != widget.talking;
+    final boostStartedOrEnded = (oldWidget.motionBoost <= .01) != (widget.motionBoost <= .01);
+    final boostCrossedFastMotion = (oldWidget.motionBoost <= .05) != (widget.motionBoost <= .05);
+    if (moodChanged || boostStartedOrEnded) _scheduleIdle();
+    if (moodChanged || boostCrossedFastMotion) _syncMotionProfile();
+  }
+
+  void _syncMotionProfile() {
+    if (_reduceMotion || _lifecycleState != AppLifecycleState.resumed) return;
+    final fastTransition = widget.motionBoost > .05;
+    final activeConversation = widget.talking || widget.mood == EinoMood.thinking || widget.mood == EinoMood.talking;
+    final nextDuration = fastTransition
+        ? const Duration(milliseconds: 680)
+        : activeConversation
+            ? const Duration(milliseconds: 1500)
+            : _lowActivity
+                ? const Duration(milliseconds: 14000)
+                : const Duration(milliseconds: 4200);
+    if (_controller.duration == nextDuration) return;
+    _controller.duration = nextDuration;
+    if (_controller.isAnimating) _controller.repeat();
   }
 
   void _scheduleIdle() {
     _idleTimer?.cancel();
     if (_lowActivity) setState(() => _lowActivity = false);
     if (_reduceMotion) return;
-    _controller.duration = const Duration(milliseconds: 4200);
+    _syncMotionProfile();
     if (!_controller.isAnimating && _lifecycleState == AppLifecycleState.resumed) _controller.repeat();
     if (widget.motionBoost > .01 || widget.talking || widget.mood == EinoMood.thinking || widget.mood == EinoMood.talking) return;
     _idleTimer = Timer(const Duration(seconds: 30), () {
       if (!mounted || _lifecycleState != AppLifecycleState.resumed) return;
       setState(() => _lowActivity = true);
-      _controller.duration = const Duration(milliseconds: 14000);
+      _syncMotionProfile();
       _controller.repeat();
     });
   }
@@ -198,7 +216,9 @@ class _EinoOrbPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = shortest * 0.355;
     final intensity = lowActivity ? .20 : (active ? 1.0 : .62) + motionBoost * 1.8;
-    final phase = time * math.pi * 2 * (1 + motionBoost * 2.4);
+    final phase = time * math.pi * 2 * (1 + motionBoost * 4.2);
+    final fluidWave = math.sin(phase * 1.55) * radius * (lowActivity ? .018 : .085 * intensity);
+    final fluidCounterWave = math.cos(phase * 1.18 + .8) * radius * (lowActivity ? .014 : .068 * intensity);
     final isError = mood == EinoMood.concerned;
     final isThinking = mood == EinoMood.thinking || mood == EinoMood.focused;
     final isSpeaking = talking || mood == EinoMood.talking;
@@ -255,7 +275,7 @@ class _EinoOrbPainter extends CustomPainter {
     );
 
     // Inner organic energy: three softly overlapping fluid lobes.
-    final drift = math.sin(phase) * radius * (lowActivity ? .025 : (active ? .12 : .065) * intensity);
+    final drift = math.sin(phase * 1.12) * radius * (lowActivity ? .025 : (active ? .17 : .10) * intensity) + fluidWave * .42;
     final innerRect = Rect.fromCircle(center: center, radius: radius * .67);
     final energyPaint = Paint()
       ..shader = const LinearGradient(
@@ -272,18 +292,18 @@ class _EinoOrbPainter extends CustomPainter {
       math.cos(phase * .61) * radius * motionBoost * .18,
     );
     final lobe1 = Path()
-      ..moveTo(center.dx - radius * .52, center.dy - radius * .05 + drift)
-      ..cubicTo(center.dx - radius * .48, center.dy - radius * .52, center.dx - radius * .08, center.dy - radius * .47 - drift, center.dx + radius * .02, center.dy - radius * .14)
-      ..cubicTo(center.dx + radius * .14, center.dy + radius * .13, center.dx - radius * .12, center.dy + radius * .42, center.dx - radius * .35, center.dy + radius * .25)
-      ..cubicTo(center.dx - radius * .52, center.dy + radius * .13, center.dx - radius * .63, center.dy + radius * .13, center.dx - radius * .52, center.dy - radius * .05 + drift)
+      ..moveTo(center.dx - radius * .52 + fluidCounterWave * .24, center.dy - radius * .05 + drift)
+      ..cubicTo(center.dx - radius * .48 + fluidWave * .26, center.dy - radius * .52 + fluidCounterWave * .34, center.dx - radius * .08 + fluidCounterWave * .28, center.dy - radius * .47 - drift - fluidWave * .20, center.dx + radius * .02 + fluidWave * .24, center.dy - radius * .14)
+      ..cubicTo(center.dx + radius * .14 + fluidCounterWave * .24, center.dy + radius * .13 + fluidWave * .24, center.dx - radius * .12 - fluidWave * .22, center.dy + radius * .42 + fluidCounterWave * .25, center.dx - radius * .35, center.dy + radius * .25 + drift * .30)
+      ..cubicTo(center.dx - radius * .52 - fluidWave * .18, center.dy + radius * .13 + fluidCounterWave * .18, center.dx - radius * .63 + fluidCounterWave * .20, center.dy + radius * .13, center.dx - radius * .52 + fluidCounterWave * .24, center.dy - radius * .05 + drift)
       ..close();
     canvas.drawPath(lobe1, energyPaint);
 
     final lobe2 = Path()
-      ..moveTo(center.dx - radius * .10, center.dy - radius * .28 - drift)
-      ..cubicTo(center.dx + radius * .12, center.dy - radius * .53, center.dx + radius * .56, center.dy - radius * .27, center.dx + radius * .48, center.dy + radius * .02)
-      ..cubicTo(center.dx + radius * .43, center.dy + radius * .28, center.dx + radius * .11, center.dy + radius * .42 + drift, center.dx - radius * .06, center.dy + radius * .20)
-      ..cubicTo(center.dx - radius * .18, center.dy + radius * .04, center.dx - radius * .25, center.dy - radius * .11, center.dx - radius * .10, center.dy - radius * .28 - drift)
+      ..moveTo(center.dx - radius * .10 + fluidWave * .18, center.dy - radius * .28 - drift)
+      ..cubicTo(center.dx + radius * .12 + fluidCounterWave * .22, center.dy - radius * .53 - fluidWave * .24, center.dx + radius * .56 + fluidWave * .18, center.dy - radius * .27 + fluidCounterWave * .24, center.dx + radius * .48, center.dy + radius * .02 + fluidWave * .18)
+      ..cubicTo(center.dx + radius * .43 - fluidWave * .18, center.dy + radius * .28, center.dx + radius * .11 + fluidCounterWave * .22, center.dy + radius * .42 + drift + fluidWave * .18, center.dx - radius * .06, center.dy + radius * .20 + fluidCounterWave * .20)
+      ..cubicTo(center.dx - radius * .18 - fluidCounterWave * .18, center.dy + radius * .04 + fluidWave * .20, center.dx - radius * .25 + fluidWave * .18, center.dy - radius * .11, center.dx - radius * .10 + fluidWave * .18, center.dy - radius * .28 - drift)
       ..close();
     canvas.drawPath(lobe2, Paint()..color = violet.withValues(alpha: .83));
     canvas.restore();
@@ -309,7 +329,7 @@ class _EinoOrbPainter extends CustomPainter {
       final rect = Rect.fromCenter(center: center, width: ringRadius * 2, height: ringRadius * (isThinking ? 1.35 : .72));
       canvas.save();
       canvas.translate(center.dx, center.dy);
-      canvas.rotate((phase * (isThinking ? 1.0 : .35) * (i.isEven ? 1 : -1) * intensity) + i * .75 + motionBoost * (i.isEven ? 1.3 : -1.1));
+      canvas.rotate((phase * (isThinking ? 1.35 : .68) * (i.isEven ? 1 : -1) * intensity) + i * .75 + motionBoost * (i.isEven ? 2.2 : -1.8));
       canvas.translate(-center.dx, -center.dy);
       canvas.drawArc(
         rect,
@@ -348,6 +368,19 @@ class _EinoOrbPainter extends CustomPainter {
     );
     canvas.drawCircle(statusCenter, shortest * (.035 + motionBoost * .012), Paint()..color = statusColor.withValues(alpha: lowActivity ? .12 : .22 + motionBoost * .22));
     canvas.drawCircle(statusCenter, shortest * (.018 + motionBoost * .008), Paint()..color = statusColor);
+
+    // During entry/return, tiny luminous motes travel around the shell. This
+    // makes the fluid feel as if it is spilling through the orbital rings.
+    if (motionBoost > .02) {
+      for (var i = 0; i < 5; i++) {
+        final angle = phase * (1.35 + i * .08) + i * (math.pi * 2 / 5);
+        final orbit = radius * (.82 + motionBoost * (.24 + .10 * math.sin(phase + i)));
+        final mote = center.translate(math.cos(angle) * orbit, math.sin(angle) * orbit * .72);
+        final moteRadius = shortest * (.012 + motionBoost * .008) * (1 - i * .08);
+        canvas.drawCircle(mote, moteRadius * 2.8, Paint()..color = ringColor.withValues(alpha: .10 + motionBoost * .18));
+        canvas.drawCircle(mote, moteRadius, Paint()..color = Colors.white.withValues(alpha: .45 + motionBoost * .45));
+      }
+    }
   }
 
   @override

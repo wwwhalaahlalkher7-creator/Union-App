@@ -56,6 +56,19 @@ void main() {
       }
     });
 
+    testWidgets('transition boost animates the orb without throwing', (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: Center(child: EinoOrb(size: 92, motionBoost: 0))),
+      ));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: Center(child: EinoOrb(size: 92, motionBoost: 1))),
+      ));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(EinoOrb), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('respects reduced-motion preference and renders at small sizes', (tester) async {
       await tester.pumpWidget(const MaterialApp(
         home: MediaQuery(
