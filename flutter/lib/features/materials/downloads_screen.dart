@@ -36,7 +36,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   Future<void> _open(DownloadedMaterial item) async {
     final file = item.file;
-    if (!await file.exists()) {
+    if (!await _store.isValidPdfFile(file)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('الملف غير موجود على الجهاز. أعد تنزيله من صفحة المواد.')),

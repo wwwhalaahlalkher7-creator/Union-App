@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -73,16 +74,42 @@ class DownloadedMaterialsStore {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! List) return const [];
-      final items = decoded
+      final candidates = decoded
           .whereType<Map>()
           .map((item) => DownloadedMaterial.fromJson(Map<String, dynamic>.from(item)))
-          .where((item) => item.materialId.isNotEmpty && item.filePath.isNotEmpty)
-          .where((item) => File(item.filePath).existsSync())
-          .toList(growable: false);
-      return items;
+          .where((item) => item.materialId.isNotEmpty && item.filePath.isNotEmpty);
+      final validItems = <DownloadedMaterial>[];
+      for (final item in candidates) {
+        if (await isValidPdfFile(item.file)) validItems.add(item);
+      }
+      return validItems;
     } catch (_) {
       return const [];
     }
+  }
+
+  Future<bool> isValidPdfFile(File file) async {
+    try {
+      if (!await file.exists() || await file.length() < 5) return false;
+      final prefix = await file.openRead(0, 1024).fold<List<int>>(
+        <int>[],
+        (collected, chunk) => collected..addAll(chunk),
+      );
+      return _hasPdfHeader(Uint8List.fromList(prefix));
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  Future<DownloadedMaterial?> findByMaterialId({
+    required String ownerKey,
+    required String materialId,
+  }) async {
+    for (final item in await list(ownerKey: ownerKey)) {
+      if (item.materialId != materialId) continue;
+      if (await isValidPdfFile(item.file)) return item;
+    }
+    return null;
   }
 
   Future<SaveMaterialResult> save({
@@ -91,11 +118,18 @@ class DownloadedMaterialsStore {
     required String title,
     required Uint8List bytes,
   }) async {
-    if (bytes.isEmpty) throw const FileSystemException('ملف PDF فارغ.');
+    if (!_hasPdfHeader(bytes)) {
+      throw const FileSystemException('البيانات المستلمة ليست ملف PDF صالحًا.');
+    }
     final directory = await _directory(ownerKey);
     final safeId = materialId.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
     final file = File('${directory.path}/$safeId.pdf');
-    await file.writeAsBytes(bytes, flush: true);
+    final temporaryFile = File('${directory.path}/$safeId.pdf.part');
+    await temporaryFile.writeAsBytes(bytes, flush: true);
+    // Replace only after the new copy has been fully written, so an interrupted
+    // write cannot leave the previously downloaded PDF truncated.
+    if (await file.exists()) await file.delete();
+    await temporaryFile.rename(file.path);
 
     final safeTitle = title
         .replaceAll(RegExp(r'[\\/:*?"<>|\u0000-\u001f]'), '_')
@@ -128,5 +162,22 @@ class DownloadedMaterialsStore {
     final next = [item, ...existing.where((saved) => saved.materialId != materialId)];
     await prefs.setString(_keyForOwner(ownerKey), jsonEncode(next.map((saved) => saved.toJson()).toList()));
     return SaveMaterialResult(item: item, savedToPublicDownloads: savedPublic);
+  }
+
+  bool _hasPdfHeader(Uint8List bytes) {
+    if (bytes.length < 5) return false;
+    // The PDF specification permits a small amount of leading data before the
+    // header, so inspect the first 1024 bytes rather than only bytes 0–4.
+    final limit = bytes.length < 1024 ? bytes.length : 1024;
+    for (var i = 0; i <= limit - 5; i++) {
+      if (bytes[i] == 0x25 && // %
+          bytes[i + 1] == 0x50 && // P
+          bytes[i + 2] == 0x44 && // D
+          bytes[i + 3] == 0x46 && // F
+          bytes[i + 4] == 0x2D) { // -
+        return true;
+      }
+    }
+    return false;
   }
 }

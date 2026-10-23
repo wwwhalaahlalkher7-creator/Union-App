@@ -8,7 +8,10 @@ class _MaterialRow extends StatelessWidget {
     this.downloadTooltip = 'Download sheet',
     required this.onTap,
     required this.onDownload,
-    required this.downloading,
+    required this.onView,
+    required this.downloadPhase,
+    required this.downloadProgress,
+    required this.onSuccessAnimationComplete,
   });
 
   final MaterialItem material;
@@ -17,7 +20,10 @@ class _MaterialRow extends StatelessWidget {
   final String downloadTooltip;
   final VoidCallback onTap;
   final VoidCallback onDownload;
-  final bool downloading;
+  final VoidCallback onView;
+  final DownloadActionPhase downloadPhase;
+  final double? downloadProgress;
+  final VoidCallback onSuccessAnimationComplete;
 
   @override
   Widget build(BuildContext context) {
@@ -73,14 +79,18 @@ class _MaterialRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 2),
-                    IconButton(
+                    AnimatedDownloadButton(
+                      key: ValueKey('download-action-${material.id}'),
+                      phase: downloadPhase,
+                      progress: downloadProgress,
+                      downloadLabel: l10n.t('downloadAction'),
+                      viewLabel: l10n.t('viewAction'),
+                      successLabel: l10n.t('downloadComplete'),
+                      retryLabel: l10n.t('retryDownload'),
                       tooltip: downloadTooltip,
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-                      onPressed: downloading ? null : onDownload,
-                      icon: downloading
-                          ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.download_rounded, size: 21),
+                      onDownload: onDownload,
+                      onView: onView,
+                      onSuccessAnimationComplete: onSuccessAnimationComplete,
                     ),
                   ],
                 ),

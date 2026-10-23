@@ -136,7 +136,13 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen> {
   }
 
   Future<void> _sendPageProgress() async {
-    if (!widget.trackProgress || _pageCount <= 0 || _currentPage <= 0) return;
+    if (!widget.trackProgress ||
+        _pageCount <= 0 ||
+        _currentPage <= 0 ||
+        widget.url == null ||
+        widget.accessToken.isEmpty) {
+      return;
+    }
     try {
       // Opening a downloaded file offline may not have created the server-side
       // progress row. Retry the open event once connectivity returns before
