@@ -69,7 +69,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           Text('التنزيلات', textAlign: TextAlign.end,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 5),
-          Text('ملفاتك المحفوظة للقراءة دون اتصال. تُحفظ نسخة عامة في Download/TRINEX على أجهزة Android المدعومة.',
+          Text('ملفاتك المحفوظة للقراءة دون اتصال. يحتفظ التطبيق بنسخة واحدة لتوفير مساحة الجهاز.',
             textAlign: TextAlign.end,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           const SizedBox(height: 14),

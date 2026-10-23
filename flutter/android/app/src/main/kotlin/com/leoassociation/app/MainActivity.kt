@@ -16,6 +16,35 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, downloadsChannel)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "deletePublicPdf" -> {
+                        val filename = call.argument<String>("filename")?.trim()
+                        if (filename.isNullOrEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                            result.success(false)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            val resolver = applicationContext.contentResolver
+                            val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                            val relativePath = Environment.DIRECTORY_DOWNLOADS + "/TRINEX/"
+                            val selection = "${MediaStore.MediaColumns.RELATIVE_PATH}=? AND ${MediaStore.MediaColumns.DISPLAY_NAME}=?"
+                            var deleted = false
+                            resolver.query(
+                                collection,
+                                arrayOf(MediaStore.MediaColumns._ID),
+                                selection,
+                                arrayOf(relativePath, filename),
+                                null
+                            )?.use { cursor ->
+                                while (cursor.moveToNext()) {
+                                    val id = cursor.getLong(0)
+                                    deleted = resolver.delete(android.content.ContentUris.withAppendedId(collection, id), null, null) > 0 || deleted
+                                }
+                            }
+                            result.success(deleted)
+                        } catch (error: Exception) {
+                            result.error("DOWNLOAD_CLEANUP_FAILED", error.message ?: "تعذر حذف النسخة المكررة.", null)
+                        }
+                    }
                     "savePdf" -> {
                         val filename = call.argument<String>("filename")?.trim()
                         val bytes = call.argument<ByteArray>("bytes")

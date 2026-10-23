@@ -15,7 +15,30 @@ class AuthRouteTransition extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (MediaQuery.of(context).disableAnimations) return child;
-    final width = MediaQuery.sizeOf(context).width;
+    final size = MediaQuery.sizeOf(context);
+    final width = size.width;
+    // Split-panel wipes need room to breathe. On phones they can cover the
+    // form, feel overly theatrical, and compete with the keyboard/scrolling.
+    // Use a short directional fade/slide on compact layouts instead.
+    if (width < 600 || size.height < 520) {
+      final isRtl = Directionality.of(context) == TextDirection.rtl;
+      final slideDirection = isRtl ? -1.0 : 1.0;
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: Offset(0.035 * slideDirection, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    }
     final isRtl = Directionality.of(context) == TextDirection.rtl;
     final direction = isRtl ? -1.0 : 1.0;
     final colors = Theme.of(context).colorScheme;
