@@ -119,7 +119,9 @@ class _EinoFaceState extends State<EinoFace> with TickerProviderStateMixin, Widg
       setState(() => _lowActivity = false);
     }
     _controller.duration = const Duration(milliseconds: 4200);
-    if (!_controller.isAnimating) _controller.repeat();
+    if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
     if (widget.motionBoost > .01 ||
         widget.talking ||
         widget.mood == EinoMood.thinking ||
@@ -344,7 +346,7 @@ class _EinoOrbPainter extends CustomPainter {
     // while their speed follows the idle / active / transition profile.
     // The painter's motion uses whole-cycle frequencies so repeating the
     // controller never snaps the orbital tracks back to an unrelated angle.
-    final orbitSpeed = 1.0;
+    const orbitSpeed = 1.0;
     for (var i = 0; i < 2; i++) {
       final orbitRadius = radius * (1.28 + i * .18);
       final orbitRect = Rect.fromCenter(

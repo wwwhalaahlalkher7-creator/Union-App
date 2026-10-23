@@ -260,9 +260,9 @@ class _TrinexShellState extends State<TrinexShell>
       }
 
       setState(() => _isEinoTransitioning = true);
-      final currentOverlay = overlay!;
-      final sourceRect = buttonRect!;
-      final size = overlaySize!;
+      final currentOverlay = overlay;
+      final sourceRect = buttonRect;
+      final size = overlaySize;
       final centerDiameter = math
           .min(math.max(size.shortestSide * .22, 128.0), 156.0)
           .toDouble();
