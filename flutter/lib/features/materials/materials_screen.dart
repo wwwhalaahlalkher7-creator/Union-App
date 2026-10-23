@@ -301,6 +301,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
   Future<void> _downloadMaterial(MaterialItem material) async {
     if (_downloadingIds.contains(material.id)) return;
     final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     await _ensureDownloadsLoaded();
     if (!mounted || _downloadingIds.contains(material.id)) return;
     if (_downloadedMaterials.containsKey(material.id)) {
@@ -390,7 +391,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
         saved.savedToPublicDownloads ? 'downloadSavedPublic' : 'downloadSavedOffline',
         {'name': material.name},
       );
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      if (messenger.mounted) messenger.showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       if (!mounted) return;
       var ownerStillActive = true;
@@ -411,7 +412,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
       final message = e is Exception && e.toString().contains('HTTP')
           ? e.toString().replaceFirst('Exception: ', '')
           : l10n.t('downloadFailed');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      if (messenger.mounted) messenger.showSnackBar(SnackBar(content: Text(message)));
     } finally {
       client.close();
       if (mounted) {

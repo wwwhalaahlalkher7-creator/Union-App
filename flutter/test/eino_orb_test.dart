@@ -20,6 +20,9 @@ void main() {
         (mood: EinoMood.calm, talking: false, label: 'Eino assistant'),
         (mood: EinoMood.thinking, talking: false, label: 'Eino thinking'),
         (mood: EinoMood.talking, talking: true, label: 'Eino responding'),
+        (mood: EinoMood.listening, talking: false, label: 'Eino listening'),
+        (mood: EinoMood.reading, talking: false, label: 'Eino reading response aloud'),
+        (mood: EinoMood.success, talking: false, label: 'Eino response complete'),
         (mood: EinoMood.concerned, talking: false, label: 'Eino connection issue'),
       ];
 

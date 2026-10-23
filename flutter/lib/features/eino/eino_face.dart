@@ -15,7 +15,10 @@ enum EinoMood {
   concerned,
   proud,
   thinking,
-  talking;
+  talking,
+  listening,
+  reading,
+  success;
 
   static const EinoMood idle = EinoMood.calm;
   static const EinoMood error = EinoMood.concerned;
@@ -49,15 +52,20 @@ class EinoFace extends StatefulWidget {
 /// New semantic name for use in new code.
 typedef EinoOrb = EinoFace;
 
-class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+class _EinoFaceState extends State<EinoFace> with TickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 4200),
   )..repeat();
+  late final AnimationController _sleepController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1250),
+  );
   bool _lowActivity = false;
   bool _reduceMotion = false;
   AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
   Timer? _idleTimer;
+  Timer? _idlePulseTimer;
 
   @override
   void initState() {
@@ -74,7 +82,9 @@ class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin
     _reduceMotion = reduceMotion;
     if (_reduceMotion) {
       _idleTimer?.cancel();
+      _idlePulseTimer?.cancel();
       _controller.stop(canceled: false);
+      _sleepController.stop(canceled: false);
     } else if (_lifecycleState == AppLifecycleState.resumed) {
       _controller.repeat();
       _scheduleIdle();
@@ -86,59 +96,117 @@ class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin
     super.didUpdateWidget(oldWidget);
     final moodChanged = oldWidget.mood != widget.mood || oldWidget.talking != widget.talking;
     final boostStartedOrEnded = (oldWidget.motionBoost <= .01) != (widget.motionBoost <= .01);
-    final boostCrossedFastMotion = (oldWidget.motionBoost <= .05) != (widget.motionBoost <= .05);
     if (moodChanged || boostStartedOrEnded) _scheduleIdle();
-    if (moodChanged || boostCrossedFastMotion) _syncMotionProfile();
-  }
-
-  void _syncMotionProfile() {
-    if (_reduceMotion || _lifecycleState != AppLifecycleState.resumed) return;
-    final fastTransition = widget.motionBoost > .05;
-    final activeConversation = widget.talking || widget.mood == EinoMood.thinking || widget.mood == EinoMood.talking;
-    final nextDuration = fastTransition
-        ? const Duration(milliseconds: 680)
-        : activeConversation
-            ? const Duration(milliseconds: 1500)
-            : _lowActivity
-                ? const Duration(milliseconds: 14000)
-                : const Duration(milliseconds: 4200);
-    if (_controller.duration == nextDuration) return;
-    _controller.duration = nextDuration;
-    if (_controller.isAnimating) _controller.repeat();
   }
 
   void _scheduleIdle() {
     _idleTimer?.cancel();
-    if (_lowActivity) setState(() => _lowActivity = false);
-    if (_reduceMotion) return;
-    _syncMotionProfile();
-    if (!_controller.isAnimating && _lifecycleState == AppLifecycleState.resumed) _controller.repeat();
-    if (widget.motionBoost > .01 || widget.talking || widget.mood == EinoMood.thinking || widget.mood == EinoMood.talking) return;
+    _idlePulseTimer?.cancel();
+    if (_reduceMotion || _lifecycleState != AppLifecycleState.resumed) {
+      _controller.stop(canceled: false);
+      _sleepController.stop(canceled: false);
+      return;
+    }
+    if (_lowActivity) {
+      // Stop an occasional sleep pulse before waking so an old completion
+      // callback cannot leave the orb motionless after user interaction.
+      _controller.stop(canceled: true);
+      _controller.value = 0;
+      _sleepController.duration = const Duration(milliseconds: 260);
+      if (_sleepController.value > 0) {
+        unawaited(_animateSleepLevel(toSleep: false));
+      }
+      setState(() => _lowActivity = false);
+    }
+    _controller.duration = const Duration(milliseconds: 4200);
+    if (!_controller.isAnimating) _controller.repeat();
+    if (widget.motionBoost > .01 ||
+        widget.talking ||
+        widget.mood == EinoMood.thinking ||
+        widget.mood == EinoMood.talking ||
+        widget.mood == EinoMood.listening ||
+        widget.mood == EinoMood.reading) return;
     _idleTimer = Timer(const Duration(seconds: 30), () {
-      if (!mounted || _lifecycleState != AppLifecycleState.resumed) return;
+      if (!mounted || _lifecycleState != AppLifecycleState.resumed || _reduceMotion) return;
       setState(() => _lowActivity = true);
-      _syncMotionProfile();
-      _controller.repeat();
+      _sleepController.duration = const Duration(milliseconds: 1250);
+      unawaited(_animateSleepLevel(toSleep: true));
+      unawaited(_settleIntoLowActivity());
     });
+  }
+
+  Future<void> _animateSleepLevel({required bool toSleep}) async {
+    try {
+      if (toSleep) {
+        await _sleepController.forward(from: _sleepController.value).orCancel;
+      } else {
+        await _sleepController.reverse(from: _sleepController.value).orCancel;
+      }
+    } on TickerCanceled {
+      // A wake, lifecycle change or reduced-motion setting superseded the fade.
+    }
+  }
+
+  Future<void> _settleIntoLowActivity() async {
+    _controller.stop(canceled: false);
+    _controller.duration = const Duration(milliseconds: 1500);
+    try {
+      await _controller.animateTo(
+        1,
+        duration: const Duration(milliseconds: 1500),
+        curve: Curves.easeInOut,
+      ).orCancel;
+    } on TickerCanceled {
+      return;
+    }
+    if (!mounted || !_lowActivity || _reduceMotion || _lifecycleState != AppLifecycleState.resumed) return;
+    _controller.stop(canceled: false);
+    _scheduleIdlePulse();
+  }
+
+  void _scheduleIdlePulse() {
+    _idlePulseTimer?.cancel();
+    if (!mounted || !_lowActivity || _reduceMotion || _lifecycleState != AppLifecycleState.resumed) return;
+    _idlePulseTimer = Timer(const Duration(seconds: 8), () {
+      unawaited(_playIdlePulse());
+    });
+  }
+
+  Future<void> _playIdlePulse() async {
+    if (!mounted || !_lowActivity || _reduceMotion || _lifecycleState != AppLifecycleState.resumed) return;
+    _controller.duration = const Duration(milliseconds: 1250);
+    try {
+      // Paint frequencies complete an exact visual cycle, so the reset from
+      // 1 to 0 is visually continuous while the orb is in its sleeping state.
+      await _controller.forward(from: 0).orCancel;
+    } on TickerCanceled {
+      return;
+    }
+    if (!mounted || !_lowActivity || _reduceMotion || _lifecycleState != AppLifecycleState.resumed) return;
+    _controller.stop(canceled: false);
+    _scheduleIdlePulse();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _lifecycleState = state;
     if (state == AppLifecycleState.resumed) {
-      if (!_reduceMotion && !_controller.isAnimating) _controller.repeat();
       if (!_reduceMotion) _scheduleIdle();
     } else {
       _idleTimer?.cancel();
+      _idlePulseTimer?.cancel();
       _controller.stop(canceled: false);
+      _sleepController.stop(canceled: false);
     }
   }
 
   @override
   void dispose() {
     _idleTimer?.cancel();
+    _idlePulseTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
+    _sleepController.dispose();
     super.dispose();
   }
 
@@ -147,11 +215,17 @@ class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     final isActive = widget.talking ||
         widget.mood == EinoMood.thinking ||
-        widget.mood == EinoMood.talking || widget.motionBoost > .05;
+        widget.mood == EinoMood.talking ||
+        widget.mood == EinoMood.listening ||
+        widget.mood == EinoMood.reading ||
+        widget.motionBoost > .05;
     final label = switch (widget.mood) {
       EinoMood.concerned => 'Eino connection issue',
       EinoMood.thinking || EinoMood.focused => 'Eino thinking',
+      EinoMood.listening => 'Eino listening',
       EinoMood.talking => 'Eino responding',
+      EinoMood.reading => 'Eino reading response aloud',
+      EinoMood.success || EinoMood.happy || EinoMood.proud => 'Eino response complete',
       _ when widget.talking => 'Eino listening or speaking',
       _ => 'Eino assistant',
     };
@@ -161,7 +235,7 @@ class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin
       label: label,
       child: ExcludeSemantics(
         child: AnimatedBuilder(
-          animation: _controller,
+          animation: Listenable.merge([_controller, _sleepController]),
           builder: (context, _) {
             final t = reduceMotion ? 0.28 : _controller.value;
             return SizedBox(
@@ -175,7 +249,7 @@ class _EinoFaceState extends State<EinoFace> with SingleTickerProviderStateMixin
                   accent: widget.accentColor ?? const Color(0xFF4A7BFF),
                   showAura: widget.showAura,
                   active: isActive,
-                  lowActivity: _lowActivity && widget.motionBoost <= .01,
+                  sleepLevel: _sleepController.value,
                   motionBoost: widget.motionBoost.clamp(0.0, 1.0).toDouble(),
                 ),
               ),
@@ -195,7 +269,7 @@ class _EinoOrbPainter extends CustomPainter {
     required this.accent,
     required this.showAura,
     required this.active,
-    required this.lowActivity,
+    required this.sleepLevel,
     required this.motionBoost,
   });
 
@@ -205,7 +279,8 @@ class _EinoOrbPainter extends CustomPainter {
   final Color accent;
   final bool showAura;
   final bool active;
-  final bool lowActivity;
+  /// 0 = normal activity, 1 = low-motion sleeping state.
+  final double sleepLevel;
   /// 0..1 transition intensity supplied by the shell during enter/return.
   final double motionBoost;
 
@@ -217,16 +292,19 @@ class _EinoOrbPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = shortest * .315;
     final boost = motionBoost.clamp(0.0, 1.0).toDouble();
-    final energy = lowActivity ? .20 : (active ? 1.0 : .68);
+    final sleep = sleepLevel.clamp(0.0, 1.0).toDouble();
+    final normalEnergy = active ? 1.0 : .68;
+    final energy = normalEnergy * (1 - sleep) + .20 * sleep;
     final phase = time * math.pi * 2;
-    final drift = math.sin(phase) * radius * (.018 + .025 * energy) * (1 + boost * 2.2);
-    final breathing = 1 + math.sin(phase * .5) * (lowActivity ? .008 : .018 + boost * .012);
+    final drift = math.sin(phase) * radius * (.018 + .025 * energy) * (1 + boost * 1.5);
+    final breathingAmplitude = (.014 + boost * .010) * (1 - sleep) + .006 * sleep;
+    final breathing = 1 + math.sin(phase) * breathingAmplitude;
 
     final isError = mood == EinoMood.concerned;
     final isThinking = mood == EinoMood.thinking || mood == EinoMood.focused;
-    final isSpeaking = talking || mood == EinoMood.talking;
-    final isHappy = mood == EinoMood.happy || mood == EinoMood.proud;
-    final isCurious = mood == EinoMood.curious || mood == EinoMood.surprised;
+    final isSpeaking = talking || mood == EinoMood.talking || mood == EinoMood.reading;
+    final isHappy = mood == EinoMood.happy || mood == EinoMood.proud || mood == EinoMood.success;
+    final isCurious = mood == EinoMood.curious || mood == EinoMood.surprised || mood == EinoMood.listening;
     final isConfused = mood == EinoMood.confused || mood == EinoMood.pouting;
     final moodColor = isError
         ? const Color(0xFFFF697A)
@@ -242,7 +320,7 @@ class _EinoOrbPainter extends CustomPainter {
     const violet = Color(0xFF9C7BFF);
     const cyan = Color(0xFF82F0F5);
     const rose = Color(0xFFFFA8D7);
-    final ringAlpha = lowActivity ? .22 : (.36 + boost * .28);
+    final ringAlpha = (.36 + boost * .28) * (1 - sleep) + .22 * sleep;
 
     // Ambient halo: one soft, broad glow rather than several competing effects.
     if (showAura) {
@@ -253,7 +331,7 @@ class _EinoOrbPainter extends CustomPainter {
         Paint()
           ..shader = RadialGradient(
             colors: [
-              moodColor.withValues(alpha: (lowActivity ? .14 : .23) + boost * .12),
+              moodColor.withValues(alpha: (.23 + boost * .12) * (1 - sleep) + .14 * sleep),
               violet.withValues(alpha: .075 + boost * .06),
               Colors.transparent,
             ],
@@ -264,7 +342,9 @@ class _EinoOrbPainter extends CustomPainter {
 
     // Two restrained orbital tracks. Their directions differ to create depth,
     // while their speed follows the idle / active / transition profile.
-    final orbitSpeed = lowActivity ? .22 : (isThinking ? 1.05 : .62) + boost * 2.8;
+    // The painter's motion uses whole-cycle frequencies so repeating the
+    // controller never snaps the orbital tracks back to an unrelated angle.
+    final orbitSpeed = 1.0;
     for (var i = 0; i < 2; i++) {
       final orbitRadius = radius * (1.28 + i * .18);
       final orbitRect = Rect.fromCenter(
@@ -274,7 +354,7 @@ class _EinoOrbPainter extends CustomPainter {
       );
       canvas.save();
       canvas.translate(center.dx, center.dy);
-      canvas.rotate(phase * orbitSpeed * (i == 0 ? 1 : -.72) + i * 1.1);
+      canvas.rotate(phase * orbitSpeed * (i == 0 ? 1 : -1) + i * 1.1);
       canvas.translate(-center.dx, -center.dy);
       canvas.drawOval(
         orbitRect,
@@ -285,14 +365,14 @@ class _EinoOrbPainter extends CustomPainter {
       );
       canvas.drawArc(
         orbitRect,
-        phase * orbitSpeed * (i == 0 ? -.55 : .7) + i * 1.7,
+        phase * orbitSpeed * (i == 0 ? -1 : 1) + i * 1.7,
         math.pi * (i == 0 ? .40 : .27),
         false,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
           ..strokeWidth = math.max(1.2, shortest * .025)
-          ..color = Colors.white.withValues(alpha: lowActivity ? .28 : .66),
+          ..color = Colors.white.withValues(alpha: .66 * (1 - sleep) + .28 * sleep),
       );
       canvas.restore();
     }
@@ -308,7 +388,7 @@ class _EinoOrbPainter extends CustomPainter {
       orbRadius,
       Paint()
         ..shader = RadialGradient(
-          center: Alignment(-.38 + math.sin(phase * .55) * .06, -.55),
+          center: Alignment(-.38 + math.sin(phase) * .045, -.55),
           radius: 1.18,
           colors: [
             Color.lerp(const Color(0xFFB6F7FF), moodColor, .34)!,
@@ -335,23 +415,23 @@ class _EinoOrbPainter extends CustomPainter {
       ..strokeWidth = math.max(1.5, shortest * .038)
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
-    final waveY = orbCenter.dy + math.sin(phase * .72) * orbRadius * .16;
-    final waveAmplitude = orbRadius * (lowActivity ? .12 : .22 + boost * .10);
+    final waveY = orbCenter.dy + math.sin(phase) * orbRadius * .14;
+    final waveAmplitude = orbRadius * ((.22 + boost * .10) * (1 - sleep) + .12 * sleep);
     final wave = Path()
       ..moveTo(orbCenter.dx - orbRadius * 1.12, waveY + math.sin(phase) * waveAmplitude * .30)
       ..cubicTo(
         orbCenter.dx - orbRadius * .62,
-        waveY - waveAmplitude * math.cos(phase * .78),
+        waveY - waveAmplitude * math.cos(phase),
         orbCenter.dx - orbRadius * .28,
-        waveY + waveAmplitude * math.sin(phase * .83 + .7),
+        waveY + waveAmplitude * math.sin(phase + .7),
         orbCenter.dx + orbRadius * .02,
         waveY,
       )
       ..cubicTo(
         orbCenter.dx + orbRadius * .34,
-        waveY - waveAmplitude * math.sin(phase * .83 + .7),
+        waveY - waveAmplitude * math.sin(phase + .7),
         orbCenter.dx + orbRadius * .64,
-        waveY + waveAmplitude * math.cos(phase * .78),
+        waveY + waveAmplitude * math.cos(phase),
         orbCenter.dx + orbRadius * 1.12,
         waveY + math.sin(phase) * waveAmplitude * .25,
       );
@@ -359,8 +439,8 @@ class _EinoOrbPainter extends CustomPainter {
 
     // The inner light moves gently across the ribbon to make the core feel alive.
     final coreCenter = orbCenter.translate(
-      math.sin(phase * .56) * orbRadius * (isCurious ? .22 : .13),
-      math.cos(phase * .68) * orbRadius * (isHappy ? .12 : .08),
+      math.sin(phase) * orbRadius * (isCurious ? .20 : .12),
+      math.cos(phase) * orbRadius * (isHappy ? .10 : .075),
     );
     final coreRadius = orbRadius * (isSpeaking ? .20 + .025 * math.sin(phase * 3) : .17);
     canvas.drawCircle(
@@ -389,24 +469,24 @@ class _EinoOrbPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = math.max(1.0, shortest * .018)
         ..shader = SweepGradient(
-          transform: GradientRotation(phase * (lowActivity ? .08 : .24 + boost * .8)),
+          transform: GradientRotation(phase * orbitSpeed),
           colors: [cyan.withValues(alpha: .82), moodColor.withValues(alpha: .72), violet.withValues(alpha: .66), Colors.white.withValues(alpha: .86), cyan.withValues(alpha: .82)],
         ).createShader(orbRect),
     );
     canvas.drawArc(
       Rect.fromCircle(center: orbCenter.translate(-orbRadius * .08, -orbRadius * .08), radius: orbRadius * .84),
-      math.pi * (1.05 + math.sin(phase * .3) * .035),
+      math.pi * (1.05 + math.sin(phase) * .035),
       math.pi * .47,
       false,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeWidth = math.max(1.0, shortest * .024)
-        ..color = Colors.white.withValues(alpha: lowActivity ? .30 : .54),
+        ..color = Colors.white.withValues(alpha: .54 * (1 - sleep) + .30 * sleep),
     );
 
     // A small orbiting signal dot communicates state without cluttering the orb.
-    final signalAngle = phase * (lowActivity ? .16 : .48 + boost * 2.4) - math.pi * .35;
+    final signalAngle = phase * orbitSpeed - math.pi * .35;
     final signalRadius = radius * 1.48;
     final signalCenter = center.translate(
       math.cos(signalAngle) * signalRadius,
@@ -415,18 +495,18 @@ class _EinoOrbPainter extends CustomPainter {
     canvas.drawCircle(
       signalCenter,
       shortest * .048,
-      Paint()..color = moodColor.withValues(alpha: lowActivity ? .12 : .24),
+      Paint()..color = moodColor.withValues(alpha: .24 * (1 - sleep) + .12 * sleep),
     );
     canvas.drawCircle(
       signalCenter,
       shortest * .020,
-      Paint()..color = Colors.white.withValues(alpha: lowActivity ? .55 : .92),
+      Paint()..color = Colors.white.withValues(alpha: .92 * (1 - sleep) + .55 * sleep),
     );
 
     // Speech becomes a subtle pulse of three light bars, not a separate noisy layer.
     if (isSpeaking) {
       for (var i = -1; i <= 1; i++) {
-        final barHeight = shortest * (.035 + .045 * (0.5 + .5 * math.sin(phase * 2.8 + i * .9)));
+        final barHeight = shortest * (.035 + .045 * (0.5 + .5 * math.sin(phase * 3 + i * .9)));
         final barCenter = orbCenter.translate(i * shortest * .075, orbRadius * .48);
         canvas.drawLine(
           Offset(barCenter.dx, barCenter.dy - barHeight),
@@ -444,5 +524,5 @@ class _EinoOrbPainter extends CustomPainter {
   bool shouldRepaint(covariant _EinoOrbPainter oldDelegate) =>
       oldDelegate.time != time || oldDelegate.mood != mood || oldDelegate.talking != talking ||
       oldDelegate.accent != accent || oldDelegate.showAura != showAura || oldDelegate.active != active ||
-      oldDelegate.lowActivity != lowActivity || oldDelegate.motionBoost != motionBoost;
+      oldDelegate.sleepLevel != sleepLevel || oldDelegate.motionBoost != motionBoost;
 }

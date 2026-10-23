@@ -1,6 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
@@ -36,19 +36,73 @@ class _EinoScreenState extends State<EinoScreen> {
   bool _uploading = false;
   bool _readerActive = false;
   bool _readerPaused = false;
+  bool _successMoodActive = false;
+  Timer? _successMoodTimer;
+  bool _errorMoodActive = false;
+  Timer? _errorMoodTimer;
   EinoCapabilities? _capabilities;
   bool _loadingCapabilities = false;
   final List<EinoMessage> _messages = [];
   final List<EinoConversation> _history = [];
   String? _conversationId;
 
-  EinoMood get _mood => _recording || _sending || _uploading
-      ? EinoMood.thinking
-      : _messages.any((m) => m.isError)
-          ? EinoMood.concerned
-          : _messages.any((m) => !m.user && !m.isError)
-              ? EinoMood.happy
-              : EinoMood.idle;
+  EinoMessage? get _latestAssistantMessage {
+    for (final message in _messages.reversed) {
+      if (!message.user) return message;
+    }
+    return null;
+  }
+
+  EinoMood get _mood {
+    if (_recording) return EinoMood.listening;
+    if (_sending) return EinoMood.thinking;
+    if (_uploading) return EinoMood.focused;
+    if (_readerActive && !_readerPaused) return EinoMood.reading;
+    if (_successMoodActive) return EinoMood.success;
+    if (_errorMoodActive) return EinoMood.concerned;
+    return EinoMood.idle;
+  }
+
+  void _clearSuccessMood() {
+    _successMoodTimer?.cancel();
+    _successMoodTimer = null;
+    _successMoodActive = false;
+  }
+
+  void _clearErrorMood() {
+    _errorMoodTimer?.cancel();
+    _errorMoodTimer = null;
+    _errorMoodActive = false;
+  }
+
+  void _clearTransientMoods() {
+    _clearSuccessMood();
+    _clearErrorMood();
+  }
+
+  void _showSuccessMoodBriefly() {
+    _errorMoodTimer?.cancel();
+    _errorMoodTimer = null;
+    _errorMoodActive = false;
+    _successMoodTimer?.cancel();
+    if (!mounted) return;
+    setState(() => _successMoodActive = true);
+    _successMoodTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted) setState(() => _successMoodActive = false);
+    });
+  }
+
+  void _showErrorMoodBriefly() {
+    _successMoodTimer?.cancel();
+    _successMoodTimer = null;
+    _successMoodActive = false;
+    _errorMoodTimer?.cancel();
+    if (!mounted) return;
+    setState(() => _errorMoodActive = true);
+    _errorMoodTimer = Timer(const Duration(milliseconds: 2400), () {
+      if (mounted) setState(() => _errorMoodActive = false);
+    });
+  }
 
   @override
   void initState() {
@@ -59,7 +113,14 @@ class _EinoScreenState extends State<EinoScreen> {
   Future<void> _init() async {
     _repository = AppDependencies.instance.eino;
     if (mounted) setState(() => _ready = true);
+    // The shell's orb transition must finish before a first-use privacy dialog
+    // can appear; otherwise the modal interrupts the motion at its midpoint.
+    if (widget.source == 'shell') {
+      await Future<void>.delayed(const Duration(milliseconds: 430));
+    }
+    if (!mounted) return;
     await _showEinoDataNoticeIfNeeded();
+    if (!mounted) return;
     await Future.wait([_loadCapabilities(), _loadHistory()]);
   }
 
@@ -90,6 +151,8 @@ class _EinoScreenState extends State<EinoScreen> {
 
   @override
   void dispose() {
+    _successMoodTimer?.cancel();
+    _errorMoodTimer?.cancel();
     _controller.dispose();
     _scroll.dispose();
     _recorder.dispose();
@@ -136,6 +199,7 @@ class _EinoScreenState extends State<EinoScreen> {
         // The chat endpoint can still create the conversation server-side.
       }
     }
+    _clearTransientMoods();
     setState(() {
       _messages.add(EinoMessage(true, prompt));
       _sending = true;
@@ -170,6 +234,7 @@ class _EinoScreenState extends State<EinoScreen> {
 
   Future<void> _retry(String prompt) async {
     if (!_ready || _sending || prompt.trim().isEmpty) return;
+    _clearTransientMoods();
     setState(() {
       final index = _messages.lastIndexWhere((m) => m.isError && m.retryPrompt == prompt);
       if (index >= 0) _messages.removeAt(index);
@@ -199,12 +264,22 @@ class _EinoScreenState extends State<EinoScreen> {
             isError: true,
             retryPrompt: prompt,
           )));
+          _showErrorMoodBriefly();
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
+      if (mounted) {
+        setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
+        _showErrorMoodBriefly();
+      }
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        final latestAssistant = _latestAssistantMessage;
+        setState(() => _sending = false);
+        if (latestAssistant != null && !latestAssistant.isError) {
+          _showSuccessMoodBriefly();
+        }
+      }
       _scrollToBottom();
     }
   }
@@ -247,7 +322,9 @@ class _EinoScreenState extends State<EinoScreen> {
       }
       return;
     }
+    _clearTransientMoods();
     setState(() => _uploading = true);
+    var operationSucceeded = false;
     try {
       final name = file.name;
       if (_conversationId == null && await AppDependencies.instance.authStorage.isLoggedIn) {
@@ -270,6 +347,7 @@ class _EinoScreenState extends State<EinoScreen> {
             _messages.add(EinoMessage(true, '🖼️ $name\n$prompt'));
             _messages.add(EinoMessage(false, text));
           });
+          operationSucceeded = true;
         }
         if (_conversationId != null) await _loadHistory();
       } else {
@@ -285,14 +363,21 @@ class _EinoScreenState extends State<EinoScreen> {
             _messages.add(EinoMessage(true, '📄 $name'));
             _messages.add(EinoMessage(false, text));
           });
+          operationSucceeded = true;
         }
         if (_conversationId != null) await _loadHistory();
       }
       _scrollToBottom();
     } catch (e) {
-      if (mounted) setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true)));
+      if (mounted) {
+        setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true)));
+        _showErrorMoodBriefly();
+      }
     } finally {
-      if (mounted) setState(() => _uploading = false);
+      if (mounted) {
+        setState(() => _uploading = false);
+        if (operationSucceeded) _showSuccessMoodBriefly();
+      }
     }
   }
 
@@ -303,7 +388,9 @@ class _EinoScreenState extends State<EinoScreen> {
       _conversationId = await _repository.createConversation(title: 'توليد صورة: ${prompt.length > 55 ? '${prompt.substring(0, 55)}…' : prompt}');
       await _loadHistory();
     }
+    _clearTransientMoods();
     setState(() => _uploading = true);
+    var operationSucceeded = false;
     try {
       final result = await _repository.generateImage(prompt: prompt);
       if (!mounted) return;
@@ -311,15 +398,22 @@ class _EinoScreenState extends State<EinoScreen> {
         _messages.add(EinoMessage(true, '🎨 $prompt'));
         _messages.add(EinoMessage(false, 'تم إنشاء الصورة بناءً على وصفك.', imageBase64: result.base64, imageContentType: result.contentType));
       });
+      operationSucceeded = true;
       if (_conversationId != null) {
         await _repository.appendConversationMessage(conversationId: _conversationId!, user: true, content: '🎨 $prompt');
         await _repository.appendConversationMessage(conversationId: _conversationId!, user: false, content: 'تم إنشاء صورة بواسطة Eino.');
         await _loadHistory();
       }
     } catch (e) {
-      if (mounted) setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
+      if (mounted) {
+        setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
+        _showErrorMoodBriefly();
+      }
     } finally {
-      if (mounted) setState(() => _uploading = false);
+      if (mounted) {
+        setState(() => _uploading = false);
+        if (operationSucceeded) _showSuccessMoodBriefly();
+      }
       _scrollToBottom();
     }
   }
@@ -413,13 +507,17 @@ class _EinoScreenState extends State<EinoScreen> {
           _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
         }
       } catch (e) {
-        if (mounted) setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true)));
+        if (mounted) {
+          setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true)));
+          _showErrorMoodBriefly();
+        }
       } finally {
         if (mounted) setState(() => _uploading = false);
         try { await File(path).delete(); } catch (_) {}
       }
       return;
     }
+    _clearTransientMoods();
     if (!await _recorder.hasPermission()) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).t('einoMicPermission'))));
       return;
@@ -477,7 +575,10 @@ class _EinoScreenState extends State<EinoScreen> {
         await completed;
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+        _showErrorMoodBriefly();
+      }
     } finally {
       if (mounted) setState(() { _readerActive = false; _readerPaused = false; });
     }
