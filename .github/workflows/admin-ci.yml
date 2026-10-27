@@ -33,7 +33,7 @@ jobs:
       run:
         working-directory: apps/admin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -59,7 +59,7 @@ jobs:
         working-directory: apps/admin
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -89,7 +89,7 @@ jobs:
           print("Android INTERNET permission is present.")
           PYCODE
       - name: Setup Java 17 with Gradle cache
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -174,7 +174,7 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release
       - name: Upload Android APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trinex-admin-android-apk
           path: apps/admin/build/app/outputs/flutter-apk/*.apk
@@ -189,7 +189,7 @@ jobs:
       run:
         working-directory: apps/admin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -211,7 +211,7 @@ jobs:
           }
       - name: Build Windows release
         run: flutter build windows --release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: trinex-admin-windows
           path: apps/admin/build/windows/x64/runner/Release/**
