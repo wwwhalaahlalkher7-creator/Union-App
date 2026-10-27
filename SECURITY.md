@@ -31,4 +31,4 @@ Never commit:
 - Student exports or production database dumps
 - Access or refresh tokens
 
-See `docs/SECURITY.md` and `docs/CONFIGURATION.md` for the operational security baseline.
+See `docs/CONFIGURATION.md` for operational configuration guidance.

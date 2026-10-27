@@ -161,7 +161,7 @@ jobs:
           fi
 
   flutter:
-    name: Flutter Analyze, Test & Signed Artifacts
+    name: Flutter Analyze, Test & Main Artifacts
     needs: flutter_gate
     if: needs.flutter_gate.outputs.run == 'true'
     runs-on: ubuntu-latest
@@ -220,7 +220,10 @@ jobs:
           python3 ci/study_tutorial_trigger_check.py
           python3 ci/eino_orb_motion_check.py
 
+      # Dependabot PRs do not receive repository signing secrets. Keep analysis/tests
+      # running above, but never require or expose production signing credentials there.
       - name: Configure Android signing for CI artifacts
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
@@ -240,12 +243,15 @@ jobs:
           EOF2
 
       - name: Build signed APK
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: flutter build apk --release
 
       - name: Build signed AAB
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: flutter build appbundle --release
 
       - name: Verify Android signatures
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
           APK="build/app/outputs/flutter-apk/app-release.apk"
@@ -257,6 +263,7 @@ jobs:
           grep -q 'jar verified' /tmp/trinex-aab-signature.txt
 
       - name: Prepare compressed CI artifacts
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
           mkdir -p build/ci-artifacts
@@ -277,6 +284,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload signed APK zip
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v7
         with:
           name: TRINEX APK.zip
@@ -284,6 +292,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload signed AAB zip
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v7
         with:
           name: TRINEX AAB.zip

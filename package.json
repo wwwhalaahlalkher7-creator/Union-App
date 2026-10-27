@@ -17,8 +17,6 @@
     "check:exam-bulk-upload": "python3 ci/exam_bulk_upload_check.py",
     "check:materials-bulk-upload": "python3 ci/materials_bulk_upload_check.py",
     "check:pdf-optimizer": "python3 ci/pdf_optimizer_check.py",
-    "check:materials-upload": "python3 ci/materials_bulk_upload_check.py",
-    "check:exam-upload": "python3 ci/exam_bulk_upload_check.py",
     "check:study-tutorial": "python3 ci/study_tutorial_trigger_check.py",
     "check:eino-orb-motion": "python3 ci/eino_orb_motion_check.py",
     "check:eino-upload-queue": "node ci/eino_upload_queue_integration_test.mjs",

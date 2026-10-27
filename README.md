@@ -115,4 +115,3 @@ python3 ci/web_security_check.py
 - `docs/DEPLOYMENT.md` — النشر.
 - `docs/RELEASE.md` — إصدار تطبيق الطلاب.
 - `apps/admin/docs/ARCHITECTURE.md` — معمارية تطبيق الإدارة.
-- `docs/MONOREPO_MIGRATION.md` — ما تغيّر عند إنشاء المستودع الموحد.
