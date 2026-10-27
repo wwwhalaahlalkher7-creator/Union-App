@@ -1,12 +1,28 @@
 {
-  "name": "trinex-portal",
+  "name": "trinex-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "TRINEX public website builder; administration is handled by the native Flutter TRINEX-Admin app",
+  "description": "TRINEX monorepo tooling and website distribution builder",
   "type": "module",
   "scripts": {
     "build": "node build.js",
     "check:web": "node build.js",
-    "check:eino-reliability": "node ci/eino_reliability_check.mjs"
+    "check:eino-reliability": "node ci/eino_reliability_check.mjs",
+    "check:eino-catalog-context": "node ci/eino_catalog_context_check.mjs",
+    "check:marketplace": "node ci/marketplace_check.mjs",
+    "check:push-client": "node ci/push_client_check.mjs",
+    "check:eino-pdf-rag": "node ci/eino_pdf_rag_check.mjs",
+    "check:eino-drive-autoindex": "node ci/eino_drive_autoindex_check.mjs",
+    "check:eino-relevance-ranking": "node ci/eino_relevance_ranking_check.mjs",
+    "check:exam-bulk-upload": "python3 ci/exam_bulk_upload_check.py",
+    "check:materials-bulk-upload": "python3 ci/materials_bulk_upload_check.py",
+    "check:pdf-optimizer": "python3 ci/pdf_optimizer_check.py",
+    "check:materials-upload": "python3 ci/materials_bulk_upload_check.py",
+    "check:exam-upload": "python3 ci/exam_bulk_upload_check.py",
+    "check:study-tutorial": "python3 ci/study_tutorial_trigger_check.py",
+    "check:eino-orb-motion": "python3 ci/eino_orb_motion_check.py",
+    "check:eino-upload-queue": "node ci/eino_upload_queue_integration_test.mjs",
+    "check:eino-pdf-pipeline": "node ci/eino_pdf_pipeline_integration_test.mjs",
+    "check:eino-drive-d1-sync": "node ci/eino_drive_d1_sync_integration_test.mjs"
   }
 }

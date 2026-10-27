@@ -37,7 +37,7 @@ jobs:
 
           while IFS= read -r file; do
             case "$file" in
-              flutter/pubspec.yaml|              flutter/pubspec.lock|              flutter/android/gradle/*|              flutter/android/gradle/wrapper/gradle-wrapper.properties|              flutter/android/gradle.properties|              flutter/android/settings.gradle|              flutter/android/settings.gradle.kts|              flutter/android/build.gradle|              flutter/android/build.gradle.kts|              flutter/android/app/build.gradle|              flutter/android/app/build.gradle.kts|              flutter/android/gradle/libs.versions.toml)
+              apps/student/pubspec.yaml|              apps/student/pubspec.lock|              apps/student/android/gradle/*|              apps/student/android/gradle/wrapper/gradle-wrapper.properties|              apps/student/android/gradle.properties|              apps/student/android/settings.gradle|              apps/student/android/settings.gradle.kts|              apps/student/android/build.gradle|              apps/student/android/build.gradle.kts|              apps/student/android/app/build.gradle|              apps/student/android/app/build.gradle.kts|              apps/student/android/gradle/libs.versions.toml)
                 blocked="true"
                 ;;
             esac

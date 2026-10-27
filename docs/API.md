@@ -8,7 +8,7 @@
 
 الإصدار الحالي: `v1`.
 
-العقد التفصيلي للمسارات العامة موجود في `backend/docs/PUBLIC_API_CONTRACT.md`.
+العقد التفصيلي للمسارات العامة موجود في `services/api/docs/PUBLIC_API_CONTRACT.md`.
 
 ## المجموعات
 
@@ -19,9 +19,7 @@
 | Auth | `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/staff/login` | حسب المسار |
 | Student | `/student/me`, `/student/stats`, `/student/notifications` | Student session |
 | Academic | `/semesters`, `/departments`, `/subjects`, `/materials`, `/schedule` | بعض المسارات محمية |
-| Progress | `/progress`, `/xp`, `/badges`, `/materials/:id/progress` | Student session |
-| Student feedback | `POST /feedback` | Student session |
-| Feedback moderation | `/admin/moderation/feedback` | Staff session + `moderation.read/write` |
+| Progress | `/progress`, `/xp`, `/badges` | Student session |
 | Interactions | comments/replies/reactions | Student session |
 | Eino | `/eino/chat` | سياسة Eino + session/guest rules |
 | Admin | `/admin/*` | Staff session + permission |
@@ -59,8 +57,4 @@
 3. استخدم parameter binding في SQL، ولا تبنِ SQL من input خام.
 4. أعد error code ثابتًا ومفيدًا دون تسريب أسرار أو stack trace.
 5. أضف اختبار contract إذا كان المسار يغيّر invariant أمني أو بياناتيًا.
-6. حدّث `backend/docs/PUBLIC_API_CONTRACT.md` إذا كان المسار عامًا أو جزءًا من عقد يعتمد عليه عميل خارجي.
-
-## Unified moderation inbox (admin)
-
-`GET /api/v1/admin/moderation/inbox?view=all&type=all&limit=500` combines student feedback (`suggestion` and general report categories) with public chat reports. Requires staff `moderation.read`. `view` is `all|current|solved|archived`; `type` is `all|suggestion|report|chat`. Updates remain type-specific: `PATCH /api/v1/admin/moderation/feedback/:id` and `PATCH /api/v1/admin/moderation/chat-reports/:id`. Both support a persistent `archived` status after migration `0044_moderation_archive.sql`.
+6. حدّث `services/api/docs/PUBLIC_API_CONTRACT.md` إذا كان المسار عامًا أو جزءًا من عقد يعتمد عليه عميل خارجي.

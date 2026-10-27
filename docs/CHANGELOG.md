@@ -1,23 +1,20 @@
 # Changelog
 
-## 2026-10-07 — TRINEX 2.0.2+1
+## 2026-10-27 — TRINEX Drive Library Reconciliation (Implementation Batch 1)
 
-- إصدار متكامل لمنصة TRINEX للطلاب، يجمع المحتوى الأكاديمي والخدمات الجامعية والتفاعل والمساعدة الذكية في تجربة واحدة.
-- تحسين تسجيل الدخول والحساب الشخصي وإدارة الملف وتغيير كلمة المرور واستعادتها عبر البريد الإلكتروني مع تخزين آمن للجلسة.
-- دعم الأخبار والإنجازات والفعاليات والوسائط والتفاصيل والتعليقات والإشعارات.
-- تنظيم المواد الدراسية حسب التخصص والفصل، مع عرض الملفات وقراءة PDF والوصول الآمن إلى المحتوى السابق المتاح.
-- الجدول الدراسي والأدوات الهندسية، بما فيها محول الوحدات وحاسبة GPA وحاسبة المقاومات والمراجع الهندسية.
-- المفضلة والمحتوى الأخير والتقدم وXP والشارات والأحداث التعليمية ضمن تجربة الطالب.
-- دمج Eino كمساعد ذكي عبر طبقة API آمنة، مع أساس محلي للنماذج ودعم fallback عند تعذر الاتصال بالمسار الأساسي.
-- تحسين وضع عدم الاتصال والتخزين المؤقت: محاولة الشبكة أولاً، ثم استخدام البيانات المخزنة عند الحاجة، مع رسائل أخطاء واضحة للمستخدم.
-- دعم الموقع العام ولوحة الإدارة وإدارة المحتوى والطلاب والصلاحيات والتعليقات والإشعارات.
-- فصل تكاملات TRINEX Drive وTRINEX Gmail، وتحسين طبقة Cloudflare Workers وD1.
-- إعادة تنظيم كبيرة للكود وفق Clean Code وDependency Injection وفصل طبقات الشبكة والـrepositories والواجهات، مع تقليل التكرار وتحسين قابلية الصيانة.
-- تعزيزات أمنية للمصادقة والتخزين الآمن والاستجابات وحماية الويب وXSS، مع فحوصات CI لعقود API وقاعدة البيانات والإصدار.
+- جعل هوية مجلد المادة مرتبطة بمعرّف Google Drive الثابت حتى لا يؤدي تغيير الاسم إلى إنشاء مادة مكررة في D1.
+- فهرسة مجلدات المواد الفارغة، ومزامنة أسماء مجلدات المواد وملفات PDF مع D1.
+- استكمال عمليات إنشاء مجلد مادة، وإعادة تسمية المجلد والملف، ورفع PDF، وحذف مجلد المادة من لوحة الإدارة عبر Google Apps Script.
+- منع تعطيل عناصر D1 عند اكتشاف فهرس Drive غير مكتمل أو غير قابل للربط؛ حمايةً من الحذف الجماعي الناتج عن مزامنة ناقصة.
+- جعل صفحة إدارة المواد تجلب جميع صفحات المواد والمجلدات بدل الاقتصار على أول 100 سجل.
+- استبدال شريط عدم الاتصال بمؤشر Wi-Fi صغير يعرض حالتي الاتصال والانقطاع.
+- إضافة مركز دراسة شخصي داخل صفحة الملف الشخصي فقط، مع روابط التقدم الدراسي والأدوات الهندسية والإشعارات.
+- لم يُغيّر نموذج الامتحانات ولم تُضف إدارة الامتحانات إلى لوحة التحكم.
+
 
 ## 2026-09-29 — Maintenance & Architecture Cleanup
 
-- فصل Worker router عن منطق الـAPI إلى modules حسب النطاق تحت `backend/src/`.
+- فصل Worker router عن منطق الـAPI إلى modules حسب النطاق تحت `services/api/src/`.
 - تحديث فحوصات CI لتفهم البنية المعيارية الجديدة.
 - حذف `dist/` والوثائق المرحلية/المكررة والملفات Flutter غير المستخدمة.
 - توحيد توثيق بنية الموقع ولوحة الإدارة مع المسارات الحالية.
@@ -26,7 +23,7 @@
 
 - فصل CI عن Production Release في GitHub Actions.
 - تجهيز GitHub Releases رسمية تحتوي على APK وAAB وSHA-256 checksums فقط.
-- إضافة `.env.example` حقيقي كمرجع للإعدادات المحلية، مع `backend/.dev.vars.example` لأسرار Wrangler المحلية.
+- إضافة `.env.example` حقيقي كمرجع للإعدادات المحلية، مع `services/api/.dev.vars.example` لأسرار Wrangler المحلية.
 - إضافة قواعد Git وEditorConfig وDependabot وقالب Pull Request وسياسة Security.
 - توحيد إصدار Worker مع إصدار التطبيق الحالي `2.0.0`.
 
@@ -52,8 +49,8 @@
 
 > التاريخ التفصيلي للميزات السابقة محفوظ في Git history بدل ملفات Stage داخل المستودع.
 
-## 2026-10-18 — Unified moderation inbox
-
-- Added `GET /api/v1/admin/moderation/inbox` to combine student suggestions/general reports and public chat reports in a normalized newest-first feed with type/view filters.
-- Added a durable `archived` state to feedback and chat report records through migration `0044_moderation_archive.sql`; existing records are preserved and `dismissed` remains distinct.
-- Kept the existing student submission endpoints and type-specific review actions. Archiving a chat report does not automatically alter the reported message.
+## Batch 12 — Eino retrieval confidence and exam administration
+- Added confidence-aware filtering to Eino lexical retrieval to reduce weak partial matches when stronger chunks are available.
+- Added an Arabic admin exam library page aligned with the department → semester → subject hierarchy. First upload creates the `exams` folder automatically; staff can rename/delete PDFs.
+- Added an Apps Script exam index and guarded Worker endpoints for exam operations, with audit entries. Exam PDFs under the dedicated folder are excluded from the regular study-material reconciliation.
+- No D1 schema migration and no student-side exam model/UI changes.

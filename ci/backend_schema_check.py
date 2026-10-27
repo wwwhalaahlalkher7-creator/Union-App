@@ -6,7 +6,7 @@ import sqlite3
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-BACKEND = ROOT / "backend"
+BACKEND = ROOT / "services/api"
 MIGRATIONS = sorted(BACKEND.glob("migrations/*.sql"))
 INDEX_JS = '\n'.join(p.read_text(encoding='utf-8') for p in (BACKEND / 'src').rglob('*.js'))
 
@@ -26,7 +26,7 @@ required_tables = {
     "students", "departments", "semesters", "subjects", "materials", "schedules",
     "sessions", "staff_users", "notification_targets", "notification_devices",
     "notification_dispatch_queue", "comments", "comment_replies", "reactions",
-    "comment_reactions", "material_progress", "material_progress_events",
+    "comment_reactions", "market_items", "material_progress", "material_progress_events",
     "xp_events", "student_stats", "badges", "student_badges", "eino_memories",
 }
 tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -68,7 +68,7 @@ if "DRIVE_DELETE_FAILED" not in INDEX_JS or "لم يتم حذف سجل D1" not i
 
 # Regression checks for the specific backend fixes.
 checks = {
-    "event comment type": "const table = type === 'activity' ? 'events' : type === 'announcement' ? 'announcements' : type === 'achievement' ? 'achievements' : 'news';",
+    "event comment type": "const table = type === 'event' ? 'events' : type === 'announcement' ? 'announcements' : type === 'achievement' ? 'achievements' : 'news';",
     "student reply cleanup": "DELETE FROM comment_replies WHERE student_id=?",
     "student Eino memory cleanup": "DELETE FROM eino_memories WHERE student_id=?",
     "atomic XP condition": "INSERT INTO xp_events (id, student_id, event_type, source_id, xp)\n    SELECT ?, ?, ?, ?, ?",

@@ -11,7 +11,7 @@ GET /api/v1/health?deep=true
 فرّق بين:
 
 - D1 غير متصل → راجع binding/database/migrations.
-- Eino غير متاح → راجع مزود المهمة المحددة في `backend/wrangler.toml` وأسرار المزود المناسبة (Mistral/Groq/Free.ai) وسجلات Worker.
+- Eino غير متاح → راجع مزود المهمة المحددة في `services/api/wrangler.toml` وأسرار المزود المناسبة (Mistral/Groq/Free.ai) وسجلات Worker.
 - Drive غير مهيأ → راجع `GOOGLE_APPS_SCRIPT_DRIVE_URL` و`GOOGLE_APPS_SCRIPT_DRIVE_TOKEN`.
 - Gmail غير مهيأ → راجع `GOOGLE_APPS_SCRIPT_GMAIL_URL` و`GOOGLE_APPS_SCRIPT_GMAIL_TOKEN`.
 
@@ -30,34 +30,34 @@ GET /api/v1/health?deep=true
 شغّل محليًا:
 
 ```bash
-cd flutter
+cd apps/student
 flutter pub get
 flutter analyze
 flutter test
 ```
 
-إذا كان الفشل في version metadata، افحص `flutter/VERSION` ثم شغّل `tool/sync_version.py`.
+إذا كان الفشل في version metadata، افحص `apps/student/VERSION` ثم شغّل `tool/sync_version.py`.
 
 ## 4. D1 migration تفشل
 
 لا تعدّل migration قديمة. افحص:
 
 ```bash
-cd backend
+cd services/api
 npm run migrate:local
 ```
 
 ثم راجع آخر migration فقط، وعلاقات foreign keys وترتيب الملفات الرقمي.
 
-## 5. Dashboard لا يسجل الدخول
+## 5. تطبيق الإدارة لا يسجل الدخول
 
 تحقق من:
 
 - `POST /api/v1/auth/staff/login`.
 - صحة `user_id` وكلمة المرور.
-- صلاحية session.
-- أن المتصفح يستخدم `/admin/` الصحيح.
-- إدارة النظام تتم عبر تطبيق Flutter `TRINEX-Admin`؛ لا يوجد `website/admin/config.js`. راجع إعداد `TRINEX_API_BASE_URL` في تطبيق الإدارة.
+- صلاحية session وتخزينها الآمن.
+- أن عنوان API الافتراضي في `apps/admin/lib/src/api_service.dart` صحيح.
+- أن Worker والـBackend يعيدان الاستجابة المتوقعة للمسار.
 
 ## 6. الموقع لا يعرض المحتوى
 

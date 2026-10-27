@@ -3,7 +3,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-flutter = ROOT / 'flutter'
+flutter = ROOT / 'apps/student'
 version_file = flutter / 'VERSION'
 pubspec = flutter / 'pubspec.yaml'
 app_version = flutter / 'lib/core/app_version.dart'
@@ -35,7 +35,7 @@ av = app_version.read_text(encoding='utf-8')
 if f"static const name = '{name}';" not in av or f'static const build = {build};' not in av:
     raise SystemExit('app_version.dart is out of sync with VERSION')
 
-for path in list((flutter / 'lib').rglob('*')) + list((ROOT / 'backend' / 'src').rglob('*')):
+for path in list((flutter / 'lib').rglob('*')) + list((ROOT / 'services/api' / 'src').rglob('*')):
     if path.suffix not in {'.dart', '.js'}:
         continue
     text = path.read_text(encoding='utf-8', errors='ignore').lower()

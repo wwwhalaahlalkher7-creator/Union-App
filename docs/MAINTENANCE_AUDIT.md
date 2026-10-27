@@ -5,8 +5,8 @@
 - Removed generated website `dist/` from the source package.
 - Removed unused Flutter screens/widgets and obsolete UX stage documentation.
 - Removed the duplicate backend database-schema document; `docs/DATABASE_SCHEMA.md` remains canonical.
-- Corrected website documentation to the current تطبيق Flutter المستقل `TRINEX-Admin` layout and `ci.yml` deployment path.
-- Split the Cloudflare Worker implementation into domain modules while keeping `backend/src/index.js` as the HTTP router/entry point.
+- The supplied source snapshot uses a public-only website; the native administration UI is maintained in `apps/admin/`, and the Worker rejects `/admin/`.
+- Split the Cloudflare Worker implementation into domain modules while keeping `services/api/src/index.js` as the HTTP router/entry point.
 - Updated CI checks to inspect the modular backend instead of assuming implementation lives in `index.js`.
 
 ## Backend modules

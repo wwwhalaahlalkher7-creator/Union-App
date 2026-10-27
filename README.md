@@ -1,135 +1,118 @@
-# TRINEX — منصة رابطة كلية الهندسة والعمارة
+# TRINEX Monorepo
 
-منصة تتكوّن من تطبيق Flutter للطلاب، وموقع ويب عام، وتطبيق إدارة مستقل TRINEX-Admin، وواجهة API موحّدة على Cloudflare Workers مع D1.
+المستودع الموحد لمنصة TRINEX: تطبيق الطلاب، تطبيق الإدارة، الـBackend، والموقع العام. بدأ هذا المستودع بتاريخ Git جديد كما تقرر؛ لا يحتوي على تاريخ المستودعات السابقة.
 
-> **هدف هذا الملف:** يكون نقطة البداية الوحيدة لأي مطوّر أو مسؤول صيانة جديد. تفاصيل التنفيذ التاريخية لم تعد تُحفظ كـ README لكل مرحلة؛ Git history يحتفظ بالتاريخ، بينما مجلد `docs/` يصف الحالة التشغيلية الحالية فقط.
+## الإصدارات المعتمدة
 
-## المكوّنات
+- **تطبيق الطلاب:** `2.0.3+2`، الإصدار العام `v2.0.3`. المصدر المعتمد: `apps/student/VERSION`.
+- **تطبيق الإدارة:** `1.1.0+1`، الإصدار العام `v1.1.0`. المصدر الحالي: `apps/admin/pubspec.yaml`.
+- **Backend API:** `v1`؛ لم يتغير عقد API بسبب نقل المستودع.
 
-```text
-TRINEX
-├── flutter/                 تطبيق Android (Flutter)
-├── backend/                 API + D1 + Eino gateway + Drive/Gmail adapters
-├── website/                 الموقع العام فقط
-├── ci/                      فحوصات العقود والأمان والإصدار
-├── docs/                    الوثائق التشغيلية الحالية
-└── .github/workflows/       CI/CD
-```
-
-## قرار الإدارة الموحد\n\nإدارة النظام بالكامل عبر تطبيق Flutter الأصلي `TRINEX-Admin` فقط. مجلد تطبيق Flutter المستقل `TRINEX-Admin` محذوف، ومسار `/admin` يعيد 404، وبناء الموقع لا ينشر أي واجهة إدارة. الموقع العام وAPI وتدفق نشرهما مستقلون عن تطبيق الإدارة.\n\n## Source of Truth
-
-| المجال | المصدر |
-|---|---|
-| إصدار التطبيق | `flutter/VERSION` |
-| منطق Flutter | `flutter/lib/` |
-| API | `backend/src/index.js` |
-| مخطط D1 والتغييرات | `backend/migrations/` |
-| إعداد Worker | `backend/wrangler.toml` |
-| الموقع العام | `website/` |
-| لوحة الإدارة | تطبيق Flutter المستقل `TRINEX-Admin/` |
-| فحوصات الجودة | `ci/` |
-| أسرار الإنتاج | GitHub Actions / Cloudflare Secrets فقط |
-
-## البنية التشغيلية
+## بنية المستودع
 
 ```text
-Android Flutter ─┐
-                 ├──> TRINEX API (Cloudflare Worker) ──> D1
-Public Website ──┤                                  ├──> TRINEX Drive (Google Apps Script) → Google Drive
-                 ├──> TRINEX Gmail (Google Apps Script) → Gmail
-TRINEX-Admin ───┘                                  └──> Free.ai → Eino models
+TRINEX/
+├── apps/
+│   ├── student/       # Flutter student app
+│   └── admin/         # Flutter administration app (Android + Windows)
+├── services/
+│   └── api/           # Cloudflare Worker + D1 migrations
+├── web/
+│   └── portal/        # Public website + static asset Worker
+├── ci/                # Existing cross-project integrity/security checks
+├── docs/              # Platform and release documentation
+├── .github/workflows/ # Central CI/CD workflows
+├── build.js           # Website distribution builder
+└── package.json       # Root web/portal/tooling scripts
 ```
 
-المسار العام للتطبيق والموقع هو **TRINEX API**. Google Apps Script مقسوم إلى خدمتين مستقلتين: **TRINEX Drive** للمواد الدراسية و**TRINEX Gmail** للبريد. Worker هو الوسيط الوحيد بين التطبيق/الموقع والخدمتين.
+## مبادئ تنظيم المستودع
 
-## الحالة الحالية
+1. لكل تطبيق Flutter تبعياته واختباراته وإصداره المستقل.
+2. النشر إلى Cloudflare Worker والموقع لا يُفترض أن يحدث عند تغيير تطبيق الإدارة فقط.
+3. تغيير API أو migrations يجب أن يكون متوافقًا مع العملاء؛ اختبارات العقود موجودة في `ci/`.
+4. أسرار الإنتاج ومفاتيح Android تبقى في GitHub Secrets / Cloudflare Secrets ولا توضع في الملفات.
+5. لا تُعدّل migrations مطبّقة على الإنتاج؛ أضف migration جديدة.
+6. لم يتم نقل تاريخ Git القديم عمدًا. هذا مجلد عمل ببداية تاريخ جديدة؛ يجب ربطه بمستودع GitHub جديد أو استبدال محتويات المستودع المقصود بعد أخذ نسخة احتياطية.
 
-- Flutter version: `2.0.2+1` من `flutter/VERSION`.
-- Backend API: `v1`.
-- Android Application ID: `com.leoassociation.app`.
-- Eino يمر عبر TRINEX API إلى سلسلة مزودين قابلة للاستبدال (Mistral ثم Groq ثم Free.ai كاحتياطي حسب القدرة والمهمة)؛ مفاتيح المزود لا تدخل التطبيق.
-- الإعلانات التجارية القديمة غير مفعلة.
-- Student authentication اختياري لبدء التطبيق، بينما الخدمات الدراسية المحمية تتطلب جلسة صالحة.
-
-## بدء الصيانة
-
-1. اقرأ `docs/ARCHITECTURE.md` لفهم الحدود بين المكوّنات.
-2. اقرأ `docs/CONFIGURATION.md` قبل لمس أي secret أو متغير إنتاج.
-3. اقرأ `docs/DEVELOPMENT.md` للأوامر والفحوصات.
-4. عند الإصدار، اتبع `docs/RELEASE.md` فقط.
-5. عند عطل إنتاجي، ابدأ من `docs/TROUBLESHOOTING.md`.
-
-## أهم أوامر التحقق
-
-### Flutter
+## تشغيل تطبيق الطلاب
 
 ```bash
-cd flutter
+cd apps/student
 flutter pub get
 flutter analyze
 flutter test
 flutter build apk --release
-flutter build appbundle --release
 ```
 
-### Backend
+الإصدار الرسمي لتطبيق الطلاب يقرأ من `apps/student/VERSION`. بعد تعديل القيمة، شغّل:
 
 ```bash
-cd backend
+python3 tool/sync_version.py
+```
+
+## تشغيل تطبيق الإدارة
+
+```bash
+cd apps/admin
+flutter pub get
+flutter analyze --no-fatal-infos
+flutter test
+flutter build apk --release
+flutter build windows --release  # Windows host
+```
+
+إصدار التطبيق مضبوط حاليًا في `apps/admin/pubspec.yaml` كـ `1.1.0+1`.
+
+## Backend
+
+```bash
+cd services/api
 npm install --no-audit --no-fund
 npm run check
 npm run migrate:local
 ```
 
-### Website packaging
+لا تنفذ `migrate:remote` إلا بعد مراجعة التغييرات والتأكد من بيئة الإنتاج.
+
+## Website
+
+من جذر المستودع:
 
 ```bash
+npm ci --ignore-scripts --no-audit --no-fund
 npm run build
 ```
 
-### عقود المشروع
+ينتج البناء ملفات التوزيع داخل `dist/`، ولا تُحفظ ملفات `dist/` في Git.
+
+## فحوصات المشروع
+
+من جذر المستودع، يمكن تشغيل فحوصات سلامة المشروع والعقود:
 
 ```bash
 python3 ci/verify_project.py
-python3 ci/release_check.py
-python3 ci/final_release_check.py
-python3 ci/admin_crud_check.py
-python3 ci/auth_hardening_check.py
-python3 ci/eino_dashboard_check.py
+python3 ci/workflow_consistency_check.py
+python3 ci/version_consistency_check.py
+python3 ci/admin_version_check.py
+python3 ci/backend_api_contract_check.py
 python3 ci/web_security_check.py
-python3 ci/xss_dom_check.py
-python3 ci/flutter_secure_storage_check.py
 ```
 
-## النشر والإصدارات
+## GitHub Actions
 
-`main` مخصص للتحقق المستمر (CI). الإصدار الإنتاجي يتم عبر GitHub Actions عند إنشاء tag من نوع `vMAJOR.MINOR.PATCH` أو تشغيل Release يدويًا. ينتج الـRelease الرسمي APK وAAB موقّعين وملف `SHA256SUMS.txt` ويضعها في GitHub Releases.
+- `ci.yml`: فحوصات الطلاب وBackend والويب. تغييرات كل مكوّن تُحدد قبل تشغيل خطوات النشر لتجنب نشر API أو الموقع بسبب تغيير تطبيق الإدارة وحده.
+- `admin-ci.yml`: تحليل واختبارات تطبيق الإدارة، وبناء APK وWindows.
+- `release.yml`: إصدار تطبيق الطلاب عند تأكيد الإصدار يدويًا.
 
-أسرار الإنتاج تبقى داخل GitHub Secrets / Cloudflare Secrets. لا تُرفع ملفات `.env` أو مفاتيح Android أو مفاتيح المزودين إلى Git.
+قبل تفعيل النشر في مستودع جديد، أعد إعداد GitHub Secrets / Variables المطلوبة في `docs/CONFIGURATION.md` وراجع `docs/DEPLOYMENT.md`. لم يتم تنفيذ نشر فعلي أو الاتصال بخدمات الإنتاج خلال إعداد هذا المستودع.
 
-للتفاصيل: `docs/DEPLOYMENT.md` و`docs/RELEASE.md`.
+## مستندات أساسية
 
-## سياسة التغيير
-
-- لا تعدّل نفس المعلومة في أكثر من مصدر للحقيقة.
-- لا تضع بيانات تشغيلية ثابتة داخل Flutter أو الموقع إذا كان مكانها الطبيعي D1/Dashboard.
-- لا تضف endpoint جديدًا دون تحديث عقد API والاختبارات المناسبة.
-- لا تغيّر `applicationId` أو مفتاح توقيع الإنتاج أثناء إصدار تحديث.
-- لا تحذف migration مطبقة على الإنتاج؛ أضف migration جديدة.
-- احذف الوثائق المرحلية القديمة بدل إعادة استخدامها كمرجع للحالة الحالية.
-
-## الترخيص والبيانات
-
-هذا المستودع مخصص لمشروع TRINEX. لا تضع فيه بيانات طلاب حقيقية، كلمات مرور، مفاتيح API، ملفات keystore، أو exports حساسة.
-
-## Eino Offline AI foundation
-
-Eino uses the configured online assistant service. The Android-local GGUF/llama.cpp model runtime and local-model manager have been removed from the Flutter app.
-
-Model download sources are intentionally not hardcoded. Configure a trusted catalog through `EINO_MODEL_CATALOG_JSON` in the Worker environment; each model entry may provide `downloadUrl` and `sha256`. Until those values are configured, the app will not download an unverified model.
-
-The local runtime requires Android API 26+ and ARM64 models are the initial catalog target.
-
-## Usage analytics (phase 1)
-
-The anonymous usage analytics implementation is documented in `docs/USAGE_ANALYTICS.md`. It adds `POST /api/v1/usage/events`, the super-admin-only aggregate report `GET /api/v1/admin/analytics/overview?days=7`, D1 migration `0039_usage_analytics.sql`, website page-view instrumentation, and native-app screen-view instrumentation. Apply the D1 migration and deploy the Worker before expecting real metrics in TRINEX-Admin. The analytics layer does not record account IDs, IP addresses, user agents, search terms, message bodies, file contents, or URL query strings.
+- `docs/ARCHITECTURE.md` — معمارية النظام.
+- `docs/CONFIGURATION.md` — متغيرات الإعداد والأسرار.
+- `docs/DEVELOPMENT.md` — التطوير المحلي.
+- `docs/DEPLOYMENT.md` — النشر.
+- `docs/RELEASE.md` — إصدار تطبيق الطلاب.
+- `apps/admin/docs/ARCHITECTURE.md` — معمارية تطبيق الإدارة.
+- `docs/MONOREPO_MIGRATION.md` — ما تغيّر عند إنشاء المستودع الموحد.

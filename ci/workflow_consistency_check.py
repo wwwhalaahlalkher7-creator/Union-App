@@ -48,30 +48,17 @@ if 'npx wrangler deploy' not in ci:
 if 'npx wrangler deploy' in release:
     raise SystemExit('Production app release must not deploy the backend')
 
-if 'releases/latest/download/TRINEX.apk' not in (ROOT / 'website/download.html').read_text(encoding='utf-8'):
+if 'releases/latest/download/TRINEX.apk' not in (ROOT / 'web/portal/download.html').read_text(encoding='utf-8'):
     raise SystemExit('Download page must use the stable GitHub latest APK URL')
 
-if 'downloads/release.json' in (ROOT / 'website/download.html').read_text(encoding='utf-8'):
+if 'downloads/release.json' in (ROOT / 'web/portal/download.html').read_text(encoding='utf-8'):
     raise SystemExit('Download page must not depend on website-side release.json')
 
-# The only permitted clean-slate operation is narrowly scoped to deleting the retired
-# remote /admin directory. Never allow it for the public website root or app release.
-cleanup_start = ci.find('      - name: Remove legacy web admin from hosting')
-cleanup_end = ci.find('      - name: Deploy website on main', cleanup_start)
-cleanup_block = ci[cleanup_start:cleanup_end] if cleanup_start >= 0 and cleanup_end >= 0 else ''
-if 'dangerous-clean-slate: true' in release:
-    raise SystemExit('Production app release must not use dangerous-clean-slate: true')
-if 'dangerous-clean-slate: true' in ci and not (
-    'local-dir: ./ci/empty-admin/' in cleanup_block and
-    'server-dir: /ush-eng.great-site.net/htdocs/admin/' in cleanup_block and
-    'dangerous-clean-slate: true' in cleanup_block
-):
-    raise SystemExit('Clean-slate is only allowed for the retired /htdocs/admin/ directory')
-if 'dangerous-clean-slate: true' in ci.replace(cleanup_block, ''):
-    raise SystemExit('Public website deployment must not use dangerous-clean-slate: true')
+if 'dangerous-clean-slate: true' in ci + release:
+    raise SystemExit('Production website deployment must not use dangerous-clean-slate: true')
 
-core = (ROOT / 'backend/src/core.js').read_text(encoding='utf-8')
-media = (ROOT / 'backend/src/media.js').read_text(encoding='utf-8')
+core = (ROOT / 'services/api/src/core.js').read_text(encoding='utf-8')
+media = (ROOT / 'services/api/src/media.js').read_text(encoding='utf-8')
 m = re.search(r'R2_MAX_UPLOAD_FILES_PER_REQUEST\s*=\s*(\d+)', core)
 if not m or 'R2_MAX_UPLOAD_FILES_PER_REQUEST' not in media:
     raise SystemExit('R2 upload file-count guard must be centralized in core.js and consumed by media.js')

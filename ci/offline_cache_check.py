@@ -4,9 +4,9 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-api = (ROOT / 'flutter/lib/core/network/api_client.dart').read_text(encoding='utf-8')
-app = (ROOT / 'flutter/lib/app/app.dart').read_text(encoding='utf-8')
-cache = (ROOT / 'flutter/lib/core/network/offline_cache.dart').read_text(encoding='utf-8')
+api = (ROOT / 'apps/student/lib/core/network/api_client.dart').read_text(encoding='utf-8')
+app = (ROOT / 'apps/student/lib/app/app.dart').read_text(encoding='utf-8')
+cache = (ROOT / 'apps/student/lib/core/network/offline_cache.dart').read_text(encoding='utf-8')
 
 checks = {
     'persistent offline cache': 'OfflineCache.instance.write' in api and 'OfflineCache.instance.read' in api,

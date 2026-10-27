@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 errors = []
 
 version_values = []
-for line in (ROOT / 'flutter/VERSION').read_text(encoding='utf-8').splitlines():
+for line in (ROOT / 'apps/student/VERSION').read_text(encoding='utf-8').splitlines():
     stripped = line.strip()
     if not stripped or stripped.startswith('#'):
         continue
@@ -23,9 +23,9 @@ if not m:
 else:
     semver = '.'.join(m.group(i) for i in range(1, 4))
     code = int(m.group(4))
-    pub = (ROOT / 'flutter/pubspec.yaml').read_text(encoding='utf-8')
-    av = (ROOT / 'flutter/lib/core/app_version.dart').read_text(encoding='utf-8')
-    gradle = (ROOT / 'flutter/android/app/build.gradle').read_text(encoding='utf-8')
+    pub = (ROOT / 'apps/student/pubspec.yaml').read_text(encoding='utf-8')
+    av = (ROOT / 'apps/student/lib/core/app_version.dart').read_text(encoding='utf-8')
+    gradle = (ROOT / 'apps/student/android/app/build.gradle').read_text(encoding='utf-8')
     if f'version: {semver}+{code}' not in pub:
         errors.append('pubspec version mismatch')
     if f"static const name = '{semver}';" not in av or f'static const build = {code};' not in av:
@@ -38,7 +38,7 @@ else:
 # Apply every migration in lexical order to a clean SQLite database.
 try:
     con = sqlite3.connect(':memory:')
-    migrations = sorted((ROOT / 'backend/migrations').glob('*.sql'))
+    migrations = sorted((ROOT / 'services/api/migrations').glob('*.sql'))
     for path in migrations:
         con.executescript(path.read_text(encoding='utf-8'))
     table_count = con.execute("select count(*) from sqlite_master where type='table'").fetchone()[0]
@@ -48,7 +48,7 @@ except Exception as exc:
     errors.append(f'Migration check failed: {exc}')
 
 # Production security invariants.
-backend_source = '\n'.join(p.read_text(encoding='utf-8') for p in (ROOT / 'backend/src').rglob('*.js'))
+backend_source = '\n'.join(p.read_text(encoding='utf-8') for p in (ROOT / 'services/api/src').rglob('*.js'))
 if 'const ADMIN_ROLE_PERMISSIONS = Object.freeze({' not in backend_source:
     errors.append('Missing centralized admin role permission map')
 if 'if(!ADMIN_ROLE_IDS.has(role))' not in backend_source or 'if(!ADMIN_ROLE_IDS.has(nextRole))' not in backend_source:
@@ -81,9 +81,7 @@ if "mode:'hard_delete'" not in backend_source:
 
 # Active operational source must not contain retired provider/ad architecture.
 legacy_tokens = ('ad-manager', 'airtable')
-if (ROOT / 'website/admin').exists():
-    errors.append('Legacy web admin must be removed; use TRINEX-Admin Flutter app')
-for base in (ROOT / 'flutter/lib', ROOT / 'backend/src'):
+for base in (ROOT / 'apps/student/lib', ROOT / 'apps/admin/lib', ROOT / 'services/api/src'):
     for path in base.rglob('*'):
         if path.suffix not in {'.dart', '.js', '.ts', '.html', '.css'}:
             continue

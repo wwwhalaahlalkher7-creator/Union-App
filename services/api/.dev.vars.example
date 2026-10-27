@@ -1,0 +1,15 @@
+# Wrangler local development secrets.
+# Copy to services/api/.dev.vars and replace placeholders.
+# services/api/.dev.vars is ignored by Git.
+
+FREE_AI_API_KEY=""
+FREE_AI_BASE_URL=""
+MISTRAL_API_KEY=""
+GROQ_API_KEY=""
+EINO_EMBEDDING_API_KEY=""
+GOOGLE_APPS_SCRIPT_DRIVE_TOKEN=""
+GOOGLE_APPS_SCRIPT_GMAIL_TOKEN=""
+STAFF_BOOTSTRAP_TOKEN=""
+CHROMA_TOKEN=""
+
+# Student password recovery is delivered by the existing Google Apps Script adapter.

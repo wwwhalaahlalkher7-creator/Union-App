@@ -1,7 +1,7 @@
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
-src='\n'.join(p.read_text() for p in (root/'backend/src').rglob('*.js'))
-mg=(root/'backend/migrations/0017_eino_observability.sql').read_text()
+src='\n'.join(p.read_text() for p in (root/'services/api/src').rglob('*.js'))
+mg=(root/'services/api/migrations/0017_eino_observability.sql').read_text()
 checks={
  'telemetry table':'CREATE TABLE IF NOT EXISTS eino_telemetry' in mg,
  'hourly unique bucket':'UNIQUE(bucket_started_at, event_type, actor_type)' in mg,

@@ -2,9 +2,9 @@
 .env
 .env.*
 !.env.example
-backend/.dev.vars
-backend/.dev.vars.*
-!backend/.dev.vars.example
+services/api/.dev.vars
+services/api/.dev.vars.*
+!services/api/.dev.vars.example
 *.pem
 *.p12
 *.jks
@@ -18,16 +18,16 @@ yarn-debug.log*
 yarn-error.log*
 
 # Flutter / Dart
-flutter/.dart_tool/
-flutter/.flutter-plugins
-flutter/.flutter-plugins-dependencies
-flutter/.packages
-flutter/.pub-cache/
-flutter/build/
-flutter/coverage/
-flutter/.idea/
-flutter/.vscode/
-flutter/*.iml
+apps/student/.dart_tool/
+apps/student/.flutter-plugins
+apps/student/.flutter-plugins-dependencies
+apps/student/.packages
+apps/student/.pub-cache/
+apps/student/build/
+apps/student/coverage/
+apps/student/.idea/
+apps/student/.vscode/
+apps/student/*.iml
 
 # General build / coverage
 build/
@@ -53,3 +53,31 @@ test-results/
 
 # Generated release artifacts
 release-assets/
+
+# Admin Flutter generated files
+apps/admin/.dart_tool/
+apps/admin/.flutter-plugins
+apps/admin/.flutter-plugins-dependencies
+apps/admin/.packages
+apps/admin/build/
+apps/admin/coverage/
+apps/admin/android/local.properties
+apps/admin/android/key.properties
+apps/admin/android/upload-keystore.jks
+apps/admin/windows/flutter/ephemeral/
+
+# Student Android local/secret material
+apps/student/android/local.properties
+apps/student/android/key.properties
+apps/student/android/upload-keystore.jks
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Package-manager/cache and tool outputs
+.pnpm-store/
+.parcel-cache/

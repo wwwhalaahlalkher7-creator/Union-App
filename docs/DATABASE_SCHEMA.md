@@ -39,8 +39,6 @@ This document is the canonical human-readable map of the D1 schema. Migration fi
 
 **Drive deletion policy:** deleting a material/subject first deletes the corresponding Drive files. If Drive deletion fails, D1 deletion is aborted and a `502 DRIVE_DELETE_FAILED` response is returned.
 
-The `student_feedback_reports` table stores student suggestions and reports separately from chat-message reports, with status, category, timestamps, and optional admin review notes. See migration `0043_student_feedback.sql`.
-
 ## 4. Community & interactions
 
 | Table | Responsibility | Main relations |

@@ -9,15 +9,14 @@ provided by Theme.of(context).colorScheme.
 from pathlib import Path
 import re, sys
 
-root = Path('flutter/lib')
+root = Path('apps/student/lib')
 theme_files = {
-    Path('flutter/lib/core/theme/app_theme.dart'),
-    Path('flutter/lib/core/theme/design_tokens.dart'),
+    Path('apps/student/lib/core/theme/app_theme.dart'),
+    Path('apps/student/lib/core/theme/design_tokens.dart'),
 }
 allow = {
-    Path('flutter/lib/features/eino/eino_face.dart'),
-    Path('flutter/lib/features/tools/tools_screen.dart'),
-    Path('flutter/lib/features/tools/resistor_calculator_tab.dart'),
+    Path('apps/student/lib/features/eino/eino_face.dart'),
+    Path('apps/student/lib/features/tools/tools_screen.dart'),
 }
 hex_re = re.compile(r'\b(?:const\s+)?Color\(0x[0-9A-Fa-f]{8}\)')
 violations = []

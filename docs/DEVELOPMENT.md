@@ -11,7 +11,7 @@
 ## Flutter
 
 ```bash
-cd flutter
+cd apps/student
 flutter pub get
 flutter analyze
 flutter test
@@ -24,17 +24,17 @@ flutter build apk --release
 flutter build appbundle --release
 ```
 
-الإصدار يُغيّر من `flutter/VERSION` فقط، ثم تتم مزامنة `pubspec.yaml` و`lib/core/app_version.dart` عبر:
+الإصدار يُغيّر من `apps/student/VERSION` فقط، ثم تتم مزامنة `pubspec.yaml` و`lib/core/app_version.dart` عبر:
 
 ```bash
-cd flutter
+cd apps/student
 python3 tool/sync_version.py
 ```
 
 ## Backend
 
 ```bash
-cd backend
+cd services/api
 npm install --no-audit --no-fund
 npm run check
 npm run migrate:local
@@ -43,7 +43,7 @@ npm run migrate:local
 للتطوير المحلي:
 
 ```bash
-cd backend
+cd services/api
 npm run dev
 ```
 
@@ -52,13 +52,13 @@ npm run dev
 إنشاء migration جديدة:
 
 ```text
-backend/migrations/0019_short_description.sql
+services/api/migrations/0019_short_description.sql
 ```
 
 اختبارها محليًا:
 
 ```bash
-cd backend
+cd services/api
 npm run migrate:local
 ```
 

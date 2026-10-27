@@ -1,0 +1,220 @@
+name: TRINEX Admin CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'apps/admin/**'
+      - 'ci/**'
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'apps/admin/**'
+      - 'ci/**'
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trinex-admin-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Verify release version
+        working-directory: .
+        run: python3 ci/admin_version_check.py
+      - name: Format Dart sources
+        run: dart format lib test
+      - name: Static analysis
+        run: flutter analyze --no-fatal-infos
+      - name: Unit and widget tests
+        run: flutter test
+
+  build-android:
+    name: Build Android APK
+    needs: verify
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Android scaffolding
+        run: flutter create --platforms=android,windows .
+      - name: Ensure Android internet permission
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import re
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          if not manifest.exists():
+              raise SystemExit(f"Android manifest was not generated: {manifest}")
+          text = manifest.read_text()
+          permission = '    <uses-permission android:name="android.permission.INTERNET"/>'
+          if "android.permission.INTERNET" not in text:
+              match = re.search(r"<manifest\b[^>]*>", text)
+              if not match:
+                  raise SystemExit("Could not find the opening <manifest> tag.")
+              text = text[:match.end()] + "\n" + permission + text[match.end():]
+              manifest.write_text(text)
+          if "android.permission.INTERNET" not in manifest.read_text():
+              raise SystemExit("Android INTERNET permission is missing.")
+          print("Android INTERNET permission is present.")
+          PYCODE
+      - name: Setup Java 17 with Gradle cache
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Generate Android launcher icons
+        run: dart run flutter_launcher_icons
+      - name: Set Android app display name
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          path = Path("android/app/src/main/AndroidManifest.xml")
+          content = path.read_text()
+          content = content.replace('android:label="trinex_admin"', 'android:label="TRINEX Admin"')
+          content = content.replace('android:label="trinex admin"', 'android:label="TRINEX Admin"')
+          path.write_text(content)
+          if 'android:label="TRINEX Admin"' not in content:
+              raise SystemExit("Could not set Android app display name.")
+          PYCODE
+      - name: Set Android compile SDK to 36
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import re
+          candidates = [Path('android/app/build.gradle.kts'), Path('android/app/build.gradle')]
+          found = False
+          for path in candidates:
+              if not path.exists():
+                  continue
+              content = path.read_text()
+              updated, count = re.subn(r'(?m)^([ \t]*)compileSdk\s*=\s*[^\n]+', r'\g<1>compileSdk = 36', content, count=1)
+              if not count:
+                  updated, count = re.subn(r'(?m)^([ \t]*)compileSdkVersion\s+[^\n]+', r'\g<1>compileSdkVersion 36', content, count=1)
+              if count:
+                  path.write_text(updated)
+                  found = True
+              elif re.search(r'compileSdk\s*=\s*36\b|compileSdkVersion\s+36\b', content):
+                  found = True
+          if not found:
+              raise SystemExit('Could not set Android compileSdk to 36.')
+          PYCODE
+      - name: Enforce compile SDK 36 for Flutter Android plugins
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import json, re
+          from urllib.parse import unquote, urlparse
+
+          config = Path('.dart_tool/package_config.json')
+          if not config.exists():
+              raise SystemExit('Flutter package_config.json is missing.')
+          data = json.loads(config.read_text())
+          package_roots = {}
+          for package in data.get('packages', []):
+              uri = package.get('rootUri', '')
+              if uri.startswith('file:'):
+                  root = Path(unquote(urlparse(uri).path))
+              else:
+                  root = (config.parent / unquote(uri)).resolve()
+              package_roots[package.get('name', '')] = root
+
+          for name in ('file_picker', 'flutter_plugin_android_lifecycle'):
+              root = package_roots.get(name)
+              if not root:
+                  raise SystemExit(f'Flutter package {name} was not found.')
+              gradle_files = list(root.glob('android/build.gradle')) + list(root.glob('android/build.gradle.kts'))
+              if not gradle_files:
+                  raise SystemExit(f'Gradle file for {name} was not found.')
+              for path in gradle_files:
+                  content = path.read_text()
+                  if path.name.endswith('.kts'):
+                      updated, count = re.subn(r'(?m)^([ \t]*)compileSdk(?:Version)?\b[^\n]*$', r'\g<1>compileSdk = 36', content)
+                  else:
+                      updated, count = re.subn(r'(?m)^([ \t]*)compileSdk(?:Version)?\b[^\n]*$', r'\g<1>compileSdkVersion 36', content)
+                  if count:
+                      path.write_text(updated)
+                  content = path.read_text()
+                  if not re.search(r'(?m)^\s*compileSdk(?:Version)?(?:\s*=)?\s*36\b', content):
+                      raise SystemExit(f'Could not enforce compileSdk 36 in {path}.')
+          PYCODE
+      - name: Build release APK
+        run: flutter build apk --release
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: trinex-admin-android-apk
+          path: apps/admin/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  build-windows:
+    name: Build Windows desktop
+    needs: verify
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Windows scaffolding
+        run: flutter create --platforms=android,windows .
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Generate Windows launcher icon
+        run: dart run flutter_launcher_icons
+      - name: Set Windows app display name
+        shell: pwsh
+        run: |
+          $path = "windows/runner/main.cpp"
+          if (Test-Path $path) {
+            $content = Get-Content $path -Raw
+            $content = $content.Replace('window.Create(L"trinex_admin"', 'window.Create(L"TRINEX Admin"')
+            Set-Content -Path $path -Value $content -NoNewline
+          }
+      - name: Build Windows release
+        run: flutter build windows --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trinex-admin-windows
+          path: apps/admin/build/windows/x64/runner/Release/**
+          if-no-files-found: error
+          retention-days: 14
+

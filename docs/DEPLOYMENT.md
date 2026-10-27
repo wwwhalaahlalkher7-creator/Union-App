@@ -30,7 +30,7 @@ Workflow: `.github/workflows/ci.yml` (job: `flutter`)
 
 Workflow: `.github/workflows/release.yml`
 
-يقرأ `flutter/VERSION`، يتحقق من version/build، ثم يبني APK وAAB موقّعين بمفتاح الإنتاج وينشرهما في GitHub Releases. الملف الرسمي الذي يستهدفه زر التنزيل اسمه دائمًا `TRINEX.apk`، وتُحفظ معه نسخة مضغوطة `TRINEX.zip`.
+يقرأ `apps/student/VERSION`، يتحقق من version/build، ثم يبني APK وAAB موقّعين بمفتاح الإنتاج وينشرهما في GitHub Releases. الملف الرسمي الذي يستهدفه زر التنزيل اسمه دائمًا `TRINEX.apk`، وتُحفظ معه نسخة مضغوطة `TRINEX.zip`.
 
 رابط التنزيل الثابت في الموقع هو:
 

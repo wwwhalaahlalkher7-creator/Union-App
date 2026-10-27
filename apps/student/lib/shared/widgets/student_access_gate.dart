@@ -1,0 +1,99 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/localization/app_localizations.dart';
+
+import '../../core/storage/auth_storage.dart';
+import 'app_card.dart';
+
+/// Keeps student-only features explicit instead of waiting for a 401 response.
+/// Authentication remains owned by AuthStorage; this widget only decides what
+/// should be rendered before a protected repository is initialized.
+class StudentAccessGate extends StatefulWidget {
+  const StudentAccessGate({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  State<StudentAccessGate> createState() => _StudentAccessGateState();
+}
+
+class _StudentAccessGateState extends State<StudentAccessGate> {
+  late final Future<bool> _accessFuture = _readAccess();
+
+  Future<bool> _readAccess() async {
+    final storage = await AuthStorage.create();
+    return await storage.isLoggedIn;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return FutureBuilder<bool>(
+      future: _accessFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Scaffold(
+            appBar: AppBar(title: Text(l10n.t('studentServices'))),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.data == true) return widget.child;
+
+        return Scaffold(
+          appBar: AppBar(title: Text(l10n.t('studentServices'))),
+          body: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(18.4),
+              child: AppCard(
+                padding: const EdgeInsets.all(22.08),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: .11),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.lock_outline_rounded, size: 34, color: Theme.of(context).colorScheme.primary),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      l10n.t('studentServicesLockedTitle'),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.t('studentServicesLockedSubtitle'),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: () => context.push('/login'),
+                          icon: const Icon(Icons.login_rounded, size: 18),
+                          label: Text(l10n.t('signIn')),
+                        ),
+                        const SizedBox(width: 10),
+                        OutlinedButton.icon(
+                          onPressed: () => context.push('/register'),
+                          icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                          label: Text(l10n.t('createAccount')),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

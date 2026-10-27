@@ -15,12 +15,79 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  flutter:
-    name: Flutter Analyze, Test & Signed Artifacts
+  changes:
+    name: Detect changed components
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: flutter
+    outputs:
+      student: ${{ steps.detect.outputs.student }}
+      admin: ${{ steps.detect.outputs.admin }}
+      backend: ${{ steps.detect.outputs.backend }}
+      website: ${{ steps.detect.outputs.website }}
+      shared: ${{ steps.detect.outputs.shared }}
+      backend_deploy: ${{ steps.detect.outputs.backend_deploy }}
+      website_deploy: ${{ steps.detect.outputs.website_deploy }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect affected components
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          student=false; admin=false; backend=false; website=false; shared=false
+          backend_deploy=false; website_deploy=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            student=true; admin=true; backend=true; website=true; shared=true
+          elif [[ "$EVENT_NAME" == "push" && ( -z "$BEFORE_SHA" || "$BEFORE_SHA" =~ ^0+$ ) ]]; then
+            # On the first push into a fresh-history repository, validate every component
+            # but do not auto-deploy production as a side effect of bootstrapping the repo.
+            student=true; admin=true; backend=true; website=true; shared=true
+          else
+            if [[ "$EVENT_NAME" == "pull_request" ]]; then
+              base="$BASE_SHA"
+            else
+              base="$BEFORE_SHA"
+            fi
+            if [[ -z "${base:-}" ]] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+              student=true; admin=true; backend=true; website=true; shared=true
+            else
+              changed="$(git diff --name-only "$base" "$HEAD_SHA")"
+              printf 'Changed files:\n%s\n' "$changed"
+              while IFS= read -r file; do
+                [[ -z "$file" ]] && continue
+                case "$file" in
+                  apps/student/*) student=true ;;
+                  apps/admin/*) admin=true ;;
+                  services/api/*) backend=true ;;
+                  web/portal/*) website=true ;;
+                  ci/*|.github/*|README.md|CONTRIBUTING.md|SECURITY.md|.gitignore|.gitattributes|.env.example|package.json|package-lock.json|build.js|docs/*) shared=true ;;
+                esac
+              done <<< "$changed"
+              if [[ "$EVENT_NAME" == "push" ]]; then
+                backend_deploy="$backend"
+                website_deploy="$website"
+              fi
+            fi
+          fi
+          echo "student=$student" >> "$GITHUB_OUTPUT"
+          echo "admin=$admin" >> "$GITHUB_OUTPUT"
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "website=$website" >> "$GITHUB_OUTPUT"
+          echo "shared=$shared" >> "$GITHUB_OUTPUT"
+          echo "backend_deploy=$backend_deploy" >> "$GITHUB_OUTPUT"
+          echo "website_deploy=$website_deploy" >> "$GITHUB_OUTPUT"
+
+  flutter_gate:
+    name: Check Flutter Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.flutter_changes.outputs.run }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -37,12 +104,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Manual runs always validate Flutter. On push/PR, stop this job early
-          # when no Flutter-related files changed. This avoids a dedicated runner
-          # just for change detection.
+          # A manual run always validates Flutter. For push/PR, Flutter runs only
+          # when Flutter code or a file that directly affects its CI/release checks changes.
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "Flutter CI: manual run -> RUN"
+            exit 0
+          fi
+
+          if [[ "$EVENT_NAME" == "push" && ( -z "$BEFORE_SHA" || "$BEFORE_SHA" =~ ^0+$ ) ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Flutter CI: first push to new history -> RUN"
             exit 0
           fi
 
@@ -59,10 +131,11 @@ jobs:
           echo "Changed files:"
           printf '%s\n' "$changed"
 
+          run=false
           while IFS= read -r file; do
             [[ -z "$file" ]] && continue
             case "$file" in
-              flutter/*|\
+              apps/student/*|\
               ci/flutter_secure_storage_check.py|\
               ci/offline_cache_check.py|\
               ci/color_theme_check.py|\
@@ -70,97 +143,84 @@ jobs:
               ci/final_release_check.py|\
               ci/verify_project.py|\
               ci/workflow_consistency_check.py|\
+              ci/drive_library_reconciliation_check.py|\
+              ci/version_consistency_check.py|\
+              README.md|.env.example|services/api/wrangler.toml|\
               .github/workflows/ci.yml)
-                echo "run=true" >> "$GITHUB_OUTPUT"
-                echo "Flutter CI: relevant changes detected -> RUN"
-                exit 0
+                run=true
+                break
                 ;;
             esac
           done <<< "$changed"
 
-          echo "run=false" >> "$GITHUB_OUTPUT"
-          echo "Flutter CI: no relevant changes detected -> SKIP"
-          exit 0
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          if [[ "$run" == "true" ]]; then
+            echo "Flutter CI: relevant changes detected -> RUN"
+          else
+            echo "Flutter CI: no relevant changes detected -> SKIP"
+          fi
+
+  flutter:
+    name: Flutter Analyze, Test & Signed Artifacts
+    needs: flutter_gate
+    if: needs.flutter_gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/student
+    steps:
+      - uses: actions/checkout@v7
 
       - name: Setup Java 17
-        if: steps.flutter_changes.outputs.run == 'true'
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Setup Gradle cache
-        if: steps.flutter_changes.outputs.run == 'true'
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          cache: gradle
 
       - name: Setup Flutter
-        if: steps.flutter_changes.outputs.run == 'true'
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
       - name: Flutter version
-        if: steps.flutter_changes.outputs.run == 'true'
         run: flutter --version
 
       - name: Synchronize version from canonical VERSION
-        if: steps.flutter_changes.outputs.run == 'true'
         run: python3 tool/sync_version.py
 
       - name: Resolve dependencies
-        if: steps.flutter_changes.outputs.run == 'true'
         run: flutter pub get
 
-      - name: Analyze + Test (parallel)
-        if: steps.flutter_changes.outputs.run == 'true'
-        shell: bash
-        run: |
-          set -uo pipefail
-          flutter analyze --no-fatal-infos > /tmp/trinex-analyze.log 2>&1 &
-          analyze_pid=$!
-          flutter test --coverage > /tmp/trinex-test.log 2>&1 &
-          test_pid=$!
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
 
-          analyze_status=0
-          test_status=0
-          wait "$analyze_pid" || analyze_status=$?
-          wait "$test_pid" || test_status=$?
-
-          echo '===== flutter analyze ====='
-          cat /tmp/trinex-analyze.log
-          echo '===== flutter test ====='
-          cat /tmp/trinex-test.log
-
-          if [[ "$analyze_status" -ne 0 || "$test_status" -ne 0 ]]; then
-            echo "Analyze exit: $analyze_status; Test exit: $test_status"
-            exit 1
-          fi
+      - name: Test
+        run: flutter test --coverage
 
       - name: Project verification
-        if: steps.flutter_changes.outputs.run == 'true'
-        working-directory: ${{ github.workspace }}
+        working-directory: .
         run: python3 ci/verify_project.py
 
       - name: Workflow consistency
-        if: steps.flutter_changes.outputs.run == 'true'
-        working-directory: ${{ github.workspace }}
+        working-directory: .
         run: python3 ci/workflow_consistency_check.py
 
       - name: Flutter release-safety checks
-        if: steps.flutter_changes.outputs.run == 'true'
-        working-directory: ${{ github.workspace }}
+        working-directory: .
         run: |
           python3 ci/release_check.py
           python3 ci/final_release_check.py
           python3 ci/flutter_secure_storage_check.py
           python3 ci/offline_cache_check.py
           python3 ci/color_theme_check.py
+          python3 ci/version_consistency_check.py
+          python3 ci/drive_library_reconciliation_check.py
+          python3 ci/study_tutorial_trigger_check.py
+          python3 ci/eino_orb_motion_check.py
 
       - name: Configure Android signing for CI artifacts
-        if: steps.flutter_changes.outputs.run == 'true'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
@@ -180,15 +240,12 @@ jobs:
           EOF2
 
       - name: Build signed APK
-        if: steps.flutter_changes.outputs.run == 'true'
-        run: flutter build apk --release --no-pub
+        run: flutter build apk --release
 
       - name: Build signed AAB
-        if: steps.flutter_changes.outputs.run == 'true'
-        run: flutter build appbundle --release --no-pub
+        run: flutter build appbundle --release
 
       - name: Verify Android signatures
-        if: steps.flutter_changes.outputs.run == 'true'
         run: |
           set -euo pipefail
           APK="build/app/outputs/flutter-apk/app-release.apk"
@@ -200,56 +257,47 @@ jobs:
           grep -q 'jar verified' /tmp/trinex-aab-signature.txt
 
       - name: Prepare compressed CI artifacts
-        if: steps.flutter_changes.outputs.run == 'true'
         run: |
           set -euo pipefail
           mkdir -p build/ci-artifacts
           cp build/app/outputs/flutter-apk/app-release.apk "build/ci-artifacts/TRINEX.apk"
           cp build/app/outputs/bundle/release/app-release.aab "build/ci-artifacts/TRINEX.aab"
           cd build/ci-artifacts
-          zip -1 -q "TRINEX APK.zip" TRINEX.apk
-          zip -1 -q "TRINEX AAB.zip" TRINEX.aab
+          zip -9 -q "TRINEX APK.zip" TRINEX.apk
+          zip -9 -q "TRINEX AAB.zip" TRINEX.aab
           unzip -t "TRINEX APK.zip"
           unzip -t "TRINEX AAB.zip"
 
-      - name: Upload resolved pub dependency lockfile
-        if: steps.flutter_changes.outputs.run == 'true' && always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: trinex-pubspec-lock-${{ github.sha }}
-          path: flutter/pubspec.lock
-          if-no-files-found: warn
-
       - name: Upload Flutter coverage
-        if: steps.flutter_changes.outputs.run == 'true' && always()
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: flutter-coverage-${{ github.sha }}
-          path: flutter/coverage/lcov.info
+          path: apps/student/coverage/lcov.info
           if-no-files-found: ignore
 
       - name: Upload signed APK zip
-        if: steps.flutter_changes.outputs.run == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: TRINEX APK.zip
-          path: flutter/build/ci-artifacts/TRINEX APK.zip
+          path: apps/student/build/ci-artifacts/TRINEX APK.zip
           if-no-files-found: error
 
       - name: Upload signed AAB zip
-        if: steps.flutter_changes.outputs.run == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: TRINEX AAB.zip
-          path: flutter/build/ci-artifacts/TRINEX AAB.zip
+          path: apps/student/build/ci-artifacts/TRINEX AAB.zip
           if-no-files-found: error
 
   backend:
     name: Backend Validate & Deploy
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend
+        working-directory: services/api
     steps:
       - uses: actions/checkout@v7
 
@@ -265,29 +313,32 @@ jobs:
         run: npm run check
 
       - name: Contract & security checks
-        working-directory: ${{ github.workspace }}
+        working-directory: .
         run: |
           python3 ci/backend_schema_check.py
+          python3 ci/push_dispatch_check.py
           python3 ci/backend_schema_audit.py
           python3 ci/backend_api_integrity_check.py
-          python3 ci/notification_scheduling_check.py
           python3 ci/backend_api_contract_check.py
-          python3 ci/student_features_contract_check.py
-          python3 ci/registration_transition_check.py
           python3 ci/admin_crud_check.py
-          python3 ci/usage_analytics_check.py
           python3 ci/auth_hardening_check.py
-          node ci/api_authorization_check.mjs
           python3 ci/eino_provider_check.py
-          python3 ci/eino_dashboard_check.py
+          python3 ci/eino_monitor_check.py
           python3 ci/eino_observability_check.py
+          python3 ci/drive_library_reconciliation_check.py
+          python3 ci/study_tutorial_trigger_check.py
+          python3 ci/eino_orb_motion_check.py
+          python3 ci/exam_bulk_upload_check.py
           node ci/eino_provider_matrix_check.mjs
+          node ci/eino_upload_queue_integration_test.mjs
+          node ci/eino_pdf_pipeline_integration_test.mjs
+          node ci/eino_drive_d1_sync_integration_test.mjs
 
       - name: Wrangler dry run
         run: npx wrangler deploy --dry-run
 
       - name: Deploy backend on main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.backend_deploy == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -298,12 +349,9 @@ jobs:
           FREE_AI_API_KEY: ${{ secrets.FREE_AI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FREE_AI_BASE_URL: ${{ secrets.FREE_AI_BASE_URL }}
           EINO_EMBEDDING_API_KEY: ${{ secrets.EINO_EMBEDDING_API_KEY }}
           STAFF_BOOTSTRAP_TOKEN: ${{ secrets.STAFF_BOOTSTRAP_TOKEN }}
-          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
-          OCR_SPACE_API_KEY: ${{ secrets.OCR_SPACE_API_KEY }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
@@ -319,14 +367,11 @@ jobs:
             FREE_AI_API_KEY \
             MISTRAL_API_KEY \
             GROQ_API_KEY \
-            GEMINI_API_KEY \
             FREE_AI_BASE_URL \
             EINO_EMBEDDING_API_KEY \
             GOOGLE_APPS_SCRIPT_DRIVE_TOKEN \
             GOOGLE_APPS_SCRIPT_GMAIL_TOKEN \
-            STAFF_BOOTSTRAP_TOKEN \
-            FCM_SERVICE_ACCOUNT_JSON \
-            OCR_SPACE_API_KEY; do
+            STAFF_BOOTSTRAP_TOKEN; do
             value="${!pair:-}"
             if [ -n "$value" ]; then
               printf '%s' "$value" | npx wrangler secret put "$pair"
@@ -338,7 +383,7 @@ jobs:
             --var "GOOGLE_APPS_SCRIPT_GMAIL_URL:$GOOGLE_APPS_SCRIPT_GMAIL_URL"
 
       - name: Verify production API
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.backend_deploy == 'true'
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL || 'https://leo-association-api.www-halaahlalkher7.workers.dev' }}
         run: |
@@ -349,6 +394,8 @@ jobs:
 
   website:
     name: Website Build & Deploy
+    needs: changes
+    if: needs.changes.outputs.website == 'true' || needs.changes.outputs.shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -366,13 +413,11 @@ jobs:
       - name: Build distribution
         run: npm run build
 
-      - name: Web security checks
+      - name: Web security and native admin contract checks
         run: |
           python3 ci/web_security_check.py
-          python3 ci/website_audit_regression_check.py
-          python3 ci/interactive_controls_audit.py
           python3 ci/xss_dom_check.py
-          python3 ci/admin_ui_payload_check.py
+          python3 ci/admin_app_contract_check.py
 
       - name: Upload website artifact
         uses: actions/upload-artifact@v7
@@ -382,7 +427,7 @@ jobs:
           if-no-files-found: error
 
       - name: Deploy website on main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.website_deploy == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ftpupload.net
@@ -393,7 +438,7 @@ jobs:
           dangerous-clean-slate: false
 
       - name: Verify production website
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.website_deploy == 'true'
         env:
           SITE_URL: ${{ vars.SITE_URL || 'https://ush-eng.great-site.net' }}
         run: |
@@ -411,4 +456,4 @@ jobs:
             -w "HTTP status: %{http_code}\n" \
             "$SITE_URL/"
           test -s /tmp/site-health.html || { echo 'Website returned an empty body'; exit 1; }
-          echo 'Website health check passed.'
+          echo 'Website health check passed.' 

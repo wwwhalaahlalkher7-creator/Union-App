@@ -37,7 +37,7 @@ updates:
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: gradle
-    directory: "/flutter/android"
+    directory: "/apps/student/android"
     schedule:
       interval: monthly
     open-pull-requests-limit: 2

@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-src = '\n'.join(p.read_text(encoding='utf-8') for p in (ROOT / 'backend/src').rglob('*.js'))
+src = '\n'.join(p.read_text(encoding='utf-8') for p in (ROOT / 'services/api/src').rglob('*.js'))
 
 required = {
     'content target validation': r'async function contentIsCommentable\(',

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_release:
-        description: 'Confirm that the current flutter/VERSION is ready for production app release'
+        description: 'Confirm that the current apps/student/VERSION is ready for production app release'
         required: true
         default: false
         type: boolean
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  FLUTTER_VERSION_FILE: flutter/VERSION
+  FLUTTER_VERSION_FILE: apps/student/VERSION
 
 jobs:
   gate:
@@ -37,7 +37,7 @@ jobs:
 
       - name: Synchronize generated version files
         run: |
-          python3 flutter/tool/sync_version.py
+          python3 apps/student/tool/sync_version.py
           python3 ci/sync_release_metadata.py
 
       - name: Resolve release version
@@ -56,9 +56,9 @@ jobs:
           read_version() {
             local values count
             values="$(sed -E '/^[[:space:]]*#/d; /^[[:space:]]*$/d; s/[[:space:]]+#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$1")"
-            [[ -n "$values" ]] || { echo "flutter/VERSION contains no version value"; exit 1; }
+            [[ -n "$values" ]] || { echo "apps/student/VERSION contains no version value"; exit 1; }
             count="$(printf '%s\n' "$values" | wc -l | tr -d ' ')"
-            [[ "$count" == "1" ]] || { echo "flutter/VERSION must contain exactly one version value"; exit 1; }
+            [[ "$count" == "1" ]] || { echo "apps/student/VERSION must contain exactly one version value"; exit 1; }
             printf '%s\n' "$values"
           }
 
@@ -70,7 +70,7 @@ jobs:
             [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid build number: $BUILD_NUMBER"; exit 1; }
           }
 
-          CURRENT_RAW="$(read_version flutter/VERSION)"
+          CURRENT_RAW="$(read_version apps/student/VERSION)"
           parse_version "$CURRENT_RAW"
           CURRENT_VERSION="$VERSION_NAME"
           CURRENT_BUILD="$BUILD_NUMBER"
@@ -81,7 +81,7 @@ jobs:
 
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             git fetch --quiet origin "refs/tags/$TAG:refs/tags/$TAG"
-            PRODUCTION_RAW="$(git show "refs/tags/$TAG:flutter/VERSION")"
+            PRODUCTION_RAW="$(git show "refs/tags/$TAG:apps/student/VERSION")"
             PRODUCTION_RAW="$(printf '%s\n' "$PRODUCTION_RAW" | sed -n '/^[[:space:]]*#/d; /^[[:space:]]*$/d; p; q')"
             parse_version "$PRODUCTION_RAW"
             PRODUCTION_VERSION="$VERSION_NAME"
@@ -132,7 +132,7 @@ jobs:
       name: production
     defaults:
       run:
-        working-directory: flutter
+        working-directory: apps/student
     steps:
       - uses: actions/checkout@v7
 
@@ -181,7 +181,7 @@ jobs:
         run: flutter test
 
       - name: Build signed APK
-        run: flutter build apk --release --no-pub
+        run: flutter build apk --release
 
       - name: Verify Android signatures
         run: |
@@ -199,7 +199,7 @@ jobs:
           mkdir -p build/release-assets
           cp build/app/outputs/flutter-apk/app-release.apk build/release-assets/TRINEX.apk
           cd build/release-assets
-          zip -1 -q TRINEX.zip TRINEX.apk
+          zip -9 -q TRINEX.zip TRINEX.apk
           unzip -t TRINEX.zip
           sha256sum TRINEX.apk TRINEX.zip > SHA256SUMS.txt
 
@@ -207,7 +207,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: android-production-${{ needs.gate.outputs.version }}
-          path: flutter/build/release-assets/
+          path: apps/student/build/release-assets/
           if-no-files-found: error
 
   publish:
@@ -224,7 +224,7 @@ jobs:
 
       - name: Synchronize generated version files
         run: |
-          python3 flutter/tool/sync_version.py
+          python3 apps/student/tool/sync_version.py
           python3 ci/sync_release_metadata.py
 
       - name: Download Android release artifacts
@@ -238,8 +238,8 @@ jobs:
           RELEASE_VERSION: ${{ needs.gate.outputs.version }}
         run: |
           set -euo pipefail
-          sed -n 's/^[[:space:]]*#[[:space:]]*//p' flutter/VERSION | sed '/^[[:space:]]*$/d' > RELEASE_NOTES.md
-          # Release notes come only from comments in flutter/VERSION.
+          sed -n 's/^[[:space:]]*#[[:space:]]*//p' apps/student/VERSION | sed '/^[[:space:]]*$/d' > RELEASE_NOTES.md
+          # Release notes come only from comments in apps/student/VERSION.
           # An empty notes file is valid; no default text is injected.
 
       - name: Configure Git identity

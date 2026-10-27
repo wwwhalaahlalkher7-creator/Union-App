@@ -4,8 +4,8 @@ from pathlib import Path
 import re, sqlite3, sys
 
 ROOT = Path(__file__).resolve().parents[1]
-MIGRATIONS = ROOT / 'backend' / 'migrations'
-INDEX_JS = ROOT / 'backend' / 'src' / 'index.js'
+MIGRATIONS = ROOT / 'services/api' / 'migrations'
+INDEX_JS = ROOT / 'services/api' / 'src' / 'index.js'
 
 sql = '\n'.join(p.read_text(encoding='utf-8') for p in sorted(MIGRATIONS.glob('*.sql')))
 conn = sqlite3.connect(':memory:')

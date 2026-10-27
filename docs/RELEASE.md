@@ -4,7 +4,7 @@
 
 الملف الوحيد الذي نعدله يدويًا للإصدار هو:
 
-`flutter/VERSION`
+`apps/student/VERSION`
 
 الصيغة:
 
@@ -16,26 +16,26 @@ MAJOR.MINOR.PATCH+BUILD
 مثال:
 
 ```text
-2.0.2+1
-# ملاحظات الإصدار الحالية تُستخرج تلقائيًا من flutter/VERSION.
+2.0.3+2
+# إصلاحات وتحسينات في التحقق من التحديثات.
 ```
 
 من هذا الملف يتم توليد تلقائيًا:
 
-- Flutter/Android version name = `2.0.2`
-- Android build number = `1`
-- Backend `APP_VERSION = 2.0.2`
+- Flutter/Android version name = `2.0.3`
+- Android build number = `3`
+- Backend `APP_VERSION = 2.0.3`
 - Backend `APP_RELEASE_NOTES` من التعليقات
-- GitHub tag = `v2.0.2`
-- GitHub Release = `TRINEX v2.0.2`
+- GitHub tag = `v2.0.3`
+- GitHub Release = `TRINEX v2.0.3`
 
 ## الإصدار التلقائي
 
-عند دمج تغيير `flutter/VERSION` إلى `main`:
+عند دمج تغيير `apps/student/VERSION` إلى `main`:
 
 1. يتم تشغيل بوابة الإصدار.
 2. يتم بناء APK وAAB واختبارهما.
-3. يتم نشر الـ backend بالقيم المستخرجة من `flutter/VERSION`.
+3. يتم نشر الـ backend بالقيم المستخرجة من `apps/student/VERSION`.
 4. ينتظر نشر الموقع حتى يصبح APK الجديد جاهزًا.
 5. يتم وضع أحدث APK داخل `dist/downloads/` ليُنشر مع الموقع.
 6. يتم نشر الموقع.
@@ -47,11 +47,11 @@ MAJOR.MINOR.PATCH+BUILD
 
 المقارنة بين الإصدارات تعتمد على `MAJOR.MINOR.PATCH` فقط، ولا تستخدم رقم البناء `+BUILD` لاكتشاف إصدار جديد.
 
-رابط التحديث الحالي هو `https://ush-eng.great-site.net/download.html`، وتبقى صفحة التحميل ثابتة بينما يتغير ملف APK المنشور خلفها.
+رابط التحديث يبقى حاليًا فارغًا (`APP_UPDATE_URL = ""`). عند تجهيز صفحة التحميل الثابتة لاحقًا، نضع رابط الصفحة مرة واحدة في إعدادات الإنتاج، وتبقى الصفحة ثابتة بينما يتغير ملف APK المنشور خلفها.
 
 ## Release checklist
 
-- [ ] تعديل `flutter/VERSION` فقط.
+- [ ] تعديل `apps/student/VERSION` فقط.
 - [ ] كتابة ملاحظات الإصدار بعد `#` عند الحاجة.
 - [ ] CI على `main` ناجح.
 - [ ] production signing secrets متاحة داخل GitHub Environment باسم `production`.

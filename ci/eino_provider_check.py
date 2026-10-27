@@ -1,11 +1,11 @@
 from pathlib import Path
 root = Path(__file__).resolve().parents[1]
-index = '\n'.join(p.read_text() for p in (root / 'backend/src').rglob('*.js'))
-registry = (root / 'backend/src/providers/registry.js').read_text()
+index = '\n'.join(p.read_text() for p in (root / 'services/api/src').rglob('*.js'))
+registry = (root / 'services/api/src/providers/registry.js').read_text()
 workflow_path = root / '.github/workflows/release.yml'
 workflow = workflow_path.read_text(encoding='utf-8') if workflow_path.exists() else ''
-wrangler = (root / 'backend/wrangler.toml').read_text()
-provider_file = root / 'backend/src/providers/omniroute.js'
+wrangler = (root / 'services/api/wrangler.toml').read_text()
+provider_file = root / 'services/api/src/providers/omniroute.js'
 checks = {
     'omniroute adapter removed': not provider_file.exists(),
     'no omniroute runtime references': 'OMNIROUTE' not in index and 'omniroute' not in index.lower(),

@@ -1,0 +1,501 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/localization/app_localizations.dart';
+import '../../core/storage/app_preferences.dart';
+import '../../features/onboarding/study_tutorial_overlay.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../features/eino/eino_orb.dart';
+
+class TrinexShell extends StatefulWidget {
+  const TrinexShell({
+    required this.location,
+    required this.child,
+    super.key,
+  });
+
+  final String location;
+  final Widget child;
+
+  @override
+  State<TrinexShell> createState() => _TrinexShellState();
+}
+
+class _TrinexShellState extends State<TrinexShell> {
+  bool _einoVisible = false;
+  bool _tutorialCheckScheduled = false;
+  bool _tutorialCheckInFlight = false;
+  bool _tutorialCheckRequestedDuringFlight = false;
+  bool _tutorialDialogOpen = false;
+
+  bool get _readingMode =>
+      widget.location == '/media/detail' || widget.location == '/news/detail';
+
+  bool get _einoChatOpen => widget.location.startsWith('/eino');
+
+  @override
+  void initState() {
+    super.initState();
+    _einoVisible = !_readingMode && !_einoChatOpen;
+    FocusManager.instance.addListener(_handleFocusChange);
+    _scheduleStudyTutorialCheck();
+  }
+
+  @override
+  void didUpdateWidget(covariant TrinexShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.location != widget.location && (_readingMode || _einoChatOpen)) {
+      _einoVisible = false;
+    } else if (oldWidget.location != widget.location && !_readingMode && !_einoChatOpen) {
+      _einoVisible = true;
+    }
+    // Registration happens outside ShellRoute. Still re-check on every route
+    // transition so a pending flag set while this shell is alive is not missed.
+    if (oldWidget.location != widget.location) _scheduleStudyTutorialCheck();
+  }
+
+  void _scheduleStudyTutorialCheck() {
+    if (_tutorialCheckInFlight) {
+      _tutorialCheckRequestedDuringFlight = true;
+      return;
+    }
+    if (_tutorialCheckScheduled || _tutorialDialogOpen) return;
+    _tutorialCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _tutorialCheckScheduled = false;
+      if (mounted) unawaited(_showStudyTutorialIfPending());
+    });
+  }
+
+  Future<void> _showStudyTutorialIfPending() async {
+    if (!mounted || _tutorialDialogOpen || _tutorialCheckInFlight) return;
+    // Successful registration currently lands on /media. If navigation moves
+    // quickly, keep the one-shot flag until a safe, top-level shell page is shown.
+    if (widget.location != '/media' && widget.location != '/student') return;
+    _tutorialCheckInFlight = true;
+    var consumed = false;
+    var displayed = false;
+    AppPreferences? preferences;
+    try {
+      preferences = AppPreferences();
+      await preferences.init();
+      if (!mounted || _tutorialDialogOpen ||
+          (widget.location != '/media' && widget.location != '/student') ||
+          !preferences.studyTutorialPending) {
+        return;
+      }
+      // Consume the one-shot trigger only when we're ready to show it. This flag
+      // is set after successful registration and is never set by guest/login flow.
+      await preferences.setStudyTutorialPending(false);
+      consumed = true;
+      if (!mounted) {
+        await preferences.setStudyTutorialPending(true);
+        consumed = false;
+        return;
+      }
+      if (widget.location != '/media' && widget.location != '/student') {
+        await preferences.setStudyTutorialPending(true);
+        consumed = false;
+        return;
+      }
+      _tutorialDialogOpen = true;
+      final dialog = showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.transparent,
+        builder: (dialogContext) => StudyTutorialOverlay(
+          onSkip: () => Navigator.of(dialogContext).pop(),
+          onFinish: () {
+            Navigator.of(dialogContext).pop();
+            if (mounted) context.go('/student');
+          },
+        ),
+      );
+      displayed = true;
+      await dialog;
+    } catch (_) {
+      // A preferences or route presentation failure must never block navigation.
+      // Restore the one-shot trigger if it was consumed but the dialog never opened.
+      if (consumed && !displayed && preferences != null) {
+        try {
+          await preferences.setStudyTutorialPending(true);
+        } catch (_) {}
+      }
+    } finally {
+      _tutorialDialogOpen = false;
+      _tutorialCheckInFlight = false;
+      if (mounted && _tutorialCheckRequestedDuringFlight) {
+        _tutorialCheckRequestedDuringFlight = false;
+        _scheduleStudyTutorialCheck();
+      }
+    }
+  }
+
+  void _handleFocusChange() {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    final isEditing =
+        focusContext?.findAncestorWidgetOfExactType<EditableText>() != null;
+    if (!mounted) return;
+    if (isEditing && _einoVisible) {
+      setState(() => _einoVisible = false);
+    } else if (!isEditing && !_einoVisible && !_readingMode && !_einoChatOpen) {
+      setState(() => _einoVisible = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    FocusManager.instance.removeListener(_handleFocusChange);
+    super.dispose();
+  }
+
+  int get index {
+    if (widget.location.startsWith('/student')) return 0;
+    if (widget.location.startsWith('/system')) return 1;
+    if (widget.location.startsWith('/schedule')) return 2;
+    if (widget.location.startsWith('/materials')) return 3;
+    if (widget.location.startsWith('/news') ||
+        widget.location.startsWith('/media')) {
+      return 4;
+    }
+    return 4;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const _TopHeader(),
+            Expanded(
+              child: Stack(
+                children: [
+                  widget.child,
+                  if (_einoVisible)
+                    PositionedDirectional(
+                      end: 16,
+                      bottom: 18,
+                      child: EinoFloatingButton(),
+                    ),
+                  // A narrow edge gesture lets the student summon Eino again
+                  // without adding another permanent button to the UI.
+                  PositionedDirectional(
+                    start: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 24,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragEnd: (details) {
+                        final rtl = Directionality.of(context) == TextDirection.rtl;
+                        final velocity = details.primaryVelocity ?? 0;
+                        final summoned = rtl ? velocity < -350 : velocity > 350;
+                        if (summoned && !_einoVisible && mounted) {
+                          setState(() => _einoVisible = true);
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _MainNav(selected: index),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopHeader extends StatelessWidget {
+  const _TopHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(
+          bottom: BorderSide(color: context.colors.outlineVariant),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final compact = box.maxWidth < 600;
+          final button = compact ? 48.0 : 52.0;
+          final avatar = compact ? 42.0 : 46.0;
+          final logo = compact ? 48.0 : 52.0;
+          final primary = context.colors.primary;
+
+          // The header is intentionally LTR so its physical layout stays
+          // consistent in the Arabic UI:
+          // left  -> TRINEX + app icon (app icon opens Settings)
+          // right -> profile + System
+          return Directionality(
+            textDirection: TextDirection.ltr,
+            child: Row(
+              children: [
+                // Left side: tappable application icon + brand name.
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(DesignTokens.radius12),
+                    onTap: () => context.push('/settings'),
+                    child: Tooltip(
+                      message: l10n.t('settings'),
+                      child: Container(
+                        width: logo,
+                        height: logo,
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: primary,
+                          borderRadius: BorderRadius.circular(DesignTokens.radius12),
+                        ),
+                        child: Image.asset(
+                          'assets/icons/trinex_icon.png',
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Text(
+                  'TRINEX',
+                  style: TextStyle(
+                    fontSize: compact ? 18 : 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .3,
+                  ),
+                ),
+                const Spacer(),
+                // Right side: System page + profile, so profile is physically
+                // on the far right while System sits immediately to its left.
+                _HeaderIcon(
+                  icon: Icons.workspace_premium_outlined,
+                  size: button,
+                  tooltip: l10n.t('navSystem'),
+                  onTap: () => context.go('/system'),
+                ),
+                const SizedBox(width: 4),
+                _Avatar(
+                  key: StudyTutorialTargets.profile,
+                  size: avatar,
+                  onTap: () => context.go('/student'),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MainNav extends StatelessWidget {
+  const _MainNav({required this.selected});
+
+  final int selected;
+
+  static const items = [
+    ('navStudent', Icons.person_outline_rounded, '/student'),
+    ('navSystem', Icons.workspace_premium_outlined, '/system'),
+    ('navSchedule', Icons.calendar_month_outlined, '/schedule'),
+    ('navMaterials', Icons.menu_book_outlined, '/materials'),
+    ('navMedia', Icons.campaign_outlined, '/media'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return NavigationBar(
+      selectedIndex: selected.clamp(0, items.length - 1),
+      height: 68,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      indicatorColor: context.colors.primaryContainer,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      onDestinationSelected: (i) => context.go(items[i].$3),
+      destinations: [
+        for (final item in items)
+          NavigationDestination(
+            icon: item.$3 == '/materials'
+                ? SizedBox(
+                    key: StudyTutorialTargets.materials,
+                    width: 48,
+                    height: 32,
+                    child: Center(child: Icon(item.$2)),
+                  )
+                : Icon(item.$2),
+            selectedIcon: Icon(item.$2),
+            label: l10n.t(item.$1),
+          ),
+      ],
+    );
+  }
+}
+
+class _HeaderIcon extends StatelessWidget {
+  const _HeaderIcon({
+    required this.icon,
+    required this.tooltip,
+    this.onTap,
+    this.size = 48,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(DesignTokens.radius12),
+          onTap: onTap,
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Icon(
+              icon,
+              color: context.colors.onSurface,
+              size: 23,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({super.key, this.size = 50, this.onTap});
+
+  final double size;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Tooltip(
+      message: l10n.t('profile'),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(size),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: context.colors.surfaceContainerHigh,
+            border: Border.all(
+              color: context.colors.outlineVariant,
+              width: 1.2,
+            ),
+          ),
+          child: Icon(
+            Icons.account_circle_rounded,
+            color: context.colors.primary,
+            size: size * .62,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class EinoFloatingButton extends StatefulWidget {
+  const EinoFloatingButton({super.key});
+
+  @override
+  State<EinoFloatingButton> createState() => _EinoFloatingButtonState();
+}
+
+class _EinoFloatingButtonState extends State<EinoFloatingButton> {
+  bool _rebuildScheduled = false;
+  bool _openingChat = false;
+
+  Future<void> _openChat(BuildContext context) async {
+    if (_openingChat) return;
+    _openingChat = true;
+    // Let the tap's organic wake/boost render for several frames before the
+    // chat route covers the orb; opening synchronously would hide the effect.
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    if (!mounted) {
+      _openingChat = false;
+      return;
+    }
+    EinoMotionSession.markChatOpened();
+    await context.push('/eino?from=shell');
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    EinoMotionSession.changes.addListener(_handleMotionSessionChange);
+  }
+
+  void _handleMotionSessionChange() {
+    if (!mounted || _rebuildScheduled) return;
+    _rebuildScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _rebuildScheduled = false;
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    EinoMotionSession.changes.removeListener(_handleMotionSessionChange);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = context.colors.primary;
+    final returningFromChat = EinoMotionSession.consumeReturnAnimation();
+    return Material(
+      key: StudyTutorialTargets.eino,
+      color: Colors.transparent,
+      child: Container(
+        width: 68,
+        height: 68,
+        padding: const EdgeInsets.all(2.5),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: context.colors.surface,
+          border: Border.all(color: primary, width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              color: primary.withValues(alpha: 0.16),
+              blurRadius: 14,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: EinoOrb(
+          size: 61,
+          accent: primary,
+          returningFromChat: returningFromChat,
+          suspendWhileChatOpen: true,
+          onTap: () => unawaited(_openChat(context)),
+        ),
+      ),
+    );
+  }
+}
