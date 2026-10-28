@@ -484,7 +484,7 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
             PositionedDirectional(
               end: 16,
               bottom: 18,
-              child: EinoFloatingButton(animation: _pulse),
+              child: EinoFloatingButton(),
             ),
           PositionedDirectional(
             start: 0,
