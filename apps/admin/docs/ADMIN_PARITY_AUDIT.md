@@ -1,46 +1,44 @@
-# TRINEX-Admin — Admin Capability Parity Audit
+# تغطية وحدات الإدارة المعتمدة على Backend
 
-This document maps the legacy `Union-App/website/admin` capabilities to the native Flutter admin and the existing TRINEX API. The website admin directory is removed from the delivered project; the public website and backend source remain in place.
+يوضح الجدول التالي ما توفره واجهة الإدارة داخل المستودع الموحد وما يطابقه فعلًا في المصدر المحلي للخادم. لا تعني هذه المطابقة أن بيئة الإنتاج أو أسرار الخدمات الخارجية مضبوطة.
 
-## Native screens and API connections
-
-| Legacy capability | Flutter destination | Backend contract | Status in source |
+| الوحدة | الواجهة | العقد الفعلي | التغطية |
 |---|---|---|---|
-| Dashboard / overview counts | Overview | `GET /admin/dashboard/overview` | Connected; includes an independent `/health` status check |
-| Students | Users → Students | `/admin/students`, `/departments`, `/semesters` | CRUD and active-state controls present |
-| Staff / roles | Users → Staff | `/admin/staff` | CRUD, role assignment, active-state, password reset are present; server permissions remain authoritative |
-| News | Content → News | `/admin/news` | CRUD, status, dates, metadata and image upload/link supported |
-| Activities / events | Content → Events | `/admin/activities` (maps to backend `events`) | Corrected route mapping; CRUD and event metadata supported |
-| Achievements | Content → Achievements | `/admin/achievements` | CRUD, date, badge, highlights and image URL/upload supported; backend creates/refreshes linked notification drafts |
-| Announcements | Content → Announcements | `/admin/announcements` | CRUD, type, audience IDs, publish/expiry dates and status supported |
-| Academic subjects | Academic workspace | `/admin/subjects` | CRUD present |
-| Study materials | Academic workspace | `/admin/materials` | CRUD and Drive sync status present; direct upload of a new Drive PDF is not provided by the legacy API/UI either |
-| Schedules | Academic workspace | `/admin/schedule` | CRUD present; backend creates/refreshes linked notification drafts for meaningful schedule changes |
-| Google Drive sync | Academic workspace | `/admin/drive/sync`, `/admin/drive/sync-status` | Connected; action requires confirmation |
-| Comments / replies | Moderation | `/admin/moderation/comments`, `/admin/moderation/replies` | Status moderation and reply deletion present |
-| Student suggestions/general reports and public chat reports | Unified Suggestions & Reports inbox (chat is a dedicated record type) | `/admin/moderation/feedback`, `/admin/moderation/chat-reports` | One searchable/filterable page; each source retains its own status and actions, including chat message hide/keep |
-| Notifications | Notifications | `/admin/notifications`, `/admin/notifications/send`, `/admin/announcements/:id` | Create published or scheduled notifications, search/filter, edit, delete, display publish/expiry times, and separately confirm target-list preparation |
-| Media upload | Content editor and Media | `POST /admin/media` | Added upload from content editor; JPEG/PNG/WebP, 3 MB limit, server validates and returns URL |
-| Audit log and authentication events | Security | `/admin/audit-logs`, `/admin/security/auth-events` | Read-only; sensitive fields redacted in detail view |
-| Eino usage/monitoring | Eino monitor | `/admin/security/eino-monitor` | Added provider/task summaries, request statuses, latency, quota limits, recent telemetry and privacy notice |
-| Site display settings | Settings | `/admin/settings` | Restricted to `public.*` and `Logo`, matching the legacy adapter's safe settings scope |
-| Staff account / password | Account | `/auth/staff/change-password`, `/auth/logout` | Connected |
+| لوحة المعلومات | نظرة عامة | `/admin/dashboard/overview` | الأعداد المدعومة من الخادم |
+| المحتوى | أخبار، فعاليات، إنجازات | `/admin/news`, `/admin/events`, `/admin/achievements` | إنشاء وتعديل وحذف ونشر/جدولة وفق الحقول المتاحة؛ صور عبر `/admin/media` |
+| الإشعارات | الإعلانات والجمهور والتوقيت والإرسال | `/admin/announcements`, `/admin/notifications`, `/admin/notifications/send` | إدارة السجل وتجهيز إرسال الإشعار بعد تأكيد المشرف |
+| الطلاب | `StudentsPage` | `/admin/students`, `/departments`, `/semesters` | CRUD وحالة الحساب؛ لا يوجد خيار مشرف طالب لأن Backend لا يدعمه |
+| حسابات الإدارة | `StaffPage` | `/admin/staff` | CRUD ودور الحساب وحالته وكلمة مرور حساب آخر وفق قيود الخادم |
+| المواد والجداول | `AcademicPage` | `/admin/subjects`, `/admin/materials`, `/admin/schedule` | CRUD مع التحقق من المراجع الأكاديمية |
+| Google Drive | الإدارة الأكاديمية | `/admin/drive/sync`, `/admin/drive/sync-status`, `/admin/drive/folders`, `/admin/drive/items/:id`, `/admin/drive/files` | مزامنة وإنشاء مجلد ورفع/إعادة تسمية ملفات PDF وحدها الأقصى الذي يفرضه الخادم |
+| الامتحانات | إدارة إضافية | `/admin/exams` | تجهيز مجلد، رفع، إعادة تسمية وحذف PDF |
+| السوق | إدارة إضافية | `/admin/market-items` | CRUD كامل |
+| الشارات | إدارة إضافية | `/admin/badges` | إنشاء/تعديل/تفعيل/تعطيل دون حذف نهائي |
+| إشراف التعليقات | `FeedbackReportsPage` | `/admin/moderation/comments` | تغيير حالة التعليق إلى ظاهر/مخفي/محذوف |
+| إحصاءات Eino | `EinoMonitorPage` | `/admin/security/eino-usage` | عدد الأحداث والمتوسطات والمجموعات الزمنية والحدود التي يعيدها الخادم؛ بيانات مجمعة |
+| أمان وسجل تدقيق | `SecurityPage` | `/admin/audit-logs`, `/admin/security/auth-events` | عرض فقط مع حجب الحقول الحساسة |
+| إعدادات الموقع | `SettingsPage` | `/admin/settings` | قراءة وإدارة قيم الإعدادات بصيغة JSON؛ يجب توخي الحذر عند تغيير القيم التقنية |
+| حسابي | `AccountPage` | `/auth/staff/me`, `/auth/staff/change-password` | قراءة ملف الموظف وتغيير كلمة المرور؛ لا يدعم الخادم تعديل الاسم أو البريد |
 
-## Notification workflow
+## وظائف مستبعدة عمدًا لغياب عقد Backend
 
-The backend source may create or refresh linked notification records when schedule/material/achievement data changes. The Flutter notification screen no longer creates ordinary notification drafts or exposes approve/unpublish controls. It creates a normal notification as published, or marks it scheduled when the publish time is in the future. Generated academic-workflow drafts retain their status when edited.
+- استيراد الطلاب والجداول باستخدام الماسح ومسارات `/admin/imports*`.
+- تعيين طالب كمشرف عبر `/admin/students/:id/moderator`.
+- تحليلات تفصيلية عبر `/admin/analytics/overview`.
+- صناديق الإشراف/البلاغات عبر `/admin/moderation/inbox`, `/admin/moderation/chat-reports` أو `/admin/moderation/feedback`.
+- مسار مراقبة قديم `/admin/security/eino-monitor`؛ المسار الصحيح هو `/admin/security/eino-usage`.
 
-The admin ZIP does not include the Worker/backend source. The server must enforce `publish_at` and `expires_at`, suppress immediate Push for future-scheduled records, and dispatch them when due; the client alone cannot guarantee background scheduling while closed. Target-list preparation remains an explicit send action for already-published notifications.
+لا يجوز إعادة إضافة هذه الوظائف في واجهة الإدارة قبل توفير المعالجات الفعلية واختبارات العقد والصلاحيات في `services/api`.
 
-## Security and source integrity
+## توافق التنقل مع الأدوار
 
-- The legacy `website/admin` source directory is removed from the migration package.
-- The public website source and backend source remain present.
-- Admin navigation is filtered by role for usability; API authorization remains the source of truth.
-- The Eino monitor uses the backend's privacy-preserving telemetry contract and does not display prompts, responses, student IDs, IP addresses, or file contents.
+- `super_admin`: جميع وحدات الإدارة.
+- `content_manager`: المحتوى والسوق والشارات ولوحة المعلومات وإحصاءات Eino.
+- `academic_manager`: الطلاب والمواد والجداول وDrive والامتحانات ولوحة المعلومات وإحصاءات Eino.
+- `moderator`: إشراف التعليقات والإشعارات ولوحة المعلومات وإحصاءات Eino.
 
-## Verification limits
+إخفاء العناصر في الواجهة لا يمنح صلاحية جديدة؛ كل عمليات القراءة والتغيير ما تزال خاضعة لقواعد الصلاحيات في الـBackend.
 
-Focused widget tests cover content-section switching, immediate notification publishing without a type selector, and readable scheduled date/time rendering. This editing environment does not have Flutter/Dart installed, so those tests, `dart format`, `flutter analyze`, platform builds, and live API integration tests could not be executed here. The package must not be considered release-verified until those checks pass in CI and the changed flows are tested with authorized test accounts against the target API.
+## ملاحظات الإصدار والتحقق
 
-The source code's presence is not proof that production secrets, Cloudflare routes, D1 migrations, R2 media storage, or push delivery are configured. In particular, verify the deployed backend has migrations through `0038_content_notification_drafts.sql` and that `/admin/security/eino-monitor`, `/admin/moderation/feedback`, and `/admin/moderation/chat-reports` are deployed before relying on those screens in production.
+تطبيق الإدارة `1.1.0+1` وتطبيق الطلاب `2.0.3+2` يحتفظ كل منهما بإصدار مستقل داخل المونو-ريبوزتري. يتولى `.github/workflows/admin-ci.yml` تحليل تطبيق الإدارة واختباراته وبناء APK وWindows. بيئة التحرير هذه لا تحتوي على Flutter SDK؛ لم يُنفّذ بناء محلي أو اختبار API حي، لذا يتطلب الإصدار التحقق الأخضر من GitHub Actions قبل اعتباره جاهزًا للنشر.

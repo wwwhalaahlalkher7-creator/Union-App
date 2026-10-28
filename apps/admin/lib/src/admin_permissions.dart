@@ -6,20 +6,39 @@ abstract final class AdminPermissions {
   static const superAdmin = 'super_admin';
   static const contentManager = 'content_manager';
   static const academicManager = 'academic_manager';
+  static const moderator = 'moderator';
 
   static bool canSee(String role, AdminSection section) {
     switch (role) {
       case superAdmin:
         return true;
       case contentManager:
-        return const {AdminSection.overview, AdminSection.content, AdminSection.account}
-            .contains(section);
+        return const {
+          AdminSection.overview,
+          AdminSection.analytics,
+          AdminSection.content,
+          AdminSection.management,
+          AdminSection.eino,
+          AdminSection.account,
+        }.contains(section);
       case academicManager:
         return const {
           AdminSection.overview,
+          AdminSection.analytics,
+          AdminSection.eino,
           AdminSection.students,
           AdminSection.materials,
           AdminSection.schedule,
+          AdminSection.management,
+          AdminSection.account,
+        }.contains(section);
+      case moderator:
+        return const {
+          AdminSection.overview,
+          AdminSection.analytics,
+          AdminSection.feedbackReports,
+          AdminSection.notifications,
+          AdminSection.eino,
           AdminSection.account,
         }.contains(section);
       default:
@@ -36,6 +55,8 @@ abstract final class AdminPermissions {
         return 'مدير المحتوى';
       case academicManager:
         return 'مدير الشؤون الأكاديمية';
+      case moderator:
+        return 'مشرف التعليقات والإشعارات';
       default:
         return role.isEmpty ? 'دور غير محدد' : role;
     }

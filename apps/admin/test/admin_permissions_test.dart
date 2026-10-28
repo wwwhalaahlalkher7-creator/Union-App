@@ -10,29 +10,38 @@ void main() {
       }
     });
 
-    test('content manager only sees content-related navigation', () {
+    test('content manager sees content, marketplace, and dashboard tools', () {
       expect(AdminPermissions.canSee('content_manager', AdminSection.content), isTrue);
       expect(AdminPermissions.canSee('content_manager', AdminSection.notifications), isFalse);
       expect(AdminPermissions.canSee('content_manager', AdminSection.overview), isTrue);
+      expect(AdminPermissions.canSee('content_manager', AdminSection.analytics), isTrue);
+      expect(AdminPermissions.canSee('content_manager', AdminSection.eino), isTrue);
       expect(AdminPermissions.canSee('content_manager', AdminSection.account), isTrue);
       expect(AdminPermissions.canSee('content_manager', AdminSection.staff), isFalse);
       expect(AdminPermissions.canSee('content_manager', AdminSection.security), isFalse);
       expect(AdminPermissions.canSee('content_manager', AdminSection.materials), isFalse);
     });
 
-    test('academic manager sees academic sections only', () {
+    test('academic manager sees academic and dashboard tools', () {
       expect(AdminPermissions.canSee('academic_manager', AdminSection.materials), isTrue);
       expect(AdminPermissions.canSee('academic_manager', AdminSection.schedule), isTrue);
+      expect(AdminPermissions.canSee('academic_manager', AdminSection.analytics), isTrue);
+      expect(AdminPermissions.canSee('academic_manager', AdminSection.eino), isTrue);
       expect(AdminPermissions.canSee('academic_manager', AdminSection.content), isFalse);
       expect(AdminPermissions.canSee('academic_manager', AdminSection.staff), isFalse);
     });
 
-    test('legacy staff moderator role is no longer granted dashboard navigation', () {
+    test('moderator sees the moderation, notifications, and dashboard APIs it is authorized to use', () {
       expect(AdminPermissions.canSee('moderator', AdminSection.overview), isTrue);
+      expect(AdminPermissions.canSee('moderator', AdminSection.analytics), isTrue);
+      expect(AdminPermissions.canSee('moderator', AdminSection.eino), isTrue);
+      expect(AdminPermissions.canSee('moderator', AdminSection.feedbackReports), isTrue);
+      expect(AdminPermissions.canSee('moderator', AdminSection.notifications), isTrue);
       expect(AdminPermissions.canSee('moderator', AdminSection.account), isTrue);
-      expect(AdminPermissions.canSee('moderator', AdminSection.feedbackReports), isFalse);
       expect(AdminPermissions.canSee('moderator', AdminSection.students), isFalse);
       expect(AdminPermissions.canSee('moderator', AdminSection.staff), isFalse);
+      expect(AdminPermissions.canSee('moderator', AdminSection.security), isFalse);
+      expect(AdminPermissions.canSee('moderator', AdminSection.management), isFalse);
     });
 
     test('unknown roles receive least-privilege navigation', () {
@@ -45,6 +54,7 @@ void main() {
     test('role IDs map to Arabic labels', () {
       expect(AdminPermissions.roleLabel('super_admin'), 'مدير النظام');
       expect(AdminPermissions.roleLabel('academic_manager'), 'مدير الشؤون الأكاديمية');
+      expect(AdminPermissions.roleLabel('moderator'), 'مشرف التعليقات والإشعارات');
     });
   });
 }

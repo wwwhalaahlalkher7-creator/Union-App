@@ -10,8 +10,8 @@ import '../../admin_permissions.dart';
 
 enum _ContentKind { news, events, achievements, announcements }
 
-// Keep these values aligned with the category maps in web/portal/news.html and
-// web/portal/Injazat.html. The values (not just their labels) are sent to the API.
+// Keep these values aligned with the category maps in website/news.html and
+// website/Injazat.html. The values (not just their labels) are sent to the API.
 const Map<String, String> _newsCategoryOptions = {
   'statement': 'بيان رسمي',
   'coverage': 'تغطية إعلامية',
@@ -30,14 +30,13 @@ const Map<String, String> _achievementCategoryOptions = {
 extension on _ContentKind {
   String get endpoint => switch (this) {
         _ContentKind.news => 'news',
-        // The backend exposes the events table through the legacy 'activities' resource.
-        _ContentKind.events => 'activities',
+        _ContentKind.events => 'events',
         _ContentKind.achievements => 'achievements',
         _ContentKind.announcements => 'announcements',
       };
   String get label => switch (this) {
         _ContentKind.news => 'الأخبار',
-        _ContentKind.events => 'الأنشطة',
+        _ContentKind.events => 'الفعاليات',
         _ContentKind.achievements => 'الإنجازات',
         _ContentKind.announcements => 'الإعلانات',
       };

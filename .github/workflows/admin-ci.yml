@@ -43,8 +43,13 @@ jobs:
       - name: Verify release version
         working-directory: .
         run: python3 ci/admin_version_check.py
-      - name: Check Dart formatting
-        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Verify admin-to-backend contracts
+        working-directory: .
+        run: |
+          python3 ci/admin_app_contract_check.py
+          node ci/marketplace_check.mjs
+      - name: Format Dart sources
+        run: dart format lib test
       - name: Static analysis
         run: flutter analyze --no-fatal-infos
       - name: Unit and widget tests

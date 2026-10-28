@@ -23,7 +23,7 @@ MAJOR.MINOR.PATCH+BUILD
 من هذا الملف يتم توليد تلقائيًا:
 
 - Flutter/Android version name = `2.0.3`
-- Android build number = `3`
+- Android build number = قيمة `BUILD` بعد علامة `+`؛ الإصدار الحالي `2.0.3+2` يحمل build number يساوي `2`.
 - Backend `APP_VERSION = 2.0.3`
 - Backend `APP_RELEASE_NOTES` من التعليقات
 - GitHub tag = `v2.0.3`

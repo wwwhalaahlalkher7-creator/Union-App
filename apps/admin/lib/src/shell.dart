@@ -14,6 +14,7 @@ import 'features/security/security_page.dart';
 import 'features/account/account_page.dart';
 import 'features/analytics/analytics_page.dart';
 import 'features/settings/settings_page.dart';
+import 'features/management/management_page.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key, required this.api, required this.sessionStore});
@@ -157,6 +158,8 @@ class _AdminShellState extends State<AdminShell> {
         return AcademicPage(api: widget.api, initialTab: 1);
       case AdminSection.schedule:
         return AcademicPage(api: widget.api, initialTab: 2);
+      case AdminSection.management:
+        return ManagementPage(api: widget.api, role: _session!.role);
       case AdminSection.security:
         return SecurityPage(api: widget.api);
       case AdminSection.settings:

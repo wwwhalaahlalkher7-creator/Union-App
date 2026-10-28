@@ -123,7 +123,7 @@ void main() {
       });
       final api = ApiService(sessionStore: store, client: client);
 
-      final first = api.get('/admin/security/eino-monitor');
+      final first = api.get('/admin/security/eino-usage');
       await refreshStarted.future;
       final second = api.get('/admin/security/eino-usage');
       releaseRefresh.complete();

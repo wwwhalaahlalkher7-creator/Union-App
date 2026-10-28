@@ -23,17 +23,18 @@ Dashboard ─────────────┘              │
 ## 2. Flutter
 
 ```text
-lib/
-├── app/                    router + app shell
-├── core/                   config, network, storage, theme, update
-├── data/
-│   ├── models/             DTO/domain models
-│   └── repositories/       API-facing repositories
-├── features/               screens by feature
-└── shared/widgets/          reusable UI components
+apps/
+├── student/                تطبيق الطلاب (Flutter)
+│   ├── lib/                الشاشات وطبقات البيانات المشتركة للطلاب
+│   ├── test/               اختبارات الطلاب
+│   └── VERSION             مصدر إصدار الطلاب الوحيد
+└── admin/                  تطبيق الإدارة (Flutter Android + Windows)
+    ├── lib/src/            صفحات الإدارة وعميل API والصلاحيات
+    ├── test/               اختبارات الإدارة
+    └── pubspec.yaml        إصدار الإدارة وتبعياتها
 ```
 
-القاعدة: الشاشة لا تبني HTTP requests بنفسها. استخدم repository ثم `ApiClient`/`AuthenticatedClient`.
+لكل تطبيق اعتمادياته واختباراته وإصداره المستقل. يتصل كل منهما بالـBackend عبر API، ولا يتصل مباشرةً بقاعدة D1.
 
 ## 3. Backend
 

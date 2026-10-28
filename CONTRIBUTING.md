@@ -28,4 +28,4 @@ Harden dashboard moderation action
 
 ## Documentation rule
 
-Do not create stage/pass README files for ordinary fixes. Update the canonical document in `docs/` or `CHANGELOG.md` when the operational behavior changes.
+Do not create stage/pass README files for ordinary fixes. Update the relevant canonical document in `docs/` when operational behavior or a procedure changes.

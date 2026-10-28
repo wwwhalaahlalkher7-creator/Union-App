@@ -78,7 +78,8 @@ python3 ci/release_check.py
 python3 ci/final_release_check.py
 python3 ci/admin_crud_check.py
 python3 ci/auth_hardening_check.py
-python3 ci/eino_dashboard_check.py
+python3 ci/eino_monitor_check.py
+python3 ci/eino_observability_check.py
 python3 ci/web_security_check.py
 python3 ci/xss_dom_check.py
 python3 ci/flutter_secure_storage_check.py

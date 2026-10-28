@@ -80,7 +80,7 @@ npm run migrate:local
 من جذر المستودع:
 
 ```bash
-npm ci --ignore-scripts --no-audit --no-fund
+npm install --package-lock=false --ignore-scripts --no-audit --no-fund
 npm run build
 ```
 

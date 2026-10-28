@@ -64,9 +64,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.getCalls.last, '/admin/achievements?limit=100');
 
-    await tester.tap(find.text('الأنشطة').first);
+    await tester.tap(find.text('الفعاليات').first);
     await tester.pumpAndSettle();
-    expect(api.getCalls.last, '/admin/activities?limit=100');
+    expect(api.getCalls.last, '/admin/events?limit=100');
   });
 
   testWidgets('notifications screen publishes immediately without exposing a type selector',

@@ -3,7 +3,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../api_service.dart';
-import '../imports/scanner_import_dialog.dart';
 
 class AcademicPage extends StatefulWidget {
   const AcademicPage({super.key, required this.api, required this.initialTab});
@@ -118,10 +117,68 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: error ? Theme.of(context).colorScheme.error : null));
   }
 
-  Future<void> _scanSchedule() async {
-    if (_departments.isEmpty || _semesters.isEmpty || _subjects.isEmpty) { _message('تعذر تحميل الأقسام أو الفصول أو المواد من الخادم. حدّث البيانات ثم أعد المحاولة.', error: true); return; }
-    final result = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => ScannerImportDialog(api: widget.api, type: 'schedule', departments: _departments, semesters: _semesters, subjects: _subjects));
-    if (result == true && mounted) { await _loadAll(); }
+  Future<void> _createDriveFolder() async {
+    if (_departments.isEmpty || _semesters.isEmpty) {
+      _message('قائمة الأقسام أو الفصول الدراسية غير متاحة من الخادم.', error: true);
+      return;
+    }
+    final name = TextEditingController();
+    String? departmentId = _departments.first['id']?.toString();
+    String? semesterId = _semesters.first['id']?.toString();
+    String? localError;
+    final values = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('إنشاء مجلد مادة في Drive'),
+          content: SizedBox(
+            width: 460,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: name, autofocus: true, decoration: const InputDecoration(labelText: 'اسم المادة / المجلد')),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: departmentId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'القسم الأكاديمي'),
+                items: _departments.map((row) => DropdownMenuItem(value: row['id']?.toString(), child: Text('${row['name_ar'] ?? row['name'] ?? row['id']}'))).toList(),
+                onChanged: (value) => setDialogState(() => departmentId = value),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: semesterId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'الفصل الدراسي'),
+                items: _semesters.map((row) => DropdownMenuItem(value: row['id']?.toString(), child: Text('${row['name_ar'] ?? row['name'] ?? row['id']}'))).toList(),
+                onChanged: (value) => setDialogState(() => semesterId = value),
+              ),
+              if (localError != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(localError!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error))),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+            FilledButton(onPressed: () {
+              if (name.text.trim().isEmpty || departmentId == null || semesterId == null) {
+                setDialogState(() => localError = 'أدخل الاسم واختر القسم والفصل.');
+                return;
+              }
+              Navigator.pop(dialogContext, {'name': name.text.trim(), 'departmentId': departmentId!, 'semesterId': semesterId!});
+            }, child: const Text('إنشاء')),
+          ],
+        ),
+      ),
+    );
+    name.dispose();
+    if (values == null || !mounted) return;
+    setState(() => _syncing = true);
+    try {
+      await widget.api.post('/admin/drive/folders', body: values);
+      _message('تم إنشاء مجلد المادة وتسجيله في الفهرس.');
+      await _loadAll();
+    } catch (e) {
+      _message('تعذر إنشاء مجلد المادة: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
   }
 
   Future<void> _edit([Map<String, dynamic>? item]) async {
@@ -141,6 +198,12 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
       final id = item?['id']?.toString();
       if (id == null || id.isEmpty) {
         await widget.api.post('/admin/$_resource', body: result);
+      } else if (_resource == 'subjects' && (item?['code']?.toString() ?? '').startsWith('DRIVE:FOLDER:')) {
+        if (result['department_id']?.toString() != item?['department_id']?.toString() || result['semester_id']?.toString() != item?['semester_id']?.toString()) {
+          _message('المجلد المزامن مرتبط بقسم وفصل محددين؛ لا يمكن نقلهما من هذه النافذة.', error: true);
+          return;
+        }
+        await widget.api.patch('/admin/drive/items/$id', body: {'kind': 'folder', 'name': result['name_ar']});
       } else {
         await widget.api.patch('/admin/$_resource/$id', body: result);
       }
@@ -188,7 +251,11 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
         const SizedBox(height: 14),
         if (_tabs.index < 2) TextField(controller: _search, onChanged: (_) => setState(() {}), decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: 'ابحث في $_title...', suffixIcon: _search.text.isEmpty ? null : IconButton(onPressed: () { _search.clear(); setState(() {}); }, icon: const Icon(Icons.close)))),
         if (_tabs.index < 2) const SizedBox(height: 12),
-        if (_tabs.index < 2) Row(mainAxisAlignment: MainAxisAlignment.center, children: [if (_tabs.index == 0) OutlinedButton.icon(onPressed: _syncing ? null : _syncDrive, icon: const Icon(Icons.cloud_sync_outlined), label: Text(_syncing ? 'جارٍ المزامنة…' : 'مزامنة الملفات')), if (_tabs.index == 1) OutlinedButton.icon(onPressed: _scanSchedule, icon: const Icon(Icons.document_scanner_outlined), label: const Text('مسح واستيراد جدول')), const SizedBox(width: 10), FilledButton.icon(onPressed: () => _edit(), icon: const Icon(Icons.add), label: Text(_tabs.index == 0 ? 'إضافة مادة' : 'إضافة موعد'))]),
+        if (_tabs.index < 2) Wrap(alignment: WrapAlignment.center, spacing: 10, runSpacing: 8, children: [
+          if (_tabs.index == 0) OutlinedButton.icon(onPressed: _syncing ? null : _syncDrive, icon: const Icon(Icons.cloud_sync_outlined), label: Text(_syncing ? 'جارٍ المزامنة…' : 'مزامنة الملفات')),
+          if (_tabs.index == 0) OutlinedButton.icon(onPressed: _syncing ? null : _createDriveFolder, icon: const Icon(Icons.create_new_folder_outlined), label: const Text('مجلد مادة جديد')),
+          FilledButton.icon(onPressed: () => _edit(), icon: const Icon(Icons.add), label: Text(_tabs.index == 0 ? 'إضافة مادة' : 'إضافة موعد')),
+        ]),
         if (_tabs.index < 2) const SizedBox(height: 12),
         if (_loading && _activeRows.isEmpty) const Expanded(child: Center(child: CircularProgressIndicator()))
         else if (_error != null && _activeRows.isEmpty) Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.cloud_off_outlined, size: 42), const SizedBox(height: 12), Text(_error!, textAlign: TextAlign.center), const SizedBox(height: 12), OutlinedButton.icon(onPressed: _loadAll, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة'))])))
@@ -230,7 +297,7 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
               leading: const Icon(Icons.picture_as_pdf_outlined),
               title: Text('${sheet['title'] ?? 'شيت دون عنوان'}'),
               subtitle: Text((sheet['source']?.toString() == 'drive') ? 'ملف متزامن' : 'ملف مضاف يدويًا'),
-              trailing: PopupMenuButton<String>(onSelected: (v) { Navigator.pop(dialogContext); if (v == 'edit') { _editMaterial(sheet); } if (v == 'delete') { _deleteMaterial(sheet); } }, itemBuilder: (_) => const [PopupMenuItem(value: 'edit', child: Text('تعديل الشيت')), PopupMenuItem(value: 'delete', child: Text('حذف الشيت'))]),
+              trailing: PopupMenuButton<String>(onSelected: (v) { Navigator.pop(dialogContext); if (v == 'edit') { _editMaterial(sheet); } if (v == 'delete') { _deleteMaterial(sheet); } if (v == 'index') { _indexMaterial(sheet); } }, itemBuilder: (_) => const [PopupMenuItem(value: 'edit', child: Text('تعديل الشيت')), PopupMenuItem(value: 'index', child: Text('إعادة فهرسة إينو')), PopupMenuItem(value: 'delete', child: Text('حذف الشيت'))]),
             )).toList())),
         actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق')), FilledButton.icon(onPressed: () { Navigator.pop(dialogContext); _addSheet(subject); }, icon: const Icon(Icons.add), label: const Text('إضافة شيت PDF'))],
       );
@@ -257,7 +324,7 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
                 if (picked == null || picked.files.isEmpty) return;
                 final file = picked.files.single;
                 if (file.bytes == null) { setDialogState(() => localError = 'تعذر قراءة الملف من الجهاز. حاول اختيار الملف مرة أخرى.'); return; }
-                if (file.size > 8 * 1024 * 1024) { setDialogState(() => localError = 'الحد الأقصى لحجم PDF هو 8 ميجابايت.'); return; }
+                if (file.size > 20 * 1024 * 1024) { setDialogState(() => localError = 'الحد الأقصى لحجم PDF هو 20 ميجابايت.'); return; }
                 setDialogState(() { selectedFile = file; localError = null; });
               } catch (e) { setDialogState(() => localError = 'تعذر اختيار الملف: $e'); }
             },
@@ -282,10 +349,9 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
               }
               setDialogState(() { uploading = true; localError = null; });
               try {
-                await widget.api.post('/admin/materials/upload', body: {
+                await widget.api.post('/admin/drive/files', body: {
                   'subjectId': subject['id'],
-                  'title': titleController.text.trim(),
-                  'fileName': selectedFile!.name,
+                  'name': titleController.text.trim(),
                   'base64': base64Encode(selectedFile!.bytes!),
                 });
                 if (dialogContext.mounted) Navigator.pop(dialogContext, true);
@@ -304,10 +370,35 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
   }
 
   Future<void> _editMaterial(Map<String, dynamic> sheet) async {
+    if (sheet['source']?.toString() == 'drive' && (sheet['drive_file_id']?.toString() ?? '').isNotEmpty) {
+      final name = TextEditingController(text: sheet['title']?.toString() ?? '');
+      final nextName = await showDialog<String>(context: context, builder: (context) => AlertDialog(
+        title: const Text('إعادة تسمية ملف Drive'),
+        content: TextField(controller: name, autofocus: true, decoration: const InputDecoration(labelText: 'اسم الملف')),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), FilledButton(onPressed: () => Navigator.pop(context, name.text.trim()), child: const Text('حفظ'))],
+      ));
+      name.dispose();
+      if (nextName == null || nextName.isEmpty || !mounted) return;
+      try {
+        await widget.api.patch('/admin/drive/items/${sheet['id']}', body: {'kind': 'file', 'name': nextName});
+        _message('تمت إعادة تسمية الملف في Drive.');
+        await _loadAll();
+      } catch (e) { _message('تعذرت إعادة تسمية الملف: $e', error: true); }
+      return;
+    }
     final result = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => _AcademicEditor(resource: 'materials', initial: sheet, subjects: _subjects, departments: _departments, semesters: _semesters));
     if (result == null || !mounted) { return; }
     try { await widget.api.patch('/admin/materials/${sheet['id']}', body: result); _message('تم تحديث الشيت.'); await _loadAll(); }
     catch (e) { _message('تعذر تحديث الشيت: $e', error: true); }
+  }
+
+  Future<void> _indexMaterial(Map<String, dynamic> sheet) async {
+    final id = sheet['id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    try {
+      await widget.api.post('/admin/eino/materials/$id/index');
+      _message('تم إرسال الملف إلى طابور فهرسة إينو.');
+    } catch (e) { _message('تعذرت إعادة الفهرسة: $e', error: true); }
   }
 
   Future<void> _deleteMaterial(Map<String, dynamic> sheet) async {
