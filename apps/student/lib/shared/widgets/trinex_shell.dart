@@ -180,7 +180,7 @@ class _TrinexShellState extends State<TrinexShell> {
                     const PositionedDirectional(
                       end: 16,
                       bottom: 18,
-                      child: const EinoFloatingButton(),
+                      child: EinoFloatingButton(),
                     ),
                   // A narrow edge gesture lets the student summon Eino again
                   // without adding another permanent button to the UI.
