@@ -11,6 +11,8 @@ checks = {
     'admin client exposes Eino usage API': "'/admin/security/eino-usage?hours=${hours.clamp(1, 168)}'" in api_service,
     'monitor renders request totals and latency data': all(k in page for k in ('eventCount', 'averageLatencyMs', 'totalLatencyMs', 'حدود الاستخدام')),
     'monitor privacy description avoids conversation content': 'دون عرض نصوص المحادثات أو معرفات الطلاب' in page,
+    'provider/task aggregates shown without individual prompt logs': all(k in page for k in ('providerSummary', 'detailBuckets', 'آخر الساعات حسب المزوّد (بيانات مجمّعة)')),
+    'backend emits provider/task aggregates': all(k in admin for k in ('FROM eino_provider_telemetry', 'providerSummary:', 'detailBuckets:')),
 }
 for label, passed in checks.items():
     print(('PASS' if passed else 'FAIL') + ' ' + label)

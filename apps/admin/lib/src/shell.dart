@@ -14,7 +14,7 @@ import 'features/security/security_page.dart';
 import 'features/account/account_page.dart';
 import 'features/analytics/analytics_page.dart';
 import 'features/settings/settings_page.dart';
-import 'features/management/management_page.dart';
+import 'features/marketplace/marketplace_exams_page.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key, required this.api, required this.sessionStore});
@@ -30,8 +30,9 @@ class _AdminShellState extends State<AdminShell> {
   bool _checkingSession = true;
   AdminSection _section = AdminSection.overview;
 
-  List<AdminSection> _visibleSections(String role) =>
-      AdminSection.values.where((section) => AdminPermissions.canSee(role, section)).toList();
+  List<AdminSection> _visibleSections(String role) => AdminSection.values
+      .where((section) => section != AdminSection.exams && AdminPermissions.canSee(role, section))
+      .toList();
 
   @override
   void initState() {
@@ -71,7 +72,7 @@ class _AdminShellState extends State<AdminShell> {
     }
 
     final visibleSections = _visibleSections(_session!.role);
-    if (!visibleSections.contains(_section)) { _section = AdminSection.overview; }
+    if (!AdminPermissions.canSee(_session!.role, _section)) { _section = AdminSection.overview; }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -142,7 +143,7 @@ class _AdminShellState extends State<AdminShell> {
           onNavigate: (section) => setState(() => _section = section),
           visibleSections: _visibleSections(_session!.role),
         );
-      case AdminSection.feedbackReports:
+      case AdminSection.feedbackInbox:
         return FeedbackReportsPage(api: widget.api);
       case AdminSection.eino:
         return EinoMonitorPage(api: widget.api);
@@ -155,17 +156,28 @@ class _AdminShellState extends State<AdminShell> {
       case AdminSection.staff:
         return StaffPage(api: widget.api, currentRole: _session!.role);
       case AdminSection.materials:
-        return AcademicPage(api: widget.api, initialTab: 1);
+        return AcademicPage(api: widget.api, initialTab: 1, onOpenExams: () => setState(() => _section = AdminSection.exams));
       case AdminSection.schedule:
         return AcademicPage(api: widget.api, initialTab: 2);
-      case AdminSection.management:
-        return ManagementPage(api: widget.api, role: _session!.role);
+      case AdminSection.market:
+        return MarketplaceExamsPage(api: widget.api, initialTab: 'market');
+      case AdminSection.exams:
+        return MarketplaceExamsPage(api: widget.api, initialTab: 'exams', onBackToMaterials: () => setState(() => _section = AdminSection.materials));
       case AdminSection.security:
         return SecurityPage(api: widget.api);
       case AdminSection.settings:
         return SettingsPage(api: widget.api);
       case AdminSection.account:
-        return AccountPage(api: widget.api, session: _session!, onSignOut: _signOut);
+        return AccountPage(
+          api: widget.api,
+          session: _session!,
+          onSignOut: _signOut,
+          onDisplayNameChanged: (name) {
+            final updated = _session!.copyWith(displayName: name);
+            setState(() => _session = updated);
+            widget.sessionStore.save(updated);
+          },
+        );
     }
   }
 }
@@ -379,7 +391,7 @@ class _DashboardPageState extends State<DashboardPage> {
       const _QuickAction(AdminSection.security, 'الأمان والتدقيق', 'أحداث الدخول وسجل العمليات', Icons.shield_outlined),
       const _QuickAction(AdminSection.analytics, 'التحليلات والاستخدام', 'نشاط التطبيق والموقع والأقسام', Icons.query_stats_outlined),
       const _QuickAction(AdminSection.eino, 'مراقبة إينو', 'الأداء والأخطاء ومزودو الخدمة', Icons.monitor_heart_outlined),
-      const _QuickAction(AdminSection.feedbackReports, 'المقترحات والبلاغات', 'رسائل الطلاب ومتابعة المقترحات والمشكلات', Icons.feedback_outlined),
+      const _QuickAction(AdminSection.feedbackInbox, 'المقترحات والبلاغات', 'رسائل الطلاب ومتابعة المقترحات والمشكلات', Icons.feedback_outlined),
       const _QuickAction(AdminSection.schedule, 'الجداول الأكاديمية', 'الجداول والمواعيد', Icons.calendar_month_outlined),
     ].where((item) => widget.visibleSections.contains(item.section)).toList();
 

@@ -5,21 +5,18 @@ import 'package:flutter/material.dart';
 
 import '../../api_service.dart';
 
-class ManagementPage extends StatefulWidget {
-  const ManagementPage({super.key, required this.api, required this.role});
+class MarketplaceExamsPage extends StatefulWidget {
+  const MarketplaceExamsPage({super.key, required this.api, required this.initialTab, this.onBackToMaterials});
   final ApiService api;
-  final String role;
+  final String initialTab;
+  final VoidCallback? onBackToMaterials;
 
   @override
-  State<ManagementPage> createState() => _ManagementPageState();
+  State<MarketplaceExamsPage> createState() => _MarketplaceExamsPageState();
 }
 
-class _ManagementPageState extends State<ManagementPage> {
-  static const _superAdmin = 'super_admin';
-  static const _contentManager = 'content_manager';
-  static const _academicManager = 'academic_manager';
-
-  String _tab = 'market';
+class _MarketplaceExamsPageState extends State<MarketplaceExamsPage> {
+  late String _tab;
   bool _loading = false;
   bool _working = false;
   String? _error;
@@ -27,19 +24,13 @@ class _ManagementPageState extends State<ManagementPage> {
   List<Map<String, dynamic>> _departments = [];
   Map<String, dynamic> _examIndex = {};
   List<Map<String, dynamic>> _syncRuns = [];
-
-  List<String> get _availableTabs {
-    if (widget.role == _superAdmin) return const ['market', 'badges', 'exams'];
-    if (widget.role == _contentManager) return const ['market', 'badges'];
-    if (widget.role == _academicManager) return const ['exams'];
-    return const [];
-  }
+  final Set<String> _selectedMarketIds = <String>{};
+  bool get _marketSelectionMode => _selectedMarketIds.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
-    final tabs = _availableTabs;
-    _tab = tabs.isEmpty ? 'market' : tabs.first;
+    _tab = widget.initialTab == 'exams' ? 'exams' : 'market';
     _load();
   }
 
@@ -74,10 +65,6 @@ class _ManagementPageState extends State<ManagementPage> {
           _items = _rows(result[0]['data'] ?? result[0]);
           _departments = _rows(result[1]['data'] ?? result[1]);
         });
-      } else if (_tab == 'badges') {
-        final result = await widget.api.get('/admin/badges?limit=100');
-        if (!mounted) return;
-        setState(() => _items = _rows(result['data'] ?? result));
       } else {
         final result = await Future.wait([
           widget.api.get('/admin/exams'),
@@ -104,23 +91,21 @@ class _ManagementPageState extends State<ManagementPage> {
     ));
   }
 
-  Future<void> _saveRecord(Map<String, dynamic> values, {String? id}) async {
+  Future<void> _editRecord([Map<String, dynamic>? item]) async {
+    final values = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => _MarketItemEditor(item: item, departments: _departments),
+    );
+    if (values == null || !mounted) return;
     setState(() => _working = true);
     try {
-      if (_tab == 'market') {
-        if (id == null) {
-          await widget.api.post('/admin/market-items', body: values);
-        } else {
-          await widget.api.patch('/admin/market-items/$id', body: values);
-        }
+      final id = item?['id']?.toString();
+      if (id == null) {
+        await widget.api.post('/admin/market-items', body: values);
       } else {
-        if (id == null) {
-          await widget.api.post('/admin/badges', body: values);
-        } else {
-          await widget.api.patch('/admin/badges/$id', body: values);
-        }
+        await widget.api.patch('/admin/market-items/$id', body: values);
       }
-      _message(id == null ? 'تمت الإضافة بنجاح.' : 'تم حفظ التعديلات.');
+      _message(id == null ? 'تمت إضافة عنصر السوق.' : 'تم حفظ التعديلات.');
       await _load();
     } catch (error) {
       _message('تعذر حفظ البيانات: $error', bad: true);
@@ -129,29 +114,58 @@ class _ManagementPageState extends State<ManagementPage> {
     }
   }
 
-  Future<void> _editRecord([Map<String, dynamic>? item]) async {
-    final values = _tab == 'market'
-        ? await showDialog<Map<String, dynamic>>(
-            context: context,
-            builder: (_) => _MarketItemEditor(item: item, departments: _departments),
-          )
-        : await showDialog<Map<String, dynamic>>(
-            context: context,
-            builder: (_) => _BadgeEditor(item: item),
-          );
-    if (values == null || !mounted) return;
-    await _saveRecord(values, id: item?['id']?.toString());
-  }
-
   Future<void> _toggleActive(Map<String, dynamic> item, bool active) async {
     final id = item['id']?.toString();
     if (id == null || id.isEmpty) return;
     try {
-      await widget.api.patch('/admin/${_tab == 'market' ? 'market-items' : 'badges'}/$id', body: {'active': active ? 1 : 0});
+      await widget.api.patch('/admin/market-items/$id', body: {'active': active ? 1 : 0});
       _message(active ? 'تم تفعيل السجل.' : 'تم إيقاف السجل.');
       await _load();
     } catch (error) {
       _message('تعذر تغيير الحالة: $error', bad: true);
+    }
+  }
+
+  void _startMarketSelection(Map<String, dynamic> item) {
+    final id = item['id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    setState(() => _selectedMarketIds.add(id));
+  }
+
+  void _toggleMarketSelection(Map<String, dynamic> item) {
+    final id = item['id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    setState(() { if (!_selectedMarketIds.add(id)) _selectedMarketIds.remove(id); });
+  }
+
+  void _selectAllMarket() {
+    final ids = _items.map((item) => item['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+    if (ids.isEmpty) return;
+    setState(() { if (_selectedMarketIds.containsAll(ids)) { _selectedMarketIds.removeAll(ids); } else { _selectedMarketIds.addAll(ids); } });
+  }
+
+  Future<void> _deleteSelectedMarket() async {
+    final selected = _items.where((item) => _selectedMarketIds.contains(item['id']?.toString() ?? '')).toList();
+    if (selected.isEmpty) { setState(_selectedMarketIds.clear); return; }
+    final accepted = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: const Text('حذف عناصر السوق المحددة؟'),
+      content: Text('سيتم حذف ${selected.length} عنصرًا من السوق نهائيًا.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حذف المحدد'))],
+    ));
+    if (accepted != true || !mounted) return;
+    setState(() => _working = true);
+    final deleted = <String>{};
+    var failed = 0;
+    for (final item in selected) {
+      final id = item['id']?.toString() ?? '';
+      try { await widget.api.delete('/admin/market-items/$id'); deleted.add(id); } catch (_) { failed++; }
+    }
+    if (!mounted) return;
+    setState(() => _selectedMarketIds.removeAll(deleted));
+    await _load();
+    if (mounted) {
+      setState(() => _working = false);
+      _message(failed == 0 ? 'تم حذف ${deleted.length} عنصرًا.' : 'حُذف ${deleted.length} عنصر، وتعذر حذف $failed.');
     }
   }
 
@@ -320,7 +334,7 @@ class _ManagementPageState extends State<ManagementPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tabs = _availableTabs;
+    final marketMode = _tab == 'market';
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -328,40 +342,31 @@ class _ManagementPageState extends State<ManagementPage> {
         children: [
           Row(
             children: [
+              if (!marketMode) IconButton(
+                tooltip: 'العودة إلى المواد الدراسية',
+                onPressed: widget.onBackToMaterials,
+                icon: const Icon(Icons.arrow_back),
+              ),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('إدارة إضافية', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  Text(marketMode ? 'السوق' : 'إدارة الامتحانات', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 5),
-                  const Text('إدارة عناصر السوق والشارات وملفات الامتحانات المتصلة بالـBackend.'),
+                  Text(marketMode
+                    ? 'إدارة عناصر السوق التي تظهر للطلاب.'
+                    : 'إدارة ملفات الامتحانات داخل مجلدات المواد المتصلة بـGoogle Drive.'),
                 ]),
               ),
               IconButton(onPressed: _loading || _working ? null : _load, tooltip: 'تحديث', icon: const Icon(Icons.refresh)),
             ],
           ),
           const SizedBox(height: 14),
-          if (tabs.length > 1)
-            SegmentedButton<String>(
-              segments: [
-                if (tabs.contains('market')) const ButtonSegment(value: 'market', label: Text('السوق'), icon: Icon(Icons.storefront_outlined)),
-                if (tabs.contains('badges')) const ButtonSegment(value: 'badges', label: Text('الشارات'), icon: Icon(Icons.military_tech_outlined)),
-                if (tabs.contains('exams')) const ButtonSegment(value: 'exams', label: Text('الامتحانات'), icon: Icon(Icons.picture_as_pdf_outlined)),
-              ],
-              selected: {_tab},
-              onSelectionChanged: (selection) {
-                setState(() { _tab = selection.first; _items = []; _examIndex = {}; });
-                _load();
-              },
-            )
-          else if (tabs.isNotEmpty)
-            Chip(label: Text(tabs.first == 'exams' ? 'ملفات الامتحانات' : tabs.first == 'badges' ? 'الشارات' : 'السوق')),
-          const SizedBox(height: 10),
-          if (_tab != 'exams')
+          if (marketMode)
             Align(
               alignment: AlignmentDirectional.centerEnd,
               child: FilledButton.icon(
                 onPressed: _working ? null : () => _editRecord(),
                 icon: const Icon(Icons.add),
-                label: Text(_tab == 'market' ? 'إضافة عنصر للسوق' : 'إضافة شارة'),
+                label: const Text('إضافة عنصر للسوق'),
               ),
             )
           else
@@ -377,9 +382,8 @@ class _ManagementPageState extends State<ManagementPage> {
               Text('تعذر تحميل بيانات هذه الوحدة: $_error'),
               Align(alignment: AlignmentDirectional.centerEnd, child: TextButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة'))),
             ]))),
-          if (_error == null && !_loading && _tab == 'market') _buildMarketItems(),
-          if (_error == null && !_loading && _tab == 'badges') _buildBadges(),
-          if (_error == null && !_loading && _tab == 'exams') _buildExams(),
+          if (_error == null && !_loading && marketMode) _buildMarketItems(),
+          if (_error == null && !_loading && !marketMode) _buildExams(),
         ],
       ),
     );
@@ -388,10 +392,16 @@ class _ManagementPageState extends State<ManagementPage> {
   Widget _buildMarketItems() {
     if (_items.isEmpty) return const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('لا توجد عناصر سوق مسجلة بعد.')));
     return Column(children: [
+      if (_marketSelectionMode) Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 8, children: [
+        Text('تم تحديد ${_selectedMarketIds.length}'),
+        TextButton.icon(onPressed: _selectAllMarket, icon: const Icon(Icons.select_all), label: Text(_selectedMarketIds.length == _items.length ? 'إلغاء تحديد الكل' : 'تحديد الكل')),
+        OutlinedButton.icon(onPressed: () => setState(_selectedMarketIds.clear), icon: const Icon(Icons.close), label: const Text('إلغاء')),
+        FilledButton.icon(onPressed: _working ? null : _deleteSelectedMarket, icon: const Icon(Icons.delete_outline), label: const Text('حذف المحدد')),
+      ]))),
       for (final item in _items)
         Card(
-          child: ListTile(
-            leading: CircleAvatar(child: Icon(_active(item) ? Icons.storefront_outlined : Icons.inventory_2_outlined)),
+          child: GestureDetector(onLongPress: () => _startMarketSelection(item), child: ListTile(
+            leading: _marketSelectionMode ? Checkbox(value: _selectedMarketIds.contains(item['id']?.toString()), onChanged: (_) => _toggleMarketSelection(item)) : CircleAvatar(child: Icon(_active(item) ? Icons.storefront_outlined : Icons.inventory_2_outlined)),
             title: Text(_text(item, ['title_ar', 'title_en'], 'عنصر دون عنوان'), style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -403,39 +413,16 @@ class _ManagementPageState extends State<ManagementPage> {
                 if (action == 'edit') _editRecord(item);
                 if (action == 'toggle') _toggleActive(item, !_active(item));
                 if (action == 'delete') _deleteMarketItem(item);
+                if (action == 'select') _startMarketSelection(item);
               },
               itemBuilder: (_) => [
+                const PopupMenuItem(value: 'select', child: Text('تحديد')),
                 const PopupMenuItem(value: 'edit', child: Text('تعديل')),
                 PopupMenuItem(value: 'toggle', child: Text(_active(item) ? 'إيقاف' : 'تفعيل')),
                 const PopupMenuItem(value: 'delete', child: Text('حذف نهائي')),
               ],
             ),
-          ),
-        ),
-    ]);
-  }
-
-  Widget _buildBadges() {
-    if (_items.isEmpty) return const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('لا توجد شارات قابلة للإدارة.')));
-    return Column(children: [
-      const Card(child: ListTile(leading: Icon(Icons.info_outline), title: Text('تظل الشارات جزءًا من نظام التقدم؛ يدعم الخادم إضافتها وتعديلها وتعطيلها، ولا يدعم حذفها نهائيًا.'))),
-      for (final item in _items)
-        Card(
-          child: ListTile(
-            leading: CircleAvatar(child: Icon(_active(item) ? Icons.military_tech_outlined : Icons.remove_circle_outline)),
-            title: Text(_text(item, ['name_ar'], 'شارة دون اسم'), style: const TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text('${_text(item, ['rule_type'])} • ${_text(item, ['rule_value'])} • ${_active(item) ? 'نشطة' : 'متوقفة'}'),
-            trailing: PopupMenuButton<String>(
-              onSelected: (action) {
-                if (action == 'edit') _editRecord(item);
-                if (action == 'toggle') _toggleActive(item, !_active(item));
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'edit', child: Text('تعديل')),
-                PopupMenuItem(value: 'toggle', child: Text(_active(item) ? 'تعطيل' : 'تفعيل')),
-              ],
-            ),
-          ),
+          )),
         ),
     ]);
   }
@@ -492,71 +479,6 @@ class _ManagementPageState extends State<ManagementPage> {
         ),
     ]);
   }
-}
-
-class _BadgeEditor extends StatefulWidget {
-  const _BadgeEditor({this.item});
-  final Map<String, dynamic>? item;
-  @override
-  State<_BadgeEditor> createState() => _BadgeEditorState();
-}
-
-class _BadgeEditorState extends State<_BadgeEditor> {
-  final _form = GlobalKey<FormState>();
-  late final TextEditingController _name, _description, _icon, _value, _sort;
-  late String _rule;
-  late bool _active;
-
-  @override
-  void initState() {
-    super.initState();
-    final item = widget.item ?? {};
-    _name = TextEditingController(text: item['name_ar']?.toString() ?? '');
-    _description = TextEditingController(text: item['description_ar']?.toString() ?? '');
-    _icon = TextEditingController(text: item['icon_url']?.toString() ?? '');
-    _value = TextEditingController(text: item['rule_value']?.toString() ?? '1');
-    _sort = TextEditingController(text: item['sort_order']?.toString() ?? '0');
-    _rule = const ['xp_total', 'level', 'completed_materials', 'progress_events'].contains(item['rule_type']) ? item['rule_type'].toString() : 'level';
-    _active = item['active'] == null || item['active'] == true || item['active'] == 1;
-  }
-
-  @override
-  void dispose() {
-    _name.dispose(); _description.dispose(); _icon.dispose(); _value.dispose(); _sort.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.item == null ? 'إضافة شارة' : 'تعديل الشارة'),
-    content: SizedBox(width: 460, child: SingleChildScrollView(child: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min, children: [
-      TextFormField(controller: _name, decoration: const InputDecoration(labelText: 'اسم الشارة بالعربية *'), validator: (v) => v == null || v.trim().isEmpty ? 'الاسم مطلوب' : null),
-      TextFormField(controller: _description, decoration: const InputDecoration(labelText: 'الوصف'), minLines: 1, maxLines: 3),
-      TextFormField(controller: _icon, decoration: const InputDecoration(labelText: 'رابط الأيقونة HTTPS'), keyboardType: TextInputType.url),
-      const SizedBox(height: 8),
-      DropdownButtonFormField<String>(value: _rule, decoration: const InputDecoration(labelText: 'قاعدة منح الشارة'), items: const [
-        DropdownMenuItem(value: 'xp_total', child: Text('إجمالي نقاط XP')),
-        DropdownMenuItem(value: 'level', child: Text('المستوى')),
-        DropdownMenuItem(value: 'completed_materials', child: Text('المواد المكتملة')),
-        DropdownMenuItem(value: 'progress_events', child: Text('أحداث التقدم')),
-      ], onChanged: (value) { if (value != null) setState(() => _rule = value); }),
-      TextFormField(controller: _value, decoration: const InputDecoration(labelText: 'قيمة القاعدة *'), keyboardType: TextInputType.number, validator: (v) => (int.tryParse(v ?? '') ?? 0) <= 0 ? 'أدخل عددًا صحيحًا موجبًا' : null),
-      TextFormField(controller: _sort, decoration: const InputDecoration(labelText: 'ترتيب العرض'), keyboardType: TextInputType.number),
-      SwitchListTile(contentPadding: EdgeInsets.zero, value: _active, title: const Text('الشارة نشطة'), onChanged: (value) => setState(() => _active = value)),
-    ])))),
-    actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
-      FilledButton(onPressed: () {
-        if (!_form.currentState!.validate()) return;
-        Navigator.pop(context, <String, dynamic>{
-          'name_ar': _name.text.trim(), 'description_ar': _description.text.trim(),
-          'icon_url': _icon.text.trim().isEmpty ? null : _icon.text.trim(),
-          'rule_type': _rule, 'rule_value': int.parse(_value.text),
-          'sort_order': int.tryParse(_sort.text) ?? 0, 'active': _active ? 1 : 0,
-        });
-      }, child: const Text('حفظ')),
-    ],
-  );
 }
 
 class _MarketItemEditor extends StatefulWidget {

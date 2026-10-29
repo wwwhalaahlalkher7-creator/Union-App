@@ -30,7 +30,7 @@ export async function studentAuth(ctx, required = true) {
   if (!a.session.student_id || a.session.staff_user_id) {
     return { response: error('STUDENT_AUTH_REQUIRED', 'جلسة طالب مطلوبة.', 403, ctx.requestId, ctx.cors) };
   }
-  const student = await queryOne(ctx.env, `SELECT id AS student_id, student_number, full_name, department_id, current_semester_id, active AS student_active FROM students WHERE id = ? LIMIT 1`, a.session.student_id);
+  const student = await queryOne(ctx.env, `SELECT id AS student_id, student_number, full_name, department_id, current_semester_id, is_moderator, active AS student_active FROM students WHERE id = ? LIMIT 1`, a.session.student_id);
   if (!student || student.student_active !== 1) {
     return { response: error('STUDENT_AUTH_REQUIRED', 'حساب الطالب غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors) };
   }
@@ -443,6 +443,57 @@ export async function staffMe(ctx) {
   });
 }
 
+export async function staffUpdateProfile(ctx) {
+  const a = await staffAuth(ctx);
+  if (a.response) return a.response;
+
+  const body = await parseJson(ctx.request) || {};
+  const displayName = String(body.displayName ?? body.display_name ?? '').normalize('NFKC').trim();
+  const email = normalizeEmail(body.email);
+  if (!displayName || displayName.length > 120) {
+    return error('STAFF_PROFILE_NAME_INVALID', 'الاسم مطلوب ويجب ألا يتجاوز 120 حرفًا.', 400, ctx.requestId, ctx.cors);
+  }
+  if (!isValidEmail(email)) {
+    return error('STAFF_PROFILE_EMAIL_INVALID', 'أدخل بريدًا إلكترونيًا صحيحًا.', 400, ctx.requestId, ctx.cors);
+  }
+
+  const staffId = a.session.staff_user_id;
+  const duplicate = await queryOne(ctx.env,
+    'SELECT id FROM staff_users WHERE lower(email)=? AND id<>? LIMIT 1', email, staffId);
+  if (duplicate) {
+    return error('STAFF_PROFILE_EMAIL_IN_USE', 'هذا البريد الإلكتروني مستخدم لحساب إدارة آخر.', 409, ctx.requestId, ctx.cors);
+  }
+
+  const result = await ctx.env.DB.prepare(`
+    UPDATE staff_users
+       SET display_name=?, email=?, updated_at=CURRENT_TIMESTAMP
+     WHERE id=? AND active=1
+  `).bind(displayName, email, staffId).run();
+  if (!result.meta?.changes) {
+    return error('STAFF_NOT_FOUND', 'حساب الإدارة غير موجود أو غير فعال.', 403, ctx.requestId, ctx.cors);
+  }
+
+  // Keep a privacy-safe audit trail of the profile change without persisting old/new PII.
+  try {
+    await ctx.env.DB.prepare(`
+      INSERT INTO audit_logs (id, actor_type, actor_id, action, resource_type, resource_id, metadata_json)
+      VALUES (?, 'staff', ?, 'update_profile', 'staff_users', ?, ?)
+    `).bind(crypto.randomUUID(), staffId, staffId, JSON.stringify({ fields: ['display_name', 'email'] })).run();
+  } catch (e) {
+    console.error(`[${ctx.requestId}] staff profile audit failed`, e);
+  }
+  await recordAuthEvent(ctx, 'staff', staffId, 'profile_updated');
+  return ok(ctx, {
+    id: staffId,
+    user_id: a.session.staff_user_id_login,
+    display_name: displayName,
+    email,
+    role_id: a.session.staff_role_id,
+    role_name: a.session.staff_role_name,
+    updated: true,
+  });
+}
+
 export async function staffChangePassword(ctx) {
   const a = await staffAuth(ctx);
   if (a.response) return a.response;
@@ -544,7 +595,7 @@ export async function issueSession(ctx, identity) {
   if (identity.studentId) profile = await queryOne(ctx.env, `
     SELECT st.id AS studentId, st.student_number AS studentNumber, st.full_name AS fullName,
            st.email, st.department_id AS departmentId, d.name_ar AS departmentName,
-           st.current_semester_id AS currentSemesterId, se.name_ar AS semesterName
+           st.current_semester_id AS currentSemesterId, se.name_ar AS semesterName, st.is_moderator AS isModerator
     FROM students st
     LEFT JOIN departments d ON d.id = st.department_id
     LEFT JOIN semesters se ON se.id = st.current_semester_id
@@ -566,6 +617,7 @@ export function sanitizeSession(row) {
     studentNumber: row.student_number || null,
     fullName: row.full_name || null,
     departmentId: row.department_id || null,
+    isModerator: row.is_moderator === 1 || row.is_moderator === true || row.isModerator === 1 || row.isModerator === true,
     staffUserId: row.staff_user_id || null,
     staffUserIdLogin: row.staff_user_id_login || null,
     staffEmail: row.staff_email || null,

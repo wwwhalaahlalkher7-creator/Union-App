@@ -89,3 +89,14 @@ Worker:
 2. لا ترسل القيمة في issue أو chat أو commit.
 3. إذا تغير اسم secret، حدّث كل المستهلكين في نفس التغيير.
 4. بعد التغيير شغّل workflow أو فحص health المناسب.
+
+
+## Optional Cloudflare Worker monitoring
+
+The admin **System Monitoring** page can display operational metrics from Cloudflare Workers Analytics (requests, errors, subrequests, and CPU-time percentiles). This integration is optional and returns a clear not-configured state until a dedicated read-only token is added.
+
+- Add GitHub Actions secret `CF_ANALYTICS_API_TOKEN` with only **Account Analytics Read** permission. Do not reuse the deployment token.
+- The deployment workflow provides the Cloudflare account ID as runtime secret `CF_ANALYTICS_ACCOUNT_ID`.
+- The Worker script defaults to `leo-association-api`; set `CF_ANALYTICS_SCRIPT_NAME` only if its deployed script name changes.
+
+These are operational analytics metrics, may be sampled/aggregated by Cloudflare, and are not a billing statement or an exact billable-usage calculation.

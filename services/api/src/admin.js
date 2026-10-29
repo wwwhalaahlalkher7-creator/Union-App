@@ -8,7 +8,7 @@ import {
   R2_MAX_OBJECT_BYTES, R2_MAX_STORAGE_BYTES, R2_MAX_CLASS_A_MONTHLY, R2_MAX_UPLOAD_FILES_PER_REQUEST, R2_ALLOWED_TYPES,
   normalizeEmail, isValidEmail,
 } from './core.js';
-import { recordAuthEvent, staffAuth } from './auth.js';
+import { recordAuthEvent, staffAuth, studentAuth } from './auth.js';
 import { deleteOwnedMediaUrls, extractMediaUrlsFromRow, markOwnedMediaAttached } from './media.js';
 import { deleteDriveFilesViaAppsScript } from './drive.js';
 
@@ -30,7 +30,6 @@ const ADMIN_FIELDS = {
   schedules: ['semester_id','department_id','subject_id','day_of_week','start_time','end_time','room','lecturer','active'],
   students: ['student_number','full_name','email','department_id','current_semester_id','active'],
   badges: ['name_ar','description_ar','icon_url','rule_type','rule_value','active','sort_order'],
-  comments: ['student_id','content_type','content_id','body','status'],
   market_items: ['title_ar','title_en','description_ar','description_en','category','price_label','image_url','contact_url','department_id','status','active','sort_order'],
 };
 
@@ -47,14 +46,269 @@ const ADMIN_SELECT_COLUMNS = {
   subjects: 'id,semester_id,department_id,code,name_ar,name_en,active,sort_order',
   materials: 'id,subject_id,title,description,drive_file_id,drive_url,mime_type,size_bytes,active,sort_order,drive_parent_id,drive_modified_at,drive_web_view_url,pinned,source,created_at,updated_at',
   schedules: 'id,semester_id,department_id,subject_id,day_of_week,start_time,end_time,room,lecturer,active,created_by,updated_by,updated_at',
-  students: 'id,student_number,full_name,email,department_id,current_semester_id,active,CASE WHEN auth_secret_hash IS NULL THEN 0 ELSE 1 END AS registered,created_at,updated_at',
+  students: 'id,student_number,full_name,email,department_id,current_semester_id,active,is_moderator,CASE WHEN auth_secret_hash IS NULL THEN 0 ELSE 1 END AS registered,created_at,updated_at',
   badges: 'id,name_ar,description_ar,icon_url,rule_type,rule_value,active,sort_order,created_at,updated_at',
-  comments: 'id,student_id,content_type,content_id,body,status,created_at,updated_at',
   market_items: 'id,title_ar,title_en,description_ar,description_en,category,price_label,image_url,contact_url,department_id,status,active,sort_order,created_by,updated_by,created_at,updated_at',
 };
-export async function adminModerationComments(ctx) { const a=await requireAdminPermission(ctx, 'moderation.read'); if(a.response) return a.response; const status=String(ctx.url.searchParams.get('status')||'visible'); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const limit=clampInt(ctx.url.searchParams.get('limit'),50,1,100); const rows=await queryAll(ctx.env,'SELECT c.*,s.full_name,s.student_number FROM comments c JOIN students s ON s.id=c.student_id WHERE c.status=? ORDER BY c.created_at DESC LIMIT ?',status,limit); return ok(ctx,rows,{count:rows.length}); }
+export async function submitStudentFeedback(ctx) {
+  const a = await studentAuth(ctx);
+  if (a.response) return a.response;
+  const body = await parseJson(ctx.request) || {};
+  const category = String(body.category || '').trim().toLowerCase();
+  const title = String(body.title || '').trim().slice(0, 160);
+  const details = String(body.details || '').trim().slice(0, 5000);
+  const screen = String(body.screen || '').trim().slice(0, 120) || null;
+  if (!['suggestion', 'report'].includes(category)) return error('FEEDBACK_CATEGORY_INVALID', 'نوع البلاغ غير صالح.', 400, ctx.requestId, ctx.cors);
+  if (!details) return error('FEEDBACK_DETAILS_REQUIRED', 'اكتب تفاصيل المقترح أو البلاغ.', 400, ctx.requestId, ctx.cors);
+  const id = makeId('feedback');
+  await ctx.env.DB.prepare(`INSERT INTO feedback_reports
+    (id, student_id, category, title, details, screen, status)
+    VALUES (?, ?, ?, ?, ?, ?, 'open')`).bind(id, a.session.student_id, category, title || null, details, screen).run();
+  return ok(ctx, { id, status: 'open' }, null, 201);
+}
 
-export async function adminModerationComment(ctx,id) { const a=await requireAdminPermission(ctx, 'moderation.write'); if(a.response) return a.response; const body=await parseJson(ctx.request); const status=String(body?.status||'').trim(); if(!['visible','hidden','deleted'].includes(status)) return error('STATUS_INVALID','حالة الإشراف غير صالحة.',400,ctx.requestId,ctx.cors); const r=await ctx.env.DB.prepare('UPDATE comments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,id).run(); if(!r.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود.',404,ctx.requestId,ctx.cors); await writeAudit(ctx,a.session.staff_user_id,'status_update','comment',id,{status}); return ok(ctx,{id,status}); }
+export async function submitStudentChatReport(ctx) {
+  const a = await studentAuth(ctx);
+  if (a.response) return a.response;
+  const body = await parseJson(ctx.request) || {};
+  const messageId = String(body.messageId || '').trim().slice(0, 160) || null;
+  const messageBody = String(body.messageBody || '').trim().slice(0, 3000);
+  const authorName = String(body.authorName || '').trim().slice(0, 160) || null;
+  const reason = String(body.reason || '').trim().slice(0, 500);
+  const screen = String(body.screen || '').trim().slice(0, 120) || null;
+  if (!reason) return error('CHAT_REPORT_REASON_REQUIRED', 'اختر سبب البلاغ أو اكتبه.', 400, ctx.requestId, ctx.cors);
+  if (!messageId && !messageBody) return error('CHAT_REPORT_MESSAGE_REQUIRED', 'يلزم تحديد الرسالة المبلّغ عنها.', 400, ctx.requestId, ctx.cors);
+  const id = makeId('chat-report');
+  await ctx.env.DB.prepare(`INSERT INTO chat_reports
+    (id, reporter_student_id, reported_message_id, author_name, message_body, reason, screen, status, message_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'open', 'visible')`).bind(id, a.session.student_id, messageId, authorName, messageBody || null, reason, screen).run();
+  return ok(ctx, { id, status: 'open' }, null, 201);
+}
+
+export async function adminSetStudentModerator(ctx, id) {
+  const a = await requireAdminPermission(ctx, 'academic.write');
+  if (a.response) return a.response;
+  const body = await parseJson(ctx.request) || {};
+  const raw = body.isModerator;
+  if (![true, false, 1, 0, '1', '0'].includes(raw)) {
+    return error('STUDENT_MODERATOR_VALUE_INVALID', 'قيمة صلاحية مشرف الطالب غير صالحة.', 400, ctx.requestId, ctx.cors);
+  }
+  const enabled = raw === true || raw === 1 || raw === '1';
+  const student = await queryOne(ctx.env, 'SELECT id, is_moderator FROM students WHERE id=? LIMIT 1', id);
+  if (!student) return error('STUDENT_NOT_FOUND', 'الطالب غير موجود.', 404, ctx.requestId, ctx.cors);
+  await ctx.env.DB.prepare('UPDATE students SET is_moderator=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+    .bind(enabled ? 1 : 0, id).run();
+  await writeAudit(ctx, a.session.staff_user_id, enabled ? 'grant_student_moderator' : 'revoke_student_moderator', 'student', id, {
+    isModerator: enabled,
+    previousIsModerator: Number(student.is_moderator || 0) === 1,
+  });
+  return ok(ctx, { id, isModerator: enabled });
+}
+
+export async function adminModerationInbox(ctx) {
+  const a = await requireAdminPermission(ctx, 'moderation.read');
+  if (a.response) return a.response;
+  const limit = clampInt(ctx.url.searchParams.get('limit'), 200, 1, 500);
+  const [feedback, chats] = await Promise.all([
+    queryAll(ctx.env, `SELECT f.id, 'feedback' AS source, f.category, f.title, f.details, f.screen,
+      f.status, f.admin_notes AS adminNotes, f.created_at AS createdAt, f.updated_at AS updatedAt,
+      s.full_name AS studentName, s.student_number AS studentNumber
+      FROM feedback_reports f JOIN students s ON s.id=f.student_id
+      ORDER BY f.created_at DESC LIMIT ?`, limit),
+    queryAll(ctx.env, `SELECT c.id, 'chat' AS source, c.reason, c.message_body AS messageBody,
+      c.message_status AS messageStatus, c.screen, c.status, c.admin_notes AS adminNotes,
+      c.created_at AS createdAt, c.updated_at AS updatedAt,
+      reporter.full_name AS studentName, reporter.full_name AS reporterName, reporter.student_number AS studentNumber,
+      c.author_name AS authorName, c.reported_message_id AS reportedMessageId
+      FROM chat_reports c JOIN students reporter ON reporter.id=c.reporter_student_id
+      ORDER BY c.created_at DESC LIMIT ?`, limit),
+  ]);
+  const rows = [...feedback, ...chats].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, limit);
+  return ok(ctx, rows, { count: rows.length, feedbackCount: feedback.length, chatReportsCount: chats.length });
+}
+
+export async function adminModerationFeedbackUpdate(ctx, id) {
+  const a = await requireAdminPermission(ctx, 'moderation.write');
+  if (a.response) return a.response;
+  const body = await parseJson(ctx.request) || {};
+  const status = String(body.status || '').trim();
+  if (!['open', 'in_review', 'resolved', 'dismissed', 'archived'].includes(status)) return error('FEEDBACK_STATUS_INVALID', 'حالة البلاغ غير صالحة.', 400, ctx.requestId, ctx.cors);
+  const adminNotes = body.adminNotes == null ? null : String(body.adminNotes).trim().slice(0, 3000);
+  const result = await ctx.env.DB.prepare(`UPDATE feedback_reports SET status=?, admin_notes=COALESCE(?,admin_notes), updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(status, adminNotes, id).run();
+  if (!result.meta?.changes) return error('FEEDBACK_NOT_FOUND', 'البلاغ غير موجود.', 404, ctx.requestId, ctx.cors);
+  await writeAudit(ctx, a.session.staff_user_id, 'status_update', 'feedback_report', id, { status });
+  return ok(ctx, { id, status });
+}
+
+export async function adminModerationChatReportUpdate(ctx, id) {
+  const a = await requireAdminPermission(ctx, 'moderation.write');
+  if (a.response) return a.response;
+  const body = await parseJson(ctx.request) || {};
+  const status = String(body.status || '').trim();
+  const messageStatus = body.messageStatus == null ? null : String(body.messageStatus).trim();
+  if (!['open', 'reviewed', 'dismissed', 'archived'].includes(status)) return error('CHAT_REPORT_STATUS_INVALID', 'حالة بلاغ الدردشة غير صالحة.', 400, ctx.requestId, ctx.cors);
+  if (messageStatus != null && !['visible', 'hidden'].includes(messageStatus)) return error('CHAT_MESSAGE_STATUS_INVALID', 'حالة الرسالة غير صالحة.', 400, ctx.requestId, ctx.cors);
+  const result = await ctx.env.DB.prepare(`UPDATE chat_reports SET status=?, message_status=COALESCE(?,message_status),
+    admin_notes=COALESCE(?,admin_notes), updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .bind(status, messageStatus, body.adminNotes == null ? null : String(body.adminNotes).trim().slice(0, 3000), id).run();
+  if (!result.meta?.changes) return error('CHAT_REPORT_NOT_FOUND', 'بلاغ الدردشة غير موجود.', 404, ctx.requestId, ctx.cors);
+  await writeAudit(ctx, a.session.staff_user_id, 'status_update', 'chat_report', id, { status, messageStatus });
+  return ok(ctx, { id, status, messageStatus });
+}
+
+export async function adminAnalyticsOverview(ctx) {
+  const a = await adminRouteAuthOnly(ctx, 'dashboard.read');
+  if (a.response) return a.response;
+  // These are application/database observability signals, not Cloudflare account billing
+  // metrics. Worker CPU/request quotas require Cloudflare's account Analytics API or an
+  // Analytics Engine binding and must not be inferred from application queries.
+  const tableCounts = [
+    ['students', 'SELECT COUNT(*) AS count FROM students'],
+    ['activeStudents', 'SELECT COUNT(*) AS count FROM students WHERE active=1'],
+    ['staffUsers', 'SELECT COUNT(*) AS count FROM staff_users'],
+    ['contentNews', 'SELECT COUNT(*) AS count FROM news'],
+    ['contentEvents', 'SELECT COUNT(*) AS count FROM events'],
+    ['contentAchievements', 'SELECT COUNT(*) AS count FROM achievements'],
+    ['activeMaterials', 'SELECT COUNT(*) AS count FROM materials WHERE active=1'],
+    ['scheduleRows', 'SELECT COUNT(*) AS count FROM schedules'],
+    ['comments', 'SELECT COUNT(*) AS count FROM comments'],
+    ['marketItems', 'SELECT COUNT(*) AS count FROM market_items'],
+    ['feedbackReports', 'SELECT COUNT(*) AS count FROM feedback_reports'],
+    ['chatReports', 'SELECT COUNT(*) AS count FROM chat_reports'],
+  ];
+  const countValues = await Promise.all(tableCounts.map(async ([key, sql]) => {
+    const row = await queryOne(ctx.env, sql);
+    return [key, Number(row?.count || 0)];
+  }));
+  const [auditDaily, auditByResource, authFailures, driveSync] = await Promise.all([
+    queryAll(ctx.env, `SELECT substr(created_at,1,10) AS day, COUNT(*) AS count FROM audit_logs
+      WHERE created_at >= datetime('now','-6 days') GROUP BY substr(created_at,1,10) ORDER BY day`),
+    queryAll(ctx.env, `SELECT resource_type AS resource, action, COUNT(*) AS count FROM audit_logs
+      WHERE created_at >= datetime('now','-7 days') GROUP BY resource_type, action ORDER BY count DESC LIMIT 12`),
+    queryAll(ctx.env, `SELECT event_type AS event, COUNT(*) AS count FROM auth_audit_events
+      WHERE created_at >= datetime('now','-7 days') GROUP BY event_type ORDER BY count DESC`),
+    queryAll(ctx.env, `SELECT status, COUNT(*) AS count FROM drive_sync_runs
+      WHERE started_at >= datetime('now','-30 days') GROUP BY status ORDER BY count DESC`),
+  ]);
+  const probe = await ctx.env.DB.prepare('SELECT COUNT(*) AS count FROM sqlite_master WHERE type = ?').bind('table').all();
+  const meta = probe.meta || {};
+  return ok(ctx, {
+    generatedAt: new Date().toISOString(),
+    counts: Object.fromEntries(countValues),
+    auditDaily,
+    auditByResource,
+    authFailures,
+    driveSync,
+    databaseProbe: {
+      tableCount: Number(probe.results?.[0]?.count || 0),
+      probeDurationMs: Number(meta.duration || 0),
+      probeRowsRead: Number(meta.rows_read || 0),
+      probeRowsWritten: Number(meta.rows_written || 0),
+      note: 'قياس الاستعلام التشخيصي فقط؛ ليس إجمالي استهلاك Cloudflare أو D1 على مستوى الحساب.',
+    },
+  });
+}
+
+export async function adminCloudflareWorkerMetrics(ctx) {
+  const a = await requireAdminPermission(ctx, 'dashboard.read');
+  if (a.response) return a.response;
+
+  const accountTag = String(ctx.env.CF_ANALYTICS_ACCOUNT_ID || '').trim();
+  const apiToken = String(ctx.env.CF_ANALYTICS_API_TOKEN || '').trim();
+  const scriptName = String(ctx.env.CF_ANALYTICS_SCRIPT_NAME || 'leo-association-api').trim();
+  const hours = clampInt(ctx.url.searchParams.get('hours'), 24, 1, 720);
+  if (!accountTag || !apiToken) {
+    return ok(ctx, {
+      configured: false,
+      hours,
+      scriptName,
+      message: 'يلزم ضبط CF_ANALYTICS_ACCOUNT_ID وCF_ANALYTICS_API_TOKEN (رمز منفصل بصلاحية Account Analytics Read) لتفعيل بيانات Cloudflare الفعلية.',
+      rows: [],
+      summary: { requests: 0, errors: 0, subrequests: 0 },
+    });
+  }
+
+  const end = new Date();
+  const start = new Date(end.getTime() - hours * 3600000);
+  const query = `query GetWorkersAnalytics($accountTag: string, $datetimeStart: string, $datetimeEnd: string, $scriptName: string) {
+    viewer {
+      accounts(filter: { accountTag: $accountTag }) {
+        workersInvocationsAdaptive(limit: 1000, filter: {
+          scriptName: $scriptName,
+          datetime_geq: $datetimeStart,
+          datetime_leq: $datetimeEnd
+        }) {
+          sum { requests errors subrequests }
+          quantiles { cpuTimeP50 cpuTimeP99 }
+          dimensions { datetime scriptName status }
+        }
+      }
+    }
+  }`;
+
+  let upstream;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch('https://api.cloudflare.com/client/v4/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables: {
+          accountTag,
+          datetimeStart: start.toISOString(),
+          datetimeEnd: end.toISOString(),
+          scriptName,
+        },
+      }),
+      signal: controller.signal,
+    });
+    upstream = await response.json().catch(() => null);
+    if (!response.ok || upstream?.errors?.length) {
+      console.warn('Cloudflare analytics query failed', { status: response.status, hasGraphqlErrors: Boolean(upstream?.errors?.length) });
+      return error('CLOUDFLARE_ANALYTICS_UNAVAILABLE', 'تعذر جلب بيانات مراقبة Cloudflare. تحقق من صلاحية رمز Account Analytics Read واسم Worker.', 502, ctx.requestId, ctx.cors);
+    }
+  } catch (e) {
+    const timeoutError = e?.name === 'AbortError';
+    return error('CLOUDFLARE_ANALYTICS_UNAVAILABLE', timeoutError ? 'انتهت مهلة جلب بيانات Cloudflare.' : 'تعذر الاتصال بخدمة Cloudflare Analytics.', 502, ctx.requestId, ctx.cors);
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const account = upstream?.data?.viewer?.accounts?.[0];
+  const sourceRows = Array.isArray(account?.workersInvocationsAdaptive) ? account.workersInvocationsAdaptive : [];
+  const rows = sourceRows.map((row) => ({
+    datetime: row?.dimensions?.datetime || null,
+    status: String(row?.dimensions?.status || 'unknown'),
+    requests: Number(row?.sum?.requests || 0),
+    errors: Number(row?.sum?.errors || 0),
+    subrequests: Number(row?.sum?.subrequests || 0),
+    cpuTimeP50: row?.quantiles?.cpuTimeP50 == null ? null : Number(row.quantiles.cpuTimeP50),
+    cpuTimeP99: row?.quantiles?.cpuTimeP99 == null ? null : Number(row.quantiles.cpuTimeP99),
+  })).sort((left, right) => String(right.datetime).localeCompare(String(left.datetime)));
+  const summary = rows.reduce((total, row) => ({
+    requests: total.requests + row.requests,
+    errors: total.errors + row.errors,
+    subrequests: total.subrequests + row.subrequests,
+  }), { requests: 0, errors: 0, subrequests: 0 });
+
+  return ok(ctx, {
+    configured: true,
+    source: 'cloudflare_graphql_workers_invocations_adaptive',
+    scriptName,
+    hours,
+    start: start.toISOString(),
+    end: end.toISOString(),
+    summary: { ...summary, errorRatePercent: summary.requests ? Math.round(summary.errors / summary.requests * 10000) / 100 : 0 },
+    rows,
+    note: 'مقاييس تشغيلية من Cloudflare Workers Analytics وقد تكون مجمّعة/مأخوذة بعينة. ليست فاتورة أو حسابًا نهائيًا للاستهلاك القابل للفوترة.',
+  });
+}
 
 export async function adminDashboardOverview(ctx) {
   const a = await adminRouteAuthOnly(ctx, 'dashboard.read');
@@ -107,6 +361,8 @@ export async function adminRoute(ctx) {
   const parts = ctx.path.split('/').filter(Boolean);
   const resource = parts[1] || '';
   const id = parts[2] || null;
+  if (resource === 'comments') return error('ADMIN_COMMENT_MODERATION_DISABLED', 'إشراف التعليقات والردود مخصص لنظام الطالب المشرف.', 403, ctx.requestId, ctx.cors);
+  if (resource === 'badges') return error('BADGE_ADMIN_DISABLED', 'الشارات تعريفات ثابتة ضمن إصدار الخادم ولا تُدار من لوحة التحكم.', 403, ctx.requestId, ctx.cors);
   if (resource === 'audit-logs' && ctx.request.method === 'GET') return adminAuditLogs(ctx);
   if (resource === 'settings') return adminSettings(ctx, id);
   if (resource === 'staff') return adminStaff(ctx, id, a.session.staff_user_id);
@@ -129,7 +385,7 @@ export function adminPermission(path, method) {
 }
 
 export function adminResourceTable(resource) {
-  const map = { news:'news', announcements:'announcements', events:'events', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', badges:'badges', comments:'comments', 'market-items':'market_items' };
+  const map = { news:'news', announcements:'announcements', events:'events', achievements:'achievements', subjects:'subjects', materials:'materials', schedule:'schedules', schedules:'schedules', students:'students', badges:'badges', 'market-items':'market_items' };
   return map[resource] || null;
 }
 
@@ -730,6 +986,22 @@ export async function adminEinoUsage(ctx) {
      WHERE bucket_started_at >= ?
      GROUP BY event_type, actor_type
      ORDER BY eventCount DESC`, since);
+  const providerSummary = await queryAll(ctx.env, `
+    SELECT capability, provider, model, status, SUM(event_count) AS eventCount,
+           SUM(total_latency_ms) AS totalLatencyMs
+      FROM eino_provider_telemetry
+     WHERE bucket_started_at >= ?
+     GROUP BY capability, provider, model, status
+     ORDER BY eventCount DESC
+     LIMIT 50`, since);
+  const detailBuckets = await queryAll(ctx.env, `
+    SELECT bucket_started_at AS bucketStartedAt, capability, actor_type AS actorType,
+           provider, model, status, event_count AS eventCount,
+           total_latency_ms AS totalLatencyMs, last_event_at AS lastEventAt
+      FROM eino_provider_telemetry
+     WHERE bucket_started_at >= ?
+     ORDER BY bucket_started_at DESC, event_count DESC
+     LIMIT 100`, since);
   return ok(ctx, {
     hours,
     since,
@@ -742,6 +1014,17 @@ export async function adminEinoUsage(ctx) {
     },
     summary: summaryRows.map(r => ({
       eventType: r.eventType, actorType: r.actorType, eventCount: Number(r.eventCount || 0),
+      averageLatencyMs: r.eventCount ? Math.round(Number(r.totalLatencyMs || 0) / Number(r.eventCount)) : 0,
+    })),
+    providerSummary: providerSummary.map(r => ({
+      capability: r.capability, provider: r.provider, model: r.model, status: r.status,
+      eventCount: Number(r.eventCount || 0),
+      averageLatencyMs: r.eventCount ? Math.round(Number(r.totalLatencyMs || 0) / Number(r.eventCount)) : 0,
+    })),
+    detailBuckets: detailBuckets.map(r => ({
+      ...r,
+      eventCount: Number(r.eventCount || 0),
+      totalLatencyMs: Number(r.totalLatencyMs || 0),
       averageLatencyMs: r.eventCount ? Math.round(Number(r.totalLatencyMs || 0) / Number(r.eventCount)) : 0,
     })),
     buckets: rows.map(r => ({

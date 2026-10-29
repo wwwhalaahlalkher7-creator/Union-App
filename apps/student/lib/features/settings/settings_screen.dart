@@ -37,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _checkingUpdate = false;
   bool _loggingOut = false;
   bool _changingLanguage = false;
+  bool _sendingFeedback = false;
   late String _selectedAccentId;
   late String _selectedLanguageCode;
   late ThemeMode _selectedThemeMode;
@@ -110,6 +111,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _checkingUpdate = false);
+    }
+  }
+
+  Future<void> _openFeedbackForm() async {
+    if (_sendingFeedback) return;
+    final title = TextEditingController();
+    final details = TextEditingController();
+    var category = 'suggestion';
+    String? validationError;
+    final values = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('المقترحات والبلاغات'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<String>(
+                initialValue: category,
+                decoration: const InputDecoration(labelText: 'نوع الرسالة'),
+                items: const [
+                  DropdownMenuItem(value: 'suggestion', child: Text('مقترح')),
+                  DropdownMenuItem(value: 'report', child: Text('بلاغ أو مشكلة')),
+                ],
+                onChanged: (value) { if (value != null) setDialogState(() => category = value); },
+              ),
+              const SizedBox(height: 10),
+              TextField(controller: title, decoration: const InputDecoration(labelText: 'عنوان مختصر (اختياري)'), maxLength: 160),
+              const SizedBox(height: 8),
+              TextField(controller: details, minLines: 4, maxLines: 7, maxLength: 5000, decoration: const InputDecoration(labelText: 'التفاصيل *', alignLabelWithHint: true)),
+              if (validationError != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(validationError!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error))),
+            ])),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+            FilledButton.icon(onPressed: () {
+              if (details.text.trim().isEmpty) {
+                setDialogState(() => validationError = 'اكتب تفاصيل المقترح أو البلاغ.');
+                return;
+              }
+              Navigator.pop(dialogContext, {'category': category, 'title': title.text.trim(), 'details': details.text.trim(), 'screen': 'settings'});
+            }, icon: const Icon(Icons.send_outlined), label: const Text('إرسال')),
+          ],
+        ),
+      ),
+    );
+    title.dispose();
+    details.dispose();
+    if (values == null || !mounted) return;
+    setState(() => _sendingFeedback = true);
+    try {
+      final client = await AuthenticatedClient.create();
+      await client.postJson('/student/feedback', body: values);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال رسالتك بنجاح.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال الرسالة: $error')));
+    } finally {
+      if (mounted) setState(() => _sendingFeedback = false);
     }
   }
 
@@ -255,6 +314,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ],
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    _SettingsSection(
+                      title: 'المقترحات والبلاغات',
+                      icon: Icons.feedback_outlined,
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        Text('أرسل مقترحًا أو بلّغ عن مشكلة ليتمكن فريق الإدارة من متابعتها.', style: TextStyle(color: context.colors.onSurfaceVariant)),
+                        const SizedBox(height: 10),
+                        FilledButton.icon(
+                          onPressed: _sendingFeedback ? null : _openFeedbackForm,
+                          icon: _sendingFeedback ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_outlined),
+                          label: Text(_sendingFeedback ? 'جارٍ الإرسال…' : 'إرسال مقترح أو بلاغ'),
+                        ),
+                      ]),
                     ),
                     const SizedBox(height: 12),
                     _SettingsSection(

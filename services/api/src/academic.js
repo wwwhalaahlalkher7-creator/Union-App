@@ -8,6 +8,16 @@ import {
   R2_MAX_OBJECT_BYTES, R2_MAX_STORAGE_BYTES, R2_MAX_CLASS_A_MONTHLY, R2_MAX_UPLOAD_FILES_PER_REQUEST, R2_ALLOWED_TYPES,
 } from './core.js';
 import { studentAuth } from './auth.js';
+
+const BADGE_DEFINITIONS = Object.freeze([
+  Object.freeze({ id:'badge-first-step', name_ar:'البداية', description_ar:'ابدأ أول تقدم دراسي موثق.', icon_url:null, rule_type:'progress_events', rule_value:1, active:1, sort_order:10 }),
+  Object.freeze({ id:'badge-first-complete', name_ar:'أول إنجاز', description_ar:'أكمل أول ملف دراسي.', icon_url:null, rule_type:'completed_materials', rule_value:1, active:1, sort_order:20 }),
+  Object.freeze({ id:'badge-five-complete', name_ar:'خمسة ملفات', description_ar:'أكمل 5 ملفات دراسية.', icon_url:null, rule_type:'completed_materials', rule_value:5, active:1, sort_order:30 }),
+  Object.freeze({ id:'badge-ten-complete', name_ar:'عشرة ملفات', description_ar:'أكمل 10 ملفات دراسية.', icon_url:null, rule_type:'completed_materials', rule_value:10, active:1, sort_order:40 }),
+  Object.freeze({ id:'badge-level-5', name_ar:'المستوى 5', description_ar:'وصل إلى المستوى الخامس.', icon_url:null, rule_type:'level', rule_value:5, active:1, sort_order:50 }),
+  Object.freeze({ id:'badge-500-xp', name_ar:'500 XP', description_ar:'اجمع 500 XP من أنشطتك الدراسية.', icon_url:null, rule_type:'xp_total', rule_value:500, active:1, sort_order:60 }),
+]);
+
 export async function semesters(ctx) { const rows = await queryAll(ctx.env, 'SELECT * FROM semesters WHERE active = 1 ORDER BY academic_year DESC, number'); return ok(ctx, rows); }
 
 export async function departments(ctx) { const rows = await queryAll(ctx.env, 'SELECT * FROM departments WHERE active = 1 ORDER BY sort_order, name_ar'); return ok(ctx, rows); }
@@ -247,22 +257,9 @@ export async function badges(ctx) {
   // Badge eligibility is derived from immutable activity metrics. The catalogue
   // read and the award write are deliberately independent so a single stale
   // student_badges row/table cannot make the whole profile/system screen fail.
-  const defaultBadges = [
-    { id:'badge-first-step', name_ar:'البداية', description_ar:'ابدأ أول تقدم دراسي موثق.', icon_url:null, rule_type:'progress_events', rule_value:1, active:1, sort_order:10 },
-    { id:'badge-first-complete', name_ar:'أول إنجاز', description_ar:'أكمل أول ملف دراسي.', icon_url:null, rule_type:'completed_materials', rule_value:1, active:1, sort_order:20 },
-    { id:'badge-five-complete', name_ar:'خمسة ملفات', description_ar:'أكمل 5 ملفات دراسية.', icon_url:null, rule_type:'completed_materials', rule_value:5, active:1, sort_order:30 },
-    { id:'badge-ten-complete', name_ar:'عشرة ملفات', description_ar:'أكمل 10 ملفات دراسية.', icon_url:null, rule_type:'completed_materials', rule_value:10, active:1, sort_order:40 },
-    { id:'badge-level-5', name_ar:'المستوى 5', description_ar:'وصل إلى المستوى الخامس.', icon_url:null, rule_type:'level', rule_value:5, active:1, sort_order:50 },
-    { id:'badge-500-xp', name_ar:'500 XP', description_ar:'اجمع 500 XP من أنشطتك الدراسية.', icon_url:null, rule_type:'xp_total', rule_value:500, active:1, sort_order:60 },
-  ];
-
-  let definitions = defaultBadges;
-  try {
-    const rows = await queryAll(ctx.env, 'SELECT id, name_ar, description_ar, icon_url, rule_type, rule_value, active, sort_order FROM badges WHERE active=1 ORDER BY sort_order ASC, id ASC');
-    if (rows.length) definitions = rows;
-  } catch (e) {
-    console.error(`[${ctx.requestId}] badge catalogue fallback`, e);
-  }
+  // The catalogue is versioned with the backend code. Existing DB tables are
+  // retained for historical award timestamps, never as editable definitions.
+  const definitions = BADGE_DEFINITIONS;
 
   const metrics = await queryOne(ctx.env, `
     SELECT
@@ -449,9 +446,7 @@ export async function awardProgressXp(ctx, studentId, materialId, previousPercen
 }
 
 export async function evaluateBadges(ctx, studentId) {
-  const badgeRows = await queryAll(ctx.env,
-    'SELECT id, rule_type, rule_value FROM badges WHERE active=1 ORDER BY sort_order ASC, id ASC');
-  if (!badgeRows.length) return [];
+  const badgeRows = BADGE_DEFINITIONS;
 
   const valuesRow = await queryOne(ctx.env, `
     SELECT

@@ -23,7 +23,7 @@ export async function eino(ctx) {
   const message = String(body?.message || body?.prompt || '').trim();
   const context = String(body?.context || '').trim();
   if (!message || message.length > EINO_MAX_MESSAGE || context.length > EINO_MAX_CONTEXT) {
-    await recordEinoTelemetry(ctx, 'validation_invalid', 'unknown');
+    await recordEinoTelemetry(ctx, 'validation_invalid', 'unknown', 0, { capability: 'text' });
     return error('EINO_INPUT_INVALID', 'رسالة Eino أو سياق المحادثة غير صالح.', 400, ctx.requestId, ctx.cors);
   }
 
@@ -43,7 +43,7 @@ export async function eino(ctx) {
     : `ip:${await sha256(ctx.request.headers.get('CF-Connecting-IP') || 'unknown')}`;
   const rate = await consumeEinoQuota(ctx, actorKey);
   if (!rate.allowed) {
-    await recordEinoTelemetry(ctx, `quota_${rate.scope}`, actorType);
+    await recordEinoTelemetry(ctx, `quota_${rate.scope}`, actorType, 0, { capability: 'text' });
     const code = rate.scope === 'daily' ? 'EINO_DAILY_LIMITED' : rate.scope === 'global' ? 'EINO_GLOBAL_LIMITED' : 'EINO_RATE_LIMITED';
     const message = rate.scope === 'daily'
       ? 'وصلت إلى الحد اليومي لاستخدام Eino. حاول مرة أخرى غدًا.'
@@ -55,7 +55,7 @@ export async function eino(ctx) {
 
   const requestedModel = String(body?.model || '').trim();
   if (requestedModel && /\s/.test(requestedModel)) {
-    await recordEinoTelemetry(ctx, 'config_invalid', actorType);
+    await recordEinoTelemetry(ctx, 'config_invalid', actorType, 0, { capability: 'text', model: requestedModel });
     return error('EINO_MODEL_INVALID', 'نموذج Eino المطلوب غير صالح.', 400, ctx.requestId, ctx.cors);
   }
   const systemParts = [
@@ -93,10 +93,10 @@ export async function eino(ctx) {
     const routes = getRoutesForCapability(ctx.env, EINO_CAPABILITIES.TEXT);
     const filtered = requestedModel ? routes.filter((r) => r.model === requestedModel) : routes;
     const providerResult = await routeText(ctx.env, { model: (filtered[0]?.model || requestedModel || routes[0]?.model), messages, temperature:0.4, maxTokens:900, signal:controller.signal });
-    const latencyMs=Date.now()-startedAt; await recordEinoTelemetry(ctx,'success',actorType,latencyMs);
+    const latencyMs=Date.now()-startedAt; await recordEinoTelemetry(ctx,'success',actorType,latencyMs,{ capability: 'text', provider: providerResult.provider, model: providerResult.model });
     return ok(ctx,{message:providerResult.answer,provider:providerResult.provider,capability:'text',model:providerResult.model,routing:{capability:'text',candidates:routes.map(r=>`${r.provider}:${r.model}`),selected:`${providerResult.provider}:${providerResult.route.model}`,fallback:providerResult.route.priority!==routes[0]?.priority},usage:providerResult.usage||null,reliability:providerResult.reliability||null});
   } catch(e) {
-    await recordEinoTelemetry(ctx,e?.name==='AbortError'?'timeout':'provider_error',actorType,Date.now()-startedAt);
+    await recordEinoTelemetry(ctx,e?.name==='AbortError'?'timeout':'provider_error',actorType,Date.now()-startedAt,{ capability: 'text', provider: e?.provider || e?.route?.provider, model: e?.model || requestedModel });
     if(e?.name==='AbortError') return error('EINO_TIMEOUT','استغرق Eino وقتًا أطول من المتوقع. أعد المحاولة.',504,ctx.requestId,ctx.cors);
     const status=Number(e?.status||502); if(status===401||status===403)return error('EINO_PROVIDER_AUTH','تعذر التحقق من اتصال Eino حاليًا. حاول لاحقًا.',502,ctx.requestId,ctx.cors); if(status===429)return error('EINO_PROVIDER_LIMITED','مزود Eino مشغول حاليًا. انتظر قليلًا ثم أعد المحاولة.',503,ctx.requestId,ctx.cors);
     console.error(`[${ctx.requestId}] Eino provider routing error`,e); return error('EINO_PROVIDER_ERROR','مزود Eino غير متاح حاليًا. أعد المحاولة بعد قليل.',502,ctx.requestId,ctx.cors);
@@ -622,7 +622,7 @@ export async function einoMediaActor(ctx, capability) {
     : `ip:${await sha256(ctx.request.headers.get('CF-Connecting-IP') || 'unknown')}`;
   const rate = await consumeEinoQuota(ctx, actorKey);
   if (!rate.allowed) {
-    await recordEinoTelemetry(ctx, `quota_${rate.scope}`, actorType);
+    await recordEinoTelemetry(ctx, `quota_${rate.scope}`, actorType, 0, { capability });
     return { response: error(rate.scope === 'global' ? 'EINO_GLOBAL_LIMITED' : rate.scope === 'daily' ? 'EINO_DAILY_LIMITED' : 'EINO_RATE_LIMITED', 'وصلت إلى حد استخدام Eino. حاول لاحقًا.', 429, ctx.requestId, ctx.cors) };
   }
   return { actorType };
@@ -641,9 +641,9 @@ export async function einoVision(ctx) {
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 30000); const started = Date.now();
   try {
     const result = await routeVision(ctx.env, { imageDataUrl: image, prompt: String(body?.mode || 'describe'), signal: controller.signal });
-    await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started);
+    await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started, { capability: 'vision', provider: result.provider, model: result.model || result.route?.model });
     return ok(ctx, { text: String(result?.text || result?.description || result?.caption || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null });
-  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  } catch (e) { return einoMediaError(ctx, actor.actorType, e, started, 'vision'); } finally { clearTimeout(timeout); }
 }
 
 export async function einoOcr(ctx) {
@@ -653,7 +653,7 @@ export async function einoOcr(ctx) {
   if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق صورة أو مستند.', 400, ctx.requestId, ctx.cors);
   if (file.size > 10 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الملف يتجاوز 10MB.', 413, ctx.requestId, ctx.cors);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 60000); const started = Date.now();
-  try { const result = await routeOcr(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.content || result?.markdown || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  try { const result = await routeOcr(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started, { capability: 'ocr', provider: result.provider, model: result.model || result.route?.model }); return ok(ctx, { text: String(result?.text || result?.content || result?.markdown || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started, 'ocr'); } finally { clearTimeout(timeout); }
 }
 
 export async function einoStt(ctx) {
@@ -663,7 +663,7 @@ export async function einoStt(ctx) {
   if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق ملف صوتي.', 400, ctx.requestId, ctx.cors);
   if (file.size > 25 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الصوت يتجاوز 25MB.', 413, ctx.requestId, ctx.cors);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 60000); const started = Date.now();
-  try { const result = await routeStt(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, language: String(form.get('language') || 'auto'), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { text: String(result?.text || result?.transcript || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  try { const result = await routeStt(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type, language: String(form.get('language') || 'auto'), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started, { capability: 'stt', provider: result.provider, model: result.model || result.route?.model }); return ok(ctx, { text: String(result?.text || result?.transcript || result?.result || '').trim(), provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started, 'stt'); } finally { clearTimeout(timeout); }
 }
 
 export async function einoTts(ctx) {
@@ -671,11 +671,11 @@ export async function einoTts(ctx) {
   const body = await parseJson(ctx.request); const text = String(body?.text || '').trim();
   if (!text || text.length > 6000) return error('EINO_INPUT_INVALID', 'النص غير صالح أو طويل جدًا.', 400, ctx.requestId, ctx.cors);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 30000); const started = Date.now();
-  try { const result = await routeTts(ctx.env, { text, voice: String(body?.voice || ''), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started); return ok(ctx, { audioUrl: result?.audio_url || result?.url || null, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started); } finally { clearTimeout(timeout); }
+  try { const result = await routeTts(ctx.env, { text, voice: String(body?.voice || ''), signal: controller.signal }); await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started, { capability: 'tts', provider: result.provider, model: result.model || result.route?.model }); return ok(ctx, { audioUrl: result?.audio_url || result?.url || null, provider: result.provider, model: result.model || result.route?.model || null, raw: result.raw || result, reliability: result.reliability || null }); } catch (e) { return einoMediaError(ctx, actor.actorType, e, started, 'tts'); } finally { clearTimeout(timeout); }
 }
 
-export async function einoMediaError(ctx, actorType, e, started) {
-  const latency = Date.now() - started; const status = Number(e?.status || 502); await recordEinoTelemetry(ctx, status === 429 ? 'provider_limited' : 'provider_error', actorType, latency);
+export async function einoMediaError(ctx, actorType, e, started, capability = 'unknown') {
+  const latency = Date.now() - started; const status = Number(e?.status || 502); await recordEinoTelemetry(ctx, status === 429 ? 'provider_limited' : 'provider_error', actorType, latency, { capability, provider: e?.provider || e?.route?.provider, model: e?.model || e?.route?.model });
   if (e?.name === 'AbortError') return error('EINO_TIMEOUT', 'استغرق Eino وقتًا أطول من المتوقع. أعد المحاولة.', 504, ctx.requestId, ctx.cors);
   if (status === 401 || status === 403) return error('EINO_PROVIDER_AUTH', 'تعذر التحقق من اتصال Eino حاليًا.', 502, ctx.requestId, ctx.cors);
   if (status === 429 || status === 402) return error('EINO_PROVIDER_LIMITED', 'مزود Eino غير متاح للاستخدام حاليًا.', 503, ctx.requestId, ctx.cors);
@@ -729,10 +729,20 @@ export async function consumeEinoBucket(ctx, bucketType, scopeKey, bucketStarted
   return { allowed: true, remaining: Math.max(0, limit - count) };
 }
 
-export async function recordEinoTelemetry(ctx, eventType, actorType = 'unknown', latencyMs = 0) {
+export async function recordEinoTelemetry(ctx, eventType, actorType = 'unknown', latencyMs = 0, details = {}) {
+  const now = Date.now();
+  const bucketStarted = new Date(Math.floor(now / 3600000) * 3600000).toISOString();
+  const safeLatency = Math.max(0, Number(latencyMs) || 0);
+  const capability = String(details?.capability || 'unknown').slice(0, 32);
+  const provider = String(details?.provider || 'unknown').slice(0, 80);
+  const model = String(details?.model || 'unknown').slice(0, 120);
+  const status = String(details?.status || (
+    eventType === 'success' ? 'success' :
+    eventType.startsWith('quota_') || eventType === 'provider_limited' ? 'limited' :
+    ['validation_invalid', 'config_invalid'].includes(eventType) ? 'rejected' : 'failed'
+  )).slice(0, 32);
+
   try {
-    const now = Date.now();
-    const bucketStarted = new Date(Math.floor(now / 3600000) * 3600000).toISOString();
     await ctx.env.DB.prepare(`
       INSERT INTO eino_telemetry
         (id, bucket_started_at, event_type, actor_type, event_count, total_latency_ms, last_event_at)
@@ -741,9 +751,24 @@ export async function recordEinoTelemetry(ctx, eventType, actorType = 'unknown',
         event_count = event_count + 1,
         total_latency_ms = total_latency_ms + excluded.total_latency_ms,
         last_event_at = CURRENT_TIMESTAMP
-    `).bind(crypto.randomUUID(), bucketStarted, eventType, actorType, Math.max(0, Number(latencyMs) || 0)).run();
+    `).bind(crypto.randomUUID(), bucketStarted, eventType, actorType, safeLatency).run();
   } catch (e) {
     // Telemetry must never break the user-facing Eino request.
     console.error(`[${ctx.requestId}] Eino telemetry error`, e);
+  }
+
+  try {
+    await ctx.env.DB.prepare(`
+      INSERT INTO eino_provider_telemetry
+        (id, bucket_started_at, capability, actor_type, provider, model, status, event_count, total_latency_ms, last_event_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(bucket_started_at, capability, actor_type, provider, model, status) DO UPDATE SET
+        event_count = event_count + 1,
+        total_latency_ms = total_latency_ms + excluded.total_latency_ms,
+        last_event_at = CURRENT_TIMESTAMP
+    `).bind(crypto.randomUUID(), bucketStarted, capability, actorType, provider, model, status, safeLatency).run();
+  } catch (e) {
+    // Detailed provider telemetry is best effort and stores aggregate metadata only.
+    console.error(`[${ctx.requestId}] Eino provider telemetry error`, e);
   }
 }

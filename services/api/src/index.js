@@ -2,7 +2,7 @@ import { databaseErrorResponse, error } from './core.js';
 import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings, publicMarketItems } from './public.js';
 import { mediaGet, adminMediaUpload } from './media.js';
 import {
-  login, registerStudent, studentChangePassword, forgotStudentPassword, resetStudentPassword, staffLogin, staffBootstrap, staffMe, staffChangePassword,
+  login, registerStudent, studentChangePassword, forgotStudentPassword, resetStudentPassword, staffLogin, staffBootstrap, staffMe, staffUpdateProfile, staffChangePassword,
   refresh, logout, authMe,
 } from './auth.js';
 import {
@@ -14,12 +14,13 @@ import {
   progress, xp, badges, materialProgress,
 } from './academic.js';
 import {
-  comments, createComment, replies, createReply, reaction, commentReaction, deleteComment,
+  comments, createComment, replies, createReply, reaction, commentReaction, deleteComment, deleteReply,
 } from './interactions.js';
 import {
   adminNotifications, adminNotificationSend,
-  adminAuthEvents, adminModerationComments, adminModerationComment, adminDashboardOverview,
-  adminEinoUsage, adminRoute,
+  adminAuthEvents, adminDashboardOverview, adminAnalyticsOverview, adminCloudflareWorkerMetrics,
+  adminModerationInbox, adminModerationFeedbackUpdate, adminModerationChatReportUpdate, adminSetStudentModerator,
+  submitStudentFeedback, submitStudentChatReport, adminEinoUsage, adminRoute,
 } from './admin.js';
 import { adminDriveSync, adminDriveSyncStatus, adminDriveCreateFolder, adminDriveRenameItem, adminDriveUploadPdf, adminExams } from './drive.js';
 import { dispatchPushNotifications } from './notification_dispatch.js';
@@ -103,6 +104,7 @@ export default {
       if (path === '/auth/staff/login' && request.method === 'POST') return staffLogin(ctx);
       if (path === '/auth/staff/bootstrap' && request.method === 'POST') return staffBootstrap(ctx);
       if (path === '/auth/staff/me' && request.method === 'GET') return staffMe(ctx);
+      if (path === '/auth/staff/profile' && request.method === 'PATCH') return staffUpdateProfile(ctx);
       if (path === '/auth/staff/change-password' && request.method === 'POST') return staffChangePassword(ctx);
       if (path === '/auth/refresh' && request.method === 'POST') return refresh(ctx);
       if (path === '/auth/logout' && request.method === 'POST') return logout(ctx);
@@ -110,6 +112,8 @@ export default {
 
       if (path === '/student/me' && request.method === 'GET') return studentMe(ctx);
       if (path === '/student/profile' && request.method === 'GET') return studentMe(ctx);
+      if (path === '/student/feedback' && request.method === 'POST') return submitStudentFeedback(ctx);
+      if (path === '/student/chat-reports' && request.method === 'POST') return submitStudentChatReport(ctx);
       if (path === '/student/semester' && request.method === 'POST') return updateStudentSemester(ctx);
       if (path === '/student/stats' && request.method === 'GET') return studentStats(ctx);
       if (path === '/student/notifications' && request.method === 'GET') return studentNotifications(ctx);
@@ -139,6 +143,7 @@ export default {
       if (/^\/content\/[^/]+\/[^/]+\/reactions$/.test(path) && request.method === 'POST') return reaction(ctx);
       if (/^\/comments\/[^/]+\/reactions$/.test(path) && request.method === 'POST') return commentReaction(ctx);
       if (/^\/comments\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteComment(ctx, path.split('/')[2]);
+      if (/^\/comment-replies\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteReply(ctx, path.split('/')[2]);
 
       if (/^\/admin\/eino\/materials\/[^/]+\/index$/.test(path) && request.method === 'POST') return adminIndexMaterialPdf(ctx, path.split('/')[4]);
       if (path === '/admin/exams' && (request.method === 'GET' || request.method === 'POST')) return adminExams(ctx);
@@ -151,9 +156,13 @@ export default {
       if (path === '/admin/notifications' && request.method === 'GET') return adminNotifications(ctx);
       if (path === '/admin/notifications/send' && request.method === 'POST') return adminNotificationSend(ctx, null);
       if (path === '/admin/security/auth-events' && request.method === 'GET') return adminAuthEvents(ctx);
-      if (path === '/admin/moderation/comments' && request.method === 'GET') return adminModerationComments(ctx);
-      if (/^\/admin\/moderation\/comments\/[^/]+$/.test(path) && request.method === 'PATCH') return adminModerationComment(ctx, path.split('/')[4]);
+      if (/^\/admin\/students\/[^/]+\/moderator$/.test(path) && request.method === 'PATCH') return adminSetStudentModerator(ctx, path.split('/')[3]);
+      if (path === '/admin/moderation/inbox' && request.method === 'GET') return adminModerationInbox(ctx);
+      if (/^\/admin\/moderation\/feedback\/[^/]+$/.test(path) && request.method === 'PATCH') return adminModerationFeedbackUpdate(ctx, path.split('/')[4]);
+      if (/^\/admin\/moderation\/chat-reports\/[^/]+$/.test(path) && request.method === 'PATCH') return adminModerationChatReportUpdate(ctx, path.split('/')[4]);
       if (path === '/admin/dashboard/overview' && request.method === 'GET') return adminDashboardOverview(ctx);
+      if (path === '/admin/analytics/overview' && request.method === 'GET') return adminAnalyticsOverview(ctx);
+      if (path === '/admin/analytics/cloudflare-worker' && request.method === 'GET') return adminCloudflareWorkerMetrics(ctx);
       if (path === '/admin/security/eino-usage' && request.method === 'GET') return adminEinoUsage(ctx);
       if (path.startsWith('/admin/')) return adminRoute(ctx);
 

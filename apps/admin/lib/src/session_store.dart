@@ -18,6 +18,14 @@ class AdminSession {
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 
+  AdminSession copyWith({String? displayName}) => AdminSession(
+        accessToken: accessToken,
+        displayName: displayName ?? this.displayName,
+        role: role,
+        expiresAt: expiresAt,
+        refreshToken: refreshToken,
+      );
+
   Map<String, Object?> toJson() => {
         'accessToken': accessToken,
         'displayName': displayName,

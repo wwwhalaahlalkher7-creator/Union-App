@@ -12,6 +12,7 @@ EINO_GLOBAL_DAILY_LIMIT = "2000"
 APP_UPDATE_URL = "https://ush-eng.great-site.net/download.html"
 APP_RELEASE_NOTES = "TRINEX 2.0.3 — تحسينات الجولة التعليمية التفاعلية وحركة Eino وموثوقية رفع وفهرسة ملفات PDF.\nإصلاح تفعيل الجولة التعليمية عند التسجيل الجديد فقط، مع استبعاد الزوار وتسجيل الدخول العادي.\nتحسين حركة نواة Eino العضوية والجسيمات الضوئية، ووضع النوم منخفض الموارد والاستيقاظ والعودة من المحادثة.\nتحسين معالجة رفع ملفات PDF وتسجيلها في D1 وطابور فهرسة Eino، مع رسائل تعافٍ أوضح عند فشل جزء من العملية.\nتحديث فحوصات التكامل والتحقق من الإصدار. لا يعني هذا الإصدار نشر الخدمات الإنتاجية تلقائيًا خارج سير عمل CI/CD."
 API_VERSION = "v1"
+CF_ANALYTICS_SCRIPT_NAME = "leo-association-api"
 # Optional self-hosted Chroma. Keep empty until a Chroma server is provisioned.
 CHROMA_BASE_URL = ""
 CHROMA_TENANT = ""
@@ -45,6 +46,7 @@ database_id = "60081adf-6694-4254-9cca-6d6b5fe0022b"
 migrations_dir = "migrations"
 
 # Secrets are intentionally not stored in this file.
+# Optional real Worker metrics use a dedicated read-only Account Analytics API token.
 # Production secrets are synchronized from GitHub Actions via `wrangler secret put`.
 # GOOGLE_APPS_SCRIPT_DRIVE_TOKEN is a Worker secret; it must match TRINEX Drive -> API_TOKEN.
 # GOOGLE_APPS_SCRIPT_GMAIL_TOKEN is a Worker secret; it must match TRINEX Gmail -> EMAIL_API_TOKEN.

@@ -17,7 +17,7 @@ abstract final class AdminPermissions {
           AdminSection.overview,
           AdminSection.analytics,
           AdminSection.content,
-          AdminSection.management,
+          AdminSection.market,
           AdminSection.eino,
           AdminSection.account,
         }.contains(section);
@@ -29,14 +29,14 @@ abstract final class AdminPermissions {
           AdminSection.students,
           AdminSection.materials,
           AdminSection.schedule,
-          AdminSection.management,
+          AdminSection.exams,
           AdminSection.account,
         }.contains(section);
       case moderator:
         return const {
           AdminSection.overview,
           AdminSection.analytics,
-          AdminSection.feedbackReports,
+          AdminSection.feedbackInbox,
           AdminSection.notifications,
           AdminSection.eino,
           AdminSection.account,
@@ -56,7 +56,7 @@ abstract final class AdminPermissions {
       case academicManager:
         return 'مدير الشؤون الأكاديمية';
       case moderator:
-        return 'مشرف التعليقات والإشعارات';
+        return 'مشرف البلاغات والإشعارات';
       default:
         return role.isEmpty ? 'دور غير محدد' : role;
     }

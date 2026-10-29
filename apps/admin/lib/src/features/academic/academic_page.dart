@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import '../../api_service.dart';
 
 class AcademicPage extends StatefulWidget {
-  const AcademicPage({super.key, required this.api, required this.initialTab});
+  const AcademicPage({super.key, required this.api, required this.initialTab, this.onOpenExams});
   final ApiService api;
   final int initialTab;
+  final VoidCallback? onOpenExams;
 
   @override
   State<AcademicPage> createState() => _AcademicPageState();
@@ -24,6 +25,7 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
   bool _loading = false;
   bool _syncing = false;
   String? _error;
+  final Set<String> _selectedIds = <String>{};
 
   @override
   void initState() {
@@ -92,6 +94,67 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
 
   String get _resource => _tabs.index == 0 ? 'subjects' : 'schedule';
   String get _title => _tabs.index == 0 ? 'المواد الدراسية' : 'الجداول الأكاديمية';
+
+  bool get _selectionMode => _selectedIds.isNotEmpty;
+
+  String _rowId(Map<String, dynamic> row) => row['id']?.toString() ?? '';
+
+  void _toggleSelection(Map<String, dynamic> row) {
+    final id = _rowId(row);
+    if (id.isEmpty) return;
+    setState(() {
+      if (!_selectedIds.add(id)) _selectedIds.remove(id);
+    });
+  }
+
+  void _startSelection(Map<String, dynamic> row) {
+    final id = _rowId(row);
+    if (id.isEmpty) return;
+    setState(() => _selectedIds.add(id));
+  }
+
+  void _selectAllVisible() {
+    setState(() {
+      final ids = _activeRows.map(_rowId).where((id) => id.isNotEmpty).toSet();
+      if (ids.isNotEmpty && _selectedIds.containsAll(ids)) {
+        _selectedIds.removeAll(ids);
+      } else {
+        _selectedIds.addAll(ids);
+      }
+    });
+  }
+
+  void _clearSelection() => setState(_selectedIds.clear);
+
+  Future<void> _deleteSelected() async {
+    final visible = _activeRows.where((row) => _selectedIds.contains(_rowId(row))).toList();
+    if (visible.isEmpty) { _clearSelection(); return; }
+    final confirm = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+      title: const Text('حذف السجلات المحددة؟'),
+      content: Text('سيتم حذف ${visible.length} سجلًا من ${_tabs.index == 0 ? 'المواد الدراسية' : 'الجداول'} نهائيًا. قد يؤدي حذف مادة إلى حذف موادها/ملفاتها وجداولها المرتبطة.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')), FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حذف المحدد'))],
+    ));
+    if (confirm != true || !mounted) return;
+    setState(() => _loading = true);
+    var deleted = 0;
+    final failed = <String>[];
+    try {
+      for (final row in visible) {
+        final id = _rowId(row);
+        try {
+          await widget.api.delete('/admin/$_resource/$id');
+          deleted++;
+        } catch (error) {
+          failed.add('${row['name_ar'] ?? row['title'] ?? id}: $error');
+        }
+      }
+      _selectedIds.clear();
+      await _loadAll();
+      if (mounted) _message(failed.isEmpty ? 'تم حذف $deleted سجلًا.' : 'حُذف $deleted سجلًا، وفشل ${failed.length}. راجع السجلات الفاشلة.', error: failed.isNotEmpty);
+    } finally {
+      if (mounted) setState(() { _loading = false; _selectedIds.clear(); });
+    }
+  }
 
   Future<void> _syncDrive() async {
     final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
@@ -247,16 +310,31 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
           IconButton(tooltip: 'تحديث البيانات', onPressed: _loading ? null : _loadAll, icon: const Icon(Icons.refresh)),
         ]),
         const SizedBox(height: 18),
-        Card(clipBehavior: Clip.antiAlias, child: TabBar(controller: _tabs, isScrollable: false, tabs: const [Tab(icon: Icon(Icons.menu_book_outlined), text: 'المواد الدراسية'), Tab(icon: Icon(Icons.calendar_month_outlined), text: 'الجداول الأكاديمية')])),
-        const SizedBox(height: 14),
-        if (_tabs.index < 2) TextField(controller: _search, onChanged: (_) => setState(() {}), decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: 'ابحث في $_title...', suffixIcon: _search.text.isEmpty ? null : IconButton(onPressed: () { _search.clear(); setState(() {}); }, icon: const Icon(Icons.close)))),
-        if (_tabs.index < 2) const SizedBox(height: 12),
-        if (_tabs.index < 2) Wrap(alignment: WrapAlignment.center, spacing: 10, runSpacing: 8, children: [
+        if (_tabs.index == 0) Card(
+          clipBehavior: Clip.antiAlias,
+          child: ListTile(
+            leading: const Icon(Icons.picture_as_pdf_outlined),
+            title: const Text('إدارة الامتحانات', style: TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: const Text('افتح ملفات الامتحانات المرتبطة بالمواد الدراسية.'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: widget.onOpenExams,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_selectionMode) Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 8, children: [
+          Text('تم تحديد ${_selectedIds.length}'),
+          TextButton.icon(onPressed: _selectAllVisible, icon: const Icon(Icons.select_all), label: Text(_activeRows.isNotEmpty && _selectedIds.containsAll(_activeRows.map(_rowId).where((id) => id.isNotEmpty)) ? 'إلغاء تحديد الكل' : 'تحديد الكل')),
+          OutlinedButton.icon(onPressed: _clearSelection, icon: const Icon(Icons.close), label: const Text('إلغاء')),
+          FilledButton.icon(onPressed: _loading ? null : _deleteSelected, icon: const Icon(Icons.delete_outline), label: const Text('حذف المحدد')),
+        ]))),
+        TextField(controller: _search, onChanged: (_) => setState(() {}), decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: 'ابحث في $_title...', suffixIcon: _search.text.isEmpty ? null : IconButton(onPressed: () { _search.clear(); setState(() {}); }, icon: const Icon(Icons.close)))),
+        const SizedBox(height: 12),
+        Wrap(alignment: WrapAlignment.center, spacing: 10, runSpacing: 8, children: [
           if (_tabs.index == 0) OutlinedButton.icon(onPressed: _syncing ? null : _syncDrive, icon: const Icon(Icons.cloud_sync_outlined), label: Text(_syncing ? 'جارٍ المزامنة…' : 'مزامنة الملفات')),
           if (_tabs.index == 0) OutlinedButton.icon(onPressed: _syncing ? null : _createDriveFolder, icon: const Icon(Icons.create_new_folder_outlined), label: const Text('مجلد مادة جديد')),
           FilledButton.icon(onPressed: () => _edit(), icon: const Icon(Icons.add), label: Text(_tabs.index == 0 ? 'إضافة مادة' : 'إضافة موعد')),
         ]),
-        if (_tabs.index < 2) const SizedBox(height: 12),
+        const SizedBox(height: 12),
         if (_loading && _activeRows.isEmpty) const Expanded(child: Center(child: CircularProgressIndicator()))
         else if (_error != null && _activeRows.isEmpty) Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.cloud_off_outlined, size: 42), const SizedBox(height: 12), Text(_error!, textAlign: TextAlign.center), const SizedBox(height: 12), OutlinedButton.icon(onPressed: _loadAll, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة'))])))
         else Expanded(child: _activeRows.isEmpty ? Center(child: Text(_loading ? 'جارٍ التحميل...' : (_tabs.index == 0 ? 'لا توجد مواد. أضف مادة جديدة أو استخدم المزامنة.' : 'لا توجد جداول مطابقة.'))) : ListView.separated(itemCount: _activeRows.length, separatorBuilder: (_, __) => const SizedBox(height: 8), itemBuilder: (context, index) => _rowCard(_activeRows[index], theme))),
@@ -274,12 +352,15 @@ class _AcademicPageState extends State<AcademicPage> with SingleTickerProviderSt
       _ => '${_dayLabel(row['day_of_week'])}  •  ${_displayApiTime(row['start_time'])} – ${_displayApiTime(row['end_time'])}  •  القاعة: ${row['room'] ?? '—'}',
     };
     return Card(child: ListTile(
-      leading: CircleAvatar(child: Icon(_tabs.index == 0 ? Icons.menu_book_outlined : Icons.event_note_outlined)),
+      leading: _selectionMode
+          ? Checkbox(value: _selectedIds.contains(_rowId(row)), onChanged: (_) => _toggleSelection(row))
+          : CircleAvatar(child: Icon(_tabs.index == 0 ? Icons.menu_book_outlined : Icons.event_note_outlined)),
       title: Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
       subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(subtitle)),
       isThreeLine: true,
-      trailing: PopupMenuButton<String>(onSelected: (action) { if (action == 'edit') { _edit(row); } if (action == 'delete') { _delete(row); } }, itemBuilder: (_) => const [PopupMenuItem(value: 'edit', child: Text('تعديل')), PopupMenuItem(value: 'delete', child: Text('حذف'))]),
-      onTap: () { if (_tabs.index == 0) { _openSubject(row); } else _edit(row); },
+      trailing: PopupMenuButton<String>(onSelected: (action) { if (action == 'select') { _startSelection(row); } if (action == 'edit') { _edit(row); } if (action == 'delete') { _delete(row); } }, itemBuilder: (_) => const [PopupMenuItem(value: 'select', child: Text('تحديد')), PopupMenuItem(value: 'edit', child: Text('تعديل')), PopupMenuItem(value: 'delete', child: Text('حذف'))]),
+      onLongPress: () => _startSelection(row),
+      onTap: () { if (_selectionMode) { _toggleSelection(row); } else if (_tabs.index == 0) { _openSubject(row); } else { _edit(row); } },
       dense: false,
     ));
   }

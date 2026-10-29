@@ -109,4 +109,36 @@ export async function commentReaction(ctx) {
   return ok(ctx, {reaction:value});
 }
 
-export async function deleteComment(ctx,id) { const a=await studentAuth(ctx); if(a.response) return a.response; const result=await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=? AND status='visible'").bind(id,a.session.student_id).run(); if(!result.meta?.changes) return error('COMMENT_NOT_FOUND','التعليق غير موجود أو لا يمكنك حذفه.',404,ctx.requestId,ctx.cors); return ok(ctx,{deleted:true}); }
+export async function deleteComment(ctx, id) {
+  const a = await studentAuth(ctx);
+  if (a.response) return a.response;
+  const comment = await queryOne(ctx.env, "SELECT id, student_id FROM comments WHERE id=? AND status='visible' LIMIT 1", id);
+  if (!comment) return error('COMMENT_NOT_FOUND', 'التعليق غير موجود أو تم حذفه.', 404, ctx.requestId, ctx.cors);
+  const isOwner = comment.student_id === a.session.student_id;
+  const isModerator = Number(a.session.is_moderator || 0) === 1;
+  if (!isOwner && !isModerator) return error('COMMENT_DELETE_FORBIDDEN', 'لا يمكنك حذف تعليق طالب آخر.', 403, ctx.requestId, ctx.cors);
+  const result = await ctx.env.DB.prepare("UPDATE comments SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='visible'").bind(id).run();
+  if (!result.meta?.changes) return error('COMMENT_NOT_FOUND', 'التعليق غير موجود أو تم حذفه.', 404, ctx.requestId, ctx.cors);
+  if (isModerator && !isOwner) {
+    await ctx.env.DB.prepare('INSERT INTO audit_logs (id,actor_type,actor_id,action,resource_type,resource_id,metadata_json) VALUES (?,?,?,?,?,?,?)')
+      .bind(crypto.randomUUID(), 'student_moderator', a.session.student_id, 'moderator_delete', 'comment', id, JSON.stringify({ownerStudentId: comment.student_id})).run();
+  }
+  return ok(ctx, {deleted:true});
+}
+
+export async function deleteReply(ctx, id) {
+  const a = await studentAuth(ctx);
+  if (a.response) return a.response;
+  const reply = await queryOne(ctx.env, "SELECT id, student_id, comment_id FROM comment_replies WHERE id=? AND status='visible' LIMIT 1", id);
+  if (!reply) return error('REPLY_NOT_FOUND', 'الرد غير موجود أو تم حذفه.', 404, ctx.requestId, ctx.cors);
+  const isOwner = reply.student_id === a.session.student_id;
+  const isModerator = Number(a.session.is_moderator || 0) === 1;
+  if (!isOwner && !isModerator) return error('REPLY_DELETE_FORBIDDEN', 'لا يمكنك حذف رد طالب آخر.', 403, ctx.requestId, ctx.cors);
+  const result = await ctx.env.DB.prepare("UPDATE comment_replies SET status='deleted',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='visible'").bind(id).run();
+  if (!result.meta?.changes) return error('REPLY_NOT_FOUND', 'الرد غير موجود أو تم حذفه.', 404, ctx.requestId, ctx.cors);
+  if (isModerator && !isOwner) {
+    await ctx.env.DB.prepare('INSERT INTO audit_logs (id,actor_type,actor_id,action,resource_type,resource_id,metadata_json) VALUES (?,?,?,?,?,?,?)')
+      .bind(crypto.randomUUID(), 'student_moderator', a.session.student_id, 'moderator_delete', 'comment_reply', id, JSON.stringify({commentId: reply.comment_id, ownerStudentId: reply.student_id})).run();
+  }
+  return ok(ctx, {deleted:true});
+}

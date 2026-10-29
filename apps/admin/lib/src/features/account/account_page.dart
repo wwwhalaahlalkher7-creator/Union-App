@@ -4,10 +4,11 @@ import '../../api_service.dart';
 import '../../session_store.dart';
 
 class AccountPage extends StatefulWidget {
-  const AccountPage({super.key, required this.api, required this.session, required this.onSignOut});
+  const AccountPage({super.key, required this.api, required this.session, required this.onSignOut, this.onDisplayNameChanged});
   final ApiService api;
   final AdminSession session;
   final VoidCallback onSignOut;
+  final ValueChanged<String>? onDisplayNameChanged;
 
   @override
   State<AccountPage> createState() => _AccountPageState();
@@ -40,6 +41,85 @@ class _AccountPageState extends State<AccountPage> {
   @override
   void dispose() { _current.dispose(); _next.dispose(); _confirm.dispose(); super.dispose(); }
 
+  Future<void> _editProfile() async {
+    final name = TextEditingController(text: _displayName);
+    final email = TextEditingController(text: _email);
+    final form = GlobalKey<FormState>();
+    final data = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تعديل بيانات الحساب'),
+        content: SizedBox(
+          width: 440,
+          child: Form(
+            key: form,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextFormField(
+                controller: name,
+                autofocus: true,
+                maxLength: 120,
+                decoration: const InputDecoration(labelText: 'اسم الموظف *'),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'الاسم مطلوب'
+                    : value.trim().length > 120 ? 'الاسم طويل جدًا' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: email,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'البريد الإلكتروني *'),
+                validator: (value) => value == null ||
+                        !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value.trim())
+                    ? 'أدخل بريدًا إلكترونيًا صحيحًا'
+                    : null,
+              ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () {
+              if (form.currentState!.validate()) {
+                Navigator.pop(dialogContext, {
+                  'displayName': name.text.trim(),
+                  'email': email.text.trim(),
+                });
+              }
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+    email.dispose();
+    if (data == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final result = await widget.api.patch('/auth/staff/profile', body: data);
+      if (!mounted) return;
+      final updatedName = (result['display_name'] ?? data['displayName']!).toString();
+      final updatedEmail = (result['email'] ?? data['email']!).toString();
+      setState(() {
+        _displayName = updatedName;
+        _email = updatedEmail;
+      });
+      widget.onDisplayNameChanged?.call(updatedName);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تحديث بيانات الحساب بنجاح.')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر تحديث البيانات: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _changePassword() async {
     if (!_formKey.currentState!.validate()) { return; }
     setState(() => _busy = true);
@@ -60,12 +140,16 @@ class _AccountPageState extends State<AccountPage> {
   Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(20), children: [
     Text('حسابي', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
     const SizedBox(height: 6),
-    const Text('بيانات حساب الإدارة المتاحة من الخادم وإعدادات أمان الجلسة. تعديل الاسم والبريد غير مفعّل لأن الـBackend الحالي لا يوفّر عملية تحريرهما.'),
+    const Text('إدارة بيانات حسابك، وكلمة المرور، والجلسة الآمنة.'),
     const SizedBox(height: 18),
     Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            const Spacer(),
+            IconButton(tooltip: 'تعديل بيانات الحساب', onPressed: _busy ? null : _editProfile, icon: const Icon(Icons.edit_outlined)),
+          ]),
           Row(children: [
             CircleAvatar(radius: 28, child: Text(_displayName.isEmpty ? '؟' : _displayName.substring(0, 1))),
             const SizedBox(width: 14),

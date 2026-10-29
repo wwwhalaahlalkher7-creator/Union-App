@@ -8,7 +8,7 @@ const admin = read('services/api/src/admin.js');
 const pub = read('services/api/src/public.js');
 const router = read('services/api/src/index.js');
 const app = read('apps/student/lib/features/market/market_screen.dart');
-const nativeAdmin = read('apps/admin/lib/src/features/management/management_page.dart');
+const nativeAdmin = read('apps/admin/lib/src/features/marketplace/marketplace_exams_page.dart');
 const nativeNav = read('apps/admin/lib/src/admin_permissions.dart');
 const checks = [
   ['D1 catalog table and public index', /CREATE TABLE IF NOT EXISTS market_items/.test(migration) && /idx_market_items_public_order/.test(migration)],
@@ -17,7 +17,7 @@ const checks = [
   ['public route wired', /path === '\/market\/items'.*publicMarketItems/.test(router)],
   ['Flutter student app fetches live catalog', /getJson\('\/api\/v1\/market\/items'/.test(app) && !/Coming Soon/.test(app)],
   ['native admin supports marketplace create/update/delete', nativeAdmin.includes("'/admin/market-items") && /widget\.api\.post\('\/admin\/market-items'/.test(nativeAdmin) && /widget\.api\.patch\('\/admin\/market-items\/\$id'/.test(nativeAdmin) && /widget\.api\.delete\('\/admin\/market-items\/\$id'/.test(nativeAdmin)],
-  ['content manager can access native management section', /AdminSection\.management/.test(nativeNav) && /contentManager/.test(nativeNav)],
+  ['content manager can access standalone marketplace section', /AdminSection\.market/.test(nativeNav) && /contentManager/.test(nativeNav)],
   ['legacy website-admin dashboard is intentionally absent', !existsSync(join(root, 'web/portal/admin/market.html'))],
 ];
 for (const [name, pass] of checks) {

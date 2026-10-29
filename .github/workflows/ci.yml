@@ -363,6 +363,7 @@ jobs:
           FREE_AI_BASE_URL: ${{ secrets.FREE_AI_BASE_URL }}
           EINO_EMBEDDING_API_KEY: ${{ secrets.EINO_EMBEDDING_API_KEY }}
           STAFF_BOOTSTRAP_TOKEN: ${{ secrets.STAFF_BOOTSTRAP_TOKEN }}
+          CF_ANALYTICS_API_TOKEN: ${{ secrets.CF_ANALYTICS_API_TOKEN }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
@@ -382,12 +383,15 @@ jobs:
             EINO_EMBEDDING_API_KEY \
             GOOGLE_APPS_SCRIPT_DRIVE_TOKEN \
             GOOGLE_APPS_SCRIPT_GMAIL_TOKEN \
-            STAFF_BOOTSTRAP_TOKEN; do
+            STAFF_BOOTSTRAP_TOKEN \
+            CF_ANALYTICS_API_TOKEN; do
             value="${!pair:-}"
             if [ -n "$value" ]; then
               printf '%s' "$value" | npx wrangler secret put "$pair"
             fi
           done
+          # Account ID only scopes the optional analytics query; never pass the deploy token to runtime.
+          printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | npx wrangler secret put CF_ANALYTICS_ACCOUNT_ID
 
           npx wrangler deploy \
             --var "GOOGLE_APPS_SCRIPT_DRIVE_URL:$GOOGLE_APPS_SCRIPT_DRIVE_URL" \

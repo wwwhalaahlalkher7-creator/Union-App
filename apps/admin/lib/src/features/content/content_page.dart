@@ -65,6 +65,9 @@ class _ContentPageState extends State<ContentPage> {
   bool _loading = false;
   String? _error;
   int _loadRevision = 0;
+  final Set<String> _selectedIds = <String>{};
+  bool get _selectionMode => _selectedIds.isNotEmpty;
+  String _rowId(Map<String, dynamic> item) => item['id']?.toString() ?? '';
 
   @override
   void initState() {
@@ -116,8 +119,75 @@ class _ContentPageState extends State<ContentPage> {
       _items = [];
       _query = '';
       _error = null;
+      _selectedIds.clear();
     });
     _loadKind(kind);
+  }
+
+  void _startSelection(Map<String, dynamic> item) {
+    final id = _rowId(item);
+    if (id.isEmpty) return;
+    setState(() => _selectedIds.add(id));
+  }
+
+  void _toggleSelection(Map<String, dynamic> item) {
+    final id = _rowId(item);
+    if (id.isEmpty) return;
+    setState(() {
+      if (!_selectedIds.add(id)) _selectedIds.remove(id);
+    });
+  }
+
+  void _selectAllVisible() {
+    final ids = _filtered.map(_rowId).where((id) => id.isNotEmpty).toSet();
+    if (ids.isEmpty) return;
+    setState(() {
+      if (_selectedIds.containsAll(ids)) {
+        _selectedIds.removeAll(ids);
+      } else {
+        _selectedIds.addAll(ids);
+      }
+    });
+  }
+
+  void _clearSelection() => setState(_selectedIds.clear);
+
+  Future<void> _deleteSelected() async {
+    final selected = _items.where((item) => _selectedIds.contains(_rowId(item))).toList();
+    if (selected.isEmpty) { _clearSelection(); return; }
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف السجلات المحددة؟'),
+        content: Text('سيتم حذف ${selected.length} سجلًا من ${_kind.label} نهائيًا.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حذف المحدد')),
+        ],
+      ),
+    );
+    if (accepted != true || !mounted) return;
+    setState(() => _loading = true);
+    final deletedIds = <String>{};
+    final failures = <String>[];
+    for (final item in selected) {
+      final id = _rowId(item);
+      try {
+        await widget.api.delete('/admin/${_kind.endpoint}/$id');
+        deletedIds.add(id);
+      } catch (error) {
+        failures.add('${item['title'] ?? id}: $error');
+      }
+    }
+    if (!mounted) return;
+    setState(() => _selectedIds.removeAll(deletedIds));
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(failures.isEmpty
+          ? 'تم حذف ${deletedIds.length} سجلًا.'
+          : 'حُذف ${deletedIds.length} سجل، وتعذر حذف ${failures.length}. راجع صلاحيات الخادم.'),
+    ));
   }
 
   List<Map<String, dynamic>> get _filtered {
@@ -308,10 +378,17 @@ class _ContentPageState extends State<ContentPage> {
           ])))
         else ...[
           Row(children: [Expanded(child: Text('${_kind.label} (${_filtered.length})', style: theme.textTheme.titleMedium)), if (_loading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))]),
+          if (_selectionMode) Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 8, children: [
+            Text('تم تحديد ${_selectedIds.length}'),
+            TextButton.icon(onPressed: _selectAllVisible, icon: const Icon(Icons.select_all), label: Text(_filtered.isNotEmpty && _selectedIds.containsAll(_filtered.map(_rowId).where((id) => id.isNotEmpty)) ? 'إلغاء تحديد الكل' : 'تحديد الكل')),
+            OutlinedButton.icon(onPressed: _clearSelection, icon: const Icon(Icons.close), label: const Text('إلغاء')),
+            FilledButton.icon(onPressed: _loading ? null : _deleteSelected, icon: const Icon(Icons.delete_outline), label: const Text('حذف المحدد')),
+          ]))),
           const SizedBox(height: 10),
           for (final item in _filtered) Card(
             margin: const EdgeInsets.only(bottom: 10),
-            child: Padding(padding: const EdgeInsets.all(16), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: GestureDetector(onLongPress: () => _startSelection(item), child: Padding(padding: const EdgeInsets.all(16), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (_selectionMode) Checkbox(value: _selectedIds.contains(_rowId(item)), onChanged: (_) => _toggleSelection(item)),
               Container(padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: theme.colorScheme.primaryContainer, borderRadius: BorderRadius.circular(12)), child: Icon(_kind.icon, color: theme.colorScheme.primary)),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -329,13 +406,14 @@ class _ContentPageState extends State<ContentPage> {
               ])),
               if (canEdit) PopupMenuButton<String>(
                 tooltip: 'إجراءات السجل',
-                onSelected: (value) { if (value == 'edit') { _edit(item); } if (value == 'delete') { _delete(item); } },
+                onSelected: (value) { if (value == 'edit') { _edit(item); } if (value == 'delete') { _delete(item); } if (value == 'select') { _startSelection(item); } },
                 itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'select', child: ListTile(leading: Icon(Icons.check_box_outlined), title: Text('تحديد'), contentPadding: EdgeInsets.zero)),
                   PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('تعديل'), contentPadding: EdgeInsets.zero)),
                   PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_outline), title: Text('حذف'), contentPadding: EdgeInsets.zero)),
                 ],
               ),
-            ])),
+            ]))),
           ),
         ],
       ],
