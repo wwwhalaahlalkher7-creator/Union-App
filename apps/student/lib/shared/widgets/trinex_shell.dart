@@ -177,7 +177,7 @@ class _TrinexShellState extends State<TrinexShell> {
                 children: [
                   widget.child,
                   if (_einoVisible)
-                    PositionedDirectional(
+                    const PositionedDirectional(
                       end: 16,
                       bottom: 18,
                       child: EinoFloatingButton(),
@@ -440,6 +440,10 @@ class _EinoFloatingButtonState extends State<EinoFloatingButton> {
     // chat route covers the orb; opening synchronously would hide the effect.
     await Future<void>.delayed(const Duration(milliseconds: 180));
     if (!mounted) {
+      _openingChat = false;
+      return;
+    }
+    if (!context.mounted) {
       _openingChat = false;
       return;
     }
