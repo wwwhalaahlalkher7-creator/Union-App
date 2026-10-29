@@ -117,7 +117,7 @@ class _MarketItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (imageUrl.startsWith('https://')) ClipRRect(borderRadius: BorderRadius.circular(14), child: AspectRatio(aspectRatio: 16 / 7, child: Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, _, _) => _imagePlaceholder(cs)))),
+      if (imageUrl.startsWith('https://')) ClipRRect(borderRadius: BorderRadius.circular(14), child: AspectRatio(aspectRatio: 16 / 7, child: Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _imagePlaceholder(cs)))),
       if (!imageUrl.startsWith('https://')) _imagePlaceholder(cs),
       const SizedBox(height: 12),
       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

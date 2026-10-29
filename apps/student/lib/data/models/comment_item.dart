@@ -4,7 +4,6 @@ class CommentItem {
     required this.studentName,
     required this.body,
     required this.createdAt,
-    this.studentId = '',
     this.reactionCount = 0,
     this.liked = false,
   });
@@ -13,7 +12,6 @@ class CommentItem {
   final String studentName;
   final String body;
   final String createdAt;
-  final String studentId;
   final int reactionCount;
   final bool liked;
 
@@ -22,7 +20,6 @@ class CommentItem {
         studentName: '${j['full_name'] ?? 'طالب'}',
         body: '${j['body'] ?? ''}',
         createdAt: '${j['created_at'] ?? ''}',
-        studentId: '${j['student_id'] ?? ''}',
         reactionCount: int.tryParse('${j['reaction_count'] ?? 0}') ?? 0,
         liked: '${j['my_reaction'] ?? ''}'.toLowerCase() == 'like',
       );
@@ -32,7 +29,6 @@ class CommentItem {
         studentName: studentName,
         body: body,
         createdAt: createdAt,
-        studentId: studentId,
         reactionCount: reactionCount ?? this.reactionCount,
         liked: liked ?? this.liked,
       );

@@ -8,7 +8,6 @@ class StudentProfile {
     this.departmentName,
     this.semesterId,
     this.semesterName,
-    this.isModerator = false,
   });
 
   final String id;
@@ -19,7 +18,6 @@ class StudentProfile {
   final String? departmentName;
   final String? semesterId;
   final String? semesterName;
-  final bool isModerator;
 
   String get studentNumber => number;
 
@@ -35,7 +33,5 @@ class StudentProfile {
             j['semesterId']?.toString(),
         semesterName: j['semesterName']?.toString() ??
             j['currentSemesterName']?.toString(),
-        isModerator: j['isModerator'] == true || j['isModerator'] == 1 ||
-            j['is_moderator'] == true || j['is_moderator'] == 1,
       );
 }

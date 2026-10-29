@@ -6,7 +6,6 @@ import '../../data/models/comment_item.dart';
 import '../../data/models/content_item.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../data/repositories/interactions_repository.dart';
-import '../../data/repositories/student_repository.dart';
 
 class ContentDetailScreen extends StatefulWidget {
   const ContentDetailScreen({required this.item, required this.type, super.key});
@@ -237,30 +236,11 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   Future<List<CommentItem>>? _future;
   final _controller = TextEditingController();
   bool _sending = false;
-  bool _isModerator = false;
-  String _studentId = '';
 
   @override
   void initState() {
     super.initState();
-    _initialize();
-  }
-
-  Future<void> _initialize() async {
-    try {
-      _client ??= await AuthenticatedClient.create();
-      final profile = await StudentRepository(_client!).profile();
-      if (mounted) {
-        setState(() {
-          _isModerator = profile.isModerator;
-          _studentId = profile.id;
-        });
-      }
-    } catch (_) {
-      // The API remains the authority for every delete operation.
-    } finally {
-      _load();
-    }
+    _load();
   }
 
   void _load() {
@@ -270,107 +250,6 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
   Future<List<CommentItem>> _fetch() async {
     _client ??= await AuthenticatedClient.create();
     return InteractionsRepository(_client!).comments(widget.type, widget.item.id);
-  }
-
-  bool _canDelete(CommentItem item) =>
-      _isModerator || (_studentId.isNotEmpty && item.studentId == _studentId);
-
-  Future<void> _deleteComment(CommentItem comment) async {
-    final yes = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('حذف التعليق؟'),
-        content: const Text('سيتم إخفاء التعليق من صفحة المحتوى.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حذف')),
-        ],
-      ),
-    );
-    if (yes != true || !mounted) return;
-    try {
-      _client ??= await AuthenticatedClient.create();
-      await InteractionsRepository(_client!).deleteComment(comment.id);
-      _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف التعليق.')));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'تعذر حذف التعليق.')));
-    }
-  }
-
-  Future<List<CommentItem>> _fetchReplies(String commentId) async {
-    _client ??= await AuthenticatedClient.create();
-    return InteractionsRepository(_client!).replies(commentId);
-  }
-
-  Future<void> _openReplies(CommentItem comment) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => SizedBox(
-        height: MediaQuery.of(sheetContext).size.height * .62,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(children: [const Text('الردود', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)), const Spacer(), IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close))]),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: FutureBuilder<List<CommentItem>>(
-                future: _fetchReplies(comment.id),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                  if (snapshot.hasError) return const Center(child: Text('تعذر تحميل الردود.'));
-                  final rows = snapshot.data ?? const <CommentItem>[];
-                  if (rows.isEmpty) return const Center(child: Text('لا توجد ردود بعد.'));
-                  return ListView.separated(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: rows.length,
-                    separatorBuilder: (_, _) => const Divider(height: 18),
-                    itemBuilder: (context, index) {
-                      final reply = rows[index];
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(reply.studentName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11)), const SizedBox(height: 5), Text(reply.body)])),
-                          if (_canDelete(reply)) IconButton(tooltip: 'حذف الرد', onPressed: () => _deleteReply(reply, sheetContext), icon: const Icon(Icons.delete_outline, size: 20)),
-                        ],
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _deleteReply(CommentItem reply, BuildContext sheetContext) async {
-    final yes = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('حذف الرد؟'),
-        content: const Text('سيتم إخفاء الرد من التعليق.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حذف')),
-        ],
-      ),
-    );
-    if (yes != true || !mounted) return;
-    try {
-      _client ??= await AuthenticatedClient.create();
-      await InteractionsRepository(_client!).deleteReply(reply.id);
-      if (sheetContext.mounted) Navigator.pop(sheetContext);
-      _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف الرد.')));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'تعذر حذف الرد.')));
-    }
   }
 
   Future<void> _send() async {
@@ -502,8 +381,6 @@ class _ContentCommentsSheetState extends State<ContentCommentsSheet> {
                               Text('${comment.reactionCount}', style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)),
                               const SizedBox(width: 8),
                               TextButton(onPressed: () => _reply(comment), child: Text(l10n.t('reply'), style: const TextStyle(fontSize: 10))),
-                              TextButton.icon(onPressed: () => _openReplies(comment), icon: const Icon(Icons.forum_outlined, size: 15), label: const Text('الردود', style: TextStyle(fontSize: 10))),
-                              if (_canDelete(comment)) IconButton(tooltip: 'حذف التعليق', visualDensity: VisualDensity.compact, onPressed: () => _deleteComment(comment), icon: const Icon(Icons.delete_outline, size: 18)),
                             ],
                           ),
                         ],

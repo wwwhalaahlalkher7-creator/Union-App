@@ -177,7 +177,7 @@ class _TrinexShellState extends State<TrinexShell> {
                 children: [
                   widget.child,
                   if (_einoVisible)
-                    const PositionedDirectional(
+                    PositionedDirectional(
                       end: 16,
                       bottom: 18,
                       child: EinoFloatingButton(),
@@ -420,7 +420,10 @@ class _Avatar extends StatelessWidget {
 }
 
 class EinoFloatingButton extends StatefulWidget {
-  const EinoFloatingButton({super.key});
+  const EinoFloatingButton({super.key, this.animation});
+
+  /// Optional breathing animation used while a material PDF is open.
+  final Animation<double>? animation;
 
   @override
   State<EinoFloatingButton> createState() => _EinoFloatingButtonState();
@@ -436,7 +439,7 @@ class _EinoFloatingButtonState extends State<EinoFloatingButton> {
     // Let the tap's organic wake/boost render for several frames before the
     // chat route covers the orb; opening synchronously would hide the effect.
     await Future<void>.delayed(const Duration(milliseconds: 180));
-    if (!context.mounted) {
+    if (!mounted) {
       _openingChat = false;
       return;
     }
@@ -469,7 +472,7 @@ class _EinoFloatingButtonState extends State<EinoFloatingButton> {
   Widget build(BuildContext context) {
     final primary = context.colors.primary;
     final returningFromChat = EinoMotionSession.consumeReturnAnimation();
-    return Material(
+    final button = Material(
       key: StudyTutorialTargets.eino,
       color: Colors.transparent,
       child: Container(
@@ -495,6 +498,17 @@ class _EinoFloatingButtonState extends State<EinoFloatingButton> {
           suspendWhileChatOpen: true,
           onTap: () => unawaited(_openChat(context)),
         ),
+      ),
+    );
+
+    final animation = widget.animation;
+    if (animation == null) return button;
+    return AnimatedBuilder(
+      animation: animation,
+      child: button,
+      builder: (context, child) => Transform.scale(
+        scale: 0.97 + (Curves.easeInOut.transform(animation.value) * 0.06),
+        child: child,
       ),
     );
   }

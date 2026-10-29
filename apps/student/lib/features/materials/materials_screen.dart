@@ -387,7 +387,7 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 3),
-  )..repeat();
+  )..repeat(reverse: true);
   bool _einoVisible = false;
   Timer? _progressTimer;
   int _nextProgress = 25;
@@ -484,7 +484,7 @@ class _PdfMaterialViewerScreenState extends State<PdfMaterialViewerScreen>
             PositionedDirectional(
               end: 16,
               bottom: 18,
-              child: const EinoFloatingButton(),
+              child: EinoFloatingButton(animation: _pulse),
             ),
           PositionedDirectional(
             start: 0,

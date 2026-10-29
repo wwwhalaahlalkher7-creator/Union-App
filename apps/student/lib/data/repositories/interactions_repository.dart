@@ -67,8 +67,4 @@ class InteractionsRepository {
   Future<void> deleteComment(String id) async {
     await _client.deleteJson('/api/v1/comments/$id');
   }
-
-  Future<void> deleteReply(String id) async {
-    await _client.deleteJson('/api/v1/comment-replies/$id');
-  }
 }

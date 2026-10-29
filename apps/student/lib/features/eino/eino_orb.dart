@@ -206,18 +206,9 @@ class _EinoOrbState extends State<EinoOrb> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) {
     final size = widget.size;
     return Semantics(
-      // Keep the orb's accessibility state as a distinct node. Without an
-      // explicit container, ancestors can merge/replace this label and make
-      // sleep/wake state invisible to assistive technology and widget tests.
-      container: true,
-      explicitChildNodes: true,
       button: widget.onTap != null,
-      onTap: widget.onTap == null ? null : _handleTap,
       label: _sleeping ? 'Eino assistant sleeping' : 'Eino assistant active',
       child: GestureDetector(
-        // The parent Semantics node owns the accessible tap action and label.
-        // Avoid creating a competing gesture semantics node here.
-        excludeFromSemantics: true,
         onTap: widget.onTap == null ? null : _handleTap,
         child: AnimatedBuilder(
           animation: _motion,
