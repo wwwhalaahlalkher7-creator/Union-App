@@ -1,4 +1,5 @@
 import { databaseErrorResponse, error } from './core.js';
+export { TrinexScheduler } from './scheduler.js';
 import { publicVersion, appUpdate, health, publicContentDetail, publicStudentProfile, publicList, publicMaterials, publicSettings, publicMarketItems } from './public.js';
 import { mediaGet, adminMediaUpload } from './media.js';
 import { publicChatMessages, createPublicChatMessage, deleteOwnPublicChatMessage, reportPublicChatMessage } from './chat.js';
@@ -33,7 +34,14 @@ import {
 } from './eino.js';
 
 export default {
-  async scheduled(_controller, env, _ctx) {
+  async scheduled(controller, env, ctx) {
+    // Hourly recovery re-arms the existing Durable Object alarm after deploys
+    // or configuration changes. Normal admin writes also trigger rescheduling.
+    if (controller?.cron === '0 * * * *' && env.SCHEDULER) {
+      const scheduler = env.SCHEDULER.get(env.SCHEDULER.idFromName('main'));
+      ctx.waitUntil(scheduler.fetch('https://scheduler/reschedule', { method: 'POST' })
+        .catch((e) => console.error('Hourly scheduler recovery failed', e)));
+    }
     try {
       const result = await dispatchPushNotifications(env, 40);
       console.log(JSON.stringify({ event: 'push_dispatch', ...result }));
@@ -47,7 +55,8 @@ export default {
       console.error(JSON.stringify({ event: 'eino_pdf_index_queue_error', message: String(error?.message || 'unknown') }));
     }
   },
-  async fetch(request, env) {
+  async fetch(request, env, executionCtx) {
+    const response = await (async () => {
     const requestId = crypto.randomUUID();
     const requestOrigin = request.headers.get('Origin') || '';
     const allowedOrigins = String(env.ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
@@ -204,5 +213,19 @@ export default {
       console.error(`[${requestId}]`, e);
       return databaseErrorResponse(e, requestId, cors);
     }
+    })();
+
+    const url = new URL(request.url);
+    const base = '/api/v1';
+    const path = url.pathname.startsWith(base) ? (url.pathname.slice(base.length) || '/') : '';
+    const schedulerRelevantWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)
+      && /^\/admin\/(news|achievements|announcements|notifications)(\/|$)/.test(path)
+      && response.status < 400;
+    if (schedulerRelevantWrite && env.SCHEDULER && executionCtx?.waitUntil) {
+      const scheduler = env.SCHEDULER.get(env.SCHEDULER.idFromName('main'));
+      executionCtx.waitUntil(scheduler.fetch('https://scheduler/reschedule', { method: 'POST' })
+        .catch((e) => console.error('Scheduler reschedule after admin write failed', e)));
+    }
+    return response;
   },
 };

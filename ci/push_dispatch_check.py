@@ -13,7 +13,7 @@ checks = {
     'invalid token deactivation': "detail?.errorCode === 'UNREGISTERED'" in source and 'SET active=0' in source,
     'no device token logging': 'console.log(row.token)' not in source and 'console.error(row.token)' not in source,
     'scheduled Worker entrypoint': 'async scheduled(' in index and 'dispatchPushNotifications(env, 40)' in index,
-    'minute cron trigger': 'crons = ["* * * * *"]' in wrangler,
+    'minute cron trigger': 'crons = [' in wrangler and '"* * * * *"' in wrangler,
     'client setup and real-device validation documented': 'real Android device' in docs and 'required values are missing' in docs,
 }
 failed = [name for name, ok in checks.items() if not ok]

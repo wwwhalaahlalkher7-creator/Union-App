@@ -60,5 +60,15 @@ migrations_dir = "migrations"
 binding = "MEDIA_BUCKET"
 bucket_name = "trinex-media"
 
+# Preserve the production Durable Object class and namespace. The class name and
+# migration tag are intentionally unchanged from the deployed Union-App Worker.
+[[durable_objects.bindings]]
+name = "SCHEDULER"
+class_name = "TrinexScheduler"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TrinexScheduler"]
+
 [triggers]
-crons = ["* * * * *"]
+crons = ["* * * * *", "0 * * * *"]
