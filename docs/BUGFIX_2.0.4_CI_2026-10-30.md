@@ -39,3 +39,15 @@ The canonical fresh-install schema (`0001_initial.sql`) now defines `is_moderato
 ## Not yet validated
 
 Flutter SDK is not installed in the current execution environment. `flutter analyze`, `flutter test`, and Android APK build must still run in CI or a Flutter-enabled environment. No remote migration was applied and no production deployment was performed during this repair.
+
+
+## Follow-up: D1 migration 0038 duplicate `materials.content_type`
+
+The remote D1 database already contains `materials.content_type`, although Wrangler still reports `0038_exam_material_types.sql` as pending. The migration previously attempted to add the column again and failed.
+
+Fix applied:
+- Added `content_type TEXT NOT NULL DEFAULT 'material'` to the canonical `materials` table in `0001_initial.sql` for fresh databases.
+- Changed `0038_exam_material_types.sql` to create only `idx_materials_type_subject_active`; it no longer alters the table.
+- Kept migration numbering and release version `2.0.4+3` unchanged.
+
+The failed remote attempt did not apply 0038, while the log confirms 0035, 0036, and 0037 succeeded. The next deployment should therefore resume at 0038 and then apply 0039. Do not reset D1 or manually delete migration history.
