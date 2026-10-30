@@ -1,36 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../features/about/about_screen.dart';
-import '../features/events/events_screen.dart';
-import '../features/announcements/announcements_screen.dart';
-import '../features/achievements/achievements_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
 import '../features/auth/forgot_password_screen.dart';
 import '../features/settings/student_account_screen.dart';
 import '../features/eino/eino_screen.dart';
-import '../features/favorites/favorites_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/market/market_screen.dart';
 import '../features/more/more_screen.dart';
 import '../features/materials/materials_screen.dart';
+import '../features/materials/downloads_screen.dart';
+import '../features/feedback/feedback_screen.dart';
 import '../features/news/media_screen.dart';
 import '../features/news/content_detail_screen.dart';
-import '../data/models/content_item.dart';
 import '../features/notifications/notifications_screen.dart';
+import '../features/chat/general_chat_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
-import '../features/progress/progress_screen.dart';
 import '../features/recent/recent_screen.dart';
 import '../features/schedule/schedule_screen.dart';
 import '../features/settings/settings_screen.dart';
-import '../features/student/badges_screen.dart';
 import '../features/student/student_screen.dart';
+import '../features/student/student_public_profile_screen.dart';
 import '../features/splash/splash_screen.dart';
-import '../features/system/system_screen.dart';
 import '../features/tools/tools_screen.dart';
 import '../features/xp/xp_screen.dart';
 import '../shared/widgets/trinex_shell.dart';
 import '../shared/widgets/student_access_gate.dart';
+import '../shared/widgets/auth_route_transition.dart';
+
 
 GoRouter buildRouter({
   required ValueChanged<ThemeMode> onThemeModeChanged,
@@ -38,41 +35,84 @@ GoRouter buildRouter({
   required ThemeMode Function() themeMode,
   required Locale? Function() locale,
   required Future<void> startupFuture,
+  required Future<void> Function() onRetryStartup,
+  required bool Function() onboardingCompleted,
   ValueChanged<String>? onAccentColorChanged,
   String Function()? accentColorId,
   String initialLocation = '/splash',
 }) {
   return GoRouter(initialLocation: initialLocation, routes: [
-    GoRoute(path: '/splash', builder: (_, _) => SplashScreen(startupFuture: startupFuture)),
+    GoRoute(
+      path: '/splash',
+      builder: (_, _) => SplashScreen(
+        startupFuture: startupFuture,
+        onRetryStartup: onRetryStartup,
+        onboardingCompleted: onboardingCompleted,
+      ),
+    ),
     GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
-    GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-    GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+    GoRoute(
+      path: '/login',
+      pageBuilder: (_, state) => CustomTransitionPage<void>(
+        key: state.pageKey,
+        transitionDuration: const Duration(milliseconds: 640),
+        reverseTransitionDuration: const Duration(milliseconds: 480),
+        child: const LoginScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            AuthRouteTransition(animation: animation, child: child),
+      ),
+    ),
+    GoRoute(
+      path: '/register',
+      pageBuilder: (_, state) => CustomTransitionPage<void>(
+        key: state.pageKey,
+        transitionDuration: const Duration(milliseconds: 640),
+        reverseTransitionDuration: const Duration(milliseconds: 480),
+        child: const RegisterScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            AuthRouteTransition(animation: animation, child: child),
+      ),
+    ),
     GoRoute(path: '/forgot-password', builder: (_, state) => ForgotPasswordScreen(initialStudentNumber: state.uri.queryParameters['studentNumber'])),
     ShellRoute(builder: (context, state, child) => TrinexShell(location: state.uri.path, child: child), routes: [
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/student', builder: (_, _) => const StudentScreen()),
-      GoRoute(path: '/system', builder: (_, _) => const StudentAccessGate(child: SystemScreen())),
       GoRoute(path: '/schedule', builder: (_, _) => const ScheduleScreen()),
       GoRoute(path: '/materials', builder: (_, _) => const MaterialsScreen()),
-      GoRoute(path: '/news', redirect: (_, _) => '/media'),
-      GoRoute(path: '/media', builder: (_, _) => const MediaScreen()),
-      GoRoute(path: '/media/detail', builder: (_, state) { final data = state.extra! as Map<String, dynamic>; return ContentDetailScreen(item: data['item'] as ContentItem, type: data['type'] as String); }),
-      GoRoute(path: '/news/detail', builder: (_, state) => ContentDetailScreen(item: state.extra! as ContentItem, type: 'news')),
+      GoRoute(path: '/downloads', builder: (_, _) => const DownloadsScreen()),
+      GoRoute(path: '/feedback', builder: (_, _) => const FeedbackScreen()),
+      GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),
+      GoRoute(path: '/media', builder: (_, state) {
+        final rawTab = int.tryParse(state.uri.queryParameters['tab'] ?? '0') ?? 0;
+        final initialTab = rawTab.clamp(0, 2).toInt();
+        return MediaScreen(initialTab: initialTab);
+      }),
+      GoRoute(path: '/media/detail', builder: (_, state) {
+        final type = state.uri.queryParameters['type']?.trim() ?? '';
+        final id = state.uri.queryParameters['id']?.trim() ?? '';
+        if ((type == 'news' || type == 'achievement' || type == 'activity') && id.isNotEmpty) {
+          return ContentDetailScreen(id: id, type: type);
+        }
+        return const MediaScreen();
+      }),
     ]),
+    // Keep the public profile on the root navigator, like general chat.
+    // This avoids crossing ShellRoute navigator boundaries when opening a
+    // student's profile from chat and preserves the pushed route on screen.
+    GoRoute(path: '/student/profile/:id', builder: (_, state) => StudentPublicProfileScreen(
+      studentId: state.pathParameters['id'] ?? '',
+      name: state.uri.queryParameters['name'] ?? '',
+      department: state.uri.queryParameters['department'] ?? '',
+      semester: state.uri.queryParameters['semester'] ?? '',
+    )),
     GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
-    GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),
     GoRoute(path: '/market', builder: (_, _) => const MarketScreen()),
-    GoRoute(path: '/announcements', builder: (_, _) => const AnnouncementsScreen()),
-    GoRoute(path: '/events', builder: (_, _) => const EventsScreen()),
-    GoRoute(path: '/achievements', builder: (_, _) => const AchievementsScreen()),
-    GoRoute(path: '/favorites', builder: (_, _) => const FavoritesScreen()),
     GoRoute(path: '/recent', builder: (_, _) => const RecentScreen()),
-    GoRoute(path: '/progress', builder: (_, _) => const StudentAccessGate(child: ProgressScreen())),
     GoRoute(path: '/xp', builder: (_, _) => const StudentAccessGate(child: XpScreen())),
-    GoRoute(path: '/badges', builder: (_, _) => const StudentAccessGate(child: BadgesScreen())),
     GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
+    GoRoute(path: '/general-chat', builder: (_, _) => const StudentAccessGate(child: GeneralChatScreen())),
     GoRoute(path: '/eino', builder: (_, state) => EinoScreen(source: state.uri.queryParameters['from'] ?? 'home')),
-    GoRoute(path: '/about', builder: (_, _) => const AboutScreen()),
+    GoRoute(path: '/edit-profile', builder: (_, _) => const StudentAccountScreen()),
     GoRoute(path: '/account-settings', builder: (_, _) => const StudentAccountScreen()),
     GoRoute(path: '/settings', builder: (_, _) => SettingsScreen(currentThemeMode: themeMode(), onThemeModeChanged: onThemeModeChanged, locale: locale(), onLocaleChanged: onLocaleChanged, accentColorId: accentColorId?.call(), onAccentColorChanged: onAccentColorChanged)),
   ]);

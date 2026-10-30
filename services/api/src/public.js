@@ -42,9 +42,25 @@ export async function health(ctx) {
   return ok(ctx, { service: 'association-api', apiVersion: ctx.env.API_VERSION || 'v1', appVersion: ctx.env.APP_VERSION || 'unknown', database: db, timestamp: new Date().toISOString() });
 }
 
+
+export async function publicStudentProfile(ctx, studentId) {
+  const id = String(studentId || '').trim();
+  if (!id || id.length > 128) return error('STUDENT_NOT_FOUND', 'الطالب غير موجود.', 404, ctx.requestId, ctx.cors);
+  const row = await queryOne(ctx.env, `SELECT st.id AS studentId, st.full_name AS fullName,
+      d.name_ar AS departmentName, se.name_ar AS semesterName
+    FROM students st
+    LEFT JOIN departments d ON d.id = st.department_id
+    LEFT JOIN semesters se ON se.id = st.current_semester_id
+    WHERE st.id = ? AND st.active = 1 LIMIT 1`, id);
+  if (!row) return error('STUDENT_NOT_FOUND', 'الطالب غير موجود أو غير متاح.', 404, ctx.requestId, ctx.cors);
+  // Never expose student number, email, authentication or internal account fields.
+  return ok(ctx, { studentId: row.studentId, fullName: row.fullName, departmentName: row.departmentName || null, semesterName: row.semesterName || null });
+}
+
 export async function publicContentDetail(ctx) {
   const parts = ctx.path.split('/');
-  const table = parts[2];
+  const requestedTable = parts[2];
+  const table = requestedTable === 'activities' ? 'events' : requestedTable;
   const id = parts[3];
   if (!['news', 'events', 'achievements'].includes(table) || !id) {
     return error('CONTENT_NOT_FOUND','المحتوى غير موجود.',404,ctx.requestId,ctx.cors);

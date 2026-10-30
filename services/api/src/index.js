@@ -1,20 +1,22 @@
 import { databaseErrorResponse, error } from './core.js';
-import { publicVersion, appUpdate, health, publicContentDetail, publicList, publicMaterials, publicSettings, publicMarketItems } from './public.js';
+import { publicVersion, appUpdate, health, publicContentDetail, publicStudentProfile, publicList, publicMaterials, publicSettings, publicMarketItems } from './public.js';
 import { mediaGet, adminMediaUpload } from './media.js';
+import { publicChatMessages, createPublicChatMessage, deleteOwnPublicChatMessage, reportPublicChatMessage } from './chat.js';
+import { recordUsageEvent } from './analytics.js';
 import {
   login, registerStudent, studentChangePassword, forgotStudentPassword, resetStudentPassword, staffLogin, staffBootstrap, staffMe, staffUpdateProfile, staffChangePassword,
   refresh, logout, authMe,
 } from './auth.js';
 import {
-  studentMe, updateStudentSemester, studentStats, studentNotifications, studentNotificationRead,
+  studentMe, updateStudentSemester, studentStats, studentNotifications, studentNotificationRead, studentNotificationDelete,
   registerNotificationDevice, unregisterNotificationDevice,
 } from './student.js';
 import {
-  semesters, departments, subjects, materials, materialFile, materialById, schedule,
+  semesters, departments, subjects, materials, exams, materialFile, materialById, schedule,
   progress, xp, badges, materialProgress,
 } from './academic.js';
 import {
-  comments, createComment, replies, createReply, reaction, commentReaction, deleteComment, deleteReply,
+  comments, createComment, replies, createReply, reaction, commentReaction, removeReaction, removeCommentReaction, deleteComment, deleteReply,
 } from './interactions.js';
 import {
   adminNotifications, adminNotificationSend,
@@ -26,7 +28,8 @@ import { adminDriveSync, adminDriveSyncStatus, adminDriveCreateFolder, adminDriv
 import { dispatchPushNotifications } from './notification_dispatch.js';
 import {
   eino, einoCapabilities, einoModels, einoMemoryList, einoMemoryCreate, einoMemoryDelete, adminIndexMaterialPdf,
-  einoVision, einoOcr, einoStt, einoTts, processPendingEinoMaterialIndexes,
+  einoConversationCreate, einoConversationList, einoConversationMessages, einoConversationMessageAppend, einoConversationDelete,
+  einoVision, einoOcr, einoStt, einoTts, einoLongSummary, einoFileAnalysis, einoImage, processPendingEinoMaterialIndexes,
 } from './eino.js';
 
 export default {
@@ -89,8 +92,10 @@ export default {
       if (request.method === 'GET' && path === '/public/news') return publicList(ctx, 'news');
       if (request.method === 'GET' && path === '/public/announcements') return publicList(ctx, 'announcements');
       if (request.method === 'GET' && path === '/public/events') return publicList(ctx, 'events');
+      if (request.method === 'GET' && path === '/public/activities') return publicList(ctx, 'events');
+      if (request.method === 'GET' && /^\/public\/students\/[^/]+$/.test(path)) return publicStudentProfile(ctx, decodeURIComponent(path.split('/')[3]));
       if (request.method === 'GET' && path === '/public/achievements') return publicList(ctx, 'achievements');
-      if (request.method === 'GET' && /^\/public\/(news|events|achievements)\/[^/]+$/.test(path)) return publicContentDetail(ctx);
+      if (request.method === 'GET' && /^\/public\/(news|events|activities|achievements)\/[^/]+$/.test(path)) return publicContentDetail(ctx);
       if (request.method === 'GET' && path === '/public/settings') return publicSettings(ctx);
       if (request.method === 'GET' && path === '/public/materials') return publicMaterials(ctx);
       if (request.method === 'GET' && path === '/market/items') return publicMarketItems(ctx);
@@ -112,12 +117,18 @@ export default {
 
       if (path === '/student/me' && request.method === 'GET') return studentMe(ctx);
       if (path === '/student/profile' && request.method === 'GET') return studentMe(ctx);
-      if (path === '/student/feedback' && request.method === 'POST') return submitStudentFeedback(ctx);
+      if ((path === '/student/feedback' || path === '/feedback') && request.method === 'POST') return submitStudentFeedback(ctx);
+      if (path === '/usage/events' && request.method === 'POST') return recordUsageEvent(ctx);
+      if (path === '/chat/messages' && request.method === 'GET') return publicChatMessages(ctx);
+      if (path === '/chat/messages' && request.method === 'POST') return createPublicChatMessage(ctx);
+      if (/^\/chat\/messages\/[^/]+\/report$/.test(path) && request.method === 'POST') return reportPublicChatMessage(ctx, decodeURIComponent(path.split('/')[3]));
+      if (/^\/chat\/messages\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteOwnPublicChatMessage(ctx, decodeURIComponent(path.split('/')[3]));
       if (path === '/student/chat-reports' && request.method === 'POST') return submitStudentChatReport(ctx);
       if (path === '/student/semester' && request.method === 'POST') return updateStudentSemester(ctx);
       if (path === '/student/stats' && request.method === 'GET') return studentStats(ctx);
       if (path === '/student/notifications' && request.method === 'GET') return studentNotifications(ctx);
       if (path === '/student/notifications/read' && request.method === 'POST') return studentNotificationRead(ctx);
+      if (/^\/student\/notifications\/(?!device$)[^/]+$/.test(path) && request.method === 'DELETE') return studentNotificationDelete(ctx, decodeURIComponent(path.split('/')[3]));
       if (path === '/student/notifications/device' && request.method === 'POST') return registerNotificationDevice(ctx);
       if (path === '/student/notifications/device' && request.method === 'DELETE') return unregisterNotificationDevice(ctx);
 
@@ -125,6 +136,7 @@ export default {
       if (path === '/departments' && request.method === 'GET') return departments(ctx);
       if (path === '/subjects' && request.method === 'GET') return subjects(ctx);
       if (path === '/materials' && request.method === 'GET') return materials(ctx);
+      if (path === '/exams' && request.method === 'GET') return exams(ctx);
       if (/^\/materials\/[^/]+\/file$/.test(path) && request.method === 'GET') return materialFile(ctx, path.split('/')[2]);
       if (/^\/materials\/[^/]+$/.test(path) && request.method === 'GET') return materialById(ctx, path.split('/')[2]);
       if (path === '/schedule' && request.method === 'GET') return schedule(ctx);
@@ -141,9 +153,11 @@ export default {
       if (/^\/comments\/[^/]+\/replies$/.test(path) && request.method === 'GET') return replies(ctx);
       if (/^\/comments\/[^/]+\/replies$/.test(path) && request.method === 'POST') return createReply(ctx);
       if (/^\/content\/[^/]+\/[^/]+\/reactions$/.test(path) && request.method === 'POST') return reaction(ctx);
+      if (/^\/content\/[^/]+\/[^/]+\/reactions$/.test(path) && request.method === 'DELETE') return removeReaction(ctx);
       if (/^\/comments\/[^/]+\/reactions$/.test(path) && request.method === 'POST') return commentReaction(ctx);
+      if (/^\/comments\/[^/]+\/reactions$/.test(path) && request.method === 'DELETE') return removeCommentReaction(ctx);
       if (/^\/comments\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteComment(ctx, path.split('/')[2]);
-      if (/^\/comment-replies\/[^/]+$/.test(path) && request.method === 'DELETE') return deleteReply(ctx, path.split('/')[2]);
+      if ((/^\/comment-replies\/[^/]+$/.test(path) || /^\/replies\/[^/]+$/.test(path)) && request.method === 'DELETE') return deleteReply(ctx, path.split('/')[2]);
 
       if (/^\/admin\/eino\/materials\/[^/]+\/index$/.test(path) && request.method === 'POST') return adminIndexMaterialPdf(ctx, path.split('/')[4]);
       if (path === '/admin/exams' && (request.method === 'GET' || request.method === 'POST')) return adminExams(ctx);
@@ -167,6 +181,11 @@ export default {
       if (path.startsWith('/admin/')) return adminRoute(ctx);
 
       if (path === '/eino/chat' && request.method === 'POST') return eino(ctx);
+      if (path === '/eino/chats' && request.method === 'POST') return einoConversationCreate(ctx);
+      if (path === '/eino/chats' && request.method === 'GET') return einoConversationList(ctx);
+      if (/^\/eino\/chats\/[^/]+\/messages$/.test(path) && request.method === 'GET') return einoConversationMessages(ctx, decodeURIComponent(path.split('/')[3]));
+      if (/^\/eino\/chats\/[^/]+\/messages$/.test(path) && request.method === 'POST') return einoConversationMessageAppend(ctx, decodeURIComponent(path.split('/')[3]));
+      if (/^\/eino\/chats\/[^/]+$/.test(path) && request.method === 'DELETE') return einoConversationDelete(ctx, decodeURIComponent(path.split('/')[3]));
       if (path === '/eino/capabilities' && request.method === 'GET') return einoCapabilities(ctx);
       if (path === '/eino/models' && request.method === 'GET') return einoModels(ctx);
       if (path === '/eino/memory' && request.method === 'GET') return einoMemoryList(ctx);
@@ -176,6 +195,9 @@ export default {
       if (path === '/eino/ocr' && request.method === 'POST') return einoOcr(ctx);
       if (path === '/eino/stt' && request.method === 'POST') return einoStt(ctx);
       if (path === '/eino/tts' && request.method === 'POST') return einoTts(ctx);
+      if (path === '/eino/long-summary' && request.method === 'POST') return einoLongSummary(ctx);
+      if (path === '/eino/file-analysis' && request.method === 'POST') return einoFileAnalysis(ctx);
+      if (path === '/eino/image' && request.method === 'POST') return einoImage(ctx);
 
       return error('NOT_FOUND', 'المسار غير موجود.', 404, requestId, cors);
     } catch (e) {

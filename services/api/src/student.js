@@ -88,3 +88,15 @@ export async function unregisterNotificationDevice(ctx) {
   await ctx.env.DB.prepare('UPDATE notification_devices SET active=0, updated_at=CURRENT_TIMESTAMP WHERE student_id=? AND token=?').bind(a.session.student_id, tokenValue).run();
   return ok(ctx, {unregistered: true});
 }
+
+
+export async function studentNotificationDelete(ctx, id) {
+  const a = await studentAuth(ctx); if (a.response) return a.response;
+  const target = await queryOne(ctx.env, 'SELECT id FROM notification_targets WHERE id=? AND student_id=? LIMIT 1', id, a.session.student_id);
+  if (!target) return error('NOTIFICATION_NOT_FOUND', 'الإشعار غير موجود.', 404, ctx.requestId, ctx.cors);
+  await ctx.env.DB.batch([
+    ctx.env.DB.prepare('DELETE FROM notification_dispatch_queue WHERE notification_target_id=?').bind(id),
+    ctx.env.DB.prepare('DELETE FROM notification_targets WHERE id=? AND student_id=?').bind(id, a.session.student_id),
+  ]);
+  return ok(ctx, { id, deleted: true });
+}

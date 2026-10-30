@@ -17,6 +17,9 @@ theme_files = {
 allow = {
     Path('apps/student/lib/features/eino/eino_face.dart'),
     Path('apps/student/lib/features/tools/tools_screen.dart'),
+    # These are physical resistor band/body colors used to render the component,
+    # not application UI surfaces or semantic theme colors.
+    Path('apps/student/lib/features/tools/resistor_calculator_tab.dart'),
 }
 hex_re = re.compile(r'\b(?:const\s+)?Color\(0x[0-9A-Fa-f]{8}\)')
 violations = []

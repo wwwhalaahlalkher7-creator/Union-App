@@ -71,7 +71,7 @@ export async function materials(ctx) {
   if (semester.error) return semester.error;
   const rows = await queryAll(ctx.env, `SELECT m.id, m.subject_id, m.title, m.description, m.mime_type, m.size_bytes, m.pinned, m.sort_order, m.created_at, m.updated_at, s.code AS subject_code, s.name_ar AS subject_name, s.name_en AS subject_name_en, s.semester_id, s.department_id
     FROM materials m JOIN subjects s ON s.id = m.subject_id
-    WHERE m.active = 1 AND s.active = 1 AND s.department_id = ?
+    WHERE m.active = 1 AND COALESCE(m.content_type, 'material') = 'material' AND s.active = 1 AND s.department_id = ?
       AND (? IS NULL OR s.semester_id = ?)
       AND (? IS NULL OR m.subject_id = ?)
     ORDER BY m.pinned DESC, s.sort_order, s.name_ar, m.sort_order, m.title LIMIT ?`,
@@ -81,6 +81,24 @@ export async function materials(ctx) {
     file_url: `/api/v1/materials/${encodeURIComponent(row.id)}/file`,
   }));
   return ok(ctx, data, { semesterId: semester.id, departmentId: a.session.department_id, count: data.length, limit });
+}
+
+
+export async function exams(ctx) {
+  const a = await studentAuth(ctx); if (a.response) return a.response;
+  const semester = await effectiveMaterialSemester(ctx, a.session, ctx.url.searchParams.get('semesterId'));
+  if (semester.error) return semester.error;
+  const subjectId = ctx.url.searchParams.get('subjectId');
+  const limit = clampInt(ctx.url.searchParams.get('limit'), 100, 1, 500);
+  const rows = await queryAll(ctx.env, `SELECT m.id, m.subject_id, m.title, m.description, m.mime_type, m.size_bytes,
+      s.code AS subject_code, s.name_ar AS subject_name, s.name_en AS subject_name_en, s.semester_id, s.department_id
+    FROM materials m JOIN subjects s ON s.id=m.subject_id
+    WHERE m.active=1 AND COALESCE(m.content_type,'material')='exam' AND s.active=1 AND s.department_id=?
+      AND (? IS NULL OR s.semester_id=?) AND (? IS NULL OR m.subject_id=?)
+    ORDER BY s.sort_order, s.name_ar, m.sort_order, m.title LIMIT ?`,
+    a.session.department_id, semester.id, semester.id, subjectId, subjectId, limit);
+  return ok(ctx, rows.map(row => ({ ...row, file_url: `/api/v1/materials/${encodeURIComponent(row.id)}/file` })),
+    { semesterId: semester.id, departmentId: a.session.department_id, count: rows.length, limit });
 }
 
 export async function materialById(ctx, id) {

@@ -142,3 +142,21 @@ export async function deleteReply(ctx, id) {
   }
   return ok(ctx, {deleted:true});
 }
+
+
+export async function removeReaction(ctx) {
+  const a = await studentAuth(ctx); if (a.response) return a.response;
+  const parts = ctx.path.split('/'); const type = canonicalContentType(parts[2]); const id = parts[3];
+  if (!type) return error('CONTENT_TYPE_INVALID', 'نوع المحتوى غير مدعوم.', 400, ctx.requestId, ctx.cors);
+  await ctx.env.DB.prepare('DELETE FROM reactions WHERE student_id=? AND content_type=? AND content_id=?').bind(a.session.student_id, type, id).run();
+  return ok(ctx, { removed: true });
+}
+
+export async function removeCommentReaction(ctx) {
+  const a = await studentAuth(ctx); if (a.response) return a.response;
+  const id = ctx.path.split('/')[2];
+  const comment = await queryOne(ctx.env, "SELECT id FROM comments WHERE id=? AND status='visible'", id);
+  if (!comment) return error('COMMENT_NOT_FOUND', 'التعليق غير موجود.', 404, ctx.requestId, ctx.cors);
+  await ctx.env.DB.prepare('DELETE FROM comment_reactions WHERE student_id=? AND comment_id=?').bind(a.session.student_id, id).run();
+  return ok(ctx, { removed: true });
+}

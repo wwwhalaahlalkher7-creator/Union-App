@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/schedule_item.dart';
 import '../../data/repositories/schedule_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/login_required_card.dart';
 
 class ScheduleScreen extends StatefulWidget {
@@ -18,7 +19,6 @@ class ScheduleScreen extends StatefulWidget {
 
 class _ScheduleScreenState
     extends State<ScheduleScreen> {
-  ApiClient? _client;
   late Future<ScheduleData> _future;
   int? _selectedDay;
   bool _week = false;
@@ -30,9 +30,8 @@ class _ScheduleScreenState
   }
 
   Future<ScheduleData> _load() async {
-    _client ??= await AuthenticatedClient.create();
 
-    return ScheduleRepository(_client!).getSchedule();
+    return AppDependencies.instance.schedule.getSchedule();
   }
 
   Future<void> _reload() async {
@@ -45,11 +44,7 @@ class _ScheduleScreenState
     await future;
   }
 
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
+
 
   String _day(AppLocalizations l10n, int number) {
     return {
@@ -80,24 +75,25 @@ class _ScheduleScreenState
           }
 
           if (snapshot.hasError) {
-            final e = snapshot.error;
+            final Object e = snapshot.error ?? Exception('Unknown error');
             if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
-            return _Msg(message: e is ApiException ? e.message : AppLocalizations.of(context).t('connectionFailed'), retry: _reload);
+            return _Msg(message: ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), retry: _reload);
           }
 
           final data = snapshot.data!;
 
-          final days = data.days.isEmpty
-              ? (data.items
-                    .map((item) => item.dayOfWeek)
-                    .toSet()
-                    .toList()
-                  ..sort())
-              : data.days;
+          // Schedule day numbers use Sunday=0 ... Saturday=6.
+          // Keep today's selection on first load even when there are no
+          // lectures today; never silently label another day as 'Today'.
+          final today = DateTime.now().weekday % 7;
+          final days = <int>{
+            ...data.days,
+            ...data.items.map((item) => item.dayOfWeek),
+            today,
+          }.toList()
+            ..sort();
 
-          if (_selectedDay == null && days.isNotEmpty) {
-            _selectedDay = days.first;
-          }
+          _selectedDay ??= today;
 
           final shown = _week
               ? data.items
@@ -235,6 +231,8 @@ class _Lecture extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isRtl = l10n.locale.languageCode == 'ar';
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -245,6 +243,7 @@ class _Lecture extends StatelessWidget {
         ),
       ),
       child: Row(
+        textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
         children: [
           Container(
             width: 46,
@@ -279,7 +278,7 @@ class _Lecture extends StatelessWidget {
                 Text(
                   [
                     if (item.room?.isNotEmpty == true)
-                      'قاعة ${item.room}',
+                       '${AppLocalizations.of(context).t('room')} ${item.room}',
                     if (item.lecturer?.isNotEmpty == true)
                       item.lecturer!,
                   ].join(' • '),
@@ -294,7 +293,7 @@ class _Lecture extends StatelessWidget {
             ),
           ),
           Text(
-            '${item.startTime}\n${item.endTime}',
+            '${_formatClock12(item.startTime)}\n${_formatClock12(item.endTime)}',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: context.colors.primary,
@@ -306,6 +305,15 @@ class _Lecture extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatClock12(String value) {
+  final parts = value.split(':');
+  final hour24 = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 0;
+  final minute = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
+  final hour = hour24 % 12 == 0 ? 12 : hour24 % 12;
+  final suffix = hour24 < 12 ? 'ص' : 'م';
+  return '$hour:${minute.toString().padLeft(2, '0')} $suffix';
 }
 
 class _Msg extends StatelessWidget {

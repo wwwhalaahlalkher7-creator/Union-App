@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../data/models/notification_item.dart';
 import '../../data/repositories/notifications_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/login_required_card.dart';
 import '../../shared/widgets/list_skeleton.dart';
@@ -17,10 +20,8 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  ApiClient? _client;
   NotificationsRepository? _repository;
   Future<List<NotificationItem>>? _future;
-  int _filter = 0;
 
   @override
   void initState() {
@@ -30,24 +31,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _init() async {
     try {
-      final client = await AuthenticatedClient.create();
-      if (!mounted) {
-        client.dispose();
-        return;
+      _repository = AppDependencies.instance.notifications;
+      final future = _repository!.list();
+      setState(() => _future = future);
+      unawaited(_markAllReadOnEntry(future));
+    } catch (error, stackTrace) {
+      if (mounted) {
+        setState(() => _future = Future.error(error, stackTrace));
       }
-      _client = client;
-      _repository = NotificationsRepository(client);
-      setState(() => _future = _repository!.list());
-    } catch (_) {
-      if (mounted) setState(() => _future = Future.error(Exception()));
     }
   }
 
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
+
 
   Future<void> _reload() async {
     final repo = _repository;
@@ -57,15 +52,71 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await future;
   }
 
-  Future<void> _markRead(NotificationItem item) async {
-    if (item.isRead) return;
+  Future<void> _markAllReadOnEntry(Future<List<NotificationItem>> future) async {
     final repo = _repository;
     if (repo == null) return;
     try {
-      await repo.markRead([item.id]);
+      final items = await future;
+      final unread = items.where((item) => !item.isRead).map((item) => item.id).toList(growable: false);
+      if (unread.isEmpty) return;
+      await repo.markRead(unread);
       if (mounted) setState(() => _future = repo.list());
     } catch (_) {
-      // Keep the notification visible; a later refresh can retry the operation.
+      // The list itself displays any load failure; read-state update can be retried on refresh.
+    }
+  }
+
+
+  void _openNotification(NotificationItem item) {
+    if (item.contentType == 'achievement' && (item.contentId?.isNotEmpty ?? false)) {
+      context.push('/media/detail?type=achievement&id=${Uri.encodeComponent(item.contentId!)}');
+      return;
+    }
+    if (item.contentType == 'schedule' || item.category == 'schedule') {
+      context.push('/schedule');
+      return;
+    }
+    if (item.contentType == 'material' || item.category == 'material') {
+      context.push('/materials');
+      return;
+    }
+    if (item.contentType == 'news' && (item.contentId?.isNotEmpty ?? false)) {
+      context.push('/media/detail?type=news&id=${Uri.encodeComponent(item.contentId!)}');
+      return;
+    }
+    if (item.contentType == 'activity' && (item.contentId?.isNotEmpty ?? false)) {
+      context.push('/media/detail?type=activity&id=${Uri.encodeComponent(item.contentId!)}');
+      return;
+    }
+    showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
+      title: Text(item.title), content: SingleChildScrollView(child: Text(item.body)),
+      actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('إغلاق'))],
+    ));
+  }
+
+  Future<void> _deleteNotification(NotificationItem item) async {
+    final repo = _repository;
+    if (repo == null) return;
+    final action = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListTile(
+          leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+          title: const Text('حذف'),
+          onTap: () => Navigator.of(sheetContext).pop(true),
+        ),
+      ),
+    );
+    if (action != true) return;
+    try {
+      await repo.delete(item.id);
+      if (mounted) setState(() => _future = repo.list());
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorMessage.from(context, error, fallbackKey: 'genericError'))),
+      );
     }
   }
 
@@ -90,13 +141,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             return const ListSkeleton(count: 5);
           }
           if (snapshot.hasError) {
-            final e = snapshot.error;
+            final Object e = snapshot.error ?? Exception('Unknown error');
             if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) return const LoginRequiredCard();
-            return _StateView(icon: Icons.cloud_off_rounded, title: e is ApiException ? e.message : l10n.t('connectionFailed'), action: l10n.t('retry'), onAction: _reload);
+            return _StateView(icon: Icons.cloud_off_rounded, title: ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), action: l10n.t('retry'), onAction: _reload);
           }
 
           final all = snapshot.data ?? const <NotificationItem>[];
-          final items = _filter == 1 ? all.where((item) => !item.isRead).toList() : all;
+          final items = all;
           return RefreshIndicator(
             onRefresh: _reload,
             child: ListView(
@@ -105,28 +156,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               children: [
                 _UnreadSummary(items: all),
                 const SizedBox(height: 14),
-                SegmentedButton<int>(
-                  segments: [
-                    ButtonSegment(value: 0, label: Text(l10n.t('allNotifications')), icon: const Icon(Icons.notifications_none_rounded)),
-                    ButtonSegment(value: 1, label: Text(l10n.t('unreadNotifications')), icon: const Icon(Icons.mark_email_unread_outlined)),
-                  ],
-                  selected: {_filter},
-                  onSelectionChanged: (value) => setState(() => _filter = value.first),
-                ),
-                const SizedBox(height: 14),
                 if (items.isEmpty)
                   AppCard(
                     child: Column(
                       children: [
                         Icon(Icons.notifications_off_outlined, size: 40, color: Theme.of(context).colorScheme.primary),
                         const SizedBox(height: 10),
-                        Text(l10n.t(_filter == 1 ? 'noUnreadNotifications' : 'noData'), textAlign: TextAlign.center),
+                        Text(l10n.t('noData'), textAlign: TextAlign.center),
                       ],
                     ),
                   )
                 else
                   for (final item in items) ...[
-                    _NotificationCard(item: item, onTap: () => _markRead(item)),
+                    GestureDetector(
+                      onTap: () => _openNotification(item),
+                      onLongPress: () => _deleteNotification(item),
+                      child: _NotificationCard(item: item),
+                    ),
                     const SizedBox(height: 10),
                   ],
               ],
@@ -175,15 +221,23 @@ class _UnreadSummary extends StatelessWidget {
 }
 
 class _NotificationCard extends StatelessWidget {
-  const _NotificationCard({required this.item, required this.onTap});
+  const _NotificationCard({required this.item});
   final NotificationItem item;
-  final VoidCallback onTap;
+
+  String _formatDateTime(String value) {
+    final date = DateTime.tryParse(value)?.toLocal();
+    if (date == null) return value;
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}  $hour:$minute';
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return AppCard(
-      onTap: onTap,
       padding: const EdgeInsets.all(13.8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,12 +246,12 @@ class _NotificationCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: item.isRead ? cs.surfaceContainerHighest : cs.primaryContainer,
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12.6),
             ),
             child: Icon(
-              item.isRead ? Icons.notifications_none_rounded : Icons.notifications_active_rounded,
-              color: item.isRead ? cs.onSurfaceVariant : cs.onPrimaryContainer,
+              item.category == 'schedule' ? Icons.calendar_month_rounded : item.category == 'material' ? Icons.menu_book_rounded : item.category == 'achievement' ? Icons.emoji_events_rounded : (item.isRead ? Icons.notifications_none_rounded : Icons.campaign_rounded),
+              color: item.category == 'schedule' ? cs.primary : item.category == 'material' ? cs.tertiary : item.category == 'achievement' ? cs.secondary : cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(width: 12),
@@ -207,16 +261,18 @@ class _NotificationCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(child: Text(item.title, style: TextStyle(fontWeight: item.isRead ? FontWeight.w700 : FontWeight.w900))),
-                    if (!item.isRead)
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle)),
+                    Expanded(child: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700))),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(item.body, maxLines: 4, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
                 if (item.publishAt?.isNotEmpty == true) ...[
                   const SizedBox(height: 7),
-                  Text(item.publishAt!, style: Theme.of(context).textTheme.bodySmall),
+                  Text('النشر: ${_formatDateTime(item.publishAt!)}', style: Theme.of(context).textTheme.bodySmall),
+                ],
+                if (item.expiresAt?.isNotEmpty == true) ...[
+                  const SizedBox(height: 4),
+                  Text('انتهاء الصلاحية: ${_formatDateTime(item.expiresAt!)}', style: Theme.of(context).textTheme.bodySmall),
                 ],
               ],
             ),

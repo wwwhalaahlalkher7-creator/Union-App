@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const service = read('apps/student/lib/core/notifications/push_notification_service.dart');
@@ -7,19 +7,28 @@ const app = read('apps/student/lib/app/app.dart');
 const login = read('apps/student/lib/features/auth/login_screen.dart');
 const settings = read('apps/student/lib/features/settings/settings_screen.dart');
 const api = read('apps/student/lib/core/network/api_client.dart');
+const transport = read('apps/student/lib/core/network/api_transport.dart');
 const manifest = read('apps/student/android/app/src/main/AndroidManifest.xml');
 const gradle = read('apps/student/android/app/build.gradle');
+const firebase = JSON.parse(read('apps/student/android/app/google-services.json'));
 const docs = read('services/api/docs/push-notifications-setup.md');
-for (const dependency of ['firebase_core:', 'firebase_messaging:']) assert.ok(pubspec.includes(dependency), `missing ${dependency}`);
-for (const value of ['TRINEX_FIREBASE_API_KEY', 'TRINEX_FIREBASE_APP_ID', 'TRINEX_FIREBASE_SENDER_ID', 'TRINEX_FIREBASE_PROJECT_ID']) assert.ok(service.includes(value), `missing ${value}`);
+for (const dependency of ['firebase_core:', 'firebase_messaging:', 'flutter_local_notifications:']) {
+  assert.ok(pubspec.includes(dependency), `missing ${dependency}`);
+}
+assert.equal(firebase.client?.[0]?.client_info?.android_client_info?.package_name, 'com.leoassociation.app');
+assert.ok(service.includes('Firebase.initializeApp()'));
 assert.ok(service.includes("'/api/v1/student/notifications/device'"));
 assert.ok(service.includes('onTokenRefresh'));
 assert.ok(service.includes('requestPermission'));
-assert.ok(service.includes('deleteJson(\'/api/v1/student/notifications/device\', body: {\'token\': token})'));
+assert.ok(service.includes('initializeForCurrentSession'));
+assert.ok(service.includes('unregisterCurrentDevice'));
+assert.ok(service.includes("body: {'token': token}"));
 assert.ok(app.includes('initializeForCurrentSession'));
 assert.ok(login.includes('initializeForCurrentSession'));
 assert.ok(settings.includes('unregisterCurrentDevice'));
-assert.ok(api.includes("_client.delete(uri, headers: headers, body: body == null ? null : jsonEncode(body)"));
+assert.ok(settings.indexOf('unregisterCurrentDevice') < settings.indexOf("postJson('/api/v1/auth/logout')"), 'device token must be unregistered before session logout');
+assert.ok(api.includes("deleteJson(String path, {Map<String, dynamic>? body})"));
+assert.ok(transport.includes("'DELETE' => client.delete(uri, headers: headers, body: encodedBody)"));
 assert.ok(manifest.includes('android.permission.POST_NOTIFICATIONS'));
 assert.ok(gradle.includes('file("google-services.json").exists()'));
 assert.ok(docs.includes('real Android device'));

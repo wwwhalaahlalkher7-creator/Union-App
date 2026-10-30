@@ -16,6 +16,8 @@ Base:
 
 - `GET /public/news`
 - `GET /public/events`
+- `GET /public/activities` — compatibility alias to the current events catalogue.
+- `GET /public/students/:id` — public-safe student profile; excludes student number, email and authentication fields.
 - `GET /public/announcements`
 - - `GET /public/news/:id`
 - `GET /public/events/:id`
@@ -44,6 +46,7 @@ Public content routes `/news`, `/events`, `/announcements`, `/achievements` are 
 - `GET /student/profile`
 - `GET /student/stats`
 - `GET /student/notifications`
+- `DELETE /student/notifications/:id` — deletes only the authenticated student's own notification target and queued delivery.
 - `POST /student/notifications/read`
 - `POST /student/notifications/device`
 - `DELETE /student/notifications/device`
@@ -51,6 +54,7 @@ Public content routes `/news`, `/events`, `/announcements`, `/achievements` are 
 - `GET /departments`
 - `GET /subjects`
 - `GET /materials`
+- `GET /exams` — separate exam-file catalogue; exam materials are excluded from the ordinary materials list.
 - `GET /materials/:id`
 - `GET /schedule`
 - `GET /progress`
@@ -65,10 +69,27 @@ Public content routes `/news`, `/events`, `/announcements`, `/achievements` are 
 - `POST /content/:type/:id/reactions`
 - `POST /comments/:id/reactions`
 - `DELETE /comments/:id`
+- `DELETE /replies/:id`
+- `DELETE /content/:type/:id/reactions`
+- `DELETE /comments/:id/reactions`
+
+### General chat, feedback and analytics
+
+- `GET/POST /chat/messages`
+- `DELETE /chat/messages/:id` — own messages or student-moderator removals.
+- `POST /chat/messages/:id/report`
+- `POST /feedback` — authenticated student feedback with suggestion/bug/content/other categories.
+- `POST /usage/events` — anonymous allowlisted screen metadata only.
 
 ## Eino
 
 - `POST /eino/chat`
+- `POST/GET /eino/chats`
+- `GET/POST /eino/chats/:id/messages`
+- `DELETE /eino/chats/:id`
+- `POST /eino/long-summary`
+- `POST /eino/file-analysis` (PDF and image files; other file types currently return 415).
+- `POST /eino/image` (route is present but returns 503 until an image-generation provider is configured).
 
 The Worker enforces input limits, quota governance and privacy-preserving telemetry before forwarding to Free.ai.
 

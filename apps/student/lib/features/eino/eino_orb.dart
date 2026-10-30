@@ -16,6 +16,7 @@ class EinoMotionSession {
   static bool get chatOpen => _chatOpen;
 
   static void markChatOpened() {
+    if (_chatOpen) return;
     _returnAnimationPending = false;
     _chatOpen = true;
     changes.value++;

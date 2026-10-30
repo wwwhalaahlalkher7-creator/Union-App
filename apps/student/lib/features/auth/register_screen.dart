@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
+import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../core/storage/app_preferences.dart';
-import '../../core/storage/auth_storage.dart';
 import '../../data/repositories/student_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../features/eino/eino_face.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/utils/academic_labels.dart';
@@ -35,8 +35,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   List<Map<String, dynamic>> _semesters = const [];
   String? _selectedSemester;
 
-  ApiClient? _client;
-  AuthStorage? _storage;
   StudentRepository? _studentRepo;
 
   @override
@@ -47,9 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _initAuth() async {
     try {
-      _storage = await AuthStorage.create();
-      _client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: _storage!);
-      _studentRepo = StudentRepository(_client!);
+      _studentRepo = AppDependencies.instance.student;
       final repo = _studentRepo!;
       final semesters = await repo.semesters();
       if (!mounted) return;
@@ -62,8 +58,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         setState(() {
           _academicLoading = false;
-          _academicLoadError = e.toString();
-          _errorMessage ??= e.toString();
+          _academicLoadError = ErrorMessage.from(context, e, fallbackKey: 'connectionFailed');
+          _errorMessage ??= ErrorMessage.from(context, e, fallbackKey: 'connectionFailed');
         });
       }
     }
@@ -76,7 +72,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _client?.dispose();
     super.dispose();
   }
 
@@ -109,11 +104,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      if (_studentRepo == null || _storage == null) {
+      if (_studentRepo == null) {
         await _initAuth();
       }
-      if (_studentRepo == null || _storage == null) {
-        throw const ApiException('تعذر تهيئة خدمة التسجيل. أعد المحاولة.');
+      if (_studentRepo == null) {
+        throw const ApiException('Registration service could not be initialized. Please try again.');
       }
       final repo = _studentRepo!;
       final result = await repo.register(
@@ -123,14 +118,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
         semesterId: _selectedSemester!,
       );
 
-      await _storage?.saveSession(result);
+      await AppDependencies.instance.authStorage.saveSession(<String, dynamic>{
+        ...result,
+        // Some registration responses omit this field even though it was
+        // supplied by the student. Keep the local identity so the first-run
+        // guided tour can be associated with the newly registered account.
+        'studentNumber': result['studentNumber'] ?? studentNumber,
+      });
 
       final prefs = AppPreferences();
       await prefs.init();
       await prefs.setOnboardingCompleted(true);
-      // The interactive in-app tour is triggered only by successful new registration,
-      // never by ordinary login or guest navigation.
-      await prefs.setStudyTutorialPending(true);
+      // Start the walkthrough only when the backend confirms the actual
+      // unregistered -> registered transition for this successful new account.
+      // Ordinary login never reaches this code path, and a profile-only status
+      // of registered is not enough to replay the tour.
+      final registrationTransition = result['registrationTransition'] == true;
+      final registered = result['registered'] == true;
+      final tutorialAlreadyCompleted =
+          prefs.learningModeCompletedFor(studentNumber);
+      final shouldStartTour = registrationTransition && registered &&
+          !tutorialAlreadyCompleted;
+      await prefs.setLearningModePendingFor(studentNumber, shouldStartTour);
 
       if (!mounted) return;
       HapticFeedback.mediumImpact();
@@ -140,7 +149,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
-      context.go('/media');
+      // The guided tour is an overlay on the real application UI, not a
+      // separate tutorial page. The shell starts it only for this pending
+      // newly registered account; guest and returning sign-ins bypass it.
+      context.go('/home');
     } catch (e) {
       if (!mounted) return;
       final message = e is ApiException
@@ -174,7 +186,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/media');
+              context.go('/home');
             }
           },
         ),

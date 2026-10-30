@@ -1,13 +1,19 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/storage/app_preferences.dart';
-import '../../features/onboarding/study_tutorial_overlay.dart';
 import '../../core/theme/design_tokens.dart';
-import '../../features/eino/eino_orb.dart';
+import '../../features/eino/eino_face.dart';
+import '../../features/eino/eino_orb.dart' show EinoMotionSession;
+import '../../core/di/app_dependencies.dart';
+import '../../core/storage/app_preferences.dart';
+import '../../features/onboarding/guided_tour_overlay.dart';
+import '../../core/notifications/push_notification_service.dart';
+import '../../data/models/notification_item.dart';
 
 class TrinexShell extends StatefulWidget {
   const TrinexShell({
@@ -23,113 +29,577 @@ class TrinexShell extends StatefulWidget {
   State<TrinexShell> createState() => _TrinexShellState();
 }
 
-class _TrinexShellState extends State<TrinexShell> {
+class _TrinexShellState extends State<TrinexShell>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 3),
+  )..repeat();
+  late final AnimationController _transitionController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 580),
+  );
+  late final AnimationController _handoffController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 190),
+  );
+  final GlobalKey _einoButtonKey = GlobalKey();
+  OverlayEntry? _einoTransitionEntry;
+  bool _einoTransitionRunning = false;
+  bool _isEinoTransitioning = false;
+  bool _isEinoReturning = false;
+  bool _reduceMotion = false;
+  Timer? _pulseIdleTimer;
+
   bool _einoVisible = false;
-  bool _tutorialCheckScheduled = false;
-  bool _tutorialCheckInFlight = false;
-  bool _tutorialCheckRequestedDuringFlight = false;
-  bool _tutorialDialogOpen = false;
+  int _unreadNotifications = 0;
+  StreamSubscription<void>? _notificationSubscription;
+  StreamSubscription<AccelerometerEvent>? _shakeSubscription;
+  DateTime _lastShakeAt = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _feedbackOpening = false;
+  int? _guidedTourStep;
+  bool _guidedTourActionRunning = false;
+  bool _guidedTourCheckRunning = false;
+  bool _guidedTourCheckRequested = false;
 
-  bool get _readingMode =>
-      widget.location == '/media/detail' || widget.location == '/news/detail';
+  bool get _readingMode => widget.location == '/media/detail';
 
-  bool get _einoChatOpen => widget.location.startsWith('/eino');
+  bool get _hideFloatingEino => widget.location.startsWith('/student') || widget.location.startsWith('/eino');
+
+  void _schedulePulseIdle() {
+    _pulseIdleTimer?.cancel();
+    if (_reduceMotion) {
+      _pulse.stop(canceled: false);
+      return;
+    }
+    _pulse.repeat();
+    _pulseIdleTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted) _pulse.stop(canceled: false);
+    });
+  }
+
+  Rect? _measureEinoButtonRect(OverlayState overlay) {
+    final buttonObject = _einoButtonKey.currentContext?.findRenderObject();
+    final overlayObject = overlay.context.findRenderObject();
+    if (buttonObject is! RenderBox ||
+        overlayObject is! RenderBox ||
+        !buttonObject.hasSize ||
+        !overlayObject.hasSize) {
+      return null;
+    }
+    final globalOrigin = buttonObject.localToGlobal(Offset.zero);
+    final localOrigin = overlayObject.globalToLocal(globalOrigin);
+    final rect = localOrigin & buttonObject.size;
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    return rect;
+  }
+
+  Size? _rootOverlaySize(OverlayState overlay) {
+    final object = overlay.context.findRenderObject();
+    if (object is! RenderBox || !object.hasSize) return null;
+    return object.size;
+  }
+
+  OverlayEntry _buildEinoTransitionEntry({
+    required OverlayState overlay,
+    required Rect from,
+    required Rect to,
+    required bool returning,
+  }) {
+    return OverlayEntry(
+      builder: (_) => AnimatedBuilder(
+        animation: Listenable.merge([
+          _transitionController,
+          _handoffController,
+        ]),
+        builder: (context, _) {
+          final progress = Curves.easeInOutCubic.transform(
+            _transitionController.value.clamp(0.0, 1.0).toDouble(),
+          );
+          final handoff = returning
+              ? 0.0
+              : Curves.easeOutCubic.transform(_handoffController.value);
+          final routeVeilOpacity = returning ? 1.0 : (1.0 - handoff);
+          final orbOpacity = returning
+              ? 1.0 - Curves.easeInOutCubic.transform(
+                  ((progress - .93) / .07).clamp(0.0, 1.0).toDouble(),
+                )
+              : Curves.easeInOutCubic.transform(
+                  (progress / .07).clamp(0.0, 1.0).toDouble(),
+                );
+          final backdropProgress = returning ? 1.0 - progress : progress;
+          final backdropOpacity = (backdropProgress * .99 * routeVeilOpacity)
+              .clamp(0.0, .99)
+              .toDouble();
+          final rect = Rect.lerp(from, to, progress)!;
+          final center = rect.center;
+          final overlaySize = _rootOverlaySize(overlay) ?? MediaQuery.sizeOf(context);
+          final alignment = Alignment(
+            ((center.dx / overlaySize.width) * 2 - 1)
+                .clamp(-1.0, 1.0)
+                .toDouble(),
+            ((center.dy / overlaySize.height) * 2 - 1)
+                .clamp(-1.0, 1.0)
+                .toDouble(),
+          );
+          final orbSize = rect.shortestSide;
+          final motionBoost = math.sin(progress * math.pi).clamp(0.0, 1.0).toDouble();
+          final colorScheme = Theme.of(context).colorScheme;
+
+          return IgnorePointer(
+            child: SizedBox.expand(
+              child: Stack(
+                fit: StackFit.expand,
+                clipBehavior: Clip.none,
+                children: [
+                  if (backdropOpacity > 0.001)
+                    Positioned.fill(
+                      child: Opacity(
+                        opacity: backdropOpacity,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: alignment,
+                              radius: 1.35,
+                              colors: [
+                                colorScheme.primary.withValues(alpha: .30),
+                                colorScheme.surfaceContainerHighest.withValues(alpha: .96),
+                                colorScheme.surface,
+                              ],
+                              stops: const [0, .43, 1],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned.fromRect(
+                    rect: rect,
+                    child: Opacity(
+                      opacity: (routeVeilOpacity * orbOpacity)
+                          .clamp(0.0, 1.0)
+                          .toDouble(),
+                      child: Center(
+                        child: EinoFace(
+                          size: orbSize,
+                          mood: EinoMood.calm,
+                          showAura: true,
+                          motionBoost: motionBoost,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<bool> _playEinoTransition({
+    required OverlayState overlay,
+    required Rect from,
+    required Rect to,
+    required bool returning,
+  }) async {
+    _transitionController.duration = Duration(
+      milliseconds: returning ? 460 : 580,
+    );
+    _handoffController.value = 0;
+    final entry = _buildEinoTransitionEntry(
+      overlay: overlay,
+      from: from,
+      to: to,
+      returning: returning,
+    );
+    _einoTransitionEntry = entry;
+    overlay.insert(entry);
+    try {
+      await _transitionController.forward(from: 0).orCancel;
+      return true;
+    } on TickerCanceled {
+      return false;
+    }
+  }
+
+  void _removeEinoTransitionEntry() {
+    final entry = _einoTransitionEntry;
+    _einoTransitionEntry = null;
+    if (entry == null) return;
+    entry.remove();
+    entry.dispose();
+  }
+
+  Future<void> _openEinoWithTransition() async {
+    if (_einoTransitionRunning || !mounted) return;
+    _einoTransitionRunning = true;
+    _pulseIdleTimer?.cancel();
+
+    OverlayState? overlay;
+    Rect? buttonRect;
+    Size? overlaySize;
+    try {
+      overlay = Overlay.of(context, rootOverlay: true);
+      buttonRect = _measureEinoButtonRect(overlay);
+      overlaySize = _rootOverlaySize(overlay);
+    } catch (_) {
+      // If the element cannot be measured, use the normal route transition.
+    }
+
+    final canAnimate = !_reduceMotion &&
+        overlay != null &&
+        buttonRect != null &&
+        overlaySize != null &&
+        overlaySize.shortestSide > 0;
+    var routeReturned = true;
+    try {
+      _pulse.stop(canceled: false);
+      if (!canAnimate) {
+        await Future<void>.delayed(const Duration(milliseconds: 180));
+        if (!mounted) return;
+        EinoMotionSession.markChatOpened();
+        await context.push<void>('/eino?from=shell');
+        EinoMotionSession.consumeReturnAnimation();
+        return;
+      }
+
+      setState(() => _isEinoTransitioning = true);
+      final currentOverlay = overlay;
+      final sourceRect = buttonRect;
+      final size = overlaySize;
+      final centerDiameter = math
+          .min(math.max(size.shortestSide * .22, 128.0), 156.0)
+          .toDouble();
+      final centerRect = Rect.fromCenter(
+        center: size.center(Offset.zero),
+        width: centerDiameter,
+        height: centerDiameter,
+      );
+
+      final entered = await _playEinoTransition(
+        overlay: currentOverlay,
+        from: sourceRect,
+        to: centerRect,
+        returning: false,
+      );
+      if (!mounted) return;
+      if (!entered || _reduceMotion) {
+        _removeEinoTransitionEntry();
+        setState(() => _isEinoTransitioning = false);
+        await Future<void>.delayed(const Duration(milliseconds: 180));
+        if (!mounted) return;
+        EinoMotionSession.markChatOpened();
+        await context.push<void>('/eino?from=shell');
+        EinoMotionSession.consumeReturnAnimation();
+        return;
+      }
+
+      // Let the orb wake/boost become visible before the chat covers it.
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+      if (!mounted) return;
+      EinoMotionSession.markChatOpened();
+      // Push the destination while the transition veil covers the route's
+      // platform animation. Fade the veil away only after the chat is mounted.
+      final routeFuture = context.push<void>('/eino?from=shell');
+      routeReturned = false;
+      await Future<void>.delayed(const Duration(milliseconds: 125));
+      if (!_reduceMotion) {
+        try {
+          await _handoffController.forward(from: 0).orCancel;
+        } on TickerCanceled {
+          // Reduced-motion settings may change while the route is opening.
+        }
+      }
+      _removeEinoTransitionEntry();
+      // Keep the source orb hidden under the chat route and reveal it only as
+      // the return transition reaches its final frames.
+      _isEinoReturning = true;
+      _transitionController.value = 0;
+      _handoffController.value = 0;
+      await routeFuture;
+      routeReturned = true;
+      final returnedFromChat = EinoMotionSession.consumeReturnAnimation();
+      if (!mounted) return;
+
+      if (returnedFromChat && !_reduceMotion) {
+        // Measure the actual button again after the route is popped. The shell
+        // keeps the button mounted (but transparent) during the chat route.
+        final returnRect = _measureEinoButtonRect(currentOverlay);
+        final currentSize = _rootOverlaySize(currentOverlay);
+        if (returnRect != null && currentSize != null) {
+          final returnCenterDiameter = math
+              .min(math.max(currentSize.shortestSide * .22, 128.0), 156.0)
+              .toDouble();
+          final returnCenter = Rect.fromCenter(
+            center: currentSize.center(Offset.zero),
+            width: returnCenterDiameter,
+            height: returnCenterDiameter,
+          );
+          await _playEinoTransition(
+            overlay: currentOverlay,
+            from: returnCenter,
+            to: returnRect,
+            returning: true,
+          );
+        }
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Eino transition failed; using the stable route state: $error\n$stackTrace');
+    } finally {
+      _removeEinoTransitionEntry();
+      if (mounted) {
+        _transitionController.value = 0;
+        _handoffController.value = 0;
+        if (_isEinoTransitioning || _isEinoReturning) {
+          setState(() {
+            _isEinoTransitioning = false;
+            _isEinoReturning = false;
+          });
+        }
+        if (routeReturned) _schedulePulseIdle();
+      }
+      _einoTransitionRunning = false;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    if (_reduceMotion == reduceMotion) return;
+    _reduceMotion = reduceMotion;
+    if (_reduceMotion) {
+      _pulseIdleTimer?.cancel();
+      _pulse.stop(canceled: false);
+      _transitionController.stop(canceled: true);
+      _handoffController.stop(canceled: true);
+      _removeEinoTransitionEntry();
+      _isEinoTransitioning = false;
+      _isEinoReturning = false;
+    } else if (mounted) {
+      _schedulePulseIdle();
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _einoVisible = !_readingMode && !_einoChatOpen;
+    WidgetsBinding.instance.addObserver(this);
+    _startShakeDetection();
+    _notificationSubscription = PushNotificationService.instance.notificationArrived.listen((_) => _handleNotificationArrived());
+    _einoVisible = !_readingMode && !_hideFloatingEino;
     FocusManager.instance.addListener(_handleFocusChange);
-    _scheduleStudyTutorialCheck();
+    _refreshUnreadNotifications();
+    _schedulePulseIdle();
+    _checkPendingGuidedTour();
+  }
+
+  Future<void> _checkPendingGuidedTour() async {
+    if (_guidedTourCheckRunning || _guidedTourStep != null) {
+      _guidedTourCheckRequested = true;
+      return;
+    }
+    _guidedTourCheckRunning = true;
+    _guidedTourCheckRequested = false;
+    try {
+      final authStorage = AppDependencies.instance.authStorage;
+      final profile = await authStorage.profile;
+      final studentNumber = ((profile?['studentNumber'] ?? await authStorage.studentNumber) ?? '').toString().trim();
+      if (studentNumber.isEmpty) return; // Guests never see the guided tour.
+      final preferences = AppPreferences();
+      await preferences.init();
+      if (!preferences.learningModePendingFor(studentNumber) ||
+          preferences.learningModeCompletedFor(studentNumber)) {
+        return;
+      }
+
+      // Wait for the real home content to render before placing the spotlight.
+      var targetReady = false;
+      for (var attempt = 0; attempt < 100; attempt++) {
+        if (!mounted) return;
+        final targetContext = guidedTourHomeNavKey.currentContext;
+        final targetObject = targetContext?.findRenderObject();
+        if (targetObject is RenderBox && targetObject.hasSize) {
+          targetReady = true;
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      }
+      if (!mounted) return;
+      if (widget.location != '/home' || !targetReady) {
+        _guidedTourCheckRequested = widget.location != '/home' || !targetReady;
+        return;
+      }
+      setState(() => _guidedTourStep = 0);
+    } catch (error, stackTrace) {
+      debugPrint('Could not initialize guided tour: $error\n$stackTrace');
+    } finally {
+      _guidedTourCheckRunning = false;
+      if (mounted && _guidedTourCheckRequested && widget.location == '/home' && _guidedTourStep == null) {
+        _guidedTourCheckRequested = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) unawaited(_checkPendingGuidedTour()); });
+      }
+    }
+  }
+
+  Future<void> _onGuidedTourTargetTap() async {
+    if (_guidedTourActionRunning || _guidedTourStep == null || !mounted) return;
+    _guidedTourActionRunning = true;
+    final step = _guidedTourStep!;
+    try {
+      switch (step) {
+        case 0:
+          // The highlighted destination is the real Home navigation item.
+          context.go('/home');
+          setState(() => _guidedTourStep = 1);
+          break;
+        case 1:
+          // Perform the same action as the highlighted schedule card.
+          context.push('/schedule');
+          setState(() => _guidedTourStep = 2);
+          break;
+        case 2:
+          context.go('/materials');
+          setState(() => _guidedTourStep = 3);
+          break;
+        case 3:
+          context.go('/media');
+          setState(() => _guidedTourStep = 4);
+          break;
+        case 4:
+          context.go('/more');
+          setState(() => _guidedTourStep = 5);
+          break;
+        case 5:
+          await _completeGuidedTour();
+          if (mounted) await _openEinoWithTransition();
+          break;
+      }
+    } finally {
+      _guidedTourActionRunning = false;
+    }
+  }
+
+  Future<void> _skipGuidedTour() async {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.t('guidedTourSkipTitle')),
+        content: Text(l10n.t('guidedTourSkipMessage')),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: Text(l10n.t('guidedTourKeepGoing'))),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text(l10n.t('guidedTourConfirmSkip'))),
+        ],
+      ),
+    );
+    if (confirmed == true) await _completeGuidedTour();
+  }
+
+  Future<void> _completeGuidedTour() async {
+    try {
+      final studentNumber = (await AppDependencies.instance.authStorage.studentNumber)?.trim() ?? '';
+      if (studentNumber.isNotEmpty) {
+        final preferences = AppPreferences();
+        await preferences.init();
+        await preferences.setLearningModeCompletedFor(studentNumber, true);
+        await preferences.setLearningModePendingFor(studentNumber, false);
+      }
+    } catch (error, stackTrace) {
+      // Never block app access if local preference storage is unavailable.
+      debugPrint('Could not persist guided-tour completion: $error\n$stackTrace');
+    } finally {
+      if (mounted) setState(() => _guidedTourStep = null);
+    }
+  }
+
+  Future<void> _playPendingEinoReturn() async {
+    if (!mounted || _einoTransitionRunning) return;
+    if (!EinoMotionSession.consumeReturnAnimation()) return;
+    if (_reduceMotion) {
+      _schedulePulseIdle();
+      return;
+    }
+
+    OverlayState? overlay;
+    try {
+      overlay = Overlay.of(context, rootOverlay: true);
+    } catch (_) {
+      overlay = null;
+    }
+    final buttonRect = overlay == null ? null : _measureEinoButtonRect(overlay);
+    final overlaySize = overlay == null ? null : _rootOverlaySize(overlay);
+    if (overlay == null || buttonRect == null || overlaySize == null) {
+      _schedulePulseIdle();
+      return;
+    }
+
+    _einoTransitionRunning = true;
+    setState(() {
+      _isEinoTransitioning = true;
+      _isEinoReturning = true;
+    });
+    final centerDiameter = math
+        .min(math.max(overlaySize.shortestSide * .22, 128.0), 156.0)
+        .toDouble();
+    final centerRect = Rect.fromCenter(
+      center: overlaySize.center(Offset.zero),
+      width: centerDiameter,
+      height: centerDiameter,
+    );
+    try {
+      await _playEinoTransition(
+        overlay: overlay,
+        from: centerRect,
+        to: buttonRect,
+        returning: true,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Eino return transition failed: $error\n$stackTrace');
+    } finally {
+      _removeEinoTransitionEntry();
+      if (mounted) {
+        setState(() {
+          _isEinoTransitioning = false;
+          _isEinoReturning = false;
+        });
+        _schedulePulseIdle();
+      }
+      _einoTransitionRunning = false;
+    }
   }
 
   @override
   void didUpdateWidget(covariant TrinexShell oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.location != widget.location && (_readingMode || _einoChatOpen)) {
+    if (oldWidget.location.startsWith('/eino') &&
+        !widget.location.startsWith('/eino') &&
+        !_einoTransitionRunning) {
+      // Eino may also be opened from the Home card, not only the floating orb.
+      // Consume its one-shot return cue after the shell has rebuilt the button.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_einoTransitionRunning) {
+          unawaited(_playPendingEinoReturn());
+        }
+      });
+    }
+    if (oldWidget.location != widget.location && widget.location == '/home' && _guidedTourStep == null) {
+      // Registration may finish while the shell already exists; always retry
+      // after the home route has completed its first layout.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_checkPendingGuidedTour());
+      });
+    }
+    if ((oldWidget.location.startsWith('/notifications') && !widget.location.startsWith('/notifications')) ||
+        (oldWidget.location.startsWith('/login') && widget.location.startsWith('/home'))) {
+      _refreshUnreadNotifications();
+    }
+    if (oldWidget.location != widget.location && _readingMode) {
       _einoVisible = false;
-    } else if (oldWidget.location != widget.location && !_readingMode && !_einoChatOpen) {
-      _einoVisible = true;
-    }
-    // Registration happens outside ShellRoute. Still re-check on every route
-    // transition so a pending flag set while this shell is alive is not missed.
-    if (oldWidget.location != widget.location) _scheduleStudyTutorialCheck();
-  }
-
-  void _scheduleStudyTutorialCheck() {
-    if (_tutorialCheckInFlight) {
-      _tutorialCheckRequestedDuringFlight = true;
-      return;
-    }
-    if (_tutorialCheckScheduled || _tutorialDialogOpen) return;
-    _tutorialCheckScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _tutorialCheckScheduled = false;
-      if (mounted) unawaited(_showStudyTutorialIfPending());
-    });
-  }
-
-  Future<void> _showStudyTutorialIfPending() async {
-    if (!mounted || _tutorialDialogOpen || _tutorialCheckInFlight) return;
-    // Successful registration currently lands on /media. If navigation moves
-    // quickly, keep the one-shot flag until a safe, top-level shell page is shown.
-    if (widget.location != '/media' && widget.location != '/student') return;
-    _tutorialCheckInFlight = true;
-    var consumed = false;
-    var displayed = false;
-    AppPreferences? preferences;
-    try {
-      preferences = AppPreferences();
-      await preferences.init();
-      if (!mounted || _tutorialDialogOpen ||
-          (widget.location != '/media' && widget.location != '/student') ||
-          !preferences.studyTutorialPending) {
-        return;
-      }
-      // Consume the one-shot trigger only when we're ready to show it. This flag
-      // is set after successful registration and is never set by guest/login flow.
-      await preferences.setStudyTutorialPending(false);
-      consumed = true;
-      if (!mounted) {
-        await preferences.setStudyTutorialPending(true);
-        consumed = false;
-        return;
-      }
-      if (widget.location != '/media' && widget.location != '/student') {
-        await preferences.setStudyTutorialPending(true);
-        consumed = false;
-        return;
-      }
-      _tutorialDialogOpen = true;
-      final dialog = showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.transparent,
-        builder: (dialogContext) => StudyTutorialOverlay(
-          onSkip: () => Navigator.of(dialogContext).pop(),
-          onFinish: () {
-            Navigator.of(dialogContext).pop();
-            if (mounted) context.go('/student');
-          },
-        ),
-      );
-      displayed = true;
-      await dialog;
-    } catch (_) {
-      // A preferences or route presentation failure must never block navigation.
-      // Restore the one-shot trigger if it was consumed but the dialog never opened.
-      if (consumed && !displayed && preferences != null) {
-        try {
-          await preferences.setStudyTutorialPending(true);
-        } catch (_) {}
-      }
-    } finally {
-      _tutorialDialogOpen = false;
-      _tutorialCheckInFlight = false;
-      if (mounted && _tutorialCheckRequestedDuringFlight) {
-        _tutorialCheckRequestedDuringFlight = false;
-        _scheduleStudyTutorialCheck();
-      }
+    } else if (oldWidget.location != widget.location && !_readingMode) {
+      _einoVisible = !_hideFloatingEino;
     }
   }
 
@@ -140,47 +610,176 @@ class _TrinexShellState extends State<TrinexShell> {
     if (!mounted) return;
     if (isEditing && _einoVisible) {
       setState(() => _einoVisible = false);
-    } else if (!isEditing && !_einoVisible && !_readingMode && !_einoChatOpen) {
+    } else if (!isEditing && !_einoVisible && !_readingMode && !_hideFloatingEino) {
       setState(() => _einoVisible = true);
     }
   }
 
+  void _handleNotificationArrived() {
+    if (!mounted) return;
+    setState(() => _unreadNotifications += 1);
+  }
+
+  Future<void> _refreshUnreadNotifications() async {
+    try {
+      final items = await AppDependencies.instance.notifications.list();
+      if (!mounted) return;
+      setState(() => _unreadNotifications = items.where((NotificationItem item) => !item.isRead).length);
+    } catch (_) {
+      // Signed-out visitors see no badge; failures do not trigger repeated requests.
+      if (mounted) setState(() => _unreadNotifications = 0);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startShakeDetection();
+      if (!_einoTransitionRunning) _schedulePulseIdle();
+    } else {
+      _stopShakeDetection();
+      _pulseIdleTimer?.cancel();
+      _pulse.stop(canceled: false);
+      // Cancel in-flight transitions so their awaited ticker futures settle;
+      // otherwise an app switch mid-animation could leave the veil frozen.
+      _transitionController.stop(canceled: true);
+      _handoffController.stop(canceled: true);
+      _removeEinoTransitionEntry();
+    }
+  }
+
+  void _startShakeDetection() {
+    if (_shakeSubscription != null) return;
+    _shakeSubscription = accelerometerEventStream(
+      samplingPeriod: const Duration(milliseconds: 200),
+    ).listen(
+      _handleAccelerometerEvent,
+      onError: (_) => _stopShakeDetection(),
+      cancelOnError: true,
+    );
+  }
+
+  void _stopShakeDetection() {
+    final subscription = _shakeSubscription;
+    _shakeSubscription = null;
+    if (subscription != null) {
+      unawaited(subscription.cancel());
+    }
+  }
+
+  void _handleAccelerometerEvent(AccelerometerEvent event) {
+    if (!mounted || _feedbackOpening) return;
+    final magnitude = math.sqrt(
+      event.x * event.x + event.y * event.y + event.z * event.z,
+    );
+    // A brisk movement beyond gravity is enough; the cooldown prevents a
+    // single shake from pushing multiple feedback routes.
+    if (magnitude < 18) return;
+    final now = DateTime.now();
+    if (now.difference(_lastShakeAt) < const Duration(seconds: 2)) return;
+    _lastShakeAt = now;
+    _feedbackOpening = true;
+    unawaited(
+      context.push('/feedback').then<void>(
+        (_) => _feedbackOpening = false,
+        onError: (Object _) => _feedbackOpening = false,
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopShakeDetection();
+    _notificationSubscription?.cancel();
     FocusManager.instance.removeListener(_handleFocusChange);
+    _pulseIdleTimer?.cancel();
+    _removeEinoTransitionEntry();
+    _pulse.dispose();
+    _transitionController.dispose();
+    _handoffController.dispose();
     super.dispose();
   }
 
   int get index {
-    if (widget.location.startsWith('/student')) return 0;
-    if (widget.location.startsWith('/system')) return 1;
-    if (widget.location.startsWith('/schedule')) return 2;
-    if (widget.location.startsWith('/materials')) return 3;
-    if (widget.location.startsWith('/news') ||
-        widget.location.startsWith('/media')) {
-      return 4;
-    }
-    return 4;
+    if (widget.location.startsWith('/more')) return 0;
+    if (widget.location.startsWith('/media')) return 1;
+    if (widget.location.startsWith('/materials')) return 2;
+    if (widget.location.startsWith('/home')) return 3;
+    return -1;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Column(
           children: [
-            const _TopHeader(),
+            _TopHeader(unreadNotifications: _unreadNotifications),
             Expanded(
               child: Stack(
                 children: [
-                  widget.child,
-                  if (_einoVisible)
-                    const PositionedDirectional(
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final maxWidth = constraints.maxWidth >= 1100 ? 1040.0 : constraints.maxWidth;
+                      return Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: maxWidth),
+                          child: widget.child,
+                        ),
+                      );
+                    },
+                  ),
+                  if (_einoVisible || _isEinoTransitioning)
+                    PositionedDirectional(
                       end: 16,
                       bottom: 18,
-                      child: EinoFloatingButton(),
+                      child: KeyedSubtree(
+                        key: guidedTourEinoKey,
+                        child: AnimatedBuilder(
+                          animation: _transitionController,
+                          builder: (context, _) {
+                            final progress = _transitionController.value;
+                            final sourceFade = !_isEinoTransitioning
+                                ? 1.0
+                                : _isEinoReturning
+                                    ? Curves.easeInOutCubic.transform(
+                                        ((progress - .93) / .07)
+                                            .clamp(0.0, 1.0)
+                                            .toDouble(),
+                                      )
+                                    : 1.0 - Curves.easeInOutCubic.transform(
+                                        (progress / .07)
+                                            .clamp(0.0, 1.0)
+                                            .toDouble(),
+                                      );
+                            return Opacity(
+                              opacity: sourceFade,
+                              child: IgnorePointer(
+                                ignoring: _isEinoTransitioning,
+                                child: SizedBox(
+                                  // Put the key on a real 76×76 RenderBox so
+                                  // measurement cannot resolve to a parent Stack.
+                                  key: _einoButtonKey,
+                                  width: 76,
+                                  height: 76,
+                                  child: EinoFloatingButton(
+                                    animation: _pulse,
+                                    transitionAnimation: _transitionController,
+                                    onTap: _openEinoWithTransition,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   // A narrow edge gesture lets the student summon Eino again
                   // without adding another permanent button to the UI.
@@ -207,25 +806,37 @@ class _TrinexShellState extends State<TrinexShell> {
             _MainNav(selected: index),
             const SizedBox(height: 4),
           ],
-        ),
+            ),
+          ),
+          if (_guidedTourStep != null)
+            Positioned.fill(
+              child: GuidedTourOverlay(
+                stepIndex: _guidedTourStep!,
+                onTargetTap: _onGuidedTourTargetTap,
+                onSkip: _skipGuidedTour,
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
 class _TopHeader extends StatelessWidget {
-  const _TopHeader();
+  const _TopHeader({required this.unreadNotifications});
+
+  final int unreadNotifications;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 68,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: .96),
         border: Border(
-          bottom: BorderSide(color: context.colors.outlineVariant),
+          bottom: BorderSide(color: context.colors.outlineVariant.withValues(alpha: .62)),
         ),
       ),
       child: LayoutBuilder(
@@ -255,10 +866,17 @@ class _TopHeader extends StatelessWidget {
                       child: Container(
                         width: logo,
                         height: logo,
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           color: primary,
-                          borderRadius: BorderRadius.circular(DesignTokens.radius12),
+                          borderRadius: BorderRadius.circular(DesignTokens.radius14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primary.withValues(alpha: .18),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: Image.asset(
                           'assets/icons/trinex_icon.png',
@@ -279,17 +897,16 @@ class _TopHeader extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                // Right side: System page + profile, so profile is physically
-                // on the far right while System sits immediately to its left.
+                // Right side: notifications + profile.
                 _HeaderIcon(
-                  icon: Icons.workspace_premium_outlined,
+                  icon: Icons.notifications_none_rounded,
                   size: button,
-                  tooltip: l10n.t('navSystem'),
-                  onTap: () => context.go('/system'),
+                  tooltip: l10n.t('notifications'),
+                  badgeCount: unreadNotifications,
+                  onTap: () => context.push('/notifications'),
                 ),
                 const SizedBox(width: 4),
                 _Avatar(
-                  key: StudyTutorialTargets.profile,
                   size: avatar,
                   onTap: () => context.go('/student'),
                 ),
@@ -308,40 +925,60 @@ class _MainNav extends StatelessWidget {
   final int selected;
 
   static const items = [
-    ('navStudent', Icons.person_outline_rounded, '/student'),
-    ('navSystem', Icons.workspace_premium_outlined, '/system'),
-    ('navSchedule', Icons.calendar_month_outlined, '/schedule'),
-    ('navMaterials', Icons.menu_book_outlined, '/materials'),
+    ('navMore', Icons.grid_view_rounded, '/more'),
     ('navMedia', Icons.campaign_outlined, '/media'),
+    ('navMaterials', Icons.menu_book_outlined, '/materials'),
+    ('navHome', Icons.home_outlined, '/home'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return NavigationBar(
-      selectedIndex: selected.clamp(0, items.length - 1),
-      height: 68,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      indicatorColor: context.colors.primaryContainer,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      onDestinationSelected: (i) => context.go(items[i].$3),
-      destinations: [
-        for (final item in items)
-          NavigationDestination(
-            icon: item.$3 == '/materials'
-                ? SizedBox(
-                    key: StudyTutorialTargets.materials,
-                    width: 48,
-                    height: 32,
-                    child: Center(child: Icon(item.$2)),
-                  )
-                : Icon(item.$2),
-            selectedIcon: Icon(item.$2),
-            label: l10n.t(item.$1),
-          ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: context.colors.surface,
+          borderRadius: BorderRadius.circular(DesignTokens.radius20),
+          border: Border.all(color: context.colors.outlineVariant.withValues(alpha: .72)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? .16 : .06),
+              blurRadius: 18,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: NavigationBar(
+          selectedIndex: selected < 0 ? 0 : selected.clamp(0, items.length - 1),
+          height: 68,
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          indicatorColor: context.colors.primaryContainer,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (i) => context.go(items[i].$3),
+          destinations: [
+            for (final item in items)
+              NavigationDestination(
+                icon: KeyedSubtree(
+                  key: item.$3 == '/materials'
+                      ? guidedTourMaterialsKey
+                      : item.$3 == '/media'
+                          ? guidedTourMediaKey
+                          : item.$3 == '/more'
+                              ? guidedTourMoreKey
+                              : item.$3 == '/home'
+                                  ? guidedTourHomeNavKey
+                                  : null,
+                  child: Icon(item.$2),
+                ),
+                selectedIcon: Icon(item.$2),
+                label: l10n.t(item.$1),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -352,12 +989,14 @@ class _HeaderIcon extends StatelessWidget {
     required this.tooltip,
     this.onTap,
     this.size = 48,
+    this.badgeCount = 0,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onTap;
   final double size;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -371,11 +1010,21 @@ class _HeaderIcon extends StatelessWidget {
           child: SizedBox(
             width: size,
             height: size,
-            child: Icon(
-              icon,
-              color: context.colors.onSurface,
-              size: 23,
-            ),
+            child: Stack(clipBehavior: Clip.none, children: [
+              Center(child: Icon(icon, color: context.colors.onSurface, size: 29)),
+              if (badgeCount > 0)
+                Positioned(
+                  top: 3,
+                  left: 2,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                    child: Text(badgeCount > 99 ? '99+' : '$badgeCount', textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+                  ),
+                ),
+            ]),
           ),
         ),
       ),
@@ -384,7 +1033,7 @@ class _HeaderIcon extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({super.key, this.size = 50, this.onTap});
+  const _Avatar({this.size = 50, this.onTap});
 
   final double size;
   final VoidCallback? onTap;
@@ -411,7 +1060,7 @@ class _Avatar extends StatelessWidget {
           child: Icon(
             Icons.account_circle_rounded,
             color: context.colors.primary,
-            size: size * .62,
+            size: size * .84,
           ),
         ),
       ),
@@ -419,101 +1068,57 @@ class _Avatar extends StatelessWidget {
   }
 }
 
-class EinoFloatingButton extends StatefulWidget {
-  const EinoFloatingButton({super.key, this.animation});
+class EinoFloatingButton extends StatelessWidget {
+  const EinoFloatingButton({required this.animation, required this.transitionAnimation, required this.onTap, super.key});
 
-  /// Optional breathing animation used while a material PDF is open.
-  final Animation<double>? animation;
-
-  @override
-  State<EinoFloatingButton> createState() => _EinoFloatingButtonState();
-}
-
-class _EinoFloatingButtonState extends State<EinoFloatingButton> {
-  bool _rebuildScheduled = false;
-  bool _openingChat = false;
-
-  Future<void> _openChat(BuildContext context) async {
-    if (_openingChat) return;
-    _openingChat = true;
-    // Let the tap's organic wake/boost render for several frames before the
-    // chat route covers the orb; opening synchronously would hide the effect.
-    await Future<void>.delayed(const Duration(milliseconds: 180));
-    if (!mounted) {
-      _openingChat = false;
-      return;
-    }
-    if (!context.mounted) {
-      _openingChat = false;
-      return;
-    }
-    EinoMotionSession.markChatOpened();
-    await context.push('/eino?from=shell');
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    EinoMotionSession.changes.addListener(_handleMotionSessionChange);
-  }
-
-  void _handleMotionSessionChange() {
-    if (!mounted || _rebuildScheduled) return;
-    _rebuildScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _rebuildScheduled = false;
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    EinoMotionSession.changes.removeListener(_handleMotionSessionChange);
-    super.dispose();
-  }
+  final Animation<double> animation;
+  final Animation<double> transitionAnimation;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final primary = context.colors.primary;
-    final returningFromChat = EinoMotionSession.consumeReturnAnimation();
-    final button = Material(
-      key: StudyTutorialTargets.eino,
-      color: Colors.transparent,
-      child: Container(
-        width: 68,
-        height: 68,
-        padding: const EdgeInsets.all(2.5),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: context.colors.surface,
-          border: Border.all(color: primary, width: 1.4),
-          boxShadow: [
-            BoxShadow(
-              color: primary.withValues(alpha: 0.16),
-              blurRadius: 14,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: EinoOrb(
-          size: 61,
-          accent: primary,
-          returningFromChat: returningFromChat,
-          suspendWhileChatOpen: true,
-          onTap: () => unawaited(_openChat(context)),
-        ),
-      ),
-    );
-
-    final animation = widget.animation;
-    if (animation == null) return button;
     return AnimatedBuilder(
       animation: animation,
-      child: button,
-      builder: (context, child) => Transform.scale(
-        scale: 0.97 + (Curves.easeInOut.transform(animation.value) * 0.06),
-        child: child,
-      ),
+      builder: (context, _) {
+        final glow =
+            .12 + (.10 * (0.5 + 0.5 * (animation.value * 2 - 1).abs()));
+        return AnimatedBuilder(
+          animation: transitionAnimation,
+          builder: (context, _) => Semantics(
+          button: true,
+          label: 'Eino',
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const CircleBorder(),
+              splashColor: primary.withValues(alpha: .12),
+              highlightColor: primary.withValues(alpha: .06),
+              child: Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withValues(alpha: glow),
+                      blurRadius: 12,
+                    ),
+                  ],
+                ),
+                child: EinoFace(
+                  size: 76,
+                  mood: EinoMood.calm,
+                  motionBoost: transitionAnimation.value,
+                  suspendWhileChatOpen: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+        );
+      },
     );
   }
 }

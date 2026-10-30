@@ -1,22 +1,21 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:llama_flutter_android/llama_flutter_android.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:record/record.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
 import '../../data/repositories/eino_repository.dart';
+import '../../core/di/app_dependencies.dart';
+import 'eino_orb.dart' show EinoMotionSession;
 import 'eino_face.dart';
-import 'eino_orb.dart';
-import 'services/eino_local_model_service.dart';
+import 'eino_widgets.dart';
 
 class EinoScreen extends StatefulWidget {
   const EinoScreen({super.key, this.source = 'home'});
@@ -31,55 +30,136 @@ class _EinoScreenState extends State<EinoScreen> {
   final _scroll = ScrollController();
   final _recorder = AudioRecorder();
   final _player = AudioPlayer();
-  final _localStore = EinoLocalModelStore();
-  final _localEngine = EinoLocalEngine();
-  EinoLocalModel? _loadedLocalModel;
   late EinoRepository _repository;
-  ApiClient? _client;
   bool _ready = false;
   bool _sending = false;
   bool _recording = false;
   bool _uploading = false;
+  bool _readerActive = false;
+  bool _readerPaused = false;
+  bool _successMoodActive = false;
+  Timer? _successMoodTimer;
+  bool _errorMoodActive = false;
+  Timer? _errorMoodTimer;
   EinoCapabilities? _capabilities;
   bool _loadingCapabilities = false;
-  final List<_Message> _messages = [];
-  final List<_ChatPreview> _history = [];
+  final List<EinoMessage> _messages = [];
+  final List<EinoConversation> _history = [];
+  String? _conversationId;
 
-  EinoMood get _mood => _recording || _sending || _uploading
-      ? EinoMood.thinking
-      : _messages.any((m) => m.isError)
-          ? EinoMood.concerned
-          : _messages.any((m) => !m.user && !m.isError)
-              ? EinoMood.happy
-              : EinoMood.idle;
+  EinoMessage? get _latestAssistantMessage {
+    for (final message in _messages.reversed) {
+      if (!message.user) return message;
+    }
+    return null;
+  }
+
+  EinoMood get _mood {
+    if (_recording) return EinoMood.listening;
+    if (_sending) return EinoMood.thinking;
+    if (_uploading) return EinoMood.focused;
+    if (_readerActive && !_readerPaused) return EinoMood.reading;
+    if (_successMoodActive) return EinoMood.success;
+    if (_errorMoodActive) return EinoMood.concerned;
+    return EinoMood.idle;
+  }
+
+  void _clearSuccessMood() {
+    _successMoodTimer?.cancel();
+    _successMoodTimer = null;
+    _successMoodActive = false;
+  }
+
+  void _clearErrorMood() {
+    _errorMoodTimer?.cancel();
+    _errorMoodTimer = null;
+    _errorMoodActive = false;
+  }
+
+  void _clearTransientMoods() {
+    _clearSuccessMood();
+    _clearErrorMood();
+  }
+
+  void _showSuccessMoodBriefly() {
+    _errorMoodTimer?.cancel();
+    _errorMoodTimer = null;
+    _errorMoodActive = false;
+    _successMoodTimer?.cancel();
+    if (!mounted) return;
+    setState(() => _successMoodActive = true);
+    _successMoodTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted) setState(() => _successMoodActive = false);
+    });
+  }
+
+  void _showErrorMoodBriefly() {
+    _successMoodTimer?.cancel();
+    _successMoodTimer = null;
+    _successMoodActive = false;
+    _errorMoodTimer?.cancel();
+    if (!mounted) return;
+    setState(() => _errorMoodActive = true);
+    _errorMoodTimer = Timer(const Duration(milliseconds: 2400), () {
+      if (mounted) setState(() => _errorMoodActive = false);
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    EinoMotionSession.markChatOpened();
     _init();
   }
 
   Future<void> _init() async {
-    final client = await AuthenticatedClient.create();
-    if (!mounted) {
-      client.dispose();
-      return;
+    _repository = AppDependencies.instance.eino;
+    if (mounted) setState(() => _ready = true);
+    // The shell's orb transition must finish before a first-use privacy dialog
+    // can appear; otherwise the modal interrupts the motion at its midpoint.
+    if (widget.source == 'shell') {
+      await Future<void>.delayed(const Duration(milliseconds: 430));
     }
-    _client = client;
-    _repository = EinoRepository(client);
-    setState(() => _ready = true);
-    await _loadCapabilities();
+    if (!mounted) return;
+    await _showEinoDataNoticeIfNeeded();
+    if (!mounted) return;
+    await Future.wait([_loadCapabilities(), _loadHistory()]);
+  }
+
+  Future<void> _showEinoDataNoticeIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('eino_data_notice_seen_v1') == true || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('تنبيه الخصوصية وتحسين Eino'),
+          content: const Text(
+            'لتحليل أداء Eino وتطويره وتحسين المزودات، نستخدم بعض البيانات التشغيلية عند استخدامه، مثل نوع الطلب، المزود والنموذج المستخدمين، زمن الاستجابة، حالة النجاح أو الخطأ، واستهلاك وحدات الاستخدام.\n\nلا يتم وضع نصوص محادثاتك أو أرقام الطلاب أو عناوين IP أو محتوى ملفاتك داخل لوحة مراقبة Eino، وسجل المراقبة التشغيلي محدود المدة.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('فهمت، متابعة'),
+            ),
+          ],
+        ),
+      ),
+    );
+    await prefs.setBool('eino_data_notice_seen_v1', true);
   }
 
   @override
   void dispose() {
     EinoMotionSession.markChatClosed();
+    _successMoodTimer?.cancel();
+    _errorMoodTimer?.cancel();
     _controller.dispose();
     _scroll.dispose();
     _recorder.dispose();
     _player.dispose();
-    _localEngine.dispose();
-    _client?.dispose();
     super.dispose();
   }
 
@@ -95,61 +175,69 @@ class _EinoScreenState extends State<EinoScreen> {
     }
   }
 
-  List<String> _suggestions(AppLocalizations l10n) => switch (widget.source) {
-        'materials' => [l10n.t('suggestStudyPlan'), l10n.t('suggestExplainMaterial'), l10n.t('suggestStartFile')],
-        'schedule' => [l10n.t('suggestOrganizeDay'), l10n.t('suggestPrepareClass'), l10n.t('suggestReviewTime')],
-        'progress' => [l10n.t('suggestImproveProgress'), l10n.t('suggestReviewPlan'), l10n.t('suggestKeepGoing')],
-        'xp' => [l10n.t('suggestEarnXp'), l10n.t('suggestProgressMethod'), l10n.t('suggestStudyGoal')],
-        'badges' => [l10n.t('suggestBadges'), l10n.t('suggestNearbyGoal'), l10n.t('suggestKeepProgress')],
-        _ => [l10n.t('suggestStudy'), l10n.t('suggestDay'), l10n.t('suggestConcept'), l10n.t('suggestApp')],
-      };
 
-  String _friendlyError(Object error, AppLocalizations l10n) {
-    if (error is ApiException) {
-      switch (error.code) {
-        case 'EINO_PROVIDER_LIMITED':
-        case 'EINO_RATE_LIMITED':
-        case 'EINO_DAILY_LIMITED':
-        case 'EINO_GLOBAL_LIMITED':
-          return l10n.t('einoRateLimited');
-        case 'EINO_PROVIDER_AUTH':
-          return l10n.t('einoProviderAuth');
-        case 'EINO_PROVIDER_ROUTE':
-          return l10n.t('einoProviderRoute');
-        case 'EINO_PROVIDER_ERROR':
-          return l10n.t('einoProviderUnavailable');
-        case 'EINO_TIMEOUT':
-          return l10n.t('einoTimeout');
-      }
-      if (error.statusCode == 429) return l10n.t('einoRateLimited');
-      return l10n.t('einoGenericError');
-    }
-    return l10n.t('einoGenericError');
+  // Create a short, topic-oriented title from the first user question rather than
+  // storing the whole first message verbatim. Assistant replies never influence it.
+  String _conversationTitle(String question) {
+    var value = einoPlainText(question).replaceAll(RegExp(r'\s+'), ' ').trim();
+    value = value.replaceFirst(RegExp(r'^(?:من فضلك\s+|لو سمحت\s+|ممكن\s+|هل يمكنك\s+|أريد منك\s+|عايزك\s+|اشرح لي\s+|اشرح\s+|حل لي\s+|حل\s+|ما هو\s+|ما هي\s+|كيف يمكنني\s+)', caseSensitive: false), '');
+    value = value.replaceAll(RegExp(r'[؟?!。，،؛:]+$'), '').trim();
+    if (value.isEmpty) value = einoPlainText(question).trim();
+    final words = value.split(RegExp(r'\s+'));
+    if (words.length > 7) value = '${words.take(7).join(' ')}…';
+    if (value.length > 52) value = '${value.substring(0, 49).trimRight()}…';
+    return value.isEmpty ? 'محادثة جديدة' : value;
   }
 
-  Future<void> _send([String? preset]) async {
+  Future<void> _send() async {
     if (!_ready || _sending || _uploading) return;
-    final prompt = (preset ?? _controller.text).trim();
+    final prompt = _controller.text.trim();
     if (prompt.isEmpty) return;
     _controller.clear();
+    if (_conversationId == null && await AppDependencies.instance.authStorage.isLoggedIn) {
+      try {
+        _conversationId = await _repository.createConversation(title: _conversationTitle(prompt));
+        await _loadHistory();
+      } catch (_) {
+        // The chat endpoint can still create the conversation server-side.
+      }
+    }
+    _clearTransientMoods();
     setState(() {
-      _messages.add(_Message(true, prompt));
+      _messages.add(EinoMessage(true, prompt));
       _sending = true;
     });
-    _rememberChat(prompt);
     _scrollToBottom();
     await _requestAnswer(prompt);
   }
 
-  void _rememberChat(String prompt) {
-    final title = prompt.length > 34 ? '${prompt.substring(0, 34)}…' : prompt;
-    _history.removeWhere((x) => x.title == title);
-    _history.insert(0, _ChatPreview(title, DateTime.now()));
-    if (_history.length > 12) _history.removeLast();
+  Future<void> _loadHistory() async {
+    try {
+      if (!await AppDependencies.instance.authStorage.isLoggedIn) return;
+      final chats = await _repository.conversations(limit: 30);
+      if (mounted) setState(() { _history..clear()..addAll(chats); });
+    } catch (_) {}
+  }
+
+  Future<void> _openConversation(EinoConversation conversation) async {
+    if (_sending || _uploading) return;
+    try {
+      final detail = await _repository.conversation(conversation.id);
+      if (!mounted) return;
+      setState(() {
+        _conversationId = conversation.id;
+        _messages..clear()..addAll(detail.messages.map((m) => EinoMessage(m.user, m.content)));
+      });
+      Navigator.of(context).pop();
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+    }
   }
 
   Future<void> _retry(String prompt) async {
     if (!_ready || _sending || prompt.trim().isEmpty) return;
+    _clearTransientMoods();
     setState(() {
       final index = _messages.lastIndexWhere((m) => m.isError && m.retryPrompt == prompt);
       if (index >= 0) _messages.removeAt(index);
@@ -160,37 +248,41 @@ class _EinoScreenState extends State<EinoScreen> {
 
   Future<void> _requestAnswer(String prompt) async {
     try {
-      final history = _messages.length > 10 ? _messages.sublist(_messages.length - 10) : List<_Message>.from(_messages);
-      final historyText = history.where((m) => !m.isError && m.text != prompt).map((m) => '${m.user ? 'المستخدم' : 'إينو'}: ${m.text}').join('\n');
       final l10n = AppLocalizations.of(context);
-      final contextPayload = ['صفحة المستخدم الحالية: ${_sourceLabel(l10n)}.', if (historyText.isNotEmpty) 'سياق المحادثة السابق:\n$historyText'].join('\n');
+      final history = _messages.length > 10 ? _messages.sublist(_messages.length - 10) : List<EinoMessage>.from(_messages);
+      final historyText = history.where((m) => !m.isError && m.text != prompt).map((m) => '${m.user ? 'المستخدم' : 'إينو'}: ${m.text}').join('\n');
+      final contextPayload = ['صفحة المستخدم الحالية: ${_sourceLabel(l10n)}.', if (_conversationId == null && historyText.isNotEmpty) 'سياق المحادثة السابق:\n$historyText'].join('\n');
       try {
-        final answer = await _repository.chat(prompt: prompt, context: contextPayload);
-        if (mounted) setState(() => _messages.add(_Message(false, answer)));
+        final response = await _repository.chat(prompt: prompt, context: contextPayload, conversationId: _conversationId);
+        _conversationId ??= response.conversationId;
+        if (mounted) {
+          setState(() => _messages.add(EinoMessage(false, response.message, sourceTitle: response.sources.isNotEmpty ? response.sources.first.title : null)));
+          await _loadHistory();
+        }
       } catch (onlineError) {
-        final local = _loadedLocalModel;
-        if (local != null && _localEngine.isLoaded) {
-          try {
-            final chunks = <String>[];
-            await for (final chunk in _localEngine.generateChat(
-              systemPrompt: 'أنت Eino، مساعد TRINEX المحلي. أجب بالعربية بوضوح، ولا تدّعِ الوصول إلى بيانات الإنترنت أو بيانات التطبيق ما لم تُعطَ لك في السياق.\n$contextPayload',
-              prompt: prompt,
-            )) {
-              chunks.add(chunk);
-            }
-            final answer = chunks.join().trim();
-            if (mounted) setState(() => _messages.add(_Message(false, answer.isEmpty ? _friendlyError(onlineError, AppLocalizations.of(context)) : answer)));
-          } catch (localError) {
-            if (mounted) setState(() => _messages.add(_Message(false, _friendlyError(localError, AppLocalizations.of(context)), isError: true, retryPrompt: prompt)));
-          }
-        } else if (mounted) {
-          setState(() => _messages.add(_Message(false, _friendlyError(onlineError, AppLocalizations.of(context)), isError: true, retryPrompt: prompt)));
+        if (mounted) {
+          setState(() => _messages.add(EinoMessage(
+            false,
+            ErrorMessage.from(context, onlineError, fallbackKey: 'einoGenericError'),
+            isError: true,
+            retryPrompt: prompt,
+          )));
+          _showErrorMoodBriefly();
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _messages.add(_Message(false, _friendlyError(e, AppLocalizations.of(context)), isError: true, retryPrompt: prompt)));
+      if (mounted) {
+        setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
+        _showErrorMoodBriefly();
+      }
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        final latestAssistant = _latestAssistantMessage;
+        setState(() => _sending = false);
+        if (latestAssistant != null && !latestAssistant.isError) {
+          _showSuccessMoodBriefly();
+        }
+      }
       _scrollToBottom();
     }
   }
@@ -209,45 +301,181 @@ class _EinoScreenState extends State<EinoScreen> {
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: Wrap(children: [
+          ListTile(leading: const Icon(Icons.auto_awesome_outlined), title: const Text('توليد صورة'), subtitle: const Text('أنشئ صورة جديدة من وصفك'), onTap: () => Navigator.pop(context, 'generate')),
           ListTile(leading: const Icon(Icons.image_outlined), title: Text(l10n.t('einoAttachImage')), subtitle: Text(l10n.t('einoVisionSubtitle')), onTap: () => Navigator.pop(context, 'image')),
           ListTile(leading: const Icon(Icons.description_outlined), title: Text(l10n.t('einoAttachDocument')), subtitle: Text(l10n.t('einoDocumentSubtitle')), onTap: () => Navigator.pop(context, 'document')),
         ]),
       ),
     );
     if (!mounted || choice == null) return;
-    final result = await FilePicker.platform.pickFiles(withData: true, type: choice == 'image' ? FileType.image : FileType.custom, allowedExtensions: choice == 'document' ? ['pdf', 'docx', 'txt'] : null);
+    if (choice == 'generate') {
+      await _generateImage();
+      return;
+    }
+    final result = await FilePicker.platform.pickFiles(withData: true, type: choice == 'image' ? FileType.image : FileType.custom, allowedExtensions: choice == 'document' ? ['pdf', 'docx', 'txt', 'md', 'csv', 'xlsx', 'pptx'] : null);
     if (result == null || result.files.isEmpty) return;
     final file = result.files.single;
     final bytes = file.bytes;
     if (bytes == null || bytes.isEmpty) return;
+    if (bytes.length > 20 * 1024 * 1024) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).t('einoFileTooLarge'))),
+        );
+      }
+      return;
+    }
+    _clearTransientMoods();
     setState(() => _uploading = true);
+    var operationSucceeded = false;
     try {
       final name = file.name;
+      if (_conversationId == null && await AppDependencies.instance.authStorage.isLoggedIn) {
+        _conversationId = await _repository.createConversation(title: name);
+        await _loadHistory();
+      }
       if (choice == 'image') {
+        final prompt = await _askImagePrompt();
+        if (!mounted || prompt == null) return;
         final mime = _mime(name);
         final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
-        final text = await _repository.vision(imageDataUrl: dataUrl);
+        final text = await _repository.imageAnalysis(
+          imageDataUrl: dataUrl,
+          prompt: prompt,
+          conversationId: _conversationId,
+          attachmentName: name,
+        );
         if (mounted) {
           setState(() {
-          _messages.add(_Message(true, '🖼️ $name'));
-          _messages.add(_Message(false, text));
+            _messages.add(EinoMessage(true, '🖼️ $name\n$prompt'));
+            _messages.add(EinoMessage(false, text));
           });
+          operationSucceeded = true;
         }
+        if (_conversationId != null) await _loadHistory();
       } else {
-        final text = await _repository.ocr(bytes: bytes, filename: name, contentType: _mime(name));
+        final text = await _repository.fileAnalysis(
+          bytes: bytes,
+          filename: name,
+          contentType: _mime(name),
+          conversationId: _conversationId,
+          prompt: 'حلل هذا الملف بدقة، استخرج أهم المعلومات منه، ثم قدم ملخصًا واضحًا ومنظمًا بالعربية. إذا كان الملف أكاديميًا، ركز على المفاهيم والقوانين والنقاط المهمة للمذاكرة ولا تضف معلومات غير موجودة فيه.',
+        );
         if (mounted) {
           setState(() {
-          _messages.add(_Message(true, '📄 $name'));
-          _messages.add(_Message(false, text));
+            _messages.add(EinoMessage(true, '📄 $name'));
+            _messages.add(EinoMessage(false, text));
           });
+          operationSucceeded = true;
         }
+        if (_conversationId != null) await _loadHistory();
       }
       _scrollToBottom();
     } catch (e) {
-      if (mounted) setState(() => _messages.add(_Message(false, _friendlyError(e, l10n), isError: true)));
+      if (mounted) {
+        setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true)));
+        _showErrorMoodBriefly();
+      }
     } finally {
-      if (mounted) setState(() => _uploading = false);
+      if (mounted) {
+        setState(() => _uploading = false);
+        if (operationSucceeded) _showSuccessMoodBriefly();
+      }
     }
+  }
+
+  Future<void> _generateImage() async {
+    final prompt = await _askImageGenerationPrompt();
+    if (!mounted || prompt == null || prompt.trim().isEmpty) return;
+    if (_conversationId == null && await AppDependencies.instance.authStorage.isLoggedIn) {
+      _conversationId = await _repository.createConversation(title: 'توليد صورة: ${prompt.length > 55 ? '${prompt.substring(0, 55)}…' : prompt}');
+      await _loadHistory();
+    }
+    _clearTransientMoods();
+    setState(() => _uploading = true);
+    var operationSucceeded = false;
+    try {
+      final result = await _repository.generateImage(prompt: prompt);
+      if (!mounted) return;
+      setState(() {
+        _messages.add(EinoMessage(true, '🎨 $prompt'));
+        _messages.add(EinoMessage(false, 'تم إنشاء الصورة بناءً على وصفك.', imageBase64: result.base64, imageContentType: result.contentType));
+      });
+      operationSucceeded = true;
+      if (_conversationId != null) {
+        await _repository.appendConversationMessage(conversationId: _conversationId!, user: true, content: '🎨 $prompt');
+        await _repository.appendConversationMessage(conversationId: _conversationId!, user: false, content: 'تم إنشاء صورة بواسطة Eino.');
+        await _loadHistory();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true, retryPrompt: prompt)));
+        _showErrorMoodBriefly();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _uploading = false);
+        if (operationSucceeded) _showSuccessMoodBriefly();
+      }
+      _scrollToBottom();
+    }
+  }
+
+  Future<String?> _askImageGenerationPrompt() async {
+    final controller = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('توليد صورة'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 3,
+            maxLines: 6,
+            textDirection: TextDirection.rtl,
+            decoration: const InputDecoration(
+              hintText: 'اكتب وصف الصورة التي تريدها…',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('توليد')),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<String?> _askImagePrompt() async {
+    final controller = TextEditingController(text: 'حلل هذه الصورة بدقة، واقرأ النصوص والمخططات والعناصر المهمة فيها. إذا كانت أكاديمية فاشرح ما يظهر فيها دون اختلاق معلومات.');
+    final prompt = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('ماذا تريد من Eino أن تفعل بالصورة؟'),
+        content: TextField(
+          controller: controller,
+          minLines: 3,
+          maxLines: 7,
+          autofocus: true,
+          textDirection: TextDirection.rtl,
+          decoration: const InputDecoration(
+            hintText: 'مثال: اشرح السؤال الموجود في الصورة خطوة بخطوة',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('تحليل')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (prompt == null || prompt.trim().isEmpty) return null;
+    return prompt.trim();
   }
 
   String _mime(String name) {
@@ -268,25 +496,31 @@ class _EinoScreenState extends State<EinoScreen> {
   Future<void> _toggleRecording() async {
     if (_sending || _uploading) return;
     if (_recording) {
+      final locale = Localizations.localeOf(context).languageCode;
       final path = await _recorder.stop();
       if (mounted) setState(() => _recording = false);
       if (path == null) return;
       setState(() => _uploading = true);
       try {
         final file = File(path);
-        final text = await _repository.stt(bytes: await file.readAsBytes(), filename: 'eino_recording.m4a', contentType: 'audio/mp4');
+        final language = const {'ar', 'en', 'fr'}.contains(locale) ? locale : 'ar';
+        final text = await _repository.stt(bytes: await file.readAsBytes(), filename: 'eino_recording.m4a', contentType: 'audio/mp4', language: language);
         if (text.trim().isNotEmpty) {
           _controller.text = text.trim();
           _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
         }
       } catch (e) {
-        if (mounted) setState(() => _messages.add(_Message(false, _friendlyError(e, AppLocalizations.of(context)), isError: true)));
+        if (mounted) {
+          setState(() => _messages.add(EinoMessage(false, ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'), isError: true)));
+          _showErrorMoodBriefly();
+        }
       } finally {
         if (mounted) setState(() => _uploading = false);
         try { await File(path).delete(); } catch (_) {}
       }
       return;
     }
+    _clearTransientMoods();
     if (!await _recorder.hasPermission()) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).t('einoMicPermission'))));
       return;
@@ -296,31 +530,101 @@ class _EinoScreenState extends State<EinoScreen> {
     if (mounted) setState(() => _recording = true);
   }
 
-  Future<void> _copyMessage(_Message message) async {
+
+  Future<void> _showMessageMenu(EinoMessage message) async {
+    final l10n = AppLocalizations.of(context);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.content_copy_rounded), title: Text(l10n.t('copy')), onTap: () => Navigator.pop(sheetContext, 'copy')),
+        if (!message.user && !message.isError && message.text.trim().isNotEmpty) ListTile(leading: const Icon(Icons.volume_up_outlined), title: Text(l10n.t('einoListen')), onTap: () => Navigator.pop(sheetContext, 'listen')),
+        const SizedBox(height: 8),
+      ])),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'copy') await _copyMessage(message);
+    if (action == 'listen') await _speak(message);
+  }
+
+  Future<void> _copyMessage(EinoMessage message) async {
     if (message.text.trim().isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: message.text));
+    await Clipboard.setData(ClipboardData(text: einoPlainText(message.text)));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppLocalizations.of(context).t('copied'))),
     );
   }
 
-  Future<void> _speak(_Message message) async {
+  Future<void> _speak(EinoMessage message) async {
     if (message.user || message.text.trim().isEmpty) return;
     try {
-      final url = await _repository.tts(text: message.text);
-      if (url == null || url.isEmpty) return;
       await _player.stop();
-      await _player.play(UrlSource(url));
+      if (mounted) setState(() { _readerActive = true; _readerPaused = false; });
+      for (final chunk in _ttsChunks(einoPlainText(message.text, forSpeech: true))) {
+        if (!mounted) return;
+        final audio = await _repository.tts(text: chunk);
+        if (audio == null) continue;
+        // Subscribe before starting playback so short clips cannot finish before
+        // the completion listener is attached.
+        final completed = _player.onPlayerComplete.first;
+        if (audio.base64 != null && audio.base64!.isNotEmpty) {
+          await _player.play(BytesSource(base64Decode(audio.base64!)));
+        } else if (audio.url != null && audio.url!.isNotEmpty) {
+          await _player.play(UrlSource(audio.url!));
+        } else {
+          continue;
+        }
+        await completed;
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e, AppLocalizations.of(context)))));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+        _showErrorMoodBriefly();
+      }
+    } finally {
+      if (mounted) setState(() { _readerActive = false; _readerPaused = false; });
     }
   }
 
-  void _newChat() {
+  Future<void> _toggleReaderPlayback() async {
+    if (!_readerActive) return;
+    if (_readerPaused) {
+      await _player.resume();
+      if (mounted) setState(() => _readerPaused = false);
+    } else {
+      await _player.pause();
+      if (mounted) setState(() => _readerPaused = true);
+    }
+  }
+
+  List<String> _ttsChunks(String value) {
+    final clean = value
+        .replaceAll(RegExp(r'```[\s\S]*?```'), ' ')
+        .replaceAll(RegExp(r'[*_#`>]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (clean.isEmpty) return const [];
+    final chunks = <String>[];
+    var remaining = clean;
+    while (remaining.length > 190) {
+      var cut = remaining.lastIndexOf(RegExp(r'[.!?؟،؛]'), 190);
+      if (cut < 100) cut = remaining.lastIndexOf(' ', 190);
+      if (cut < 1) cut = 190;
+      chunks.add(remaining.substring(0, cut + (remaining[cut] == ' ' ? 0 : 1)).trim());
+      remaining = remaining.substring(cut + 1).trimLeft();
+    }
+    if (remaining.isNotEmpty) chunks.add(remaining);
+    return chunks;
+  }
+
+  void _newChat({bool closeDrawer = false}) {
     if (_sending || _uploading) return;
-    setState(() => _messages.clear());
-    Navigator.maybePop(context);
+    setState(() {
+      _messages.clear();
+      _conversationId = null;
+    });
+    if (closeDrawer && mounted) Navigator.of(context).pop();
   }
 
 
@@ -337,333 +641,6 @@ class _EinoScreenState extends State<EinoScreen> {
     }
   }
 
-  Future<void> _showMemoryManager() async {
-    if (!_ready) return;
-    List<EinoMemory> memories = const [];
-    try {
-      memories = await _repository.memories(limit: 50);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e, AppLocalizations.of(context)))));
-      return;
-    }
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        final cs = Theme.of(sheetContext).colorScheme;
-        final l10n = AppLocalizations.of(sheetContext);
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(14.72, 3.68, 14.72, 18.4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(l10n.t('einoMemoryTitle'), style: const TextStyle(fontSize: 20.2, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text(l10n.t('einoMemorySubtitle'), style: TextStyle(color: cs.onSurfaceVariant)),
-                const SizedBox(height: 10),
-                Align(alignment: AlignmentDirectional.centerEnd, child: FilledButton.tonalIcon(onPressed: _addMemory, icon: const Icon(Icons.add_rounded), label: Text(l10n.t('einoMemoryAdd')))),
-                const SizedBox(height: 8),
-                if (memories.isEmpty)
-                  Padding(padding: const EdgeInsets.symmetric(vertical: 22.08), child: Center(child: Text(l10n.t('einoMemoryEmpty'))))
-                else
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: memories.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 4),
-                      itemBuilder: (context, index) {
-                        final memory = memories[index];
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 3.68),
-                          leading: CircleAvatar(child: Icon(_memoryIcon(memory.category))),
-                          title: Text(memory.content),
-                          subtitle: Text(memory.category),
-                          trailing: IconButton(
-                            tooltip: l10n.t('einoMemoryForget'),
-                            icon: const Icon(Icons.delete_outline_rounded),
-                            onPressed: () async {
-                              try {
-                                await _repository.forgetMemory(memory.id);
-                                if (sheetContext.mounted) Navigator.pop(sheetContext);
-                                if (mounted) _showMemoryManager();
-                              } catch (e) {
-                                if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(_friendlyError(e, l10n))));
-                              }
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showModelManager() async {
-    if (!_ready) return;
-    final l10n = AppLocalizations.of(context);
-    List<EinoLocalModel> models;
-    try {
-      models = await _repository.models();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e, l10n))));
-      return;
-    }
-    if (!mounted) return;
-    final store = EinoLocalModelStore();
-    final downloader = EinoLocalModelDownloader(store);
-    final installed = <String>{...(await store.installedIds())};
-    GpuInfo? hardware;
-    if (!kIsWeb && Platform.isAndroid) {
-      try { hardware = await _localEngine.detectHardware(); } catch (_) {}
-    }
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        final cs = Theme.of(sheetContext).colorScheme;
-        return StatefulBuilder(builder: (context, setSheetState) {
-          Future<void> handleModel(EinoLocalModel model) async {
-            final messenger = ScaffoldMessenger.of(context);
-            final url = model.downloadUrl;
-            if (url == null || url.trim().isEmpty) {
-              messenger.showSnackBar(SnackBar(content: Text(l10n.t('einoModelSourcePending'))));
-              return;
-            }
-            if (hardware != null && hardware.freeRamBytes > 0 && hardware.freeRamBytes < model.recommendedRamGb * 1024 * 1024 * 1024) {
-              messenger.showSnackBar(SnackBar(content: Text(l10n.t('einoModelRamWarning'))));
-              return;
-            }
-            try {
-              if (installed.contains(model.id)) {
-                final valid = await _localStore.verifyIntegrity(model);
-                if (!valid) {
-                  await _localStore.remove(model);
-                  installed.remove(model.id);
-                  setSheetState(() {});
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(content: Text(l10n.t('einoModelIntegrityFailed'))),
-                  );
-                  return;
-                }
-                final file = await _localStore.fileFor(model);
-                await _localEngine.load(model, file);
-                _loadedLocalModel = model;
-                if (!mounted) return;
-                setState(() {});
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text(l10n.t('einoModelLoaded'))),
-                );
-                return;
-              }
-              final progressNotifier = ValueNotifier<double>(0);
-              final dialogFuture = showDialog<void>(
-                context: context,
-                barrierDismissible: false,
-                builder: (dialogContext) => AlertDialog(
-                  title: Text(l10n.t('einoModelDownloading')),
-                  content: ValueListenableBuilder<double>(
-                    valueListenable: progressNotifier,
-                    builder: (context, progress, child) => Column(mainAxisSize: MainAxisSize.min, children: [
-                      LinearProgressIndicator(value: progress == 0 ? null : progress),
-                      const SizedBox(height: 12),
-                      Text('${(progress * 100).toStringAsFixed(0)}%'),
-                    ]),
-                  ),
-                ),
-              );
-              try {
-                final file = await downloader.download(model, url: url, sha256: model.sha256, onProgress: (value) {
-                  progressNotifier.value = value.progress.clamp(0, 1);
-                });
-                if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-                await dialogFuture;
-                progressNotifier.dispose();
-                installed.add(model.id);
-                setSheetState(() {});
-                await _localEngine.load(model, file);
-                _loadedLocalModel = model;
-                if (mounted) setState(() {});
-                if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(l10n.t('einoModelLoaded'))));
-              } catch (e) {
-                if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-                await dialogFuture.catchError((_) {});
-                progressNotifier.dispose();
-                if (mounted) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(content: Text(e.toString())),
-                  );
-                }
-              }
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text(e.toString())),
-                );
-              }
-            }
-          }
-
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(14.72, 3.68, 14.72, 18.4),
-              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(l10n.t('einoModelsTitle'), style: const TextStyle(fontSize: 20.2, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text(l10n.t('einoModelsSubtitle'), style: TextStyle(color: cs.onSurfaceVariant)),
-                const SizedBox(height: 12),
-                Container(padding: const EdgeInsets.all(11.04), decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .7), borderRadius: BorderRadius.circular(14.4)), child: Row(children: [
-                  Icon(Icons.offline_bolt_rounded, color: cs.primary), const SizedBox(width: 10),
-                  Expanded(child: Text(hardware == null ? l10n.t('einoModelAndroidOnly') : '${l10n.t('einoModelHardwareReady')} • ${hardware.gpuName}')),
-                ])),
-                const SizedBox(height: 12),
-                Flexible(child: ListView.separated(shrinkWrap: true, itemCount: models.length, separatorBuilder: (context, index) => const SizedBox(height: 8), itemBuilder: (_, index) {
-                  final model = models[index];
-                  final isInstalled = installed.contains(model.id);
-                  return Container(padding: const EdgeInsets.all(11.04), decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant.withValues(alpha: .5)), borderRadius: BorderRadius.circular(16.2)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [const CircleAvatar(child: Icon(Icons.memory_rounded)), const SizedBox(width: 10), Expanded(child: Text(model.name, style: const TextStyle(fontWeight: FontWeight.w800))), Text(model.quantization, style: TextStyle(fontSize: 10.1, color: cs.onSurfaceVariant))]),
-                    const SizedBox(height: 8),
-                    Text('${model.approximateSizeGb.toStringAsFixed(1)} GB  •  ${l10n.t('einoRam')} ${model.recommendedRamGb} GB  •  ${model.format}'),
-                    const SizedBox(height: 6), Text(model.capabilities.join(' • '), style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
-                    const SizedBox(height: 10),
-                    SizedBox(width: double.infinity, child: FilledButton.tonalIcon(onPressed: () => handleModel(model), icon: Icon(isInstalled ? Icons.play_arrow_rounded : Icons.download_outlined), label: Text(isInstalled ? l10n.t('einoModelUse') : l10n.t('einoModelDownload')))),
-                    if (_loadedLocalModel?.id == model.id) ...[
-                      const SizedBox(height: 6),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          try {
-                            final result = await _localEngine.benchmark();
-                            if (!mounted) return;
-                            final text = l10n.t('einoModelBenchmarkResult')
-                                .replaceAll('{speed}', result.tokensPerSecond.toStringAsFixed(1))
-                                .replaceAll('{first}', result.firstTokenMs.toString());
-                            ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(text)));
-                          } catch (e) {
-                            if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(e.toString())));
-                          }
-                        },
-                        icon: const Icon(Icons.speed_rounded),
-                        label: Text(l10n.t('einoModelBenchmark')),
-                      ),
-                    ],
-                  ]));
-                })),
-              ]),
-            ),
-          );
-        });
-      },
-    );
-  }
-
-  Future<void> _addMemory() async {
-    final l10n = AppLocalizations.of(context);
-    final controller = TextEditingController();
-    String category = 'general';
-    final content = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(l10n.t('einoMemoryAdd')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                maxLines: 4,
-                maxLength: 1200,
-                decoration: InputDecoration(hintText: l10n.t('einoMemoryAddHint')),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: category,
-                decoration: InputDecoration(labelText: l10n.t('einoMemoryCategory')),
-                items: const [
-                  DropdownMenuItem(value: 'general', child: Text('General')),
-                  DropdownMenuItem(value: 'preference', child: Text('Preference')),
-                  DropdownMenuItem(value: 'study', child: Text('Study')),
-                  DropdownMenuItem(value: 'goal', child: Text('Goal')),
-                ],
-                onChanged: (value) => setDialogState(() => category = value ?? 'general'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.t('cancel'))),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: Text(l10n.t('save'))),
-          ],
-        ),
-      ),
-    );
-    final text = content?.trim() ?? '';
-    controller.dispose();
-    if (text.isEmpty || !mounted) return;
-    try {
-      await _repository.remember(content: text, category: category);
-      if (mounted) _showMemoryManager();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e, l10n))));
-    }
-  }
-
-  IconData _memoryIcon(String category) {
-    switch (category) {
-      case 'preference': return Icons.tune_rounded;
-      case 'study': return Icons.school_outlined;
-      case 'goal': return Icons.flag_outlined;
-      default: return Icons.psychology_outlined;
-    }
-  }
-
-  Widget _capabilityCard(ColorScheme cs, AppLocalizations l10n) {
-    final data = _capabilities;
-    final online = data?.online == true;
-    final offline = data?.offlineAvailable == true;
-    return Container(
-      margin: const EdgeInsetsDirectional.fromSTEB(14.72, 7.36, 14.72, 3.68),
-      padding: const EdgeInsetsDirectional.fromSTEB(12.88, 11.04, 9.2, 11.04),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: .72),
-        borderRadius: BorderRadius.circular(16.2),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: .45)),
-      ),
-      child: Row(
-        children: [
-          Icon(online ? Icons.cloud_done_outlined : Icons.cloud_off_outlined, color: online ? cs.primary : cs.onSurfaceVariant),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(data == null ? l10n.t('einoCheckingCapabilities') : online ? l10n.t('einoOnlineReady') : l10n.t('einoOfflineMode'), style: const TextStyle(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 2),
-                Text(
-                  data == null ? l10n.t('einoCheckingCapabilities') : offline ? l10n.t('einoOfflineReady') : (data.model.isNotEmpty ? '${l10n.t('einoModel')}: ${data.model}' : l10n.t('einoCheckingCapabilities')),
-                  style: TextStyle(fontSize: 10.1, color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-          IconButton(tooltip: l10n.t('einoModelsTitle'), onPressed: _showModelManager, icon: const Icon(Icons.memory_rounded)),
-          IconButton(tooltip: l10n.t('einoMemoryTitle'), onPressed: _showMemoryManager, icon: const Icon(Icons.psychology_outlined)),
-          IconButton(tooltip: l10n.t('refresh'), onPressed: _loadingCapabilities ? null : _loadCapabilities, icon: const Icon(Icons.refresh_rounded)),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -678,11 +655,10 @@ class _EinoScreenState extends State<EinoScreen> {
         actions: [IconButton(tooltip: l10n.t('newChat'), onPressed: _messages.isEmpty || _sending || _uploading ? null : _newChat, icon: const Icon(Icons.edit_square)), const SizedBox(width: 4)],
       ),
       body: Column(children: [
-        _capabilityCard(cs, l10n),
         Expanded(child: _messages.isEmpty ? _welcome(cs, l10n) : ListView.builder(controller: _scroll, padding: const EdgeInsetsDirectional.fromSTEB(12.88, 11.04, 12.88, 22.08), itemCount: _messages.length + (_sending || _uploading ? 1 : 0), itemBuilder: (_, i) {
           if (i == _messages.length) return _typingBubble(cs, uploading: _uploading);
           final message = _messages[i];
-          return _AnimatedEntry(key: ValueKey('${message.text}-$i'), child: _bubble(context, message));
+          return EinoAnimatedEntry(key: ValueKey('${message.text}-$i'), child: _bubble(context, message));
         })),
         SafeArea(top: false, child: Padding(padding: const EdgeInsetsDirectional.fromSTEB(9.2, 3.68, 9.2, 9.2), child: _composer(cs, l10n))),
       ]),
@@ -716,12 +692,14 @@ class _EinoScreenState extends State<EinoScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 11.04),
               child: FilledButton.icon(
-                onPressed: _newChat,
+                onPressed: () => _newChat(closeDrawer: true),
                 icon: const Icon(Icons.add_rounded),
                 label: Text(l10n.t('newChat')),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 6),
             if (_history.isEmpty)
               Expanded(
                 child: Center(
@@ -744,7 +722,23 @@ class _EinoScreenState extends State<EinoScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+                    onTap: () => _openConversation(_history[i]),
+                    trailing: IconButton(
+                      tooltip: l10n.t('delete'),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      onPressed: () async {
+                        try {
+                          await _repository.deleteConversation(_history[i].id);
+                          if (!mounted) return;
+                          setState(() {
+                            if (_conversationId == _history[i].id) { _conversationId = null; _messages.clear(); }
+                            _history.removeAt(i);
+                          });
+                        } catch (e) {
+                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessage.from(context, e, fallbackKey: 'einoGenericError'))));
+                        }
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -789,68 +783,11 @@ class _EinoScreenState extends State<EinoScreen> {
           textAlign: TextAlign.center,
           style: TextStyle(color: cs.onSurfaceVariant, height: 1.5),
         ),
-        const SizedBox(height: 18),
-        _einoGoalCard(source: widget.source),
-        const SizedBox(height: 18),
-        Wrap(
-          spacing: 9,
-          runSpacing: 9,
-          children: _suggestions(l10n)
-              .map(
-                (text) => ActionChip(
-                  label: Text(text),
-                  onPressed: _sending ? null : () => _send(text),
-                  side: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: .5),
-                  ),
-                  backgroundColor: cs.surfaceContainerHighest,
-                ),
-              )
-              .toList(),
-        ),
       ],
     );
   }
 
-  Widget _einoGoalCard({required String source}) {
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
-    final title = switch (source) {
-      'materials' => l10n.t('einoGoalMaterials'),
-      'schedule' => l10n.t('einoGoalSchedule'),
-      'progress' => l10n.t('einoGoalProgress'),
-      'xp' => l10n.t('einoGoalXp'),
-      'badges' => l10n.t('einoGoalBadges'),
-      _ => l10n.t('einoGoalHome'),
-    };
-
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.track_changes_rounded, color: cs.primary, size: 22),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: cs.onSurfaceVariant,
-                fontSize: 12.5,
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _bubble(BuildContext context, _Message m) {
+  Widget _bubble(BuildContext context, EinoMessage m) {
     final cs = Theme.of(context).colorScheme;
 
     if (m.isError) {
@@ -897,21 +834,29 @@ class _EinoScreenState extends State<EinoScreen> {
       );
     }
 
-    return Align(
+    return GestureDetector(
+      onLongPress: m.user ? () => _showMessageMenu(m) : null,
+      child: Align(
       alignment: m.user
           ? AlignmentDirectional.centerEnd
           : AlignmentDirectional.centerStart,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 620),
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 13.8, vertical: 11.04),
-        decoration: BoxDecoration(
-          color: m.user ? cs.primary : cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(18).copyWith(
-            bottomRight: m.user ? const Radius.circular(5) : null,
-            bottomLeft: !m.user ? const Radius.circular(5) : null,
-          ),
-        ),
+        padding: m.user
+            ? const EdgeInsets.symmetric(horizontal: 13.8, vertical: 11.04)
+            : const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        decoration: m.user
+            ? BoxDecoration(
+                color: cs.primary,
+                borderRadius: const BorderRadiusDirectional.only(
+                  topStart: Radius.circular(18),
+                  topEnd: Radius.circular(18),
+                  bottomStart: Radius.circular(18),
+                  bottomEnd: Radius.circular(5),
+                ),
+              )
+            : const BoxDecoration(),
         child: m.user
             ? Text(
                 m.text,
@@ -926,31 +871,56 @@ class _EinoScreenState extends State<EinoScreen> {
                       const EinoFace(size: 31, mood: EinoMood.happy),
                       const SizedBox(width: 9),
                       Expanded(
-                        child: SelectableText(
-                          m.text,
-                          style: const TextStyle(height: 1.55),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (m.imageBase64 != null) ...[
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Image.memory(base64Decode(m.imageBase64!), fit: BoxFit.contain),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            EinoMathText(
+                              m.text,
+                              style: TextStyle(color: cs.onSurface, height: 1.55),
+                            ),
+                          ],
                         ),
                       ),
+                      if (!m.user && !m.isError && m.text.trim().isNotEmpty)
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          padding: EdgeInsets.zero,
+                          onPressed: () => _showMessageMenu(m),
+                          icon: const Icon(Icons.more_horiz_rounded, size: 18),
+                        ),
                     ],
                   ),
+                  if (m.sourceTitle != null && m.sourceTitle!.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(start: 40, top: 6, bottom: 2),
+                      child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.public_outlined, size: 15, color: cs.primary),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                'المصدر: ${m.sourceTitle}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 12.5, color: cs.primary, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   const SizedBox(height: 5),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      IconButton(
-                        tooltip: AppLocalizations.of(context).t('copy'),
-                        onPressed: () => _copyMessage(m),
-                        icon: const Icon(Icons.copy_outlined, size: 18),
-                      ),
-                      IconButton(
-                        onPressed: () => _speak(m),
-                        tooltip: AppLocalizations.of(context).t('einoListen'),
-                        icon: const Icon(Icons.volume_up_outlined, size: 19),
-                      ),
-                    ],
-                  ),
                 ],
               ),
+      ),
       ),
     );
   }
@@ -977,7 +947,7 @@ class _EinoScreenState extends State<EinoScreen> {
                     AppLocalizations.of(context).t('einoProcessing'),
                     style: TextStyle(color: cs.onSurfaceVariant),
                   )
-                : _TypingDots(color: cs.onSurfaceVariant),
+                : EinoTypingDots(color: cs.onSurfaceVariant),
           ],
         ),
       ),
@@ -985,126 +955,80 @@ class _EinoScreenState extends State<EinoScreen> {
   }
 
   Widget _composer(ColorScheme cs, AppLocalizations l10n) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(21.6),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: .4)),
-      ),
-      padding: const EdgeInsetsDirectional.fromSTEB(5.52, 4.6, 5.52, 4.6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          IconButton(
-            tooltip: l10n.t('einoAttach'),
-            onPressed: _sending || _uploading ? null : _pickMedia,
-            icon: const Icon(Icons.add_rounded),
+    final hasText = _controller.text.trim().isNotEmpty;
+    final busy = _sending || _uploading;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_readerActive)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(22)),
+            child: Row(children: [
+              Icon(Icons.volume_up_rounded, color: cs.primary),
+              const SizedBox(width: 10),
+              const Expanded(child: Text('Eino تقرأ الإجابة…', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              IconButton(tooltip: _readerPaused ? 'متابعة القراءة' : 'إيقاف مؤقت', onPressed: _toggleReaderPlayback, icon: Icon(_readerPaused ? Icons.play_arrow_rounded : Icons.pause_rounded)),
+            ]),
           ),
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              minLines: 1,
-              maxLines: 6,
-              textCapitalization: TextCapitalization.sentences,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: l10n.t('einoHint'),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 7.36,
-                  vertical: 10.12,
-                ),
+        Container(
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: cs.outlineVariant.withValues(alpha: .45)),
+          ),
+          padding: const EdgeInsetsDirectional.fromSTEB(6, 5, 6, 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              IconButton(
+                tooltip: l10n.t('einoAttach'),
+                onPressed: busy ? null : _pickMedia,
+                icon: const Icon(Icons.add_rounded, size: 27),
               ),
-            ),
-          ),
-          IconButton(
-            tooltip: _recording
-                ? l10n.t('einoStopRecording')
-                : l10n.t('einoVoice'),
-            onPressed: _sending || _uploading ? null : _toggleRecording,
-            color: _recording ? cs.error : null,
-            icon: Icon(
-              _recording
-                  ? Icons.stop_circle_outlined
-                  : Icons.mic_none_rounded,
-            ),
-          ),
-          const SizedBox(width: 2),
-          IconButton.filled(
-            tooltip: l10n.t('send'),
-            onPressed: _sending || _uploading ? null : () => _send(),
-            icon: _sending
-                ? const SizedBox(
-                    width: 19,
-                    height: 19,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.arrow_upward_rounded),
-          ),
-        ],
-      ),
-    );
-  }
-
-}
-
-class _AnimatedEntry extends StatefulWidget { const _AnimatedEntry({required this.child, super.key}); final Widget child; @override State<_AnimatedEntry> createState() => _AnimatedEntryState(); }
-class _AnimatedEntryState extends State<_AnimatedEntry> with SingleTickerProviderStateMixin { late final AnimationController _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 260))..forward(); @override void dispose() { _controller.dispose(); super.dispose(); } @override Widget build(BuildContext context) { final curved = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic); return AnimatedBuilder(animation: curved, builder: (context, child) => Opacity(opacity: curved.value, child: Transform.translate(offset: Offset(0, (1 - curved.value) * 12), child: child)), child: widget.child); } }
-class _TypingDots extends StatefulWidget {
-  const _TypingDots({required this.color});
-  final Color color;
-
-  @override
-  State<_TypingDots> createState() => _TypingDotsState();
-}
-
-class _TypingDotsState extends State<_TypingDots>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (i) {
-            final phase = (_controller.value - i * .18) % 1.0;
-            final lift = phase < .5 ? phase * 2 : (1 - phase) * 2;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 1.84),
-              child: Transform.translate(
-                offset: Offset(0, -lift * 4),
-                child: Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: widget.color.withValues(alpha: .6 + lift * .4),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  minLines: 1,
+                  maxLines: 6,
+                  textCapitalization: TextCapitalization.sentences,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) { if (!busy && hasText) _send(); },
+                  decoration: InputDecoration(
+                    hintText: l10n.t('einoHint'),
+                    border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 5, vertical: 12),
                   ),
                 ),
               ),
-            );
-          }),
-        );
-      },
+              if (!hasText && !busy)
+                IconButton(
+                  tooltip: _recording ? l10n.t('einoStopRecording') : l10n.t('einoVoice'),
+                  onPressed: _toggleRecording,
+                  color: _recording ? cs.error : null,
+                  icon: Icon(_recording ? Icons.stop_circle_rounded : Icons.mic_none_rounded, size: 25),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 3, bottom: 2),
+                  child: IconButton.filled(
+                    tooltip: busy ? 'جاري التفكير' : l10n.t('send'),
+                    onPressed: busy || !hasText ? null : _send,
+                    style: IconButton.styleFrom(shape: const CircleBorder(), padding: const EdgeInsets.all(12)),
+                    icon: busy
+                        ? const SizedBox(width: 21, height: 21, child: CircularProgressIndicator(strokeWidth: 2.2))
+                        : const Icon(Icons.arrow_upward_rounded, size: 23),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (_recording)
+          Padding(padding: const EdgeInsets.only(top: 5), child: Text('جارٍ الاستماع… اضغط الميكروفون لإنهاء التسجيل وتحويله إلى نص', style: TextStyle(fontSize: 12, color: cs.primary))),
+        if (_uploading)
+          Padding(padding: const EdgeInsets.only(top: 5), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 1.8)), const SizedBox(width: 8), Text('جارٍ تحويل الصوت إلى نص…', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant))])),
+      ],
     );
   }
 }
-
-class _Message { const _Message(this.user, this.text, {this.isError = false, this.retryPrompt}); final bool user; final String text; final bool isError; final String? retryPrompt; }
-class _ChatPreview { const _ChatPreview(this.title, this.date); final String title; final DateTime date; }

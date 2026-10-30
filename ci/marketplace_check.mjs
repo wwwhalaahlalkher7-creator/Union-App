@@ -15,7 +15,7 @@ const checks = [
   ['admin CRUD allowlist', /market_items: \['title_ar','title_en','description_ar','description_en','category','price_label','image_url','contact_url','department_id','status','active','sort_order'\]/.test(admin) && /'market-items':'market_items'/.test(admin)],
   ['published-only public filter', /m\.active=1/.test(pub) && /m\.status='published'/.test(pub)],
   ['public route wired', /path === '\/market\/items'.*publicMarketItems/.test(router)],
-  ['Flutter student app fetches live catalog', /getJson\('\/api\/v1\/market\/items'/.test(app) && !/Coming Soon/.test(app)],
+  ['Flutter student app fetches live catalog', /getJson\(\s*'\/api\/v1\/market\/items'/.test(app) && !/Coming Soon/.test(app)],
   ['native admin supports marketplace create/update/delete', nativeAdmin.includes("'/admin/market-items") && /widget\.api\.post\('\/admin\/market-items'/.test(nativeAdmin) && /widget\.api\.patch\('\/admin\/market-items\/\$id'/.test(nativeAdmin) && /widget\.api\.delete\('\/admin\/market-items\/\$id'/.test(nativeAdmin)],
   ['content manager can access standalone marketplace section', /AdminSection\.market/.test(nativeNav) && /contentManager/.test(nativeNav)],
   ['legacy website-admin dashboard is intentionally absent', !existsSync(join(root, 'web/portal/admin/market.html'))],

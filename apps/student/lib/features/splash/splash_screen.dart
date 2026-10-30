@@ -4,12 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_version.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/storage/app_preferences.dart';
 import '../../core/theme/design_tokens.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({required this.startupFuture, super.key});
+  const SplashScreen({
+    required this.startupFuture,
+    required this.onRetryStartup,
+    required this.onboardingCompleted,
+    super.key,
+  });
+
   final Future<void> startupFuture;
+  final Future<void> Function() onRetryStartup;
+  final bool Function() onboardingCompleted;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -21,6 +28,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     duration: const Duration(milliseconds: 1800),
   )..forward();
   bool _navigated = false;
+  bool _startupFailed = false;
+  bool _retrying = false;
 
   @override
   void initState() {
@@ -28,35 +37,80 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _bootstrap();
   }
 
-  Future<void> _bootstrap() async {
+  Future<void> _bootstrap({Future<void>? future, bool skipBrandDelay = false}) async {
     final started = DateTime.now();
     try {
-      await widget.startupFuture;
-    } catch (_) {
-      // Preferences failure should not block opening the app.
+      await (future ?? widget.startupFuture);
+    } catch (error, stackTrace) {
+      debugPrint('TRINEX startup initialization failed: $error\n$stackTrace');
+      if (!mounted) return;
+      setState(() {
+        _startupFailed = true;
+        _retrying = false;
+      });
+      return;
+    }
+
+    if (!mounted || _navigated) return;
+
+    // Keep the brand sequence on a healthy start, while allowing a completed
+    // splash to navigate immediately after a successful retry.
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduceMotion) {
+      _controller.value = 1;
+    } else {
+      final elapsed = DateTime.now().difference(started);
+      final remaining = const Duration(milliseconds: 1200) - elapsed;
+      if (!skipBrandDelay && remaining > Duration.zero && !_startupFailed) {
+        await Future<void>.delayed(remaining);
+      }
+      if (!mounted || _navigated) return;
+      await _controller.forward();
     }
     if (!mounted || _navigated) return;
 
-    // Reduced-motion mode should also skip the decorative minimum delay.
-    // This keeps accessibility behavior consistent and makes widget tests
-    // deterministic without waiting on a visual-only timer.
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (!reduceMotion) {
-      final elapsed = DateTime.now().difference(started);
-      final remaining = const Duration(milliseconds: 1200) - elapsed;
-      if (remaining > Duration.zero) {
-        await Future<void>.delayed(remaining);
-      }
+    final bool completed;
+    try {
+      completed = widget.onboardingCompleted();
+    } catch (error, stackTrace) {
+      debugPrint('TRINEX startup preferences unavailable: $error\n$stackTrace');
+      if (!mounted) return;
+      setState(() {
+        _startupFailed = true;
+        _retrying = false;
+      });
+      return;
     }
-    if (!mounted || _navigated) return;
+
     _navigated = true;
-    final prefs = AppPreferences();
-    await prefs.init();
-    if (!mounted) return;
-    if (!prefs.onboardingCompleted) {
-      context.go('/onboarding');
+    _retrying = false;
+    if (completed) {
+      context.go('/home');
     } else {
-      context.go('/media');
+      context.go('/onboarding');
+    }
+  }
+
+  Future<void> _retryStartup() async {
+    if (_retrying || _navigated) return;
+    setState(() {
+      _retrying = true;
+      _startupFailed = false;
+    });
+
+    try {
+      // The app owner resets the DI container before trying initialization
+      // again. Feed that future through the same guarded startup path.
+      final retryFuture = widget.onRetryStartup();
+      await _bootstrap(future: retryFuture, skipBrandDelay: true);
+    } catch (error, stackTrace) {
+      debugPrint('TRINEX startup retry failed: $error\n$stackTrace');
+      if (mounted) {
+        setState(() {
+          _startupFailed = true;
+          _retrying = false;
+        });
+      }
     }
   }
 
@@ -129,6 +183,33 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         ),
                         const SizedBox(height: 10),
                         Text('v${AppVersion.name}', style: TextStyle(color: Colors.white.withValues(alpha: .42), fontSize: 10.1)),
+                        if (_startupFailed) ...[
+                          const SizedBox(height: 24),
+                          Icon(Icons.warning_amber_rounded, color: cs.error, size: 30),
+                          const SizedBox(height: 12),
+                          Text(
+                            l10n.t('startupFailedTitle'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: 280,
+                            child: Text(
+                              l10n.t('startupFailedHelp'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.white.withValues(alpha: .72), fontSize: 12, height: 1.5),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: _retrying ? null : _retryStartup,
+                            icon: _retrying
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.refresh_rounded),
+                            label: Text(_retrying ? l10n.t('checking') : l10n.t('retry')),
+                          ),
+                        ],
                       ],
                     ),
                   ),

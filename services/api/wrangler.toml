@@ -3,14 +3,14 @@ main = "src/index.js"
 compatibility_date = "2026-09-10"
 
 [vars]
-APP_VERSION = "2.0.3"
+APP_VERSION = "2.0.4"
 MINIMUM_APP_VERSION = "2.0.0"
 # Eino governance defaults. Override per environment without changing code.
 EINO_STUDENT_DAILY_LIMIT = "100"
 EINO_GUEST_DAILY_LIMIT = "20"
 EINO_GLOBAL_DAILY_LIMIT = "2000"
 APP_UPDATE_URL = "https://ush-eng.great-site.net/download.html"
-APP_RELEASE_NOTES = "TRINEX 2.0.3 — تحسينات الجولة التعليمية التفاعلية وحركة Eino وموثوقية رفع وفهرسة ملفات PDF.\nإصلاح تفعيل الجولة التعليمية عند التسجيل الجديد فقط، مع استبعاد الزوار وتسجيل الدخول العادي.\nتحسين حركة نواة Eino العضوية والجسيمات الضوئية، ووضع النوم منخفض الموارد والاستيقاظ والعودة من المحادثة.\nتحسين معالجة رفع ملفات PDF وتسجيلها في D1 وطابور فهرسة Eino، مع رسائل تعافٍ أوضح عند فشل جزء من العملية.\nتحديث فحوصات التكامل والتحقق من الإصدار. لا يعني هذا الإصدار نشر الخدمات الإنتاجية تلقائيًا خارج سير عمل CI/CD."
+APP_RELEASE_NOTES = "TRINEX 2.0.4 — دمج تجربة Union-App الكاملة لتطبيق الطلاب داخل بنية Monorepo.\nاستعادة طبقات Dependency Injection والشبكة ومعالجة الأخطاء الموحدة.\nاستعادة المحادثة العامة والملف الشخصي العام والتنزيلات وعارض PDF وأدوات الهندسة.\nتوحيد الإشعارات المحلية وFirebase، وإزالة محرك Llama المحلي غير المعتمد.\nالحفاظ على إضافات Monorepo غير المتعارضة وفصل إصدار تطبيق الطلاب عن تطبيق الإدارة.\nلا ينفذ هذا التغيير نشرًا إلى Cloudflare أو تحديثًا لبيئة الإنتاج."
 API_VERSION = "v1"
 CF_ANALYTICS_SCRIPT_NAME = "leo-association-api"
 # Optional self-hosted Chroma. Keep empty until a Chroma server is provisioned.

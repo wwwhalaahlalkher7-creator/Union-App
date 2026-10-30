@@ -10,28 +10,37 @@ class AcademicIdInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    var text = newValue.text.replaceAll(RegExp(r'[^0-9-]'), '');
-    text = text.replaceFirst(RegExp(r'^-+'), '');
-
-    final dash = text.indexOf('-');
-    if (dash >= 0) {
-      text = text.substring(0, dash + 1) +
-          text.substring(dash + 1).replaceAll('-', '');
+    // Accept digits only, format after the first two, and cap at ten digits.
+    // This also normalizes pasted values such as "24-12345678" without
+    // duplicating the separator or showing a warning for excess input.
+    var allDigits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    // Backspace immediately after the auto-inserted separator should delete
+    // the preceding digit instead of making the separator impossible to erase.
+    final deletingAutoSeparator = oldValue.text.endsWith('-') &&
+        oldValue.selection.isCollapsed &&
+        oldValue.selection.baseOffset == oldValue.text.length &&
+        newValue.text == oldValue.text.substring(0, oldValue.text.length - 1);
+    if (deletingAutoSeparator && allDigits.length == 2) {
+      allDigits = allDigits.substring(0, 1);
     }
+    final digits = allDigits.length > 10 ? allDigits.substring(0, 10) : allDigits;
+    final formatted = digits.length <= 2
+        ? (digits.length == 2 ? '$digits-' : digits)
+        : '${digits.substring(0, 2)}-${digits.substring(2)}';
 
-    final offset = newValue.selection.baseOffset.clamp(0, newValue.text.length).toInt();
-    final beforeCursor = newValue.text.substring(0, offset);
-    var cleanBeforeCursor = beforeCursor.replaceAll(RegExp(r'[^0-9-]'), '');
-    cleanBeforeCursor = cleanBeforeCursor.replaceFirst(RegExp(r'^-+'), '');
-    final beforeDash = cleanBeforeCursor.indexOf('-');
-    if (beforeDash >= 0) {
-      cleanBeforeCursor = cleanBeforeCursor.substring(0, beforeDash + 1) +
-          cleanBeforeCursor.substring(beforeDash + 1).replaceAll('-', '');
-    }
-    final selectionOffset = cleanBeforeCursor.length.clamp(0, text.length).toInt();
+    final oldOffset = newValue.selection.baseOffset.clamp(0, newValue.text.length).toInt();
+    final digitsBeforeCursor = newValue.text
+        .substring(0, oldOffset)
+        .replaceAll(RegExp(r'[^0-9]'), '')
+        .length
+        .clamp(0, digits.length)
+        .toInt();
+    var selectionOffset = digitsBeforeCursor;
+    if (digitsBeforeCursor >= 2) selectionOffset++;
+    selectionOffset = selectionOffset.clamp(0, formatted.length).toInt();
 
     return TextEditingValue(
-      text: text,
+      text: formatted,
       selection: TextSelection.collapsed(offset: selectionOffset),
       composing: TextRange.empty,
     );
@@ -39,7 +48,7 @@ class AcademicIdInputFormatter extends TextInputFormatter {
 }
 
 bool isValidAcademicId(String value) =>
-    RegExp(r'^[0-9]+(?:-[0-9]+)?$').hasMatch(value.trim());
+    RegExp(r'^[0-9]{2}-[0-9]{8}$').hasMatch(value.trim());
 
 /// Converts department/semester records from the API into the selected UI
 /// language. The API currently stores Arabic/English names; French is supplied

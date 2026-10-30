@@ -11,15 +11,21 @@ flutter = '\n'.join(p.read_text() for p in (root / 'apps/student/lib').rglob('*.
 required_routes = [
     ('GET', '/health'), ('GET', '/version'), ('GET', '/app/update'),
     ('GET', '/public/news'), ('GET', '/public/events'), ('GET', '/public/announcements'),
-    ('GET', '/public/achievements'),
+    ('GET', '/public/achievements'), ('GET', '/public/activities'), ('GET', '/public/students/:id'),
     ('GET', '/public/settings'), ('GET', '/public/materials'),
     ('POST', '/auth/login'), ('POST', '/auth/register'), ('POST', '/auth/refresh'),
     ('POST', '/auth/logout'), ('GET', '/auth/me'),
     ('GET', '/student/profile'), ('POST', '/student/semester'), ('GET', '/student/stats'),
-    ('GET', '/student/notifications'), ('POST', '/student/notifications/read'),
+    ('GET', '/student/notifications'), ('POST', '/student/notifications/read'), ('DELETE', '/student/notifications/:id'),
     ('GET', '/semesters'), ('GET', '/departments'), ('GET', '/subjects'),
-    ('GET', '/materials'), ('GET', '/schedule'), ('GET', '/progress'), ('GET', '/xp'), ('GET', '/badges'),
+    ('GET', '/materials'), ('GET', '/exams'), ('GET', '/schedule'), ('GET', '/progress'), ('GET', '/xp'), ('GET', '/badges'),
     ('POST', '/materials/:id/progress'),
+    ('GET', '/chat/messages'), ('POST', '/chat/messages'), ('DELETE', '/chat/messages/:id'), ('POST', '/chat/messages/:id/report'),
+    ('POST', '/feedback'), ('POST', '/usage/events'),
+    ('POST', '/eino/chats'), ('GET', '/eino/chats'), ('GET', '/eino/chats/:id/messages'),
+    ('POST', '/eino/chats/:id/messages'), ('DELETE', '/eino/chats/:id'),
+    ('POST', '/eino/long-summary'), ('POST', '/eino/file-analysis'), ('POST', '/eino/image'),
+    ('DELETE', '/content/:type/:id/reactions'), ('DELETE', '/comments/:id/reactions'), ('DELETE', '/replies/:id'),
     ('GET', '/eino/capabilities'), ('GET', '/eino/models'), ('GET', '/eino/memory'),
     ('POST', '/eino/memory'), ('POST', '/eino/chat'), ('POST', '/eino/vision'),
     ('POST', '/eino/ocr'), ('POST', '/eino/stt'), ('POST', '/eino/tts'),
@@ -27,16 +33,38 @@ required_routes = [
 
 # Normalize parameterized router patterns to a stable contract form.
 checks = {
-    'GET /health': "path === '/health' && request.method === 'GET'",
-    'GET /version': "path === '/version' && request.method === 'GET'",
-    'GET /app/update': "path === '/app/update' && request.method === 'GET'",
-    'GET /auth/register': "path === '/auth/register' && request.method === 'POST'",
+    'GET /health': "request.method === 'GET' && path === '/health'",
+    'GET /version': "request.method === 'GET' && path === '/version'",
+    'GET /app/update': "request.method === 'GET' && path === '/app/update'",
+    'POST /auth/register': "path === '/auth/register' && request.method === 'POST'",
+    'GET /public/activities': "path === '/public/activities'",
+    'GET /public/students/:id': "/^\\/public\\/students\\/[^/]+$/.test(path)",
+    'DELETE /student/notifications/:id': "/^\\/student\\/notifications\\/(?!device$)[^/]+$/.test(path)",
+    'GET /exams': "path === '/exams' && request.method === 'GET'",
+    'GET /chat/messages': "path === '/chat/messages' && request.method === 'GET'",
+    'POST /chat/messages': "path === '/chat/messages' && request.method === 'POST'",
+    'DELETE /chat/messages/:id': "/^\\/chat\\/messages\\/[^/]+$/.test(path) && request.method === 'DELETE'",
+    'POST /chat/messages/:id/report': "/^\\/chat\\/messages\\/[^/]+\\/report$/.test(path) && request.method === 'POST'",
+    'POST /feedback': "(path === '/student/feedback' || path === '/feedback') && request.method === 'POST'",
+    'POST /usage/events': "path === '/usage/events' && request.method === 'POST'",
+    'POST /eino/chats': "path === '/eino/chats' && request.method === 'POST'",
+    'GET /eino/chats': "path === '/eino/chats' && request.method === 'GET'",
+    'GET /eino/chats/:id/messages': "/^\\/eino\\/chats\\/[^/]+\\/messages$/.test(path) && request.method === 'GET'",
+    'POST /eino/chats/:id/messages': "/^\\/eino\\/chats\\/[^/]+\\/messages$/.test(path) && request.method === 'POST'",
+    'DELETE /eino/chats/:id': "/^\\/eino\\/chats\\/[^/]+$/.test(path) && request.method === 'DELETE'",
+    'POST /eino/long-summary': "path === '/eino/long-summary' && request.method === 'POST'",
+    'POST /eino/file-analysis': "path === '/eino/file-analysis' && request.method === 'POST'",
+    'POST /eino/image': "path === '/eino/image' && request.method === 'POST'",
+    'DELETE /content/:type/:id/reactions': "/^\\/content\\/[^/]+\\/[^/]+\\/reactions$/.test(path) && request.method === 'DELETE'",
+    'DELETE /comments/:id/reactions': "/^\\/comments\\/[^/]+\\/reactions$/.test(path) && request.method === 'DELETE'",
+    'DELETE /replies/:id': "/^\\/replies\\/[^/]+$/.test(path)",
 }
 failures=[]
 for method, route in required_routes:
     marker = route.replace(':id', '')
-    if route in checks:
-        if checks[route] not in backend:
+    check_key = f'{method} {route}'
+    if check_key in checks:
+        if checks[check_key] not in backend:
             failures.append(f'Missing router: {method} {route}')
     elif route.startswith('/public/') and route.count('/') == 2:
         resource=route.rsplit('/',1)[-1]
@@ -72,9 +100,11 @@ for path in sorted(flutter_paths):
     elif normalized == '/api/v1/public/':
         # This is a cache-prefix check in api_client.dart, not an HTTP endpoint.
         documented=True
+    elif path.startswith('/api/v1/chat/messages/${') or path.startswith('/api/v1/student/notifications/${'):
+        documented=True
     elif normalized.startswith('/api/v1/public/'):
         resource=normalized[len('/api/v1/public/'):].split('/')[0]
-        documented=resource in {'news','events','announcements','achievements','settings','materials'}
+        documented=resource in {'news','events','activities','announcements','achievements','settings','materials','students'}
         if normalized.count('/') >= 4 and resource in {'news','events','achievements'}:
             documented = True
     else:

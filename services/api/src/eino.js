@@ -13,6 +13,59 @@ import { freeAiChat } from './providers/free_ai.js';
 import { EINO_CAPABILITIES, getProvidersForCapability, getRoutesForCapability, getModelRegistry } from './providers/registry.js';
 import { routeText, routeVision, routeOcr, routeStt, routeTts } from './providers/router.js';
 import { staffAuth } from './auth.js';
+
+async function getOwnedEinoConversation(ctx, studentId, id) {
+  return queryOne(ctx.env, `SELECT id, student_id AS studentId, title, created_at AS createdAt, updated_at AS updatedAt
+    FROM eino_conversations WHERE id=? AND student_id=? LIMIT 1`, id, studentId);
+}
+
+export async function einoConversationCreate(ctx) {
+  const actor = await getEinoStudent(ctx); if (actor.response) return actor.response;
+  const body = await parseJson(ctx.request) || {};
+  const title = String(body.title || '').trim().slice(0, 80) || 'محادثة Eino';
+  const id = crypto.randomUUID();
+  await ctx.env.DB.prepare('INSERT INTO eino_conversations (id, student_id, title) VALUES (?, ?, ?)').bind(id, actor.studentId, title).run();
+  return ok(ctx, { id, title }, null, 201);
+}
+
+export async function einoConversationList(ctx) {
+  const actor = await getEinoStudent(ctx); if (actor.response) return actor.response;
+  const limit = clampInt(ctx.url.searchParams.get('limit'), 30, 1, 100);
+  const conversations = await queryAll(ctx.env, `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt
+    FROM eino_conversations WHERE student_id=? ORDER BY updated_at DESC LIMIT ?`, actor.studentId, limit);
+  return ok(ctx, { conversations });
+}
+
+export async function einoConversationMessages(ctx, id) {
+  const actor = await getEinoStudent(ctx); if (actor.response) return actor.response;
+  const conversation = await getOwnedEinoConversation(ctx, actor.studentId, id);
+  if (!conversation) return error('EINO_CONVERSATION_NOT_FOUND', 'المحادثة غير موجودة.', 404, ctx.requestId, ctx.cors);
+  const messages = await queryAll(ctx.env, `SELECT id, role, content, created_at AS createdAt FROM eino_messages
+    WHERE conversation_id=? ORDER BY created_at ASC, id ASC`, id);
+  return ok(ctx, { conversation, messages });
+}
+
+export async function einoConversationMessageAppend(ctx, id) {
+  const actor = await getEinoStudent(ctx); if (actor.response) return actor.response;
+  const conversation = await getOwnedEinoConversation(ctx, actor.studentId, id);
+  if (!conversation) return error('EINO_CONVERSATION_NOT_FOUND', 'المحادثة غير موجودة.', 404, ctx.requestId, ctx.cors);
+  const body = await parseJson(ctx.request) || {};
+  const role = String(body.role || '').trim(); const content = String(body.content || '').trim();
+  if (!['user','assistant'].includes(role) || !content || content.length > EINO_MAX_MESSAGE) return error('EINO_INPUT_INVALID', 'رسالة المحادثة غير صالحة.', 400, ctx.requestId, ctx.cors);
+  await ctx.env.DB.prepare('INSERT INTO eino_messages (id, conversation_id, role, content) VALUES (?, ?, ?, ?)')
+    .bind(crypto.randomUUID(), id, role, content).run();
+  await ctx.env.DB.prepare('UPDATE eino_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=? AND student_id=?').bind(id, actor.studentId).run();
+  return ok(ctx, { saved: true });
+}
+
+export async function einoConversationDelete(ctx, id) {
+  const actor = await getEinoStudent(ctx); if (actor.response) return actor.response;
+  const conversation = await getOwnedEinoConversation(ctx, actor.studentId, id);
+  if (!conversation) return error('EINO_CONVERSATION_NOT_FOUND', 'المحادثة غير موجودة.', 404, ctx.requestId, ctx.cors);
+  await ctx.env.DB.prepare('DELETE FROM eino_conversations WHERE id=? AND student_id=?').bind(id, actor.studentId).run();
+  return ok(ctx, { deleted: true, id });
+}
+
 export async function eino(ctx) {
   const hasTextProvider = getRoutesForCapability(ctx.env, EINO_CAPABILITIES.TEXT).length > 0;
   if (!hasTextProvider) {
@@ -566,46 +619,23 @@ export async function einoCapabilities(ctx) {
     },
     capabilities,
     routing: { strategy: 'capability-first', capabilities: Object.fromEntries(Object.values(EINO_CAPABILITIES).map((c)=>[c,getRoutesForCapability(ctx.env,c)])) },
-    offline: { available: false, reason: 'سيتم تفعيل محرك النماذج المحلية في مرحلة Offline AI.' },
+    offline: { available: false, reason: 'التشغيل المحلي غير معتمد حاليًا؛ يعمل Eino عبر مزودي الخدمة على الخادم.' },
   });
 }
 
 export async function einoModels(ctx) {
-  // Only publish models when we have an integrity hash. This keeps the app
-  // from downloading an unverified multi-gigabyte binary. The two entries
-  // below are public GGUF builds whose SHA-256 values were checked against
-  // their Hugging Face file metadata. Deployments can replace this catalog
-  // with EINO_MODEL_CATALOG_JSON without changing app code.
-  const fallback = [
-    {
-      id: 'qwen3-1.7b-q4', name: 'Qwen3 1.7B', format: 'GGUF', quantization: 'Q4_K_M',
-      approximateSizeGb: 1.11, recommendedRamGb: 3, architecture: ['arm64-v8a'],
-      capabilities: ['chat', 'arabic', 'multilingual'], status: 'verified-catalog',
-      downloadUrl: 'https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf',
-      sha256: '8f6da508f16926c49196d1bf8faecb47aef679227bc69a1d0bc9081c37b15e99',
-      source: 'Hugging Face / unsloth', license: 'Apache-2.0',
-    },
-    {
-      id: 'qwen3-4b-q4', name: 'Qwen3 4B', format: 'GGUF', quantization: 'Q4_K_M',
-      approximateSizeGb: 2.5, recommendedRamGb: 5, architecture: ['arm64-v8a'],
-      capabilities: ['chat', 'arabic', 'multilingual', 'reasoning'], status: 'verified-catalog',
-      downloadUrl: 'https://huggingface.co/ggml-org/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf',
-      sha256: 'ab27b9bfa375a178d6cba48f3ad892b94b7739659dcc7aae8058ce0ffed6b328',
-      source: 'Hugging Face / ggml-org', license: 'Apache-2.0',
-    },
-  ];
-  let models = fallback;
-  if (ctx.env.EINO_MODEL_CATALOG_JSON) {
-    try {
-      const parsed = JSON.parse(ctx.env.EINO_MODEL_CATALOG_JSON);
-      if (Array.isArray(parsed)) models = parsed;
-    } catch (e) {
-      console.warn('Invalid EINO_MODEL_CATALOG_JSON', e);
-    }
-  }
+  const capabilities = Object.values(EINO_CAPABILITIES);
+  const models = capabilities.flatMap((capability) => getRoutesForCapability(ctx.env, capability).map((route) => ({
+    id: `${capability}:${route.provider}:${route.model}`,
+    name: route.model,
+    provider: route.provider,
+    capability,
+    priority: route.priority,
+    execution: 'server',
+  })));
   return ok(ctx, {
-    source: ctx.env.EINO_MODEL_CATALOG_JSON ? 'env-catalog' : 'trinex-catalog',
-    runtime: { available: true, platform: 'android', minAndroidApi: 26, engine: 'llama.cpp' },
+    source: 'configured-server-providers',
+    runtime: { available: false, platform: 'server', engine: null, reason: 'يعمل Eino عبر مزودي الخدمة على الخادم؛ لا يوجد محرك نماذج محلي داخل التطبيق.' },
     models,
   });
 }
@@ -771,4 +801,109 @@ export async function recordEinoTelemetry(ctx, eventType, actorType = 'unknown',
     // Detailed provider telemetry is best effort and stores aggregate metadata only.
     console.error(`[${ctx.requestId}] Eino provider telemetry error`, e);
   }
+}
+
+
+function splitEinoSummaryText(value, maxChars = 4500) {
+  const normalized = String(value || '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  const chunks = [];
+  let start = 0;
+  while (start < normalized.length) {
+    let end = Math.min(start + maxChars, normalized.length);
+    if (end < normalized.length) {
+      const boundary = Math.max(normalized.lastIndexOf('\n', end), normalized.lastIndexOf('. ', end), normalized.lastIndexOf('。', end));
+      if (boundary > start + Math.floor(maxChars * 0.55)) end = boundary + 1;
+    }
+    const chunk = normalized.slice(start, end).trim();
+    if (chunk) chunks.push(chunk);
+    if (end >= normalized.length) break;
+    start = Math.max(start + 1, end - 160);
+  }
+  return chunks;
+}
+
+export async function einoLongSummary(ctx) {
+  const actor = await einoMediaActor(ctx, EINO_CAPABILITIES.TEXT); if (actor.response) return actor.response;
+  const body = await parseJson(ctx.request) || {};
+  const text = String(body.text || '').trim();
+  const conversationId = String(body.conversationId || '').trim();
+  if (!text || text.length > 40000) return error('EINO_INPUT_INVALID', 'النص غير صالح أو يتجاوز الحد المسموح للتلخيص الطويل.', 400, ctx.requestId, ctx.cors);
+  const chunks = splitEinoSummaryText(text);
+  if (!chunks.length || chunks.length > 10) return error('EINO_INPUT_INVALID', 'تعذر تقسيم النص إلى أجزاء آمنة للمعالجة.', 400, ctx.requestId, ctx.cors);
+  const started = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120000);
+  try {
+    const summaries = [];
+    for (let index = 0; index < chunks.length; index += 1) {
+      const result = await routeText(ctx.env, {
+        messages: [
+          { role: 'system', content: 'لخّص الجزء التالي بدقة باللغة العربية. احتفظ بالمعلومات المهمة والأرقام والمصطلحات، ولا تضف معلومات غير موجودة.' },
+          { role: 'user', content: `الجزء ${index + 1} من ${chunks.length}:\n${chunks[index]}` },
+        ],
+        temperature: 0.2,
+        maxTokens: 700,
+        signal: controller.signal,
+      });
+      summaries.push(String(result?.answer || result?.text || '').trim());
+    }
+    const finalResult = await routeText(ctx.env, {
+      messages: [
+        { role: 'system', content: 'أنشئ ملخصًا نهائيًا متماسكًا للنص اعتمادًا على الملخصات الجزئية فقط. استخدم عناوين ونقاطًا عند الحاجة، واحتفظ بالحقائق والأرقام دون تكرار.' },
+        { role: 'user', content: summaries.map((item, index) => `ملخص الجزء ${index + 1}:\n${item}`).join('\n\n') },
+      ],
+      temperature: 0.2,
+      maxTokens: 1400,
+      signal: controller.signal,
+    });
+    const answer = String(finalResult?.answer || finalResult?.text || '').trim();
+    if (!answer) throw Object.assign(new Error('empty long summary'), { status: 502 });
+    await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started, { capability: 'long-summary', provider: finalResult.provider, model: finalResult.model });
+    return ok(ctx, { text: answer, provider: finalResult.provider, model: finalResult.model || null, capability: 'long-summary', chunks: chunks.length, conversationId: conversationId || null });
+  } catch (e) {
+    return einoMediaError(ctx, actor.actorType, e, started, 'long-summary');
+  } finally { clearTimeout(timeout); }
+}
+
+export async function einoFileAnalysis(ctx) {
+  const actor = await einoMediaActor(ctx, EINO_CAPABILITIES.OCR); if (actor.response) return actor.response;
+  if (!mediaLimit(ctx.request, 20 * 1024 * 1024)) return error('EINO_FILE_TOO_LARGE', 'حجم الملف يتجاوز 20MB.', 413, ctx.requestId, ctx.cors);
+  const form = await ctx.request.formData().catch(() => null);
+  const file = form?.get('file');
+  if (!(file instanceof File) || !file.size) return error('EINO_INPUT_INVALID', 'يجب إرفاق ملف PDF أو صورة.', 400, ctx.requestId, ctx.cors);
+  if (file.size > 20 * 1024 * 1024) return error('EINO_FILE_TOO_LARGE', 'حجم الملف يتجاوز 20MB.', 413, ctx.requestId, ctx.cors);
+  const type = String(file.type || '').toLowerCase();
+  const name = String(file.name || '').toLowerCase();
+  const supported = type === 'application/pdf' || type.startsWith('image/') || /\.(pdf|png|jpe?g|webp|tiff?)$/.test(name);
+  if (!supported) return error('EINO_FILE_TYPE_UNSUPPORTED', 'تحليل الملفات متاح حاليًا لملفات PDF والصور فقط.', 415, ctx.requestId, ctx.cors);
+  const prompt = String(form.get('prompt') || 'حلل الملف وقدم خلاصة دقيقة ومفيدة.').trim().slice(0, 3000);
+  const started = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 90000);
+  try {
+    const extraction = await routeOcr(ctx.env, { file: await file.arrayBuffer(), filename: file.name, contentType: file.type || 'application/octet-stream', signal: controller.signal });
+    const extractedText = String(extraction?.text || extraction?.content || extraction?.markdown || extraction?.result || '').trim();
+    if (!extractedText) throw Object.assign(new Error('empty OCR result'), { status: 502 });
+    const result = await routeText(ctx.env, {
+      messages: [
+        { role: 'system', content: 'أنت مساعد أكاديمي. حلل محتوى الملف فقط، واتبع طلب المستخدم دون اختلاق بيانات أو نتائج غير موجودة.' },
+        { role: 'user', content: `اسم الملف: ${String(file.name || 'ملف').slice(0, 120)}\nالمطلوب: ${prompt}\n\nالنص المستخرج من الملف:\n${extractedText.slice(0, 18000)}` },
+      ],
+      temperature: 0.2,
+      maxTokens: 1200,
+      signal: controller.signal,
+    });
+    const answer = String(result?.answer || result?.text || '').trim();
+    if (!answer) throw Object.assign(new Error('empty file analysis'), { status: 502 });
+    await recordEinoTelemetry(ctx, 'success', actor.actorType, Date.now() - started, { capability: 'file-analysis', provider: result.provider, model: result.model });
+    return ok(ctx, { text: answer, provider: result.provider, model: result.model || null, extractionProvider: extraction.provider || null, capability: 'file-analysis', conversationId: String(form.get('conversationId') || '').trim() || null });
+  } catch (e) {
+    return einoMediaError(ctx, actor.actorType, e, started, 'file-analysis');
+  } finally { clearTimeout(timeout); }
+}
+
+export async function einoImage(ctx) {
+  // No image-generation provider is configured in the Monorepo Worker yet.
+  // Return an explicit capability error rather than an opaque 404 or fake output.
+  return error('EINO_IMAGE_GENERATION_UNAVAILABLE', 'توليد الصور غير مفعّل في خادم TRINEX الحالي.', 503, ctx.requestId, ctx.cors);
 }

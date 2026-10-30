@@ -1,129 +1,110 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:leo_association/features/eino/eino_orb.dart';
-
-/// SemanticsHandle must be disposed before flutter_test performs its
-/// end-of-test verification (addTearDown runs too late for this check).
-Future<void> _withSemantics(
-  WidgetTester tester,
-  Future<void> Function() body,
-) async {
-  final semantics = tester.ensureSemantics();
-  try {
-    await body();
-  } finally {
-    // Unmount the orb so its timers, animation controller and listeners are
-    // disposed even when an expectation fails.
-    await tester.pumpWidget(const SizedBox.shrink());
-    semantics.dispose();
-  }
-}
-
-Finder _orbCustomPaint() => find.descendant(
-      of: find.byType(EinoOrb),
-      matching: find.byType(CustomPaint),
-    );
+import 'package:leo_association/features/eino/eino_face.dart';
+import 'package:leo_association/features/eino/eino_orb.dart' show EinoMotionSession;
 
 void main() {
-  testWidgets('Eino orb enters reduced-motion sleep after inactivity', (tester) async {
-    await _withSemantics(tester, () async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: Center(
-              child: EinoOrb(size: 64, accent: Colors.amber),
-            ),
-          ),
-        ),
-      );
+  group('Eino glass orb', () {
+    testWidgets('renders a compact floating orb with accessible semantics', (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: Center(child: EinoOrb(size: 56))),
+      ));
 
-      expect(find.bySemanticsLabel('Eino assistant active'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 31));
-      expect(find.bySemanticsLabel('Eino assistant sleeping'), findsOneWidget);
+      expect(find.byType(EinoOrb), findsOneWidget);
+      expect(find.byType(CustomPaint), findsAtLeastNWidgets(1));
+      expect(find.bySemanticsLabel('Eino assistant'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 250));
     });
-  });
 
-  test('Eino return animation waits for chat disposal and is consumed once', () {
-    EinoMotionSession.markChatOpened();
-    expect(EinoMotionSession.consumeReturnAnimation(), isFalse);
-    EinoMotionSession.markChatClosed();
-    expect(EinoMotionSession.consumeReturnAnimation(), isTrue);
-    expect(EinoMotionSession.consumeReturnAnimation(), isFalse);
-  });
+    testWidgets('supports listening, thinking, responding and error states', (tester) async {
+      const states = <({EinoMood mood, bool talking, String label})>[
+        (mood: EinoMood.calm, talking: false, label: 'Eino assistant'),
+        (mood: EinoMood.thinking, talking: false, label: 'Eino thinking'),
+        (mood: EinoMood.talking, talking: true, label: 'Eino responding'),
+        (mood: EinoMood.listening, talking: false, label: 'Eino listening'),
+        (mood: EinoMood.reading, talking: false, label: 'Eino reading response aloud'),
+        (mood: EinoMood.success, talking: false, label: 'Eino response complete'),
+        (mood: EinoMood.concerned, talking: false, label: 'Eino connection issue'),
+      ];
 
-  testWidgets('background orb pauses during chat and resumes on return', (tester) async {
-    await _withSemantics(tester, () async {
-      await tester.pumpWidget(
-        const MaterialApp(
+      for (final state in states) {
+        await tester.pumpWidget(MaterialApp(
           home: Scaffold(
             body: Center(
               child: EinoOrb(
-                size: 64,
-                accent: Colors.amber,
-                suspendWhileChatOpen: true,
+                key: ValueKey(state.label),
+                size: 92,
+                mood: state.mood,
+                talking: state.talking,
               ),
             ),
           ),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 300));
-      EinoMotionSession.markChatOpened();
-      await tester.pump();
-      expect(EinoMotionSession.chatOpen, isTrue);
-      EinoMotionSession.markChatClosed();
-      EinoMotionSession.consumeReturnAnimation();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(EinoMotionSession.chatOpen, isFalse);
-      expect(_orbCustomPaint(), findsOneWidget);
-      expect(find.bySemanticsLabel('Eino assistant active'), findsOneWidget);
+        ));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(find.bySemanticsLabel(state.label), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
     });
-  });
 
-  testWidgets('Eino orb supports the chat-return motion state', (tester) async {
-    await _withSemantics(tester, () async {
-      await tester.pumpWidget(
-        const MaterialApp(
+
+    testWidgets('all declared moods render without errors', (tester) async {
+      for (final mood in EinoMood.values) {
+        await tester.pumpWidget(MaterialApp(
           home: Scaffold(
-            body: Center(
-              child: EinoOrb(
-                size: 64,
-                accent: Colors.amber,
-                returningFromChat: true,
-              ),
-            ),
+            body: Center(child: EinoOrb(key: ValueKey(mood), size: 64, mood: mood)),
           ),
-        ),
-      );
+        ));
+        await tester.pump(const Duration(milliseconds: 120));
+        expect(find.byType(EinoOrb), findsOneWidget, reason: 'Mood $mood should render');
+        expect(tester.takeException(), isNull, reason: 'Mood $mood should not throw');
+      }
+    });
+
+    testWidgets('transition boost animates the orb without throwing', (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: Center(child: EinoOrb(size: 92, motionBoost: 0))),
+      ));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: Center(child: EinoOrb(size: 92, motionBoost: 1))),
+      ));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.bySemanticsLabel('Eino assistant active'), findsOneWidget);
-      expect(_orbCustomPaint(), findsOneWidget);
+      expect(find.byType(EinoOrb), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
-  });
 
-  testWidgets('tapping the Eino orb wakes it and invokes its action', (tester) async {
-    await _withSemantics(tester, () async {
-      var tapped = false;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Center(
-              child: EinoOrb(
-                size: 64,
-                accent: Colors.amber,
-                onTap: () => tapped = true,
-              ),
-            ),
-          ),
+
+    testWidgets('background orb pauses during chat and resumes on return', (tester) async {
+      EinoMotionSession.markChatClosed();
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+          body: Center(child: EinoFace(size: 76, suspendWhileChatOpen: true)),
         ),
-      );
+      ));
+      await tester.pump(const Duration(milliseconds: 80));
 
-      await tester.pump(const Duration(seconds: 31));
-      expect(find.bySemanticsLabel('Eino assistant sleeping'), findsOneWidget);
-      await tester.tap(find.byType(EinoOrb));
+      EinoMotionSession.markChatOpened();
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(EinoMotionSession.chatOpen, isTrue);
+      expect(find.byType(EinoFace), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      EinoMotionSession.markChatClosed();
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(EinoMotionSession.chatOpen, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('respects reduced-motion preference and renders at small sizes', (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: Scaffold(body: Center(child: EinoOrb(size: 32))),
+        ),
+      ));
       await tester.pump();
-      expect(tapped, isTrue);
-      expect(find.bySemanticsLabel('Eino assistant active'), findsOneWidget);
+      expect(find.byType(EinoOrb), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

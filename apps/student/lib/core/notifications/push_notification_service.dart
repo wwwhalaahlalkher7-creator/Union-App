@@ -3,117 +3,118 @@ import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../di/app_dependencies.dart';
 import '../app_version.dart';
-import '../constants/app_constants.dart';
-import '../network/api_client.dart';
-import '../storage/auth_storage.dart';
 
-/// Best-effort FCM registration lifecycle.
-///
-/// Firebase project values are supplied through --dart-define. When they are
-/// absent, push is disabled without affecting login or normal app startup.
+/// FCM bootstrap. Firebase config is supplied by Firebase Console.
+/// Missing config is handled safely so the app still runs during setup.
 class PushNotificationService {
   PushNotificationService._();
   static final PushNotificationService instance = PushNotificationService._();
-
-  static const _apiKey = String.fromEnvironment('TRINEX_FIREBASE_API_KEY');
-  static const _appId = String.fromEnvironment('TRINEX_FIREBASE_APP_ID');
-  static const _senderId = String.fromEnvironment('TRINEX_FIREBASE_SENDER_ID');
-  static const _projectId = String.fromEnvironment('TRINEX_FIREBASE_PROJECT_ID');
-  static const _storageBucket = String.fromEnvironment('TRINEX_FIREBASE_STORAGE_BUCKET');
-
-  StreamSubscription<String>? _tokenSubscription;
-  StreamSubscription<RemoteMessage>? _openedSubscription;
-  StreamSubscription<RemoteMessage>? _foregroundSubscription;
-  bool _initializing = false;
+  final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
-  String? _registeredToken;
-  AuthStorage? _storage;
-
-  bool get isConfigured => _apiKey.isNotEmpty && _appId.isNotEmpty &&
-      _senderId.isNotEmpty && _projectId.isNotEmpty;
+  StreamSubscription<RemoteMessage>? _foregroundSubscription;
+  StreamSubscription<RemoteMessage>? _openedSubscription;
+  StreamSubscription<String>? _tokenRefreshSubscription;
+  final StreamController<void> _notificationArrived =
+      StreamController<void>.broadcast();
+  Stream<void> get notificationArrived => _notificationArrived.stream;
+  static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
+    'association_notifications_v2', 'إشعارات الرابطة',
+    description: 'إشعارات الأخبار والتنبيهات الجامعية',
+    importance: Importance.max,
+  );
 
   Future<void> initializeForCurrentSession() async {
-    if (_initializing || !isConfigured) return;
-    _initializing = true;
-    try {
-      final storage = await AuthStorage.create();
-      if (!await storage.isLoggedIn) return;
-      _storage = storage;
-      if (Firebase.apps.isEmpty) {
-        await Firebase.initializeApp(options: FirebaseOptions(
-          apiKey: _apiKey,
-          appId: _appId,
-          messagingSenderId: _senderId,
-          projectId: _projectId,
-          storageBucket: _storageBucket.isEmpty ? null : _storageBucket,
-        ));
-      }
-      if (!_initialized) {
-        final messaging = FirebaseMessaging.instance;
-        await messaging.requestPermission(alert: true, badge: true, sound: true);
-        _tokenSubscription = messaging.onTokenRefresh.listen((token) {
-          unawaited(_registerToken(token));
-        }, onError: (_) {});
-        // FCM displays notification payloads automatically while backgrounded.
-        // Foreground messages are consumed here so the stream is subscribed;
-        // in-app notification history remains the canonical source in TRINEX.
-        _foregroundSubscription = FirebaseMessaging.onMessage.listen((_) {});
-        _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((_) {});
-        _initialized = true;
-      }
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token != null && token.isNotEmpty) await _registerToken(token);
-    } catch (_) {
-      // Notifications are optional; never make app startup/login fail because
-      // Firebase project setup or network permission is not ready yet.
-    } finally {
-      _initializing = false;
-    }
+    await initializeAtFirstLaunch();
+    await registerCurrentDevice();
   }
 
-  Future<void> _registerToken(String token) async {
-    final storage = _storage;
-    if (storage == null || token.isEmpty || !await storage.isLoggedIn) return;
-    final client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: storage);
+  Future<void> initializeAtFirstLaunch() async {
+    if (_initialized || kIsWeb || !Platform.isAndroid) return;
     try {
-      await client.postJson('/api/v1/student/notifications/device', body: {
-        'token': token,
-        'platform': Platform.isIOS ? 'ios' : (Platform.isAndroid ? 'android' : 'web'),
-        'appVersion': AppVersion.full,
-      });
-      _registeredToken = token;
-    } catch (_) {
-      // A later app start or token refresh will retry registration.
-    } finally {
-      client.dispose();
+      if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+      const init = InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      );
+      await _local.initialize(init);
+      await _local.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(_channel);
+      _initialized = true;
+      final messaging = FirebaseMessaging.instance;
+      // Ask only when the OS has not recorded a choice yet; do not nag after an explicit denial.
+      final permission = await messaging.getNotificationSettings();
+      if (permission.authorizationStatus == AuthorizationStatus.notDetermined) {
+        await messaging.requestPermission(alert: true, badge: true, sound: true);
+      }
+      _foregroundSubscription ??=
+          FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      _openedSubscription ??=
+          FirebaseMessaging.onMessageOpenedApp.listen(_handleOpenedMessage);
+      _tokenRefreshSubscription ??=
+          messaging.onTokenRefresh.listen((_) => registerCurrentDevice());
+      final initial = await messaging.getInitialMessage();
+      if (initial != null) _handleOpenedMessage(initial);
+      await registerCurrentDevice();
+    } catch (e) {
+      debugPrint('FCM is not configured yet: $e');
     }
   }
 
   Future<void> unregisterCurrentDevice() async {
-    final storage = _storage ?? await AuthStorage.create();
-    String? token = _registeredToken;
-    if (token == null && isConfigured && Firebase.apps.isNotEmpty) {
-      try { token = await FirebaseMessaging.instance.getToken(); } catch (_) {}
+    if (!_initialized) return;
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null || token.isEmpty) return;
+      await AppDependencies.instance.apiClient.deleteJson(
+        '/api/v1/student/notifications/device',
+        body: {'token': token},
+      );
+    } catch (e) {
+      // Local logout must continue even when the device is offline. The
+      // backend will also deactivate stale tokens during token refresh.
+      debugPrint('FCM device unregistration deferred: $e');
     }
-    if (token != null && token.isNotEmpty && await storage.isLoggedIn) {
-      final client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: storage);
-      try {
-        await client.deleteJson('/api/v1/student/notifications/device', body: {'token': token});
-      } catch (_) {} finally { client.dispose(); }
-    }
-    _registeredToken = null;
-    _storage = null;
   }
 
-  Future<void> dispose() async {
-    await _tokenSubscription?.cancel();
-    await _openedSubscription?.cancel();
-    await _foregroundSubscription?.cancel();
-    _tokenSubscription = null;
-    _openedSubscription = null;
-    _foregroundSubscription = null;
-    _initialized = false;
+  Future<void> registerCurrentDevice() async {
+    if (!_initialized) return;
+    try {
+      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+          settings.authorizationStatus != AuthorizationStatus.provisional) {
+        return;
+      }
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null || token.isEmpty) return;
+      await AppDependencies.instance.apiClient.postJson('/api/v1/student/notifications/device', body: {
+        'token': token, 'platform': 'android', 'appVersion': AppVersion.full,
+      });
+    } catch (e) {
+      // Login may not have completed; login screen calls this again after saving session.
+      debugPrint('FCM device registration deferred: $e');
+    }
+  }
+
+  Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    final notification = message.notification;
+    if (notification == null) return;
+    _notificationArrived.add(null);
+    await _local.show(
+      message.hashCode,
+      notification.title ?? 'إشعار جديد',
+      notification.body ?? '',
+      NotificationDetails(android: AndroidNotificationDetails(
+        _channel.id, _channel.name, channelDescription: _channel.description,
+        importance: Importance.max, priority: Priority.max, icon: '@mipmap/ic_launcher',
+      )),
+      payload: message.data['announcementId']?.toString(),
+    );
+  }
+
+  void _handleOpenedMessage(RemoteMessage message) {
+    // Opening a push deliberately does not navigate or mutate the announcement.
   }
 }

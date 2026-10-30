@@ -17,10 +17,10 @@ class AppSection extends StatelessWidget {
       children: [
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: text.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            Text(title, style: text.titleLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -.2)),
             if (subtitle != null) ...[
               const SizedBox(height: DesignTokens.space4),
-              Text(subtitle!, style: text.bodySmall),
+              Text(subtitle!, style: text.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.35)),
             ],
           ])),
           ?action,

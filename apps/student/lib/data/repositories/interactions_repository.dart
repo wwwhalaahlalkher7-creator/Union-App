@@ -1,12 +1,19 @@
 import '../../core/network/api_client.dart';
+import 'repository_parser.dart';
 import '../models/comment_item.dart';
+
+class CommentPage {
+  const CommentPage({required this.items, required this.total});
+  final List<CommentItem> items;
+  final int total;
+}
 
 class InteractionsRepository {
   InteractionsRepository(this._client);
 
   final ApiClient _client;
 
-  Future<List<CommentItem>> comments(
+  Future<CommentPage> commentsPage(
     String type,
     String id, {
     int offset = 0,
@@ -15,25 +22,26 @@ class InteractionsRepository {
       '/api/v1/content/$type/$id/comments',
       query: {'limit': '20', 'offset': '$offset'},
     );
-    final rows = json['data'];
-    if (rows is! List) return const [];
-    return rows
-        .whereType<Map>()
-        .map((row) => CommentItem.fromJson(Map<String, dynamic>.from(row)))
-        .toList();
+    final items = RepositoryParser.maps(json)
+        .map(CommentItem.fromJson)
+        .toList(growable: false);
+    return CommentPage(items: items, total: RepositoryParser.integer(json['meta'] is Map ? (json['meta'] as Map)['total'] : json['total'], fallback: items.length));
   }
+
+  Future<List<CommentItem>> comments(
+    String type,
+    String id, {
+    int offset = 0,
+  }) async => (await commentsPage(type, id, offset: offset)).items;
 
   Future<List<CommentItem>> replies(String id, {int offset = 0}) async {
     final json = await _client.getJson(
       '/api/v1/comments/$id/replies',
-      query: {'limit': '20', 'offset': '$offset'},
+      query: {'limit': '50', 'offset': '$offset'},
     );
-    final rows = json['data'];
-    if (rows is! List) return const [];
-    return rows
-        .whereType<Map>()
-        .map((row) => CommentItem.fromJson(Map<String, dynamic>.from(row)))
-        .toList();
+    return RepositoryParser.maps(json)
+        .map(CommentItem.fromJson)
+        .toList(growable: false);
   }
 
   Future<void> addComment(String type, String id, String body) async {
@@ -50,11 +58,19 @@ class InteractionsRepository {
     );
   }
 
+  Future<void> unreactComment(String commentId) async {
+    await _client.deleteJson('/api/v1/comments/$commentId/reactions');
+  }
+
   Future<void> reactComment(String commentId, String reaction) async {
     await _client.postJson(
       '/api/v1/comments/$commentId/reactions',
       body: {'reaction': reaction},
     );
+  }
+
+  Future<void> unreact(String type, String id) async {
+    await _client.deleteJson('/api/v1/content/$type/$id/reactions');
   }
 
   Future<void> react(String type, String id, String reaction) async {
@@ -67,4 +83,9 @@ class InteractionsRepository {
   Future<void> deleteComment(String id) async {
     await _client.deleteJson('/api/v1/comments/$id');
   }
+
+  Future<void> deleteReply(String id) async {
+    await _client.deleteJson('/api/v1/replies/$id');
+  }
 }
+

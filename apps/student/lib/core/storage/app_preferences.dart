@@ -6,7 +6,8 @@ class AppPreferences {
   static const _localeKey = 'locale';
   static const _onboardingKey = 'onboarding_completed';
   static const _accentKey = 'accent_color_id';
-  static const _studyTutorialPendingKey = 'study_tutorial_pending';
+  static const _tutorialCompletedPrefix = 'learning_mode_completed_';
+  static const _tutorialPendingPrefix = 'learning_mode_pending_';
 
   late SharedPreferences _prefs;
 
@@ -65,10 +66,39 @@ class AppPreferences {
     await _prefs.setBool(_onboardingKey, value);
   }
 
-  bool get studyTutorialPending =>
-      _prefs.getBool(_studyTutorialPendingKey) ?? false;
+  /// Tracks the interactive learning walkthrough separately for each student.
+  bool learningModeCompletedFor(String studentNumber) {
+    final id = studentNumber.trim();
+    if (id.isEmpty) return false;
+    return _prefs.getBool('$_tutorialCompletedPrefix$id') ?? false;
+  }
 
-  Future<void> setStudyTutorialPending(bool value) async {
-    await _prefs.setBool(_studyTutorialPendingKey, value);
+
+  /// Marks a newly registered account as waiting for its in-app guided tour.
+  /// This is separate from completion so returning users and guests are skipped.
+  Future<void> setLearningModePendingFor(String studentNumber, bool value) async {
+    final id = studentNumber.trim();
+    if (id.isEmpty) return;
+    final key = '$_tutorialPendingPrefix$id';
+    if (value) {
+      await _prefs.setBool(key, true);
+    } else {
+      await _prefs.remove(key);
+    }
+  }
+
+  bool learningModePendingFor(String studentNumber) {
+    final id = studentNumber.trim();
+    if (id.isEmpty) return false;
+    return _prefs.getBool('$_tutorialPendingPrefix$id') ?? false;
+  }
+
+  Future<void> setLearningModeCompletedFor(
+    String studentNumber,
+    bool value,
+  ) async {
+    final id = studentNumber.trim();
+    if (id.isEmpty) return;
+    await _prefs.setBool('$_tutorialCompletedPrefix$id', value);
   }
 }

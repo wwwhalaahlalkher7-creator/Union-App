@@ -204,7 +204,10 @@ export async function registerStudent(ctx) {
   }
 
   await recordAuthEvent(ctx, 'student', student.id, 'register_success');
-  return issueSession(ctx, { studentId: student.id });
+  // Registration is the only place that marks a real, first-time registration
+  // transition. The student app uses these explicit flags to show its guided
+  // tour once, without replaying it on ordinary logins or refreshes.
+  return issueSession(ctx, { studentId: student.id, registrationTransition: true });
 }
 
 
@@ -601,7 +604,7 @@ export async function issueSession(ctx, identity) {
     LEFT JOIN semesters se ON se.id = st.current_semester_id
     WHERE st.id = ?
   `, identity.studentId) || {};
-  return ok(ctx, { token: accessToken, refreshToken, expiresInSeconds: AUTH_ACCESS_TTL, refreshExpiresInSeconds: AUTH_REFRESH_TTL, ...profile });
+  return ok(ctx, { token: accessToken, refreshToken, expiresInSeconds: AUTH_ACCESS_TTL, refreshExpiresInSeconds: AUTH_REFRESH_TTL, ...profile, ...(identity.registrationTransition === true ? { registered: true, registrationTransition: true } : {}) });
 }
 
 export async function authMe(ctx) {

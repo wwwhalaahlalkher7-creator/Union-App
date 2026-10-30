@@ -4,9 +4,9 @@
 
 ## الإصدارات المعتمدة
 
-- **تطبيق الطلاب:** `2.0.3+2`، الإصدار العام `v2.0.3`. المصدر المعتمد: `apps/student/VERSION`.
+- **تطبيق الطلاب:** `2.0.4+3`، الإصدار العام `v2.0.4`. المصدر المعتمد: `apps/student/VERSION`.
 - **تطبيق الإدارة:** `1.1.0+1`، الإصدار العام `v1.1.0`. المصدر الحالي: `apps/admin/pubspec.yaml`.
-- **Backend API:** `v1`؛ لم يتغير عقد API بسبب نقل المستودع.
+- **Backend API:** `v1`؛ أضيفت مسارات طلاب متوافقة للخلف وmigrations تكميلية لدعم ميزات Union-App دون استبدال مخطط Monorepo أو إعادة ترقيم migrations السابقة.
 
 ## بنية المستودع
 
@@ -114,4 +114,5 @@ python3 ci/web_security_check.py
 - `docs/DEVELOPMENT.md` — التطوير المحلي.
 - `docs/DEPLOYMENT.md` — النشر.
 - `docs/RELEASE.md` — إصدار تطبيق الطلاب.
+- `docs/UNION_APP_MERGE_2.0.4.md` — سجل دمج Union-App والتحقق من الإصدار 2.0.4.
 - `apps/admin/docs/ARCHITECTURE.md` — معمارية تطبيق الإدارة.

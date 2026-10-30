@@ -1,18 +1,18 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
+import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../core/storage/app_preferences.dart';
-import '../../core/storage/auth_storage.dart';
-import '../../core/notifications/push_notification_service.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../features/eino/eino_face.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/utils/academic_labels.dart';
+import '../../core/notifications/push_notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -54,12 +54,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorMessage = null;
     });
 
-    ApiClient? client;
     try {
-      final storage = await AuthStorage.create();
-      client = ApiClient(baseUrl: AppConstants.apiBaseUrl, authStorage: storage);
-
-      final response = await client.postJson(
+      final storage = AppDependencies.instance.authStorage;
+      final response = await AppDependencies.instance.apiClient.postJson(
         '/api/v1/auth/login',
         body: {
           'identifier': identifier,
@@ -74,25 +71,21 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       await storage.saveSession(Map<String, dynamic>.from(data));
-      // Push setup is best-effort and must never block a successful login.
       unawaited(PushNotificationService.instance.initializeForCurrentSession());
 
       final prefs = AppPreferences();
       await prefs.init();
       await prefs.setOnboardingCompleted(true);
-      // Signing in is not a new-registration transition; discard any stale flag.
-      await prefs.setStudyTutorialPending(false);
 
       if (!mounted) return;
       HapticFeedback.mediumImpact();
-      context.go('/media');
+      context.go('/home');
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = e is ApiException ? e.message : l10n.t('loginFailed');
+        _errorMessage = ErrorMessage.from(context, e, fallbackKey: 'loginFailed');
       });
     } finally {
-      client?.dispose();
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -114,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/media');
+              context.go('/home');
             }
           },
         ),
@@ -122,7 +115,8 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 22.08, vertical: 18.4),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.symmetric(horizontal: DesignTokens.space16, vertical: DesignTokens.space20),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
@@ -207,7 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             hintText: l10n.t('academicIdHint'),
                             helperText: l10n.t('academicIdFormatHelp'),
                             prefixIcon: const Icon(Icons.badge_outlined),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.6)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(DesignTokens.radius12)),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -230,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onPressed: () =>
                                   setState(() => _obscurePassword = !_obscurePassword),
                             ),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.6)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(DesignTokens.radius12)),
                           ),
                         ),
                         Align(
@@ -245,12 +239,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         // Submit Button
                         SizedBox(
-                          height: 50,
+                          height: DesignTokens.controlHeight,
                           child: FilledButton(
                             onPressed: _isLoading ? null : _performLogin,
                             style: FilledButton.styleFrom(
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12.6)),
+                                  borderRadius: BorderRadius.circular(DesignTokens.radius12)),
                             ),
                             child: _isLoading
                                 ? const SizedBox(
@@ -264,7 +258,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : Text(
                                     l10n.t('signIn'),
                                     style: const TextStyle(
-                                        fontSize: 14.7, fontWeight: FontWeight.bold),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                           ),
                         ),
@@ -299,7 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: TextButton(
                       onPressed: () {
                         HapticFeedback.selectionClick();
-                        context.go('/media');
+                        context.go('/home');
                       },
                       child: Text(
                         l10n.t('continueAsGuest'),

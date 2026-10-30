@@ -1,5 +1,4 @@
 import '../app_version.dart';
-import '../constants/app_constants.dart';
 import '../network/api_client.dart';
 import 'update_info.dart';
 
@@ -10,12 +9,13 @@ import 'update_info.dart';
 /// update source. The server-side manifest can later point to the official
 /// TRINEX download page without requiring another app release.
 class UpdateService {
-  const UpdateService();
+  const UpdateService(this._client);
+
+  final ApiClient _client;
 
   Future<UpdateInfo?> check() async {
-    final client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
     try {
-      final response = await client.getJson(
+      final response = await _client.getJson(
         '/api/v1/app/update',
         query: {
           'version': AppVersion.name,
@@ -39,8 +39,6 @@ class UpdateService {
       );
     } catch (_) {
       return null;
-    } finally {
-      client.dispose();
     }
   }
 

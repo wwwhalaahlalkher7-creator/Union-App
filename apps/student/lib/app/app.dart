@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/app_version.dart';
+import '../core/analytics/usage_analytics.dart';
+import '../core/di/app_dependencies.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/design_tokens.dart';
@@ -40,15 +42,17 @@ class _TrinexAppState extends State<TrinexApp> {
   ThemeMode _themeMode = ThemeMode.system;
   Locale? _locale;
   String _accentColorId = 'amber';
-  late final Future<void> _preferencesFuture =
-      widget.startupFutureOverride ?? _loadPreferences();
+  late Future<void> _preferencesFuture;
   late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
+    _preferencesFuture = _bootstrap();
     _router = buildRouter(
       startupFuture: _preferencesFuture,
+      onRetryStartup: _retryBootstrap,
+      onboardingCompleted: () => _preferences.onboardingCompleted,
       onThemeModeChanged: setThemeMode,
       onLocaleChanged: setLocale,
       onAccentColorChanged: setAccentColor,
@@ -57,11 +61,90 @@ class _TrinexAppState extends State<TrinexApp> {
       locale: () => _locale,
       initialLocation: widget.initialLocationOverride ?? '/splash',
     );
-    // Warm public cache without making startup dependent on the network.
-    unawaited(const StartupPreloader().warmPublicCache());
-    // Re-register a device after app restarts when a student session exists.
-    unawaited(PushNotificationService.instance.initializeForCurrentSession());
+    _router.routeInformationProvider.addListener(_trackCurrentRoute);
+
     if (widget.enableStartupUpdateCheck) _checkForUpdate();
+  }
+
+  void _trackCurrentRoute() {
+    final path = _router.routeInformationProvider.value.uri.path;
+    unawaited(_preferencesFuture.then((_) async {
+      await UsageAnalytics.trackRoute(path);
+    }).catchError((_) {}));
+  }
+
+  Future<void> _retryBootstrap() async {
+    // A failed initialization may have assigned some late fields before the
+    // failure. Dispose/reset the container so retry starts from a clean state.
+    AppDependencies.instance.dispose();
+    final retry = _bootstrap();
+    _preferencesFuture = retry;
+    await retry;
+  }
+
+  Future<void> _bootstrap() async {
+    // Run startup stages separately so a device-only failure can be traced to
+    // the exact plugin/service instead of being hidden by Future.wait.
+    await _runStartupStage('preferences', _loadPreferences);
+
+    // Tests may inject an additional startup gate; preferences must still be
+    // initialized because the splash uses the configured onboarding state.
+    await _runStartupStage(
+      'startup override',
+      () => widget.startupFutureOverride ?? Future<void>.value(),
+    );
+
+    await _runStartupStage(
+      'dependency container / secure storage',
+      AppDependencies.instance.initialize,
+    );
+
+    unawaited(
+      StartupPreloader(AppDependencies.instance.apiClient)
+          .warmPublicCache()
+          .catchError((Object error, StackTrace stackTrace) {
+        debugPrint('TRINEX non-blocking public cache warmup failed: $error\n$stackTrace');
+      }),
+    );
+    // FCM permission is requested at first launch; absent Firebase config never blocks app startup.
+    unawaited(
+      PushNotificationService.instance.initializeForCurrentSession().catchError(
+        (Object error, StackTrace stackTrace) {
+          debugPrint('TRINEX non-blocking notification initialization failed: $error\n$stackTrace');
+        },
+      ),
+    );
+  }
+
+  Future<void> _runStartupStage(
+    String stage,
+    Future<void> Function() operation,
+  ) async {
+    final stopwatch = Stopwatch()..start();
+    debugPrint('TRINEX startup stage started: $stage');
+    try {
+      // Never leave the splash screen waiting forever if a native plugin call
+      // fails to answer. A timeout exposes a recoverable error and preserves
+      // the stage name in logcat for diagnosis.
+      await operation().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException(
+          'Startup stage "$stage" did not finish within 15 seconds.',
+        ),
+      );
+      debugPrint(
+        'TRINEX startup stage completed: $stage '
+        '(${stopwatch.elapsedMilliseconds} ms)',
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        'TRINEX startup stage FAILED: $stage '
+        '(${stopwatch.elapsedMilliseconds} ms)\n$error\n$stackTrace',
+      );
+      rethrow;
+    } finally {
+      stopwatch.stop();
+    }
   }
 
   Future<void> _loadPreferences() async {
@@ -76,10 +159,16 @@ class _TrinexAppState extends State<TrinexApp> {
 
 
   Future<void> _checkForUpdate() async {
-    await _preferencesFuture;
-    final info = await const UpdateService().check();
+    try {
+      await _preferencesFuture;
+    } catch (_) {
+      // Startup recovery UI handles the initialization failure. Do not create
+      // an unhandled asynchronous error from the optional update check.
+      return;
+    }
+    final service = UpdateService(AppDependencies.instance.apiClient);
+    final info = await service.check();
     if (!mounted || info == null) return;
-    const service = UpdateService();
     if (!service.isForceRequired(info) && !service.isOptional(info)) return;
     await Future<void>.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
@@ -148,6 +237,14 @@ class _TrinexAppState extends State<TrinexApp> {
   }
 
   @override
+  void dispose() {
+    _router.routeInformationProvider.removeListener(_trackCurrentRoute);
+    AppDependencies.instance.dispose();
+    _router.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final accent = AppAccentColor.fromId(_accentColorId);
     return MaterialApp.router(
@@ -160,7 +257,10 @@ class _TrinexAppState extends State<TrinexApp> {
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       routerConfig: _router,
-      builder: (context, child) => OfflineBanner(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+        child: OfflineBanner(child: child ?? const SizedBox.shrink()),
+      ),
     );
   }
 }

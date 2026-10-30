@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
-import '../../core/storage/auth_storage.dart';
+import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/student_profile.dart';
-import '../../data/repositories/student_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/login_required_card.dart';
 
@@ -19,7 +18,6 @@ class StudentScreen extends StatefulWidget {
 }
 
 class _StudentScreenState extends State<StudentScreen> {
-  ApiClient? _client;
   late Future<_StudentData?> _future;
 
   @override
@@ -29,11 +27,9 @@ class _StudentScreenState extends State<StudentScreen> {
   }
 
   Future<_StudentData?> _load() async {
-    final storage = await AuthStorage.create();
-    if (!await storage.isLoggedIn) return null;
-    _client ??= await AuthenticatedClient.create();
+    if (!await AppDependencies.instance.authStorage.isLoggedIn) return null;
 
-    final repository = StudentRepository(_client!);
+    final repository = AppDependencies.instance.student;
     final profile = await repository.profile();
     final stats = await repository.stats();
 
@@ -48,14 +44,11 @@ class _StudentScreenState extends State<StudentScreen> {
     await _future;
   }
 
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
-  }
+
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return RefreshIndicator(
       onRefresh: _reload,
       child: FutureBuilder<_StudentData?>(
@@ -68,7 +61,7 @@ class _StudentScreenState extends State<StudentScreen> {
           }
 
           if (snapshot.hasError) {
-            final e = snapshot.error;
+            final Object e = snapshot.error ?? Exception('Unknown error');
             if (e is ApiException && (e.kind == ApiErrorKind.auth || e.code == 'AUTH_REQUIRED')) {
               return const LoginRequiredCard();
             }
@@ -78,7 +71,7 @@ class _StudentScreenState extends State<StudentScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(e is ApiException ? e.message : AppLocalizations.of(context).t('connectionFailed'), textAlign: TextAlign.center),
+                    Text(ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'), textAlign: TextAlign.center),
                     if (e is! ApiException || e.retryable) ...[
                       const SizedBox(height: 12),
                       FilledButton.icon(onPressed: _reload, icon: const Icon(Icons.refresh_rounded), label: Text(AppLocalizations.of(context).t('retry'))),
@@ -108,6 +101,7 @@ class _StudentScreenState extends State<StudentScreen> {
             ),
             children: [
               AppCard(
+                onTap: () => context.push('/student/profile/${Uri.encodeComponent(profile.id)}?name=${Uri.encodeComponent(profile.name)}&department=${Uri.encodeComponent(profile.departmentName ?? '')}&semester=${Uri.encodeComponent(profile.semesterName ?? '')}'),
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
@@ -150,7 +144,7 @@ class _StudentScreenState extends State<StudentScreen> {
                     _Pill(profile.number),
                     const SizedBox(height: 12),
                     Text(
-                      profile.semesterName ?? 'الفصل غير محدد',
+                      profile.semesterName ?? l10n.t('semesterNotSet'),
                       style: TextStyle(
                         color: context.colors.onSurfaceVariant,
                         fontSize: 10.5,
@@ -165,7 +159,7 @@ class _StudentScreenState extends State<StudentScreen> {
                   children: [
                     Expanded(
                       child: _Stat(
-                        'المستوى',
+                        l10n.t('levelShort'),
                         '${stats['level'] ?? 1}',
                       ),
                     ),
@@ -174,12 +168,13 @@ class _StudentScreenState extends State<StudentScreen> {
                       child: _Stat(
                         'XP',
                         '${stats['xp_total'] ?? 0}',
+                        onTap: () => context.push('/xp'),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: _Stat(
-                        'الفصل',
+                        l10n.t('semesterShort'),
                         profile.semesterName ?? '—',
                       ),
                     ),
@@ -191,7 +186,7 @@ class _StudentScreenState extends State<StudentScreen> {
                 children: [
                   Expanded(
                     child: _Action(
-                      'المواد',
+                      l10n.t('materials'),
                       Icons.menu_book_rounded,
                       () => context.go('/materials'),
                     ),
@@ -199,17 +194,17 @@ class _StudentScreenState extends State<StudentScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _Action(
-                      'الجدول',
+                      l10n.t('schedule'),
                       Icons.calendar_month_rounded,
-                      () => context.go('/schedule'),
+                      () => context.push('/schedule'),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: _Action(
-                      'الشارات',
-                      Icons.workspace_premium_rounded,
-                      () => context.go('/badges'),
+                      l10n.t('editProfile'),
+                      Icons.edit_rounded,
+                      () => context.push('/edit-profile'),
                     ),
                   ),
                 ],
@@ -218,7 +213,7 @@ class _StudentScreenState extends State<StudentScreen> {
               Padding(
                 padding: const EdgeInsetsDirectional.only(start: 3, bottom: 8),
                 child: Text(
-                  AppLocalizations.of(context).t('personalStudyCenter'),
+                  l10n.t('personalStudyCenter'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
@@ -230,22 +225,22 @@ class _StudentScreenState extends State<StudentScreen> {
                   children: [
                     _StudyCenterItem(
                       icon: Icons.insights_rounded,
-                      title: AppLocalizations.of(context).t('studyProgressTitle'),
-                      subtitle: AppLocalizations.of(context).t('studyProgressSubtitle'),
+                      title: l10n.t('studyProgressTitle'),
+                      subtitle: l10n.t('studyProgressSubtitle'),
                       onTap: () => context.go('/progress'),
                     ),
                     Divider(height: 1, color: context.colors.outlineVariant),
                     _StudyCenterItem(
                       icon: Icons.calculate_outlined,
-                      title: AppLocalizations.of(context).t('toolsTitle'),
-                      subtitle: AppLocalizations.of(context).t('studyToolsSubtitle'),
+                      title: l10n.t('toolsTitle'),
+                      subtitle: l10n.t('studyToolsSubtitle'),
                       onTap: () => context.go('/tools'),
                     ),
                     Divider(height: 1, color: context.colors.outlineVariant),
                     _StudyCenterItem(
                       icon: Icons.notifications_none_rounded,
-                      title: AppLocalizations.of(context).t('notifications'),
-                      subtitle: AppLocalizations.of(context).t('studyNotificationsSubtitle'),
+                      title: l10n.t('notifications'),
+                      subtitle: l10n.t('studyNotificationsSubtitle'),
                       onTap: () => context.go('/notifications'),
                     ),
                   ],
@@ -257,6 +252,16 @@ class _StudentScreenState extends State<StudentScreen> {
       ),
     );
   }
+}
+
+class _StudentData {
+  const _StudentData(
+    this.profile,
+    this.stats,
+  );
+
+  final StudentProfile profile;
+  final Map<String, dynamic> stats;
 }
 
 class _StudyCenterItem extends StatelessWidget {
@@ -280,27 +285,17 @@ class _StudyCenterItem extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: context.colors.surfaceContainerHigh,
+          color: context.colors.primaryContainer,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: context.colors.primary, size: 21),
+        child: Icon(icon, color: context.colors.onPrimaryContainer),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-      subtitle: Text(subtitle, style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 10.5)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Text(subtitle),
       trailing: const Icon(Icons.chevron_right_rounded),
       onTap: onTap,
     );
   }
-}
-
-class _StudentData {
-  const _StudentData(
-    this.profile,
-    this.stats,
-  );
-
-  final StudentProfile profile;
-  final Map<String, dynamic> stats;
 }
 
 class _Pill extends StatelessWidget {
@@ -337,15 +332,17 @@ class _Pill extends StatelessWidget {
 class _Stat extends StatelessWidget {
   const _Stat(
     this.label,
-    this.value,
-  );
+    this.value, {
+    this.onTap,
+  });
 
   final String label;
   final String value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final content = Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
         color: context.colors.surfaceContainerHigh,
@@ -373,6 +370,12 @@ class _Stat extends StatelessWidget {
           ),
         ],
       ),
+    );
+    if (onTap == null) return content;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: content),
     );
   }
 }

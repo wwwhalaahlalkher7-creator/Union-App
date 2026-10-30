@@ -54,16 +54,17 @@ export async function submitStudentFeedback(ctx) {
   const a = await studentAuth(ctx);
   if (a.response) return a.response;
   const body = await parseJson(ctx.request) || {};
-  const category = String(body.category || '').trim().toLowerCase();
+  const sourceCategory = String(body.category || '').trim().toLowerCase();
+  const category = sourceCategory === 'suggestion' ? 'suggestion' : 'report';
   const title = String(body.title || '').trim().slice(0, 160);
   const details = String(body.details || '').trim().slice(0, 5000);
   const screen = String(body.screen || '').trim().slice(0, 120) || null;
-  if (!['suggestion', 'report'].includes(category)) return error('FEEDBACK_CATEGORY_INVALID', 'نوع البلاغ غير صالح.', 400, ctx.requestId, ctx.cors);
+  if (!['suggestion', 'bug', 'content', 'other', 'report'].includes(sourceCategory)) return error('FEEDBACK_CATEGORY_INVALID', 'نوع البلاغ غير صالح.', 400, ctx.requestId, ctx.cors);
   if (!details) return error('FEEDBACK_DETAILS_REQUIRED', 'اكتب تفاصيل المقترح أو البلاغ.', 400, ctx.requestId, ctx.cors);
   const id = makeId('feedback');
   await ctx.env.DB.prepare(`INSERT INTO feedback_reports
-    (id, student_id, category, title, details, screen, status)
-    VALUES (?, ?, ?, ?, ?, ?, 'open')`).bind(id, a.session.student_id, category, title || null, details, screen).run();
+    (id, student_id, category, title, details, screen, status, source_category)
+    VALUES (?, ?, ?, ?, ?, ?, 'open', ?)`).bind(id, a.session.student_id, category, title || null, details, screen, sourceCategory).run();
   return ok(ctx, { id, status: 'open' }, null, 201);
 }
 
@@ -110,7 +111,7 @@ export async function adminModerationInbox(ctx) {
   if (a.response) return a.response;
   const limit = clampInt(ctx.url.searchParams.get('limit'), 200, 1, 500);
   const [feedback, chats] = await Promise.all([
-    queryAll(ctx.env, `SELECT f.id, 'feedback' AS source, f.category, f.title, f.details, f.screen,
+    queryAll(ctx.env, `SELECT f.id, 'feedback' AS source, COALESCE(f.source_category, f.category) AS category, f.title, f.details, f.screen,
       f.status, f.admin_notes AS adminNotes, f.created_at AS createdAt, f.updated_at AS updatedAt,
       s.full_name AS studentName, s.student_number AS studentNumber
       FROM feedback_reports f JOIN students s ON s.id=f.student_id
@@ -148,10 +149,15 @@ export async function adminModerationChatReportUpdate(ctx, id) {
   const messageStatus = body.messageStatus == null ? null : String(body.messageStatus).trim();
   if (!['open', 'reviewed', 'dismissed', 'archived'].includes(status)) return error('CHAT_REPORT_STATUS_INVALID', 'حالة بلاغ الدردشة غير صالحة.', 400, ctx.requestId, ctx.cors);
   if (messageStatus != null && !['visible', 'hidden'].includes(messageStatus)) return error('CHAT_MESSAGE_STATUS_INVALID', 'حالة الرسالة غير صالحة.', 400, ctx.requestId, ctx.cors);
+  const report = await queryOne(ctx.env, 'SELECT reported_message_id FROM chat_reports WHERE id=? LIMIT 1', id);
   const result = await ctx.env.DB.prepare(`UPDATE chat_reports SET status=?, message_status=COALESCE(?,message_status),
     admin_notes=COALESCE(?,admin_notes), updated_at=CURRENT_TIMESTAMP WHERE id=?`)
     .bind(status, messageStatus, body.adminNotes == null ? null : String(body.adminNotes).trim().slice(0, 3000), id).run();
   if (!result.meta?.changes) return error('CHAT_REPORT_NOT_FOUND', 'بلاغ الدردشة غير موجود.', 404, ctx.requestId, ctx.cors);
+  if (report?.reported_message_id && messageStatus) {
+    await ctx.env.DB.prepare(`UPDATE public_chat_messages SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+      .bind(messageStatus === 'hidden' ? 'hidden' : 'visible', report.reported_message_id).run();
+  }
   await writeAudit(ctx, a.session.staff_user_id, 'status_update', 'chat_report', id, { status, messageStatus });
   return ok(ctx, { id, status, messageStatus });
 }

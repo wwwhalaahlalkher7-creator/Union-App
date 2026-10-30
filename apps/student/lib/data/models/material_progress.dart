@@ -20,7 +20,9 @@ class MaterialProgress {
   factory MaterialProgress.fromJson(Map<String, dynamic> json) => MaterialProgress(
     materialId: (json['material_id'] ?? json['materialId'] ?? '').toString(),
     percent: int.tryParse((json['progress_percent'] ?? json['progressPercent'] ?? 0).toString()) ?? 0,
-    completed: json['completed_at'] != null || json['completed'] == true || json['completed'] == 1,
+    completed: json.containsKey('completed')
+        ? (json['completed'] == true || json['completed'] == 1 || json['completed']?.toString() == '1')
+        : (json['completed_at'] != null),
     activeSeconds: int.tryParse((json['active_seconds'] ?? json['activeSeconds'] ?? 0).toString()) ?? 0,
     materialTitle: (json['material_title'] ?? json['materialTitle'])?.toString(),
     subjectName: (json['subject_name'] ?? json['subjectName'])?.toString(),

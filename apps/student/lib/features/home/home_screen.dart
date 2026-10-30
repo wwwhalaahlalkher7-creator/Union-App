@@ -1,17 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../eino/eino_orb.dart';
-import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/errors/error_message.dart';
+import '../../core/errors/app_error.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/content_item.dart';
 import '../../data/models/student_profile.dart';
-import '../../data/repositories/content_repository.dart';
-import '../../data/repositories/student_repository.dart';
+import '../../data/models/schedule_item.dart';
+import '../../data/repositories/schedule_repository.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/list_skeleton.dart';
 import '../../features/eino/eino_face.dart';
+import '../onboarding/guided_tour_overlay.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,40 +25,42 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  ApiClient? _client;
+  static const _homeNewsLimit = 3;
   Future<_HomeData>? _future;
+  Timer? _clockTimer;
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<_HomeData> _load() async {
-    final newsFuture = ContentRepository().news();
+    final newsFuture = AppDependencies.instance.content.news();
 
-    _client ??= await AuthenticatedClient.create();
-
-    final studentRepo = StudentRepository(_client!);
+    final studentRepo = AppDependencies.instance.student;
     final profileFuture = studentRepo.profile();
-    final statsFuture = studentRepo.stats();
+    final scheduleFuture = AppDependencies.instance.schedule.getSchedule();
 
     final values = await Future.wait<dynamic>([
       newsFuture,
       profileFuture,
-      statsFuture,
+      scheduleFuture,
     ]);
 
     return _HomeData(
       values[0] as List<ContentItem>,
       values[1] as StudentProfile,
-      values[2] as Map<String, dynamic>,
+      values[2] as ScheduleData,
     );
   }
 
   @override
   void dispose() {
-    _client?.dispose();
+    _clockTimer?.cancel();
     super.dispose();
   }
 
@@ -72,28 +78,18 @@ class _HomeScreenState extends State<HomeScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const ListSkeleton(count: 4);
           }
 
           if (snapshot.hasError) {
-            final e = snapshot.error;
+            final Object e = snapshot.error ?? Exception('Unknown error');
             return _StateMessage(
-              message: e is ApiException ? e.message : l10n.t('connectionFailed'),
+              message: ErrorMessage.from(context, e, fallbackKey: 'connectionFailed'),
               retry: e is ApiException && !e.retryable ? null : () => setState(() => _future = _load()),
             );
           }
 
           final data = snapshot.data!;
-          final xp = int.tryParse(
-                '${data.stats['xp_total'] ?? 0}',
-              ) ??
-              0;
-          final level = int.tryParse(
-                '${data.stats['level'] ?? 1}',
-              ) ??
-              1;
 
           return ListView(
             padding: const EdgeInsetsDirectional.fromSTEB(
@@ -105,14 +101,17 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               AppCard(
                 padding: const EdgeInsets.all(DesignTokens.space20),
+                borderColor: context.colors.primary.withValues(alpha: .28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
                       l10n.t('hello', {'name': data.profile.name.split(' ').first}),
-                      style: const TextStyle(
-                        fontSize: 23,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
+                        letterSpacing: -.5,
                       ),
                     ),
                     const SizedBox(height: 7),
@@ -125,28 +124,59 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: _QuickStat(
-                            l10n.t('levelShort'),
-                            '$level',
-                            context.colors.primary,
+                          flex: 2,
+                          child: Align(
+                            alignment: Alignment.bottomCenter,
+                            child: KeyedSubtree(
+                              key: guidedTourScheduleKey,
+                              child: _HomeScheduleCard(
+                              schedule: data.schedule,
+                              onTap: () => context.push('/schedule'),
+                              extraTopHeight: 20,
+                            ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Expanded(
-                          child: _QuickStat(
-                            'XP',
-                            '$xp',
-                            context.colors.secondary,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _QuickStat(
-                            l10n.t('semesterShort'),
-                            data.profile.semesterName ?? '—',
-                            context.colors.tertiary,
+                        SizedBox(
+                          width: 92,
+                          child: Container(
+                            constraints: const BoxConstraints(minHeight: 92),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: context.colors.surface,
+                              borderRadius: BorderRadius.circular(DesignTokens.radius16),
+                              border: Border.all(color: context.colors.outline),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.school_rounded, color: context.colors.tertiary, size: 22),
+                                const SizedBox(height: 6),
+                                Text(
+                                  data.profile.semesterName ?? '—',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: context.colors.tertiary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  l10n.t('semesterShort'),
+                                  style: TextStyle(
+                                    color: context.colors.onSurfaceVariant,
+                                    fontSize: 9.5,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -158,8 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 l10n.t('quickAccess'),
                 textAlign: TextAlign.end,
-                style: const TextStyle(
-                  fontSize: 19,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -177,38 +206,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _Tile(
-                      l10n.t('schedule'),
-                      Icons.calendar_month_rounded,
+                      l10n.t('media'),
+                      Icons.newspaper_rounded,
                       context.colors.primary,
-                      () => context.go('/schedule'),
+                      () => context.go('/media'),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: _Tile(
-                      l10n.t('xpLevel'),
-                      Icons.workspace_premium_rounded,
-                      context.colors.tertiary,
-                      () => context.go('/xp'),
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: DesignTokens.space16),
               _EinoHomeCard(
-                onTap: () {
-                  EinoMotionSession.markChatOpened();
-                  context.push('/eino?from=home');
-                },
+                onTap: () => context.push('/eino?from=home'),
               ),
               const SizedBox(height: DesignTokens.space16),
-              _ProgressJourneyCard(
-                level: level,
-                xp: xp,
-                onXpTap: () => context.go('/xp'),
-                onBadgesTap: () => context.go('/badges'),
-              ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -236,14 +248,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 )
               else
-                for (final item in data.news.take(3))
+                for (final item in data.news.take(_HomeScreenState._homeNewsLimit))
                   Padding(
                     padding: const EdgeInsets.only(bottom: 9),
                     child: _NewsTile(
                       item: item,
                       onTap: () => context.push(
-                        '/news/detail',
-                        extra: item,
+                        '/media/detail?type=news&id=${Uri.encodeQueryComponent(item.id)}',
                       ),
                     ),
                   ),
@@ -259,61 +270,12 @@ class _HomeData {
   const _HomeData(
     this.news,
     this.profile,
-    this.stats,
+    this.schedule,
   );
 
   final List<ContentItem> news;
   final StudentProfile profile;
-  final Map<String, dynamic> stats;
-}
-
-class _QuickStat extends StatelessWidget {
-  const _QuickStat(
-    this.label,
-    this.value,
-    this.color,
-  );
-
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(
-          color: context.colors.outline,
-        ),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: color,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: context.colors.onSurfaceVariant,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  final ScheduleData schedule;
 }
 
 class _Tile extends StatelessWidget {
@@ -383,6 +345,8 @@ class _NewsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppCard(
       padding: const EdgeInsets.all(14),
+      onTap: onTap,
+      semanticLabel: item.title,
       child: Row(
         children: [
           Container(
@@ -396,36 +360,29 @@ class _NewsTile extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.end,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                      ),
-                      if (item.summary?.isNotEmpty == true) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          item.summary!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.end,
-                          style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 11),
-                        ),
-                      ],
-                    ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
                   ),
-                ),
+                  if (item.summary?.isNotEmpty == true) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      item.summary!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 11),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -516,49 +473,297 @@ class _EinoHomeCard extends StatelessWidget {
   }
 }
 
-class _ProgressJourneyCard extends StatelessWidget {
-  const _ProgressJourneyCard({required this.level, required this.xp, required this.onXpTap, required this.onBadgesTap});
-  final int level;
-  final int xp;
-  final VoidCallback onXpTap;
-  final VoidCallback onBadgesTap;
+
+
+class _HomeScheduleCard extends StatelessWidget {
+  const _HomeScheduleCard({
+    required this.schedule,
+    required this.onTap,
+    this.extraTopHeight = 0,
+  });
+
+  final ScheduleData schedule;
+  final VoidCallback onTap;
+  final double extraTopHeight;
+
+  // Schedule times are local wall-clock values. Compare them with the device's
+  // local clock; shifting a UTC DateTime by +2 hours changes the instant and
+  // made lectures appear ended up to two hours too early.
+  DateTime _sudanNow() => DateTime.now();
+
+  int _minuteOfDay(String value) {
+    final parts = value.split(':');
+    final hour = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 0;
+    final minute = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
+    return (hour * 60 + minute).clamp(0, 1439);
+  }
+
+  DateTime _at(DateTime day, String time) {
+    final minutes = _minuteOfDay(time);
+    return DateTime(day.year, day.month, day.day, minutes ~/ 60, minutes % 60);
+  }
+
+  _ScheduleState _state() {
+    final now = _sudanNow();
+    final today = now.weekday % 7; // Database convention: Sunday = 0.
+    final todayItems = schedule.items
+        .where((item) => item.dayOfWeek == today)
+        .toList()
+      ..sort((a, b) => _minuteOfDay(a.startTime).compareTo(_minuteOfDay(b.startTime)));
+
+    ScheduleItem? current;
+    ScheduleItem? lastEnded;
+    for (final item in todayItems) {
+      final start = _at(now, item.startTime);
+      var end = _at(now, item.endTime);
+      if (!end.isAfter(start)) end = end.add(const Duration(days: 1));
+
+      if (!now.isBefore(start) && now.isBefore(end)) {
+        current = item;
+        break;
+      }
+      if (!now.isBefore(end)) lastEnded = item;
+    }
+
+    // The "next lecture" is only the next one for TODAY. Once midnight
+    // arrives, `today` changes naturally and the next day's schedule becomes
+    // today's schedule. This keeps the card honest: after the last lecture,
+    // it must say that there is no next lecture for today instead of showing
+    // tomorrow's lecture early.
+    ScheduleItem? next;
+    for (final item in todayItems) {
+      final start = _at(now, item.startTime);
+      if (start.isAfter(now)) {
+        next = item;
+        break;
+      }
+    }
+
+    return _ScheduleState(
+      now: now,
+      current: current,
+      next: next,
+      lastEnded: lastEnded,
+      hasTodayClasses: todayItems.isNotEmpty,
+    );
+  }
+
+  String _duration(Duration duration, AppLocalizations l10n) {
+    final totalMinutes = duration.inMinutes.clamp(0, 24 * 60);
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+
+    if (l10n.locale.languageCode == 'ar') {
+      String arabicMinutes(int value) {
+        if (value == 1) return 'دقيقة';
+        if (value == 2) return 'دقيقتين';
+        if (value >= 3 && value <= 10) return '$value دقائق';
+        return '$value دقيقة';
+      }
+
+      String arabicHours(int value) {
+        if (value == 1) return 'ساعة';
+        if (value == 2) return 'ساعتين';
+        if (value >= 3 && value <= 10) return '$value ساعات';
+        return '$value ساعة';
+      }
+
+      if (hours == 0) return arabicMinutes(minutes);
+      if (minutes == 0) return arabicHours(hours);
+      return '${arabicHours(hours)} و${arabicMinutes(minutes)}';
+    }
+
+    if (hours == 0) {
+      return l10n.t('scheduleMinutes', {'count': '$minutes'});
+    }
+    if (minutes == 0) {
+      return l10n.t('scheduleHours', {'count': '$hours'});
+    }
+    return l10n.t('scheduleHoursMinutes', {
+      'hours': '$hours',
+      'minutes': '$minutes',
+    });
+  }
+
+  String _clock(String value) {
+    final parts = value.split(':');
+    final hour24 = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 0;
+    final minute = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
+    final hour = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    final suffix = hour24 < 12 ? 'ص' : 'م';
+    return '$hour:${minute.toString().padLeft(2, '0')} $suffix';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    return AppCard(
-      padding: const EdgeInsets.all(DesignTokens.space16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(children: [
-            Container(width: 42, height: 42, decoration: BoxDecoration(color: cs.primaryContainer, shape: BoxShape.circle), child: Icon(Icons.auto_awesome_rounded, color: cs.onPrimaryContainer)),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(l10n.t('yourJourney'), style: const TextStyle(fontWeight: FontWeight.w900)),
-              const SizedBox(height: 2),
-              Text(l10n.t('levelValue', {'level': '$level'}), style: TextStyle(color: cs.primary, fontWeight: FontWeight.w800)),
-            ])),
-            Text('$xp XP', style: TextStyle(fontWeight: FontWeight.w900, color: cs.primary)),
-          ]),
-          const SizedBox(height: 14),
-          Row(children: [
-            Expanded(child: _JourneyAction(icon: Icons.bolt_rounded, label: l10n.t('viewXp'), onTap: onXpTap)),
-            const SizedBox(width: 8),
-            Expanded(child: _JourneyAction(icon: Icons.emoji_events_rounded, label: l10n.t('viewBadges'), onTap: onBadgesTap)),
-          ]),
-        ],
+    final cs = Theme.of(context).colorScheme;
+    final isRtl = l10n.locale.languageCode == 'ar';
+    final state = _state();
+
+    Color accent;
+    IconData icon;
+    String eyebrow;
+    String title;
+    String subtitle;
+    String? secondary;
+
+    if (state.current != null) {
+      final item = state.current!;
+      final end = _at(state.now, item.endTime);
+      accent = AppColors.success;
+      icon = Icons.play_circle_fill_rounded;
+      eyebrow = l10n.t('scheduleNow');
+      title = item.subjectName;
+      subtitle = l10n.t('scheduleEndsIn', {
+        'time': _duration(end.difference(state.now), l10n),
+      });
+      if (state.next != null) {
+        final start = _at(state.now, state.next!.startTime);
+        secondary = '${l10n.t('scheduleNext')} ${state.next!.subjectName} • '
+            '${l10n.t('scheduleStartsIn', {'time': _duration(start.difference(state.now), l10n)})}';
+      } else {
+        secondary = 'لا توجد مادة تالية لليوم';
+      }
+    } else if (state.next != null) {
+      final item = state.next!;
+      final start = _at(state.now, item.startTime);
+      accent = cs.primary;
+      icon = Icons.schedule_rounded;
+      eyebrow = l10n.t('scheduleNext');
+      title = item.subjectName;
+      subtitle = l10n.t('scheduleStartsIn', {
+        'time': _duration(start.difference(state.now), l10n),
+      });
+      secondary = '${_clock(item.startTime)} – ${_clock(item.endTime)}';
+    } else if (state.lastEnded != null) {
+      final item = state.lastEnded!;
+      accent = cs.onSurfaceVariant;
+      icon = Icons.check_circle_outline_rounded;
+      eyebrow = l10n.t('scheduleEnded');
+      title = item.subjectName;
+      subtitle = l10n.t('scheduleNoMoreToday');
+    } else if (!state.hasTodayClasses) {
+      accent = cs.primary;
+      icon = Icons.event_available_rounded;
+      eyebrow = l10n.t('scheduleToday');
+      title = l10n.t('scheduleNoClassesToday');
+      subtitle = l10n.t('scheduleTapToView');
+    } else {
+      accent = cs.onSurfaceVariant;
+      icon = Icons.event_busy_rounded;
+      eyebrow = l10n.t('scheduleToday');
+      title = l10n.t('scheduleNoMoreToday');
+      subtitle = l10n.t('scheduleTapToView');
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(DesignTokens.radius16),
+        child: Container(
+          // Keep the top edge fixed while shortening only the lower part.
+          height: 92 + extraTopHeight,
+          margin: EdgeInsets.only(top: -extraTopHeight),
+          padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: .07),
+            borderRadius: BorderRadius.circular(DesignTokens.radius16),
+            border: Border.all(color: accent.withValues(alpha: .35)),
+          ),
+          child: Row(
+            textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: .13),
+                  borderRadius: BorderRadius.circular(DesignTokens.radius12),
+                ),
+                child: Icon(icon, color: accent, size: 24),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      eyebrow,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      softWrap: true,
+                      overflow: TextOverflow.clip,
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      softWrap: true,
+                      overflow: TextOverflow.clip,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (secondary != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        secondary,
+                        maxLines: 2,
+                        softWrap: true,
+                        overflow: TextOverflow.clip,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 10.5,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 7),
+              Icon(Icons.chevron_left_rounded, color: accent, size: 22),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-class _JourneyAction extends StatelessWidget {
-  const _JourneyAction({required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => OutlinedButton.icon(onPressed: onTap, icon: Icon(icon, size: 18), label: Text(label), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44), padding: const EdgeInsets.symmetric(horizontal: 10)));
+class _ScheduleState {
+  const _ScheduleState({
+    required this.now,
+    required this.current,
+    required this.next,
+    required this.lastEnded,
+    required this.hasTodayClasses,
+  });
+
+  final DateTime now;
+  final ScheduleItem? current;
+  final ScheduleItem? next;
+  final ScheduleItem? lastEnded;
+  final bool hasTodayClasses;
 }

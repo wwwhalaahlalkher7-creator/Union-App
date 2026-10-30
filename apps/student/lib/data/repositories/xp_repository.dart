@@ -11,7 +11,7 @@ class XpRepository {
       final json = await _client.getJson('/api/v1/xp', forceRefresh: true);
       final data = json['data'];
       if (data is! Map) {
-        throw const ApiException('استجابة XP غير صالحة من السيرفر.');
+        throw const ApiException('Invalid XP response.', code: 'INVALID_RESPONSE', kind: ApiErrorKind.response);
       }
       return XpSnapshot.fromJson(Map<String, dynamic>.from(data));
     } catch (primaryError) {
@@ -39,14 +39,15 @@ class XpRepository {
           level: level,
           levelXp: (total - start).clamp(0, 100),
           nextLevelXp: 100,
-          events: const [],
         );
       } catch (_) {
         // Preserve the original, more useful API/network error.
         if (primaryError is ApiException) rethrow;
         throw ApiException(
-          'تعذر تحميل بيانات XP.',
+          'Could not load XP data.',
+          code: 'XP_UNAVAILABLE',
           cause: primaryError,
+          kind: primaryError is ApiException ? primaryError.kind : ApiErrorKind.client,
           retryable: true,
         );
       }
