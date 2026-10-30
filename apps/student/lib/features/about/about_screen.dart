@@ -3,6 +3,7 @@ import '../../core/app_version.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../core/update/update_service.dart';
+import '../../core/di/app_dependencies.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutScreen extends StatelessWidget {
@@ -10,7 +11,7 @@ class AboutScreen extends StatelessWidget {
 
   Future<void> _checkUpdate(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
-    const service = UpdateService();
+    final service = UpdateService(AppDependencies.instance.apiClient);
     final info = await service.check();
     if (!context.mounted) return;
     if (info == null) {

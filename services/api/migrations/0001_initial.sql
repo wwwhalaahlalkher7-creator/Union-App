@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS students (
   full_name TEXT NOT NULL,
   department_id TEXT NOT NULL REFERENCES departments(id),
   active INTEGER NOT NULL DEFAULT 1,
+  is_moderator INTEGER NOT NULL DEFAULT 0 CHECK (is_moderator IN (0, 1)),
   auth_secret_hash TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

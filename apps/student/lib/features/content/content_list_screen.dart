@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../core/network/api_client.dart';
-import '../../core/constants/app_constants.dart';
 import '../../data/models/content_item.dart';
 import '../../data/repositories/content_repository.dart';
 import '../../shared/widgets/app_card.dart';
@@ -16,11 +16,10 @@ class ContentListScreen extends StatefulWidget {
 }
 
 class _ContentListScreenState extends State<ContentListScreen> {
-  late final ApiClient _client = ApiClient(baseUrl: AppConstants.apiBaseUrl);
-  late final ContentRepository _repository = ContentRepository();
+  late final ContentRepository _repository = AppDependencies.instance.content;
   late Future<List<ContentItem>> _future = widget.loader(_repository);
 
-  @override void dispose() { _client.dispose(); super.dispose(); }
+  @override void dispose() { super.dispose(); }
   void _retry() => setState(() => _future = widget.loader(_repository));
 
   @override

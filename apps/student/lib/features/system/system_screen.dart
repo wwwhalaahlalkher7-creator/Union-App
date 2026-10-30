@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/network/api_client.dart';
-import '../../core/network/authenticated_client.dart';
+import '../../core/di/app_dependencies.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/models/badge_item.dart';
 import '../../data/models/xp_snapshot.dart';
@@ -36,7 +36,7 @@ class _SystemScreenState extends State<SystemScreen> {
   }
 
   Future<_SystemData> _load() async {
-    _client ??= await AuthenticatedClient.create();
+    _client = AppDependencies.instance.apiClient;
     final results = await Future.wait([
       _safeLoad<XpSnapshot>(XpRepository(_client!).getXp()),
       _safeLoad<BadgeSnapshot>(BadgesRepository(_client!).getBadges()),
@@ -44,8 +44,8 @@ class _SystemScreenState extends State<SystemScreen> {
     final xpResult = results[0] as _LoadResult<XpSnapshot>;
     final badgesResult = results[1] as _LoadResult<BadgeSnapshot>;
     return _SystemData(
-      xpResult.value ?? const XpSnapshot(totalXp: 0, level: 1, levelXp: 0, nextLevelXp: 100, events: []),
-      badgesResult.value ?? const BadgeSnapshot(badges: [], earnedCount: 0, totalCount: 0, newlyAwarded: []),
+      xpResult.value ?? const XpSnapshot(totalXp: 0, level: 1, levelXp: 0, nextLevelXp: 100),
+      badgesResult.value ?? const BadgeSnapshot(badges: [], categories: [], earnedCount: 0, totalCount: 0, newlyAwarded: []),
       xpError: xpResult.error,
       badgesError: badgesResult.error,
     );
@@ -57,12 +57,6 @@ class _SystemScreenState extends State<SystemScreen> {
     });
 
     await _future;
-  }
-
-  @override
-  void dispose() {
-    _client?.dispose();
-    super.dispose();
   }
 
   @override

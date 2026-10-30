@@ -162,7 +162,9 @@ class _EinoFaceState extends State<EinoFace> with TickerProviderStateMixin, Widg
         widget.mood == EinoMood.thinking ||
         widget.mood == EinoMood.talking ||
         widget.mood == EinoMood.listening ||
-        widget.mood == EinoMood.reading) return;
+        widget.mood == EinoMood.reading) {
+      return;
+    }
     _idleTimer = Timer(const Duration(seconds: 30), () {
       if (!mounted || _pausedForChat || _lifecycleState != AppLifecycleState.resumed || _reduceMotion) return;
       setState(() => _lowActivity = true);
@@ -323,9 +325,6 @@ class _EinoOrbPainter extends CustomPainter {
   final double sleepLevel;
   /// 0..1 transition intensity supplied by the shell during enter/return.
   final double motionBoost;
-  /// Suspends the floating orb while the Eino chat route is active.
-  final bool suspendWhileChatOpen;
-
   @override
   void paint(Canvas canvas, Size size) {
     final shortest = math.min(size.width, size.height);

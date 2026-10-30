@@ -1,9 +1,8 @@
 PRAGMA foreign_keys = ON;
 
--- A student moderator is a student account with limited server-enforced
--- permission to hide public comments and replies. This does not grant staff access.
-ALTER TABLE students ADD COLUMN is_moderator INTEGER NOT NULL DEFAULT 0
-  CHECK (is_moderator IN (0, 1));
-
+-- is_moderator is part of the canonical students table definition in
+-- 0001_initial.sql. Do not ALTER TABLE here: some existing D1 databases
+-- already received this column outside migration history. Keeping this
+-- migration additive and idempotent makes it safe for those databases.
 CREATE INDEX IF NOT EXISTS idx_students_moderator_active
   ON students(is_moderator, active);
