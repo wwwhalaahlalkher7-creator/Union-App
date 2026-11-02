@@ -8,7 +8,8 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../features/eino/eino_face.dart';
-import '../../features/eino/eino_orb.dart' show EinoMotionSession;
+import 'eino_navigation_scope.dart';
+import 'eino_route_transition.dart';
 import '../../core/di/app_dependencies.dart';
 import '../../core/storage/app_preferences.dart';
 import '../../features/onboarding/guided_tour_overlay.dart';
@@ -30,24 +31,14 @@ class TrinexShell extends StatefulWidget {
 }
 
 class _TrinexShellState extends State<TrinexShell>
-    with TickerProviderStateMixin, WidgetsBindingObserver {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 3),
   )..repeat();
-  late final AnimationController _transitionController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 580),
-  );
-  late final AnimationController _handoffController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 190),
-  );
   final GlobalKey _einoButtonKey = GlobalKey();
-  OverlayEntry? _einoTransitionEntry;
   bool _einoTransitionRunning = false;
-  bool _isEinoTransitioning = false;
-  bool _isEinoReturning = false;
+  bool _einoRouteActive = false;
   bool _reduceMotion = false;
   Timer? _pulseIdleTimer;
 
@@ -78,18 +69,22 @@ class _TrinexShellState extends State<TrinexShell>
     });
   }
 
-  Rect? _measureEinoButtonRect(OverlayState overlay) {
-    final buttonObject = _einoButtonKey.currentContext?.findRenderObject();
+  Rect? _measureSourceRect(
+    OverlayState overlay, {
+    BuildContext? sourceContext,
+  }) {
+    final sourceObject =
+        (sourceContext ?? _einoButtonKey.currentContext)?.findRenderObject();
     final overlayObject = overlay.context.findRenderObject();
-    if (buttonObject is! RenderBox ||
+    if (sourceObject is! RenderBox ||
         overlayObject is! RenderBox ||
-        !buttonObject.hasSize ||
+        !sourceObject.hasSize ||
         !overlayObject.hasSize) {
       return null;
     }
-    final globalOrigin = buttonObject.localToGlobal(Offset.zero);
+    final globalOrigin = sourceObject.localToGlobal(Offset.zero);
     final localOrigin = overlayObject.globalToLocal(globalOrigin);
-    final rect = localOrigin & buttonObject.size;
+    final rect = localOrigin & sourceObject.size;
     if (rect.width <= 0 || rect.height <= 0) return null;
     return rect;
   }
@@ -100,266 +95,89 @@ class _TrinexShellState extends State<TrinexShell>
     return object.size;
   }
 
-  OverlayEntry _buildEinoTransitionEntry({
-    required OverlayState overlay,
-    required Rect from,
-    required Rect to,
-    required bool returning,
-  }) {
-    return OverlayEntry(
-      builder: (_) => AnimatedBuilder(
-        animation: Listenable.merge([
-          _transitionController,
-          _handoffController,
-        ]),
-        builder: (context, _) {
-          final progress = Curves.easeInOutCubic.transform(
-            _transitionController.value.clamp(0.0, 1.0).toDouble(),
-          );
-          final handoff = returning
-              ? 0.0
-              : Curves.easeOutCubic.transform(_handoffController.value);
-          final routeVeilOpacity = returning ? 1.0 : (1.0 - handoff);
-          final orbOpacity = returning
-              ? 1.0 - Curves.easeInOutCubic.transform(
-                  ((progress - .93) / .07).clamp(0.0, 1.0).toDouble(),
-                )
-              : Curves.easeInOutCubic.transform(
-                  (progress / .07).clamp(0.0, 1.0).toDouble(),
-                );
-          final backdropProgress = returning ? 1.0 - progress : progress;
-          final backdropOpacity = (backdropProgress * .99 * routeVeilOpacity)
-              .clamp(0.0, .99)
-              .toDouble();
-          final rect = Rect.lerp(from, to, progress)!;
-          final center = rect.center;
-          final overlaySize = _rootOverlaySize(overlay) ?? MediaQuery.sizeOf(context);
-          final alignment = Alignment(
-            ((center.dx / overlaySize.width) * 2 - 1)
-                .clamp(-1.0, 1.0)
-                .toDouble(),
-            ((center.dy / overlaySize.height) * 2 - 1)
-                .clamp(-1.0, 1.0)
-                .toDouble(),
-          );
-          final orbSize = rect.shortestSide;
-          final motionBoost = math.sin(progress * math.pi).clamp(0.0, 1.0).toDouble();
-          final colorScheme = Theme.of(context).colorScheme;
-
-          return IgnorePointer(
-            child: SizedBox.expand(
-              child: Stack(
-                fit: StackFit.expand,
-                clipBehavior: Clip.none,
-                children: [
-                  if (backdropOpacity > 0.001)
-                    Positioned.fill(
-                      child: Opacity(
-                        opacity: backdropOpacity,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: RadialGradient(
-                              center: alignment,
-                              radius: 1.35,
-                              colors: [
-                                colorScheme.primary.withValues(alpha: .30),
-                                colorScheme.surfaceContainerHighest.withValues(alpha: .96),
-                                colorScheme.surface,
-                              ],
-                              stops: const [0, .43, 1],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  Positioned.fromRect(
-                    rect: rect,
-                    child: Opacity(
-                      opacity: (routeVeilOpacity * orbOpacity)
-                          .clamp(0.0, 1.0)
-                          .toDouble(),
-                      child: Center(
-                        child: EinoFace(
-                          size: orbSize,
-                          mood: EinoMood.calm,
-                          showAura: true,
-                          motionBoost: motionBoost,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Future<bool> _playEinoTransition({
-    required OverlayState overlay,
-    required Rect from,
-    required Rect to,
-    required bool returning,
-  }) async {
-    _transitionController.duration = Duration(
-      milliseconds: returning ? 460 : 580,
-    );
-    _handoffController.value = 0;
-    final entry = _buildEinoTransitionEntry(
-      overlay: overlay,
-      from: from,
-      to: to,
-      returning: returning,
-    );
-    _einoTransitionEntry = entry;
-    overlay.insert(entry);
-    try {
-      await _transitionController.forward(from: 0).orCancel;
-      return true;
-    } on TickerCanceled {
-      return false;
+  String _einoSourceForCurrentPage() {
+    final path = widget.location;
+    if (path.startsWith('/materials') || path.startsWith('/downloads')) {
+      return 'materials';
     }
+    if (path.startsWith('/schedule')) return 'schedule';
+    if (path.startsWith('/progress')) return 'progress';
+    if (path.startsWith('/xp')) return 'xp';
+    if (path.startsWith('/student')) return 'student';
+    return 'home';
   }
 
-  void _removeEinoTransitionEntry() {
-    final entry = _einoTransitionEntry;
-    _einoTransitionEntry = null;
-    if (entry == null) return;
-    entry.remove();
-    entry.dispose();
-  }
-
-  Future<void> _openEinoWithTransition() async {
+  Future<void> _openEinoWithTransition({
+    BuildContext? sourceContext,
+    String? source,
+  }) async {
     if (_einoTransitionRunning || !mounted) return;
     _einoTransitionRunning = true;
     _pulseIdleTimer?.cancel();
+    _pulse.stop(canceled: false);
 
-    OverlayState? overlay;
-    Rect? buttonRect;
-    Size? overlaySize;
+    final wasVisible = _einoVisible;
+    var routeOpened = false;
     try {
-      overlay = Overlay.of(context, rootOverlay: true);
-      buttonRect = _measureEinoButtonRect(overlay);
-      overlaySize = _rootOverlaySize(overlay);
-    } catch (_) {
-      // If the element cannot be measured, use the normal route transition.
-    }
-
-    final canAnimate = !_reduceMotion &&
-        overlay != null &&
-        buttonRect != null &&
-        overlaySize != null &&
-        overlaySize.shortestSide > 0;
-    var routeReturned = true;
-    try {
-      _pulse.stop(canceled: false);
-      if (!canAnimate) {
-        await Future<void>.delayed(const Duration(milliseconds: 180));
-        if (!mounted) return;
-        EinoMotionSession.markChatOpened();
-        await context.push<void>('/eino?from=shell');
-        EinoMotionSession.consumeReturnAnimation();
-        return;
+      OverlayState? overlay;
+      Rect? sourceRect;
+      Size? overlaySize;
+      try {
+        overlay = Overlay.of(context, rootOverlay: true);
+        sourceRect = _measureSourceRect(
+          overlay,
+          sourceContext: sourceContext,
+        );
+        overlaySize = _rootOverlaySize(overlay);
+      } catch (_) {
+        // The route transition falls back to a centered reveal if the source
+        // widget is temporarily unavailable (for example during a rebuild).
       }
 
-      setState(() => _isEinoTransitioning = true);
-      final currentOverlay = overlay;
-      final sourceRect = buttonRect;
-      final size = overlaySize;
-      final centerDiameter = math
-          .min(math.max(size.shortestSide * .22, 128.0), 156.0)
-          .toDouble();
-      final centerRect = Rect.fromCenter(
-        center: size.center(Offset.zero),
-        width: centerDiameter,
-        height: centerDiameter,
+      final transitionOrigin = overlaySize == null
+          ? null
+          : sourceRect?.center ?? overlaySize.center(Offset.zero);
+      final sourceName = source ?? _einoSourceForCurrentPage();
+      final exitAnimation = _reduceMotion
+          ? null
+          : EinoRouteTransitionSignal.prepareForExit();
+      if (mounted) {
+        setState(() {
+          _einoRouteActive = true;
+          // Keep the floating face under the reveal when it is the launch
+          // anchor. A home-card launch hides the unrelated floating face.
+          _einoVisible = sourceContext == null && wasVisible;
+        });
+      }
+
+      await context.push<void>(
+        '/eino?from=$sourceName&animated=${_reduceMotion ? 0 : 1}',
+        extra: transitionOrigin == null
+            ? null
+            : <String, double>{
+                'x': transitionOrigin.dx,
+                'y': transitionOrigin.dy,
+              },
       );
-
-      final entered = await _playEinoTransition(
-        overlay: currentOverlay,
-        from: sourceRect,
-        to: centerRect,
-        returning: false,
-      );
-      if (!mounted) return;
-      if (!entered || _reduceMotion) {
-        _removeEinoTransitionEntry();
-        setState(() => _isEinoTransitioning = false);
-        await Future<void>.delayed(const Duration(milliseconds: 180));
-        if (!mounted) return;
-        EinoMotionSession.markChatOpened();
-        await context.push<void>('/eino?from=shell');
-        EinoMotionSession.consumeReturnAnimation();
-        return;
-      }
-
-      // Let the orb wake/boost become visible before the chat covers it.
-      await Future<void>.delayed(const Duration(milliseconds: 180));
-      if (!mounted) return;
-      EinoMotionSession.markChatOpened();
-      // Push the destination while the transition veil covers the route's
-      // platform animation. Fade the veil away only after the chat is mounted.
-      final routeFuture = context.push<void>('/eino?from=shell');
-      routeReturned = false;
-      await Future<void>.delayed(const Duration(milliseconds: 125));
-      if (!_reduceMotion) {
-        try {
-          await _handoffController.forward(from: 0).orCancel;
-        } on TickerCanceled {
-          // Reduced-motion settings may change while the route is opening.
-        }
-      }
-      _removeEinoTransitionEntry();
-      // Keep the source orb hidden under the chat route and reveal it only as
-      // the return transition reaches its final frames.
-      _isEinoReturning = true;
-      _transitionController.value = 0;
-      _handoffController.value = 0;
-      await routeFuture;
-      routeReturned = true;
-      final returnedFromChat = EinoMotionSession.consumeReturnAnimation();
-      if (!mounted) return;
-
-      if (returnedFromChat && !_reduceMotion) {
-        // Measure the actual button again after the route is popped. The shell
-        // keeps the button mounted (but transparent) during the chat route.
-        final returnRect = _measureEinoButtonRect(currentOverlay);
-        final currentSize = _rootOverlaySize(currentOverlay);
-        if (returnRect != null && currentSize != null) {
-          final returnCenterDiameter = math
-              .min(math.max(currentSize.shortestSide * .22, 128.0), 156.0)
-              .toDouble();
-          final returnCenter = Rect.fromCenter(
-            center: currentSize.center(Offset.zero),
-            width: returnCenterDiameter,
-            height: returnCenterDiameter,
-          );
-          await _playEinoTransition(
-            overlay: currentOverlay,
-            from: returnCenter,
-            to: returnRect,
-            returning: true,
-          );
-        }
+      routeOpened = true;
+      if (exitAnimation != null) {
+        await exitAnimation.timeout(
+          const Duration(seconds: 2),
+          onTimeout: EinoRouteTransitionSignal.completeExit,
+        );
       }
     } catch (error, stackTrace) {
-      debugPrint('Eino transition failed; using the stable route state: $error\n$stackTrace');
+      debugPrint('Eino route transition failed: $error\n$stackTrace');
     } finally {
-      _removeEinoTransitionEntry();
       if (mounted) {
-        _transitionController.value = 0;
-        _handoffController.value = 0;
-        if (_isEinoTransitioning || _isEinoReturning) {
-          setState(() {
-            _isEinoTransitioning = false;
-            _isEinoReturning = false;
-          });
-        }
-        if (routeReturned) _schedulePulseIdle();
+        setState(() {
+          _einoRouteActive = false;
+          _einoVisible = wasVisible && !_hideFloatingEino;
+        });
+        _schedulePulseIdle();
       }
       _einoTransitionRunning = false;
+      if (!routeOpened) EinoRouteTransitionSignal.completeExit();
     }
   }
 
@@ -372,11 +190,6 @@ class _TrinexShellState extends State<TrinexShell>
     if (_reduceMotion) {
       _pulseIdleTimer?.cancel();
       _pulse.stop(canceled: false);
-      _transitionController.stop(canceled: true);
-      _handoffController.stop(canceled: true);
-      _removeEinoTransitionEntry();
-      _isEinoTransitioning = false;
-      _isEinoReturning = false;
     } else if (mounted) {
       _schedulePulseIdle();
     }
@@ -515,76 +328,9 @@ class _TrinexShellState extends State<TrinexShell>
     }
   }
 
-  Future<void> _playPendingEinoReturn() async {
-    if (!mounted || _einoTransitionRunning) return;
-    if (!EinoMotionSession.consumeReturnAnimation()) return;
-    if (_reduceMotion) {
-      _schedulePulseIdle();
-      return;
-    }
-
-    OverlayState? overlay;
-    try {
-      overlay = Overlay.of(context, rootOverlay: true);
-    } catch (_) {
-      overlay = null;
-    }
-    final buttonRect = overlay == null ? null : _measureEinoButtonRect(overlay);
-    final overlaySize = overlay == null ? null : _rootOverlaySize(overlay);
-    if (overlay == null || buttonRect == null || overlaySize == null) {
-      _schedulePulseIdle();
-      return;
-    }
-
-    _einoTransitionRunning = true;
-    setState(() {
-      _isEinoTransitioning = true;
-      _isEinoReturning = true;
-    });
-    final centerDiameter = math
-        .min(math.max(overlaySize.shortestSide * .22, 128.0), 156.0)
-        .toDouble();
-    final centerRect = Rect.fromCenter(
-      center: overlaySize.center(Offset.zero),
-      width: centerDiameter,
-      height: centerDiameter,
-    );
-    try {
-      await _playEinoTransition(
-        overlay: overlay,
-        from: centerRect,
-        to: buttonRect,
-        returning: true,
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Eino return transition failed: $error\n$stackTrace');
-    } finally {
-      _removeEinoTransitionEntry();
-      if (mounted) {
-        setState(() {
-          _isEinoTransitioning = false;
-          _isEinoReturning = false;
-        });
-        _schedulePulseIdle();
-      }
-      _einoTransitionRunning = false;
-    }
-  }
-
   @override
   void didUpdateWidget(covariant TrinexShell oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.location.startsWith('/eino') &&
-        !widget.location.startsWith('/eino') &&
-        !_einoTransitionRunning) {
-      // Eino may also be opened from the Home card, not only the floating orb.
-      // Consume its one-shot return cue after the shell has rebuilt the button.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_einoTransitionRunning) {
-          unawaited(_playPendingEinoReturn());
-        }
-      });
-    }
     if (oldWidget.location != widget.location && widget.location == '/home' && _guidedTourStep == null) {
       // Registration may finish while the shell already exists; always retry
       // after the home route has completed its first layout.
@@ -640,11 +386,6 @@ class _TrinexShellState extends State<TrinexShell>
       _stopShakeDetection();
       _pulseIdleTimer?.cancel();
       _pulse.stop(canceled: false);
-      // Cancel in-flight transitions so their awaited ticker futures settle;
-      // otherwise an app switch mid-animation could leave the veil frozen.
-      _transitionController.stop(canceled: true);
-      _handoffController.stop(canceled: true);
-      _removeEinoTransitionEntry();
     }
   }
 
@@ -694,10 +435,7 @@ class _TrinexShellState extends State<TrinexShell>
     _notificationSubscription?.cancel();
     FocusManager.instance.removeListener(_handleFocusChange);
     _pulseIdleTimer?.cancel();
-    _removeEinoTransitionEntry();
     _pulse.dispose();
-    _transitionController.dispose();
-    _handoffController.dispose();
     super.dispose();
   }
 
@@ -731,53 +469,42 @@ class _TrinexShellState extends State<TrinexShell>
                         alignment: Alignment.topCenter,
                         child: ConstrainedBox(
                           constraints: BoxConstraints(maxWidth: maxWidth),
-                          child: widget.child,
+                          child: EinoNavigationScope(
+                            onOpen: ({
+                              BuildContext? sourceContext,
+                              required String source,
+                            }) =>
+                                _openEinoWithTransition(
+                              sourceContext: sourceContext,
+                              source: source,
+                            ),
+                            child: widget.child,
+                          ),
                         ),
                       );
                     },
                   ),
-                  if (_einoVisible || _isEinoTransitioning)
+                  if (_einoVisible || _einoRouteActive)
                     PositionedDirectional(
                       end: 16,
                       bottom: 18,
                       child: KeyedSubtree(
                         key: guidedTourEinoKey,
-                        child: AnimatedBuilder(
-                          animation: _transitionController,
-                          builder: (context, _) {
-                            final progress = _transitionController.value;
-                            final sourceFade = !_isEinoTransitioning
-                                ? 1.0
-                                : _isEinoReturning
-                                    ? Curves.easeInOutCubic.transform(
-                                        ((progress - .93) / .07)
-                                            .clamp(0.0, 1.0)
-                                            .toDouble(),
-                                      )
-                                    : 1.0 - Curves.easeInOutCubic.transform(
-                                        (progress / .07)
-                                            .clamp(0.0, 1.0)
-                                            .toDouble(),
-                                      );
-                            return Opacity(
-                              opacity: sourceFade,
-                              child: IgnorePointer(
-                                ignoring: _isEinoTransitioning,
-                                child: SizedBox(
-                                  // Put the key on a real 76×76 RenderBox so
-                                  // measurement cannot resolve to a parent Stack.
-                                  key: _einoButtonKey,
-                                  width: 76,
-                                  height: 76,
-                                  child: EinoFloatingButton(
-                                    animation: _pulse,
-                                    transitionAnimation: _transitionController,
-                                    onTap: _openEinoWithTransition,
-                                  ),
-                                ),
+                        child: Opacity(
+                          opacity: _einoRouteActive && !_einoVisible ? 0 : 1,
+                          child: IgnorePointer(
+                            ignoring: _einoRouteActive,
+                            child: SizedBox(
+                              // Keep a real RenderBox anchor for the page reveal.
+                              key: _einoButtonKey,
+                              width: 76,
+                              height: 76,
+                              child: EinoFloatingButton(
+                                animation: _pulse,
+                                onTap: _openEinoWithTransition,
                               ),
-                            );
-                          },
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -1069,10 +796,9 @@ class _Avatar extends StatelessWidget {
 }
 
 class EinoFloatingButton extends StatelessWidget {
-  const EinoFloatingButton({required this.animation, required this.transitionAnimation, required this.onTap, super.key});
+  const EinoFloatingButton({required this.animation, required this.onTap, super.key});
 
   final Animation<double> animation;
-  final Animation<double> transitionAnimation;
   final VoidCallback onTap;
 
   @override
@@ -1083,9 +809,7 @@ class EinoFloatingButton extends StatelessWidget {
       builder: (context, _) {
         final glow =
             .12 + (.10 * (0.5 + 0.5 * (animation.value * 2 - 1).abs()));
-        return AnimatedBuilder(
-          animation: transitionAnimation,
-          builder: (context, _) => Semantics(
+        return Semantics(
           button: true,
           label: 'Eino',
           child: Material(
@@ -1107,16 +831,14 @@ class EinoFloatingButton extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: EinoFace(
+                child: const EinoFace(
                   size: 76,
                   mood: EinoMood.calm,
-                  motionBoost: transitionAnimation.value,
                   suspendWhileChatOpen: true,
                 ),
               ),
             ),
           ),
-        ),
         );
       },
     );

@@ -13,6 +13,7 @@ import '../../data/models/schedule_item.dart';
 import '../../data/repositories/schedule_repository.dart';
 import '../../core/di/app_dependencies.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/eino_navigation_scope.dart';
 import '../../shared/widgets/list_skeleton.dart';
 import '../../features/eino/eino_face.dart';
 import '../onboarding/guided_tour_overlay.dart';
@@ -26,6 +27,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const _homeNewsLimit = 3;
+  final GlobalKey _einoHomeAnchorKey = GlobalKey();
   Future<_HomeData>? _future;
   Timer? _clockTimer;
 
@@ -217,7 +219,18 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: DesignTokens.space16),
               _EinoHomeCard(
-                onTap: () => context.push('/eino?from=home'),
+                anchorKey: _einoHomeAnchorKey,
+                onTap: () {
+                  final navigation = EinoNavigationScope.maybeOf(context);
+                  if (navigation != null) {
+                    unawaited(navigation.open(
+                      sourceContext: _einoHomeAnchorKey.currentContext,
+                      source: 'home',
+                    ));
+                  } else {
+                    context.push('/eino?from=home');
+                  }
+                },
               ),
               const SizedBox(height: DesignTokens.space16),
               const SizedBox(height: 4),
@@ -435,8 +448,9 @@ class _StateMessage extends StatelessWidget {
 }
 
 class _EinoHomeCard extends StatelessWidget {
-  const _EinoHomeCard({required this.onTap});
+  const _EinoHomeCard({required this.onTap, required this.anchorKey});
   final VoidCallback onTap;
+  final GlobalKey anchorKey;
 
   @override
   Widget build(BuildContext context) {
@@ -452,7 +466,17 @@ class _EinoHomeCard extends StatelessWidget {
           padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 12, 12),
           child: Row(
             children: [
-              const EinoFace(size: 58, mood: EinoMood.happy, showAura: false),
+              SizedBox(
+                key: anchorKey,
+                width: 58,
+                height: 58,
+                child: const EinoFace(
+                  size: 58,
+                  mood: EinoMood.happy,
+                  showAura: false,
+                  suspendWhileChatOpen: true,
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

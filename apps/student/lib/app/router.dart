@@ -27,6 +27,7 @@ import '../features/xp/xp_screen.dart';
 import '../shared/widgets/trinex_shell.dart';
 import '../shared/widgets/student_access_gate.dart';
 import '../shared/widgets/auth_route_transition.dart';
+import '../shared/widgets/eino_route_transition.dart';
 
 
 GoRouter buildRouter({
@@ -111,7 +112,41 @@ GoRouter buildRouter({
     GoRoute(path: '/xp', builder: (_, _) => const StudentAccessGate(child: XpScreen())),
     GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
     GoRoute(path: '/general-chat', builder: (_, _) => const StudentAccessGate(child: GeneralChatScreen())),
-    GoRoute(path: '/eino', builder: (_, state) => EinoScreen(source: state.uri.queryParameters['from'] ?? 'home')),
+    GoRoute(
+      path: '/eino',
+      pageBuilder: (_, state) {
+        final animated = state.uri.queryParameters['animated'] == '1';
+        final extraOrigin = state.extra;
+        final originX = extraOrigin is Map ? extraOrigin['x'] : null;
+        final originY = extraOrigin is Map ? extraOrigin['y'] : null;
+        final origin = animated && originX is num && originY is num
+            ? Offset(originX.toDouble(), originY.toDouble())
+            : null;
+        return CustomTransitionPage<void>(
+          key: state.pageKey,
+          opaque: false,
+          transitionDuration: animated
+              ? const Duration(milliseconds: 560)
+              : Duration.zero,
+          reverseTransitionDuration: animated
+              ? const Duration(milliseconds: 440)
+              : Duration.zero,
+          child: EinoScreen(
+            source: state.uri.queryParameters['from'] ?? 'home',
+            animatedEntrance: animated,
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            if (!animated) return child;
+            return EinoCircularRouteTransition(
+              animation: animation,
+              origin: origin,
+              onReverseCompleted: EinoRouteTransitionSignal.completeExit,
+              child: child,
+            );
+          },
+        );
+      },
+    ),
     GoRoute(path: '/edit-profile', builder: (_, _) => const StudentAccountScreen()),
     GoRoute(path: '/account-settings', builder: (_, _) => const StudentAccountScreen()),
     GoRoute(path: '/settings', builder: (_, _) => SettingsScreen(currentThemeMode: themeMode(), onThemeModeChanged: onThemeModeChanged, locale: locale(), onLocaleChanged: onLocaleChanged, accentColorId: accentColorId?.call(), onAccentColorChanged: onAccentColorChanged)),

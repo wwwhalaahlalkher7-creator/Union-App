@@ -218,7 +218,7 @@ class SettingsAccentOption extends StatelessWidget {
   final AppAccentColor color;
   final bool selected;
   final String languageCode;
-  final VoidCallback? onTap;
+  final ValueChanged<BuildContext>? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -241,7 +241,7 @@ class SettingsAccentOption extends StatelessWidget {
         child: Material(
           color: Colors.transparent,
           child: InkResponse(
-            onTap: onTap,
+            onTap: onTap == null ? null : () => onTap!(context),
             radius: 28,
             containedInkWell: true,
             highlightShape: BoxShape.circle,

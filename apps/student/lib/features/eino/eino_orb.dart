@@ -3,21 +3,18 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// Marks a chat entry and carries a one-shot return cue across route teardown.
-/// The floating orb lives inside ShellRoute while Eino chat is a top-level route,
-/// so ordinary widget state would otherwise be lost when the chat opens.
+/// Shares the chat-open state with Eino's floating face so its idle animation
+/// pauses while the full conversation screen is active.
 class EinoMotionSession {
   EinoMotionSession._();
 
   static final ValueNotifier<int> changes = ValueNotifier<int>(0);
-  static bool _returnAnimationPending = false;
   static bool _chatOpen = false;
 
   static bool get chatOpen => _chatOpen;
 
   static void markChatOpened() {
     if (_chatOpen) return;
-    _returnAnimationPending = false;
     _chatOpen = true;
     changes.value++;
   }
@@ -25,16 +22,7 @@ class EinoMotionSession {
   static void markChatClosed() {
     if (!_chatOpen) return;
     _chatOpen = false;
-    _returnAnimationPending = true;
     changes.value++;
-  }
-
-  static bool consumeReturnAnimation() {
-    // The pending cue is created only when an actual chat screen is disposed.
-    // The floating button listens to changes, so the cue survives covered routes.
-    if (!_returnAnimationPending || _chatOpen) return false;
-    _returnAnimationPending = false;
-    return true;
   }
 }
 

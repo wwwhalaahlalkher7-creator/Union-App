@@ -18,8 +18,13 @@ import 'eino_face.dart';
 import 'eino_widgets.dart';
 
 class EinoScreen extends StatefulWidget {
-  const EinoScreen({super.key, this.source = 'home'});
+  const EinoScreen({
+    super.key,
+    this.source = 'home',
+    this.animatedEntrance = false,
+  });
   final String source;
+  final bool animatedEntrance;
 
   @override
   State<EinoScreen> createState() => _EinoScreenState();
@@ -115,10 +120,9 @@ class _EinoScreenState extends State<EinoScreen> {
   Future<void> _init() async {
     _repository = AppDependencies.instance.eino;
     if (mounted) setState(() => _ready = true);
-    // The shell's orb transition must finish before a first-use privacy dialog
-    // can appear; otherwise the modal interrupts the motion at its midpoint.
-    if (widget.source == 'shell') {
-      await Future<void>.delayed(const Duration(milliseconds: 430));
+    // Let the route reveal finish before a first-use privacy dialog can appear.
+    if (widget.animatedEntrance) {
+      await Future<void>.delayed(const Duration(milliseconds: 620));
     }
     if (!mounted) return;
     await _showEinoDataNoticeIfNeeded();

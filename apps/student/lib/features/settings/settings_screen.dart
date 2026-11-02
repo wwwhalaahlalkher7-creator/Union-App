@@ -31,17 +31,24 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen>
+    with SingleTickerProviderStateMixin {
   bool _checkingUpdate = false;
   bool _loggingOut = false;
   bool _changingLanguage = false;
   late String _selectedAccentId;
   late String _selectedLanguageCode;
   late ThemeMode _selectedThemeMode;
+  late final AnimationController _accentRippleController;
+  OverlayEntry? _accentRippleEntry;
 
   @override
   void initState() {
     super.initState();
+    _accentRippleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 440),
+    )..addStatusListener(_handleAccentRippleStatus);
     _selectedAccentId = AppAccentColor.fromId(widget.accentColorId).id;
     _selectedLanguageCode = widget.locale?.languageCode ?? 'ar';
     _selectedThemeMode = widget.currentThemeMode;
@@ -86,10 +93,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
     widget.onThemeModeChanged(mode);
   }
 
-  void _changeAccent(String colorId) {
+  void _changeAccent(String colorId, BuildContext sourceContext) {
     if (_selectedAccentId == colorId) return;
+    _playAccentRipple(colorId, sourceContext);
     setState(() => _selectedAccentId = colorId);
     widget.onAccentColorChanged?.call(colorId);
+  }
+
+  void _playAccentRipple(String colorId, BuildContext sourceContext) {
+    if (MediaQuery.of(context).disableAnimations) return;
+
+    try {
+      final overlay = Overlay.of(context, rootOverlay: true);
+      final sourceObject = sourceContext.findRenderObject();
+      final overlayObject = overlay.context.findRenderObject();
+      if (sourceObject is! RenderBox ||
+          overlayObject is! RenderBox ||
+          !sourceObject.hasSize ||
+          !overlayObject.hasSize) {
+        return;
+      }
+
+      final sourceCenter = sourceObject.localToGlobal(
+        sourceObject.size.center(Offset.zero),
+      );
+      final center = overlayObject.globalToLocal(sourceCenter);
+      final accent = AppAccentColor.fromId(colorId);
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final color = isDark ? accent.primaryDark : accent.primary;
+
+      _removeAccentRippleEntry();
+      _accentRippleController.stop();
+      _accentRippleController.value = 0;
+
+      _accentRippleEntry = OverlayEntry(
+        builder: (_) => AnimatedBuilder(
+          animation: _accentRippleController,
+          builder: (context, _) => Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _AccentRipplePainter(
+                  center: center,
+                  color: color,
+                  progress: _accentRippleController.value,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      overlay.insert(_accentRippleEntry!);
+      _accentRippleController.forward(from: 0);
+    } catch (_) {
+      // The accent change remains available even if the ripple anchor cannot
+      // be measured (for example during a route or layout transition).
+    }
+  }
+
+  void _handleAccentRippleStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) _removeAccentRippleEntry();
+  }
+
+  void _removeAccentRippleEntry() {
+    final entry = _accentRippleEntry;
+    _accentRippleEntry = null;
+    if (entry == null) return;
+    entry.remove();
+    entry.dispose();
+  }
+
+  @override
+  void dispose() {
+    _accentRippleController.removeStatusListener(_handleAccentRippleStatus);
+    _removeAccentRippleEntry();
+    _accentRippleController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkForUpdate() async {
@@ -214,7 +292,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       color: color,
                                       selected: selectedAccentId == color.id,
                                       languageCode: languageCode,
-                                      onTap: widget.onAccentColorChanged == null ? null : () => _changeAccent(color.id),
+                                      onTap: widget.onAccentColorChanged == null
+                                          ? null
+                                          : (sourceContext) =>
+                                              _changeAccent(color.id, sourceContext),
                                     ),
                                 ],
                               ),
@@ -325,4 +406,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+}
+
+class _AccentRipplePainter extends CustomPainter {
+  const _AccentRipplePainter({
+    required this.center,
+    required this.color,
+    required this.progress,
+  });
+
+  final Offset center;
+  final Color color;
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final corners = <Offset>[
+      Offset.zero,
+      Offset(size.width, 0),
+      Offset(0, size.height),
+      Offset(size.width, size.height),
+    ];
+    final maxRadius = corners
+        .map((corner) => (corner - center).distance)
+        .fold<double>(0, (current, next) => current > next ? current : next);
+    final eased = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0).toDouble());
+    final radius = maxRadius * eased;
+    final opacity = .18 * (1 - eased);
+
+    final strokeWidth = 10 * (1 - eased) + 1.4;
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth * 2.8
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 7 * (1 - eased) + 1)
+        ..color = color.withValues(alpha: opacity * .42),
+    );
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..color = color.withValues(alpha: opacity * 1.7),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _AccentRipplePainter oldDelegate) =>
+      oldDelegate.center != center ||
+      oldDelegate.color != color || oldDelegate.progress != progress;
 }
