@@ -4,6 +4,23 @@ import 'package:leo_association/features/eino/eino_face.dart';
 import 'package:leo_association/features/eino/eino_orb.dart' show EinoMotionSession;
 
 void main() {
+  group('Eino motion session', () {
+    test('chat close produces a one-shot return animation cue', () {
+      EinoMotionSession.markChatOpened();
+      EinoMotionSession.markChatClosed();
+
+      expect(EinoMotionSession.chatOpen, isFalse);
+      expect(EinoMotionSession.consumeReturnAnimation(), isTrue);
+      expect(EinoMotionSession.consumeReturnAnimation(), isFalse);
+    });
+
+    test('chat wake signal advances the visible source generation', () {
+      final before = EinoMotionSession.wakeGeneration;
+      EinoMotionSession.markChatWaking();
+      expect(EinoMotionSession.wakeGeneration, before + 1);
+    });
+  });
+
   group('Eino glass orb', () {
     testWidgets('renders a compact floating orb with accessible semantics', (tester) async {
       await tester.pumpWidget(const MaterialApp(

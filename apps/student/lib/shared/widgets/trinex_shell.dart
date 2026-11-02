@@ -8,6 +8,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../features/eino/eino_face.dart';
+import '../../features/eino/eino_orb.dart' show EinoMotionSession;
 import 'eino_navigation_scope.dart';
 import 'eino_route_transition.dart';
 import '../../core/di/app_dependencies.dart';
@@ -40,6 +41,8 @@ class _TrinexShellState extends State<TrinexShell>
   bool _einoTransitionRunning = false;
   bool _einoRouteActive = false;
   bool _reduceMotion = false;
+  double _einoMotionBoost = 0;
+  Timer? _einoMotionTimer;
   Timer? _pulseIdleTimer;
 
   bool _einoVisible = false;
@@ -107,6 +110,32 @@ class _TrinexShellState extends State<TrinexShell>
     return 'home';
   }
 
+  void _playEinoMotion({required bool returning}) {
+    if (!mounted || _reduceMotion) return;
+    _einoMotionTimer?.cancel();
+    setState(() => _einoMotionBoost = returning ? 1.0 : 0.86);
+    _einoMotionTimer = Timer(
+      Duration(milliseconds: returning ? 1450 : 1150),
+      () {
+        if (!mounted) return;
+        setState(() => _einoMotionBoost = 0);
+      },
+    );
+  }
+
+  void _playPendingEinoReturn() {
+    // The chat page can finish its reverse transition after the shell's
+    // location has already changed. Only restore the launcher off the chat route.
+    if (!mounted || widget.location.startsWith('/eino')) return;
+    if (!EinoMotionSession.consumeReturnAnimation()) return;
+    _playEinoMotion(returning: true);
+  }
+
+  void _handleEinoMotionSessionChange() {
+    if (!mounted || widget.location.startsWith('/eino')) return;
+    _playPendingEinoReturn();
+  }
+
   Future<void> _openEinoWithTransition({
     BuildContext? sourceContext,
     String? source,
@@ -115,6 +144,18 @@ class _TrinexShellState extends State<TrinexShell>
     _einoTransitionRunning = true;
     _pulseIdleTimer?.cancel();
     _pulse.stop(canceled: false);
+
+    // Let Eino visibly wake on tap before the chat session suspends its idle loop.
+    if (!_reduceMotion) {
+      _playEinoMotion(returning: false);
+      EinoMotionSession.markChatWaking();
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+    }
+    if (!mounted) {
+      _einoTransitionRunning = false;
+      return;
+    }
+    EinoMotionSession.markChatOpened();
 
     final wasVisible = _einoVisible;
     var routeOpened = false;
@@ -167,6 +208,7 @@ class _TrinexShellState extends State<TrinexShell>
         );
       }
     } catch (error, stackTrace) {
+      EinoMotionSession.markChatClosed(cueReturn: false);
       debugPrint('Eino route transition failed: $error\n$stackTrace');
     } finally {
       if (mounted) {
@@ -199,6 +241,7 @@ class _TrinexShellState extends State<TrinexShell>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    EinoMotionSession.changes.addListener(_handleEinoMotionSessionChange);
     _startShakeDetection();
     _notificationSubscription = PushNotificationService.instance.notificationArrived.listen((_) => _handleNotificationArrived());
     _einoVisible = !_readingMode && !_hideFloatingEino;
@@ -331,6 +374,9 @@ class _TrinexShellState extends State<TrinexShell>
   @override
   void didUpdateWidget(covariant TrinexShell oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.location.startsWith('/eino') && !widget.location.startsWith('/eino')) {
+      _playPendingEinoReturn();
+    }
     if (oldWidget.location != widget.location && widget.location == '/home' && _guidedTourStep == null) {
       // Registration may finish while the shell already exists; always retry
       // after the home route has completed its first layout.
@@ -431,6 +477,8 @@ class _TrinexShellState extends State<TrinexShell>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    EinoMotionSession.changes.removeListener(_handleEinoMotionSessionChange);
+    _einoMotionTimer?.cancel();
     _stopShakeDetection();
     _notificationSubscription?.cancel();
     FocusManager.instance.removeListener(_handleFocusChange);
@@ -501,6 +549,7 @@ class _TrinexShellState extends State<TrinexShell>
                               height: 76,
                               child: EinoFloatingButton(
                                 animation: _pulse,
+                                motionBoost: _einoMotionBoost,
                                 onTap: _openEinoWithTransition,
                               ),
                             ),
@@ -796,10 +845,16 @@ class _Avatar extends StatelessWidget {
 }
 
 class EinoFloatingButton extends StatelessWidget {
-  const EinoFloatingButton({required this.animation, required this.onTap, super.key});
+  const EinoFloatingButton({
+    required this.animation,
+    required this.onTap,
+    this.motionBoost = 0,
+    super.key,
+  });
 
   final Animation<double> animation;
   final VoidCallback onTap;
+  final double motionBoost;
 
   @override
   Widget build(BuildContext context) {
@@ -831,9 +886,10 @@ class EinoFloatingButton extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const EinoFace(
+                child: EinoFace(
                   size: 76,
-                  mood: EinoMood.calm,
+                  mood: motionBoost > 0.05 ? EinoMood.happy : EinoMood.calm,
+                  motionBoost: motionBoost,
                   suspendWhileChatOpen: true,
                 ),
               ),

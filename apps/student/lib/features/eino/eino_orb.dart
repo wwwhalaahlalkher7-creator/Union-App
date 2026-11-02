@@ -10,19 +10,41 @@ class EinoMotionSession {
 
   static final ValueNotifier<int> changes = ValueNotifier<int>(0);
   static bool _chatOpen = false;
+  static bool _returnAnimationPending = false;
+  static int _wakeGeneration = 0;
 
   static bool get chatOpen => _chatOpen;
+  static int get wakeGeneration => _wakeGeneration;
+
+  static void markChatWaking() {
+    if (_chatOpen) return;
+    _wakeGeneration++;
+    changes.value++;
+  }
 
   static void markChatOpened() {
     if (_chatOpen) return;
     _chatOpen = true;
+    // A new chat session supersedes any stale return cue from an earlier route.
+    _returnAnimationPending = false;
     changes.value++;
   }
 
-  static void markChatClosed() {
-    if (!_chatOpen) return;
+  static void markChatClosed({bool cueReturn = true}) {
+    if (!_chatOpen) {
+      if (!cueReturn) _returnAnimationPending = false;
+      return;
+    }
     _chatOpen = false;
+    _returnAnimationPending = cueReturn;
     changes.value++;
+  }
+
+  /// Consumes the return cue exactly once, so rebuilds cannot replay it.
+  static bool consumeReturnAnimation() {
+    final pending = _returnAnimationPending;
+    _returnAnimationPending = false;
+    return pending;
   }
 }
 

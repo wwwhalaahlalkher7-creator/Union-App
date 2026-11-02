@@ -69,14 +69,18 @@ class _EinoFaceState extends State<EinoFace> with TickerProviderStateMixin, Widg
   bool _lowActivity = false;
   bool _reduceMotion = false;
   bool _pausedForChat = false;
+  double _wakeMotionBoost = 0;
+  int _wakeGeneration = 0;
   AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
   Timer? _idleTimer;
   Timer? _idlePulseTimer;
+  Timer? _wakeBoostTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _wakeGeneration = EinoMotionSession.wakeGeneration;
     if (widget.suspendWhileChatOpen) {
       EinoMotionSession.changes.addListener(_handleChatSessionChange);
       _pausedForChat = EinoMotionSession.chatOpen;
@@ -119,10 +123,32 @@ class _EinoFaceState extends State<EinoFace> with TickerProviderStateMixin, Widg
 
   void _handleChatSessionChange() {
     if (!mounted || !widget.suspendWhileChatOpen) return;
+
+    final wakeGeneration = EinoMotionSession.wakeGeneration;
+    if (wakeGeneration != _wakeGeneration) {
+      _wakeGeneration = wakeGeneration;
+      if (!_pausedForChat && !_reduceMotion &&
+          _lifecycleState == AppLifecycleState.resumed) {
+        _wakeBoostTimer?.cancel();
+        setState(() => _wakeMotionBoost = .95);
+        _controller.duration = const Duration(milliseconds: 900);
+        if (!_controller.isAnimating) _controller.repeat();
+        _wakeBoostTimer = Timer(const Duration(milliseconds: 1050), () {
+          if (!mounted) return;
+          setState(() => _wakeMotionBoost = 0);
+          _scheduleIdle();
+        });
+      }
+    }
+
     if (EinoMotionSession.chatOpen) {
       _pausedForChat = true;
       _idleTimer?.cancel();
       _idlePulseTimer?.cancel();
+      _wakeBoostTimer?.cancel();
+      if (_wakeMotionBoost > 0) {
+        setState(() => _wakeMotionBoost = 0);
+      }
       _controller.stop(canceled: false);
       _sleepController.stop(canceled: false);
       return;
@@ -243,6 +269,7 @@ class _EinoFaceState extends State<EinoFace> with TickerProviderStateMixin, Widg
   void dispose() {
     _idleTimer?.cancel();
     _idlePulseTimer?.cancel();
+    _wakeBoostTimer?.cancel();
     if (widget.suspendWhileChatOpen) {
       EinoMotionSession.changes.removeListener(_handleChatSessionChange);
     }
@@ -260,7 +287,8 @@ class _EinoFaceState extends State<EinoFace> with TickerProviderStateMixin, Widg
         widget.mood == EinoMood.talking ||
         widget.mood == EinoMood.listening ||
         widget.mood == EinoMood.reading ||
-        widget.motionBoost > .05;
+        widget.motionBoost > .05 ||
+        _wakeMotionBoost > .05;
     final label = switch (widget.mood) {
       EinoMood.concerned => 'Eino connection issue',
       EinoMood.thinking || EinoMood.focused => 'Eino thinking',
@@ -292,7 +320,9 @@ class _EinoFaceState extends State<EinoFace> with TickerProviderStateMixin, Widg
                   showAura: widget.showAura,
                   active: isActive,
                   sleepLevel: _sleepController.value,
-                  motionBoost: widget.motionBoost.clamp(0.0, 1.0).toDouble(),
+                  motionBoost: math.max(widget.motionBoost, _wakeMotionBoost)
+                      .clamp(0.0, 1.0)
+                      .toDouble(),
                 ),
               ),
             );
